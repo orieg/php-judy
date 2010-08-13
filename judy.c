@@ -12,11 +12,9 @@
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
-  | Author:                                                              |
+  | Author: Nicolas Brousse <nicolas@brousse.info>                       |
   +----------------------------------------------------------------------+
 */
-
-/* $Id: header 297205 2010-03-30 21:09:07Z johannes $ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -30,15 +28,13 @@
 #include "ext/standard/info.h"
 #include "php_judy.h"
 
-//ZEND_DECLARE_MODULE_GLOBALS(judy)
-
 /* {{{ judy_functions[]
  *
  * Every user visible function must have an entry in judy_functions[].
  */
 const zend_function_entry judy_functions[] = {
 	PHP_FE(judy_version, NULL)
-	{NULL, NULL, NULL}	/* Must be the last line in judy_functions[] */
+	{NULL, NULL, NULL}
 };
 /* }}} */
 
@@ -68,7 +64,7 @@ const zend_function_entry judy_class_methods[] = {
     PHP_ME(judy, get, NULL, ZEND_ACC_PUBLIC)
     PHP_ME(judy, count, NULL, ZEND_ACC_PUBLIC)
     PHP_ME(judy, memory_usage, NULL, ZEND_ACC_PUBLIC)
-	{NULL, NULL, NULL}	/* Must be the last line in judy_functions[] */
+	{NULL, NULL, NULL}
 };
 /* }}} */
 
@@ -95,12 +91,6 @@ zend_module_entry judy_module_entry = {
 #ifdef COMPILE_DL_JUDY
 ZEND_GET_MODULE(judy)
 #endif
-
-/* {{{ php_judy_init_globals
-static void php_judy_init_globals(zend_judy_globals *judy_globals)
-{
-}
-}}} */
 
 /* declare judy class handlers */
 static zend_object_handlers judy_handlers;
@@ -152,12 +142,10 @@ static zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC)
 PHP_MINIT_FUNCTION(judy)
 {
 
-	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDY1", JUDY1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYL", JUDYL, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYSL", JUDYSL, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYHS", JUDYHS, CONST_PERSISTENT | CONST_CS);
-
-    //ZEND_INIT_MODULE_GLOBALS(judy, php_judy_init_globals, NULL);
+	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDY1", TYPE_JUDY1, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYL", TYPE_JUDYL, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYSL", TYPE_JUDYSL, CONST_PERSISTENT | CONST_CS);
+	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYHS", TYPE_JUDYHS, CONST_PERSISTENT | CONST_CS);
 
 	//REGISTER_INI_ENTRIES();
 
@@ -187,7 +175,6 @@ PHP_RINIT_FUNCTION(judy)
  */
 PHP_MSHUTDOWN_FUNCTION(judy)
 {
-	//UNREGISTER_INI_ENTRIES();
 	return SUCCESS;
 }
 /* }}} */
@@ -199,8 +186,6 @@ PHP_MINFO_FUNCTION(judy)
 	php_info_print_table_start();
 	php_info_print_table_header(2, "judy support", "enabled");
 	php_info_print_table_end();
-
-	//DISPLAY_INI_ENTRIES();
 }
 /* }}} */
 
@@ -241,7 +226,7 @@ PHP_METHOD(judy, set)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    if (intern->type == JUDY1) {
+    if (intern->type == TYPE_JUDY1) {
         if (value) {
             J1S(Rc_int, intern->array, index);
         } else {
@@ -268,7 +253,7 @@ PHP_METHOD(judy, get)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    if (intern->type == JUDY1) {
+    if (intern->type == TYPE_JUDY1) {
         J1T(Rc_int, intern->array, index);
         RETURN_BOOL(Rc_int);
     } else {
@@ -292,7 +277,7 @@ PHP_METHOD(judy, count)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    if (intern->type == JUDY1) {
+    if (intern->type == TYPE_JUDY1) {
         J1C(Rc_word, intern->array, idx1, idx2);
         RETURN_LONG(Rc_word);
     } else {
@@ -310,7 +295,7 @@ PHP_METHOD(judy, memory_usage)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    if (intern->type == JUDY1) {
+    if (intern->type == TYPE_JUDY1) {
         J1MU(Rc_word, intern->array);
         RETURN_LONG(Rc_word);
     } else {

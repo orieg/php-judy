@@ -12,11 +12,9 @@
   | obtain it through the world-wide-web, please send a note to          |
   | license@php.net so we can mail you a copy immediately.               |
   +----------------------------------------------------------------------+
-  | Author:                                                              |
+  | Author: Nicolas Brousse <nicolas@brousse.info>                       |
   +----------------------------------------------------------------------+
 */
-
-/* $Id: header 297205 2010-03-30 21:09:07Z johannes $ */
 
 #ifndef PHP_JUDY_H
 #define PHP_JUDY_H
@@ -57,10 +55,10 @@ PHP_METHOD(judy, count);
 PHP_METHOD(judy, memory_usage);
 
 typedef enum judytype {
-    JUDY1=1,
-    JUDYL,
-    JUDYSL,
-    JUDYHS
+    TYPE_JUDY1=1,
+    TYPE_JUDYL,
+    TYPE_JUDYSL,
+    TYPE_JUDYHS
 } judytype_t;
 
 #define JTYPE(jtype, type) { \
