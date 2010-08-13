@@ -1,0 +1,18 @@
+// $Id$
+// vim:ft=javascript
+
+ARG_WITH("judy", "for judy support", "no");
+
+if (PHP_JUDY != "no") {
+    if (CHECK_LIB("libJudy_a.lib;libJudy.lib", "judy", PHP_JUDY) &&
+            CHECK_HEADER_ADD_INCLUDE("Judy.h", "CFLAGS_JUDY")) {
+        EXTENSION("judy", "judy.c");
+        AC_DEFINE('HAVE_JUDY', 1, 'Have Judy library');
+        if (PHP_JUDY_SHARED) {
+            ADD_FLAG("CFLAGS_JUDY", "/D PHP_KUDY_EXPORTS ");
+        }
+    } else {
+		WARNING("judy not enabled; libraries and headers not found");
+	}
+}
+

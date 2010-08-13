@@ -1,0 +1,59 @@
+        PHP Judy - extension creating and accessing dynamic arrays
+     ================================================================
+
+Content
+---------
+ 1. Introduction
+ 2. Directory Contents
+ 3. How to install
+ 4. Todo
+
+
+1. INTRODUCTION
+-----------------
+
+php-judy is an exentsion by Nicolas Brousse for the Judy C library.
+
+http://github.com/orieg/php-judy
+
+Judy is a C library that implements a dynamic array.  Empty Judy arrays are
+declared with null pointers.  A Judy array consumes memory only when
+populated yet can grow to take advantage of all available memory.  Judy's key
+benefits are:  scalability, performance, memory efficiency, and ease of use.
+Judy arrays are designed to grow without tuning into the peta-element range,
+scaling near O(log-base-256) -- 1 more RAM access at 256 X population.
+
+http://judy.sourceforge.net/
+
+
+2. PHP JUDY TOP DIRECTORY CONTENTS:
+------------------------------------
+
+README       This file.
+LICENSE      The PHP License used by this project.
+EXPERIMENTAL Note about the status of this package.
+        
+tests/       Unit tests.
+*.c, *.h     Header and source files used to build the package.
+
+
+3. HOW TO INSTALL
+------------------
+
+This extension has only been tested with php 5.3.3 on Ubuntu Karmic 32bit.
+
+For a quick description see the INSTALL file.
+
+  phpize
+  ./configure
+  make
+  make install
+
+
+4. TODO
+--------
+
+ * Finish Judy1 full support
+ * Add JudyL, JudySL, JudyHS support
+ * Add Associative Array based on JudyHS
+ * Complete test suite
