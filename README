@@ -45,7 +45,7 @@ This extension has only been tested with php 5.3.3 on Ubuntu Karmic 32bit.
 For a quick description see the INSTALL file.
 
   phpize
-  ./configure
+  ./configure --with-judy[=DIR]
   make
   make install
 
