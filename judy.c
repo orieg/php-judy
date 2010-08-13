@@ -21,9 +21,6 @@
 #endif
 
 #include "php.h"
-#include "php_streams.h"
-#include "php_main.h"
-#include "php_globals.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "php_judy.h"
@@ -41,7 +38,7 @@ const zend_function_entry judy_functions[] = {
 /* {{{ judy class methods parameters
  */
 ZEND_BEGIN_ARG_INFO(arginfo_judy___construct, 0)
-    ZEND_ARG_INFO(0, judytype)
+    ZEND_ARG_INFO(0, type)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO(arginfo_judy_set, 0)
@@ -195,15 +192,15 @@ PHP_METHOD(judy, __construct)
 {
     judy_object *intern;
     long        type;
-    judytype_t  jtype;
+    judy_type  jtype;
     zend_error_handling error_handling;
 
     zend_replace_error_handling(EH_THROW, NULL, &error_handling TSRMLS_CC);
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &type) == SUCCESS) {
         JTYPE(jtype, type);
-        if (jtype == JUDY1) {
+        if (jtype == TYPE_JUDY1) {
             intern = (judy_object*) zend_object_store_get_object(getThis() TSRMLS_CC);
-            intern->type = JUDY1;
+            intern->type = TYPE_JUDY1;
         }
         intern->array = (Pvoid_t) NULL;
 	}

@@ -54,15 +54,17 @@ PHP_METHOD(judy, set);
 PHP_METHOD(judy, count);
 PHP_METHOD(judy, memory_usage);
 
-typedef enum judytype {
+typedef enum _judy_type {
     TYPE_JUDY1=1,
     TYPE_JUDYL,
     TYPE_JUDYSL,
     TYPE_JUDYHS
-} judytype_t;
+} judy_type;
 
 #define JTYPE(jtype, type) { \
-    if (type != JUDY1 && type != JUDYL && type != JUDYSL && type != JUDYHS) { \
+    if (type != TYPE_JUDY1 && type != TYPE_JUDYL \
+                           && type != TYPE_JUDYSL \
+                           && type != TYPE_JUDYHS) { \
         php_error_docref(NULL TSRMLS_CC, E_WARNING, "Type must be JUDY_TYPE_JUDY1 or JUDY_TYPE_JUDYL or JUDY_TYPE_JUDYSL or JUDY_TYPE_JUDYHS"); \
     } \
     jtype = type; \
