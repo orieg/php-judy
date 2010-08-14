@@ -56,7 +56,6 @@ You can check everything is ok by running :
 4. TODO
 --------
 
- * Finish Judy1 full support
  * Add JudyL, JudySL, JudyHS support
  * Add Associative Array based on JudyHS
  * Complete test suite
