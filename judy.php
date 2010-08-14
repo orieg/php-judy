@@ -20,10 +20,13 @@ echo "Constants available in $module extension:$br\n";
 foreach ($constants[$module] as $const => $v) {
     echo "\t$const => $v$br\n";
 }
-echo "$br\n";
-$class_methods = get_class_methods('Judy');
-echo "Judy class methods:$br\n";
-foreach ($class_methods as $method_name) {
-    echo "\tJudy::$method_name$br\n";
+
+$class=array('Judy', 'Judy1');
+foreach ($class as $c) {
+    echo "$br\n";
+    $class_methods = get_class_methods($c);
+    echo "$c class methods:$br\n";
+    foreach ($class_methods as $method_name) {
+        echo "\t$c::$method_name()$br\n";
+    }
 }
-?>

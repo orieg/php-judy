@@ -23,7 +23,14 @@
 #include "php.h"
 #include "php_ini.h"
 #include "ext/standard/info.h"
+
+#ifndef PHP_JUDY_H
 #include "php_judy.h"
+#endif
+
+#ifndef PHP_JUDY1_H
+#include "lib/judy1.h"
+#endif
 
 /* {{{ judy_functions[]
  *
@@ -37,17 +44,8 @@ const zend_function_entry judy_functions[] = {
 
 /* {{{ judy class methods parameters
  */
-ZEND_BEGIN_ARG_INFO(arginfo_judy___construct, 0)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy___construct, 0, 0, 1)
     ZEND_ARG_INFO(0, type)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO(arginfo_judy_set, 0)
-    ZEND_ARG_INFO(0, index)
-    ZEND_ARG_INFO(0, value)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO(arginfo_judy_get, 0)
-    ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 /* }}}} */
 
@@ -57,10 +55,6 @@ ZEND_END_ARG_INFO()
  */
 const zend_function_entry judy_class_methods[] = {
     PHP_ME(judy, __construct, arginfo_judy___construct, ZEND_ACC_CTOR | ZEND_ACC_PUBLIC)
-    PHP_ME(judy, set, NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, get, NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, count, NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, memory_usage, NULL, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
 /* }}} */
@@ -91,26 +85,24 @@ ZEND_GET_MODULE(judy)
 
 /* {{{ judy_free_storage
  close all resources and the memory allocated for the object */
-static void judy_object_free_storage(void *object TSRMLS_DC)
+void judy_object_free_storage(void *object TSRMLS_DC)
 {
     judy_object *intern = (judy_object *) object;
 
-    if (intern->array) {
+    if (intern->array && intern->type == TYPE_JUDY1) {
         int Rc_word;
         J1FA(Rc_word, intern->array);
     }
 
     zend_object_std_dtor(&intern->std TSRMLS_CC);
-    
-    //zend_object_std_dtor(&(intern->std) TSRMLS_CC);
 
     efree(object);
 }
 /* }}} */
 
-/* {{{ judy_object_new
+/* {{{ judy_object_new_ex
  */
-static inline zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSRMLS_DC)
+zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSRMLS_DC)
 {
     zend_object_value retval;
     judy_object *intern;
@@ -135,10 +127,12 @@ static inline zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_ob
 }
 /* }}} */
 
-static zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC) {
+/* {{{ judy_object_new
+ */
+zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC) {
     return judy_object_new_ex(ce, NULL TSRMLS_CC);
 }
-
+/* }}} */
 
 zend_class_entry *judy_ce;
 
@@ -147,43 +141,27 @@ PHPAPI zend_class_entry *php_judy_ce(void)
     return judy_ce;
 }
 
-static zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
+/* {{{ judy_object_clone
+ */
+zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
 {
-	judy_object *new_obj = NULL;
-	judy_object *old_obj = (judy_object *) zend_object_store_get_object(this_ptr TSRMLS_CC);
-	zend_object_value new_ov = judy_object_new_ex(old_obj->std.ce, &new_obj TSRMLS_CC);
-	
-	zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
-	
-    Pvoid_t   newJArray = 0;            // new Judy1 array to ppopulate
-    Word_t    kindex;                   // Key/index
-    int       Ins_rv = 0;               // Insert return value
-
-    for (kindex = 0L, Ins_rv = Judy1First(&old_obj->array, &kindex, PJE0);
-         Ins_rv == 1; Ins_rv = Judy1Next(&old_obj->array, &kindex, PJE0))
-    {
-        Ins_rv = Judy1Set(&newJArray, kindex, PJE0);
-    }
-
-    new_obj->array = newJArray;
-    new_obj->type = TYPE_JUDY1;
-
-	return new_ov;
+    // TODO clone Judy
 }
+/* }}} */
 
 /* {{{ PHP_MINIT_FUNCTION
  */
 PHP_MINIT_FUNCTION(judy)
 {
+    zend_class_entry ce;
 
 	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDY1", TYPE_JUDY1, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYL", TYPE_JUDYL, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYSL", TYPE_JUDYSL, CONST_PERSISTENT | CONST_CS);
 	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYHS", TYPE_JUDYHS, CONST_PERSISTENT | CONST_CS);
 
-	//REGISTER_INI_ENTRIES();
+    // Judy
 
-    zend_class_entry ce;
     INIT_CLASS_ENTRY(ce, "judy", judy_class_methods);
     judy_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
     judy_ce->create_object = judy_object_new;
@@ -192,6 +170,18 @@ PHP_MINIT_FUNCTION(judy)
     judy_handlers.clone_obj = judy_object_clone;
     //zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator);
     judy_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;
+    //judy_ce->get_iterator = judy_get_iterator;
+
+    // Judy1
+
+    INIT_CLASS_ENTRY(ce, "judy1", judy1_class_methods);
+    judy1_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
+    judy1_ce->create_object = judy_object_new;
+    memcpy(&judy1_handlers, zend_get_std_object_handlers(),
+        sizeof(zend_object_handlers));
+    judy1_handlers.clone_obj = judy1_object_clone;
+    //zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator);
+    judy1_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;
     //judy_ce->get_iterator = judy_get_iterator;
 
     REGISTER_JUDY_CLASS_CONST_LONG("TYPE_JUDY1", TYPE_JUDY1);
@@ -245,99 +235,6 @@ PHP_METHOD(judy, __construct)
         intern->array = (Pvoid_t) NULL;
 	}
     zend_restore_error_handling(&error_handling TSRMLS_CC);
-}
-/* }}} */
-
-/* {{{ proto boolean judy::set(long key[, bool value])
- Set the current key */
-PHP_METHOD(judy, set)
-{
-    long        index;
-    zend_bool   value = 1;
-    int         Rc_int;
-
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l|b", &index, &value) == FAILURE) {
-        RETURN_FALSE;
-    }
-
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
-
-    if (intern->type == TYPE_JUDY1) {
-        if (value) {
-            J1S(Rc_int, intern->array, index);
-        } else {
-            J1U(Rc_int, intern->array, index);
-        }
-        RETURN_BOOL(Rc_int);
-    } else {
-        RETURN_NULL();
-    }
-}
-/* }}} */
-
-/* {{{ proto boolean judy::get(long key)
- Get the value of the current key */
-PHP_METHOD(judy, get)
-{
-    long    index;
-    int     Rc_int;
-
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
-        RETURN_FALSE;
-    }
-
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
-
-    if (intern->type == TYPE_JUDY1) {
-        J1T(Rc_int, intern->array, index);
-        RETURN_BOOL(Rc_int);
-    } else {
-        RETURN_NULL();
-    }
-}
-/* }}} */
-
-/* {{{ proto boolean judy::count([long idx1[, long idx2]])
- Count the number of indexespresent in the array between idx1 and idx2 (inclusive) */
-PHP_METHOD(judy, count)
-{
-    long            idx1 = 0;
-    long            idx2 = -1;
-    unsigned long   Rc_word;
-
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|ll", &idx1, &idx2) == FAILURE) {
-        RETURN_FALSE;
-    }
-
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
-
-    if (intern->type == TYPE_JUDY1) {
-        J1C(Rc_word, intern->array, idx1, idx2);
-        RETURN_LONG(Rc_word);
-    } else {
-        RETURN_NULL();
-    }
-}
-/* }}} */
-
-/* {{{ proto boolean judy::get(long key)
- Get the value of the current key */
-PHP_METHOD(judy, memory_usage)
-{
-    unsigned long     Rc_word;
-
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
-
-    if (intern->type == TYPE_JUDY1) {
-        J1MU(Rc_word, intern->array);
-        RETURN_LONG(Rc_word);
-    } else {
-        RETURN_NULL();
-    }
 }
 /* }}} */
 

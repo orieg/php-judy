@@ -32,17 +32,17 @@ foreach($count as $v) {
 
     unset($array);
 
-    echo "\n-- JUDY \n";
+    echo "\n-- Judy1 \n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
 
     $s=microtime(true);
-    $judy = new Judy(Judy::TYPE_JUDY1);
+    $judy = new Judy1();
     for ($i=0; $i<$v; $i++)
         $judy->set($i);
-    var_dump($judy->get(100));
-    $judy->set(102, false);
-    var_dump($judy->get(102));
+    var_dump($judy->test(100));
+    $judy->unset(102);
+    var_dump($judy->test(102));
     echo "Count: ".$judy->count()."\n";
     echo "MU: ".convert($judy->memory_usage())."\n";
     $e=microtime(true);

@@ -49,10 +49,6 @@ PHP_FUNCTION(judy_version);
 
 /* PHP Judy Class */
 PHP_METHOD(judy, __construct);
-PHP_METHOD(judy, get);
-PHP_METHOD(judy, set);
-PHP_METHOD(judy, count);
-PHP_METHOD(judy, memory_usage);
 
 typedef enum _judy_type {
     TYPE_JUDY1=1,
@@ -76,15 +72,15 @@ typedef struct _judy_object {
     Pvoid_t         array;
 } judy_object;
 
-static void judy_object_free_storage(void * TSRMLS_DC);
+void judy_object_free_storage(void * TSRMLS_DC);
 
 /* declare judy class entry */
 zend_class_entry *judy_ce;
 
-static zend_object_handlers judy_handlers;
-static zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC);
-static inline zend_object_value judy_object_new_ex(zend_class_entry *ce TSRMLS_DC, judy_object **ptr);
-static zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC);
+zend_object_handlers judy_handlers;
+zend_object_value judy_object_new(zend_class_entry *ce);
+zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSRMLS_DC);
+zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC);
 
 /* {{{ REGISTER_JUDY_CLASS_CONST_LONG */
 #define REGISTER_JUDY_CLASS_CONST_LONG(const_name, value) \

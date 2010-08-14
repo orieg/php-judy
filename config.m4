@@ -2,8 +2,10 @@ dnl
 dnl $Id$
 dnl
 
-PHP_ARG_WITH(judy, for judy support,
-[  --with-judy[=DIR]       Include judy support])
+judy_class_sources="lib/judy1.c"
+
+PHP_ARG_WITH(judy, for Judy support,
+[  --with-judy[=DIR]       Include Judy support])
 
 if test "$PHP_JUDY" != "no"; then
 
@@ -28,7 +30,6 @@ if test "$PHP_JUDY" != "no"; then
     AC_MSG_ERROR([Please install the judy libraries])
   fi
 
-  dnl # --with-judy -> add include path
   PHP_ADD_INCLUDE($JUDY_DIR/include)
 
   dnl # --with-judy -> check for lib and symbol presence
@@ -45,7 +46,9 @@ if test "$PHP_JUDY" != "no"; then
     -L$JUDY_DIR/$PHP_LIBDIR -lJudy
   ])
 
+  PHP_INSTALL_HEADERS([ext/judy], [php_judy.h lib/judy1.h])
+  PHP_NEW_EXTENSION(judy, php_judy.c $judy_class_sources, $ext_shared)
+  PHP_ADD_BUILD_DIR($ext_builddir/lib, 1)
   PHP_SUBST(JUDY_SHARED_LIBADD)
 
-  PHP_NEW_EXTENSION(judy, judy.c, $ext_shared)
 fi
