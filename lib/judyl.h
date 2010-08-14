@@ -16,8 +16,8 @@
   +----------------------------------------------------------------------+
 */
 
-#ifndef PHP_JUDY1_H
-#define PHP_JUDY1_H
+#ifndef PHP_JUDYL_H
+#define PHP_JUDYL_H
 
 #include <Judy.h>
 
@@ -29,92 +29,96 @@
 #include "TSRM.h"
 #endif
 
-/* PHP Judy1 Class */
-PHP_METHOD(judy1, __construct);
-PHP_METHOD(judy1, free);
-PHP_METHOD(judy1, memory_usage);
-PHP_METHOD(judy1, set);
-PHP_METHOD(judy1, unset);
-PHP_METHOD(judy1, test);
-PHP_METHOD(judy1, count);
-PHP_METHOD(judy1, by_count);
-PHP_METHOD(judy1, first);
-PHP_METHOD(judy1, next);
-PHP_METHOD(judy1, last);
-PHP_METHOD(judy1, prev);
-PHP_METHOD(judy1, first_empty);
-PHP_METHOD(judy1, next_empty);
-PHP_METHOD(judy1, last_empty);
-PHP_METHOD(judy1, prev_empty);
+/* PHP JudyL Class */
+PHP_METHOD(judyl, __construct);
+PHP_METHOD(judyl, free);
+PHP_METHOD(judyl, memory_usage);
+PHP_METHOD(judyl, insert);
+PHP_METHOD(judyl, remove);
+PHP_METHOD(judyl, get);
+PHP_METHOD(judyl, count);
+PHP_METHOD(judyl, by_count);
+PHP_METHOD(judyl, first);
+PHP_METHOD(judyl, next);
+PHP_METHOD(judyl, last);
+PHP_METHOD(judyl, prev);
+PHP_METHOD(judyl, first_empty);
+PHP_METHOD(judyl, next_empty);
+PHP_METHOD(judyl, last_empty);
+PHP_METHOD(judyl, prev_empty);
 
-void judy1_object_free_storage(void * TSRMLS_DC);
+PHP_MALIAS(judyl, ins, insert);
+PHP_MALIAS(judyl, del, remove);
+
+void judyl_object_free_storage(void * TSRMLS_DC);
 
 /* {{{ judy class methods parameters
  */
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_set, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_insert, 0, 0, 2)
+    ZEND_ARG_INFO(0, index)
+    ZEND_ARG_INFO(0, value)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_remove, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_unset, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_get, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_test, 0, 0, 1)
-    ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_count, 0, 0, 0)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy._count, 0, 0, 0)
     ZEND_ARG_INFO(0, index_start)
     ZEND_ARG_INFO(0, index_end)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_by_count, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_by_count, 0, 0, 1)
     ZEND_ARG_INFO(0, nth_index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_first, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_first, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_next, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_next, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_last, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_last, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_prev, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_prev, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_first_empty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_first_empty, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_next_empty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_next_empty, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_last_empty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_last_empty, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy1_prev_empty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_prev_empty, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 /* }}}} */
 
-extern const zend_function_entry judy1_class_methods[];
+extern const zend_function_entry judyl_class_methods[];
 
 /* declare judy class entry */
-zend_class_entry *judy1_ce;
+zend_class_entry *judyl_ce;
 
-zend_object_handlers judy1_handlers;
-zend_object_value judy1_object_clone(zval *this_ptr TSRMLS_DC);
+zend_object_handlers judyl_handlers;
+zend_object_value judyl_object_clone(zval *this_ptr TSRMLS_DC);
 
-/* Grabbing CE's so that other exts can use the Judy1 object too */
-PHPAPI zend_class_entry *php_judy1_ce(void);
+/* Grabbing CE's so that other exts can use the JudyL object too */
+PHPAPI zend_class_entry *php_judyl_ce(void);
 
 #endif	/* PHP_JUDY_H */
 

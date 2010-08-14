@@ -2,8 +2,6 @@ dnl
 dnl $Id$
 dnl
 
-judy_class_sources="lib/judy1.c"
-
 PHP_ARG_WITH(judy, for Judy support,
 [  --with-judy[=DIR]       Include Judy support])
 
@@ -46,7 +44,9 @@ if test "$PHP_JUDY" != "no"; then
     -L$JUDY_DIR/$PHP_LIBDIR -lJudy
   ])
 
-  PHP_INSTALL_HEADERS([ext/judy], [php_judy.h lib/judy1.h])
+  judy_class_sources="lib/judy1.c lib/judyl.c"
+
+  PHP_INSTALL_HEADERS([ext/judy], [php_judy.h lib/judy1.h lib/judyl.h])
   PHP_NEW_EXTENSION(judy, php_judy.c $judy_class_sources, $ext_shared)
   PHP_ADD_BUILD_DIR($ext_builddir/lib, 1)
   PHP_SUBST(JUDY_SHARED_LIBADD)

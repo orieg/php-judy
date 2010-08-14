@@ -32,6 +32,10 @@
 #include "lib/judy1.h"
 #endif
 
+#ifndef PHP_JUDYL_H
+#include "lib/judyl.h"
+#endif
+
 /* {{{ judy_functions[]
  *
  * Every user visible function must have an entry in judy_functions[].
@@ -63,19 +67,19 @@ const zend_function_entry judy_class_methods[] = {
  */
 zend_module_entry judy_module_entry = {
 #if ZEND_MODULE_API_NO >= 20010901
-	STANDARD_MODULE_HEADER,
+    STANDARD_MODULE_HEADER,
 #endif
-	PHP_JUDY_EXTNAME,
-	judy_functions,
-	PHP_MINIT(judy),
-	PHP_MSHUTDOWN(judy),
+    PHP_JUDY_EXTNAME,
+    judy_functions,
+    PHP_MINIT(judy),
+    PHP_MSHUTDOWN(judy),
     PHP_RINIT(judy),
     NULL,
-	PHP_MINFO(judy),
+    PHP_MINFO(judy),
 #if ZEND_MODULE_API_NO >= 20010901
-	PHP_JUDY_VERSION,
+    PHP_JUDY_VERSION,
 #endif
-	STANDARD_MODULE_PROPERTIES
+    STANDARD_MODULE_PROPERTIES
 };
 /* }}} */
 
@@ -85,12 +89,15 @@ ZEND_GET_MODULE(judy)
 
 /* {{{ judy_free_storage
  close all resources and the memory allocated for the object */
-void judy_object_free_storage(void *object TSRMLS_DC)
+static void judy_object_free_storage(void *object TSRMLS_DC)
 {
     judy_object *intern = (judy_object *) object;
 
     if (intern->array && intern->type == TYPE_JUDY1) {
         int Rc_word;
+        J1FA(Rc_word, intern->array);
+    } else if (intern->array && intern->type == TYPE_JUDYL) {
+        Word_t Rc_word;
         J1FA(Rc_word, intern->array);
     }
 
@@ -145,7 +152,7 @@ PHPAPI zend_class_entry *php_judy_ce(void)
  */
 zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
 {
-    // TODO clone Judy
+    /* TODO clone Judy */
 }
 /* }}} */
 
@@ -155,12 +162,12 @@ PHP_MINIT_FUNCTION(judy)
 {
     zend_class_entry ce;
 
-	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDY1", TYPE_JUDY1, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYL", TYPE_JUDYL, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYSL", TYPE_JUDYSL, CONST_PERSISTENT | CONST_CS);
-	REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYHS", TYPE_JUDYHS, CONST_PERSISTENT | CONST_CS);
+    REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDY1", TYPE_JUDY1, CONST_PERSISTENT | CONST_CS);
+    REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYL", TYPE_JUDYL, CONST_PERSISTENT | CONST_CS);
+    REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYSL", TYPE_JUDYSL, CONST_PERSISTENT | CONST_CS);
+    REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYHS", TYPE_JUDYHS, CONST_PERSISTENT | CONST_CS);
 
-    // Judy
+    /* Judy */
 
     INIT_CLASS_ENTRY(ce, "judy", judy_class_methods);
     judy_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
@@ -168,23 +175,47 @@ PHP_MINIT_FUNCTION(judy)
     memcpy(&judy_handlers, zend_get_std_object_handlers(),
         sizeof(zend_object_handlers));
     judy_handlers.clone_obj = judy_object_clone;
-    //zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator);
+    /* zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */
     judy_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;
-    //judy_ce->get_iterator = judy_get_iterator;
+    /* judy_ce->get_iterator = judy_get_iterator; */
 
-    // Judy1
+    /**
+     * Judy1
+     *
+     * Judy1 Class for creating and accessing a dynamic array of bits,
+     * using any value of a word as an index. 
+     */
 
-    INIT_CLASS_ENTRY(ce, "judy1", judy1_class_methods);
+    INIT_CLASS_ENTRY(ce, "Judy1", judy1_class_methods);
     judy1_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
     judy1_ce->create_object = judy_object_new;
     memcpy(&judy1_handlers, zend_get_std_object_handlers(),
         sizeof(zend_object_handlers));
     judy1_handlers.clone_obj = judy1_object_clone;
-    //zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator);
+    /* zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */
     judy1_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;
-    //judy_ce->get_iterator = judy_get_iterator;
+    /* judy_ce->get_iterator = judy_get_iterator; */
 
     REGISTER_JUDY_CLASS_CONST_LONG("TYPE_JUDY1", TYPE_JUDY1);
+
+    /**
+     * JudyL
+     *
+     * JudyL Class for creating and accessing a dynamic array of words,
+     * using a word as an index.
+     */
+
+    INIT_CLASS_ENTRY(ce, "JudyL", judyl_class_methods);
+    judyl_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
+    judyl_ce->create_object = judy_object_new;
+    memcpy(&judyl_handlers, zend_get_std_object_handlers(),
+        sizeof(zend_object_handlers));
+    judyl_handlers.clone_obj = judyl_object_clone;
+    /* zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */
+    judyl_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;
+    /* judy_ce->get_iterator = judy_get_iterator; */
+
+    REGISTER_JUDY_CLASS_CONST_LONG("TYPE_JUDYL", TYPE_JUDYL);
 
 	return SUCCESS;
 }
@@ -209,10 +240,10 @@ PHP_MSHUTDOWN_FUNCTION(judy)
  */
 PHP_MINFO_FUNCTION(judy)
 {
-	php_info_print_table_start();
-	php_info_print_table_header(2, "Judy support", "enabled");
+    php_info_print_table_start();
+    php_info_print_table_header(2, "Judy support", "enabled");
     php_info_print_table_row(2, "PHP Judy version", PHP_JUDY_VERSION);
-	php_info_print_table_end();
+    php_info_print_table_end();
 }
 /* }}} */
 

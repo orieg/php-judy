@@ -20,45 +20,47 @@
 #include "php_ini.h"
 #include "ext/standard/info.h"
 
-#ifndef PHP_JUDY1_H
-#include "lib/judy1.h"
+#ifndef PHP_JUDYL_H
+#include "lib/judyl.h"
 #endif
 
-/* {{{ judy1_class_methodss[]
+/* {{{ judyl_class_methodss[]
  *
- * Every user visible Judy method must have an entry in judy1_class_methods[].
+ * Every user visible Judy method must have an entry in judyl_class_methods[].
  */
-const zend_function_entry judy1_class_methods[] = {
-    PHP_ME(judy1, __construct, NULL, ZEND_ACC_CTOR | ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, free, NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, memory_usage, NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, set, arginfo_judy1_set, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, unset, arginfo_judy1_unset, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, test, arginfo_judy1_test, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, count, arginfo_judy1_count, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, by_count, arginfo_judy1_by_count, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, first, arginfo_judy1_first, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, next, arginfo_judy1_next, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, last, arginfo_judy1_last, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, prev, arginfo_judy1_prev, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, first_empty, arginfo_judy1_first_empty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, next_empty, arginfo_judy1_next_empty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, last_empty, arginfo_judy1_last_empty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy1, prev_empty, arginfo_judy1_prev_empty, ZEND_ACC_PUBLIC)
+const zend_function_entry judyl_class_methods[] = {
+    PHP_ME(judyl, __construct, NULL, ZEND_ACC_CTOR | ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, free, NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, memory_usage, NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, insert, arginfo_judyl_insert, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, remove, arginfo_judyl_remove, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, get, arginfo_judyl_get, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, count, arginfo_judyl_count, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, by_count, arginfo_judyl_by_count, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, first, arginfo_judyl_first, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, next, arginfo_judyl_next, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, last, arginfo_judyl_last, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, prev, arginfo_judyl_prev, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, first_empty, arginfo_judyl_first_empty, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, next_empty, arginfo_judyl_next_empty, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, last_empty, arginfo_judyl_last_empty, ZEND_ACC_PUBLIC)
+    PHP_ME(judyl, prev_empty, arginfo_judyl_prev_empty, ZEND_ACC_PUBLIC)
+    PHP_MALIAS(judyl, ins, insert, NULL, ZEND_ACC_PUBLIC)
+    PHP_MALIAS(judyl, del, remove, NULL, ZEND_ACC_PUBLIC)
 	{NULL, NULL, NULL}
 };
 /* }}} */
 
-/* declare judy1 class entry */
-zend_class_entry *judy1_ce;
+/* declare judyl class entry */
+zend_class_entry *judyl_ce;
 
-PHPAPI zend_class_entry *php_judy1_ce(void)
+PHPAPI zend_class_entry *php_judyl_ce(void)
 {
-    return judy1_ce;
+    return judyl_ce;
 }
 
-/* {{{ judy1_object_clone */
-zend_object_value judy1_object_clone(zval *this_ptr TSRMLS_DC)
+/* {{{ judyl_object_clone */
+zend_object_value judyl_object_clone(zval *this_ptr TSRMLS_DC)
 {
 	judy_object *new_obj = NULL;
 	judy_object *old_obj = (judy_object *) zend_object_store_get_object(this_ptr TSRMLS_CC);
@@ -66,69 +68,90 @@ zend_object_value judy1_object_clone(zval *this_ptr TSRMLS_DC)
 	
 	zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
 	
-    Pvoid_t   newJArray = 0;            // new Judy1 array to ppopulate
+    Pvoid_t   newJArray = 0;            // new JudyL array to ppopulate
     Word_t    kindex;                   // Key/index
     int       Ins_rv = 0;               // Insert return value
 
-    for (kindex = 0L, Ins_rv = Judy1First(&old_obj->array, &kindex, PJE0);
-         Ins_rv == 1; Ins_rv = Judy1Next(&old_obj->array, &kindex, PJE0))
+    for (kindex = 0L, Ins_rv = JudyLFirst(&old_obj->array, &kindex, PJE0);
+         Ins_rv == 1; Ins_rv = JudyLNext(&old_obj->array, &kindex, PJE0))
     {
-        Ins_rv = Judy1Set(&newJArray, kindex, PJE0);
+        Ins_rv = JudyLSet(&newJArray, kindex, PJE0);
     }
 
     new_obj->array = newJArray;
-    new_obj->type = TYPE_JUDY1;
+    new_obj->type = TYPE_JUDYL;
 
 	return new_ov;
 }
 /* }}} */
 
-/* {{{ proto void Judy1::__construct(long type)
- Constructs a new Judy1 array of the given type */
-PHP_METHOD(judy1, __construct)
+/* {{{ proto void JudyL::__construct(long type)
+ Constructs a new JudyL array of the given type */
+PHP_METHOD(judyl, __construct)
 {
     judy_object *intern;
     zend_error_handling error_handling;
 
     zend_replace_error_handling(EH_THROW, NULL, &error_handling TSRMLS_CC);
     intern = (judy_object*) zend_object_store_get_object(getThis() TSRMLS_CC);
-    intern->type = TYPE_JUDY1;
+    intern->type = TYPE_JUDYL;
     intern->array = (Pvoid_t) NULL;
     zend_restore_error_handling(&error_handling TSRMLS_CC);
 }
 /* }}} */
 
-/* {{{ proto long Judy1::free()
- Free the entire Judy1 Array. Return the number of bytes freed */
-PHP_METHOD(judy1, free)
+/* {{{ proto long JudyL::free()
+ Free the entire JudyL Array. Return the number of bytes freed */
+PHP_METHOD(judyl, free)
 {
     unsigned long     Rc_word;
 
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1FA(Rc_word, intern->array);
+    JLFA(Rc_word, intern->array);
     RETURN_LONG(Rc_word);
 }
 /* }}} */
 
-/* {{{ proto long Judy1::memory_usage()
- Return the memory used by the Judy1 Array */
-PHP_METHOD(judy1, memory_usage)
+/* {{{ proto long JudyL::memory_usage()
+ Return the memory used by the JudyL Array */
+PHP_METHOD(judyl, memory_usage)
 {
     unsigned long     Rc_word;
 
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1MU(Rc_word, intern->array);
+    JLMU(Rc_word, intern->array);
     RETURN_LONG(Rc_word);
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::set(long index)
+/* {{{ proto boolean JudyL::insert(long index, long value)
  Set the current index */
-PHP_METHOD(judy1, set)
+PHP_METHOD(judyl, insert)
+{
+    long        index;
+    long        value;
+    Word_t      *PValue;
+    int         Rc_int;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ll", &index) == FAILURE) {
+        RETURN_FALSE;
+    }
+
+    zval *object = getThis();
+    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+
+    JLS(Rc_int, intern->array, index);
+    RETURN_BOOL(Rc_int);
+}
+/* }}} */
+
+/* {{{ proto boolean JudyL::unset(long index)
+ Remove the index from the JudyL array */
+PHP_METHOD(judyl, unset)
 {
     long        index;
     int         Rc_int;
@@ -140,33 +163,14 @@ PHP_METHOD(judy1, set)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1S(Rc_int, intern->array, index);
+    JLU(Rc_int, intern->array, index);
     RETURN_BOOL(Rc_int);
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::unset(long index)
- Remove the index from the Judy1 array */
-PHP_METHOD(judy1, unset)
-{
-    long        index;
-    int         Rc_int;
-
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
-        RETURN_FALSE;
-    }
-
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
-
-    J1U(Rc_int, intern->array, index);
-    RETURN_BOOL(Rc_int);
-}
-/* }}} */
-
-/* {{{ proto boolean Judy1::test(long key)
+/* {{{ proto boolean JudyL::test(long key)
  Test if index is set */
-PHP_METHOD(judy1, test)
+PHP_METHOD(judyl, test)
 {
     long    index;
     int     Rc_int;
@@ -178,14 +182,14 @@ PHP_METHOD(judy1, test)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1T(Rc_int, intern->array, index);
+    JLT(Rc_int, intern->array, index);
     RETURN_BOOL(Rc_int);
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::count([long index_start[, long index_end]])
+/* {{{ proto boolean JudyL::count([long index_start[, long index_end]])
  Count the number of indexes present in the array between index_start and index_end (inclusive) */
-PHP_METHOD(judy1, count)
+PHP_METHOD(judyl, count)
 {
     long            idx1 = 0;
     long            idx2 = -1;
@@ -198,15 +202,15 @@ PHP_METHOD(judy1, count)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1C(Rc_word, intern->array, idx1, idx2);
+    JLC(Rc_word, intern->array, idx1, idx2);
     RETURN_LONG(Rc_word);
 }
 /* }}} */
 
-/* {{{ proto long Judy1::by_count(long nth_index)
- Locate the Nth index that is present in the Judy1 array (Nth = 1 returns the first index present).
+/* {{{ proto long JudyL::by_count(long nth_index)
+ Locate the Nth index that is present in the JudyL array (Nth = 1 returns the first index present).
  To refer to the last index in a fully populated array (all indexes present, which is rare), use Nth = 0. */
-PHP_METHOD(judy1, by_count)
+PHP_METHOD(judyl, by_count)
 {
     long            nth_index;
     long            index;
@@ -219,7 +223,7 @@ PHP_METHOD(judy1, by_count)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1BC(Rc_int, intern->array, nth_index, index);
+    JLBC(Rc_int, intern->array, nth_index, index);
     if (Rc_int == 1) {
         RETURN_LONG(index);
     } else {
@@ -228,9 +232,9 @@ PHP_METHOD(judy1, by_count)
 }
 /* }}} */
 
-/* {{{ proto long Judy1::first([long index])
+/* {{{ proto long JudyL::first([long index])
  Search (inclusive) for the first index present that is equal to or greater than the passed Index */
-PHP_METHOD(judy1, first)
+PHP_METHOD(judyl, first)
 {
     long            index = 0;
     int             Rc_int;
@@ -242,7 +246,7 @@ PHP_METHOD(judy1, first)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1F(Rc_int, intern->array, index);
+    JLF(Rc_int, intern->array, index);
     if (Rc_int == 1) {
         RETURN_LONG(index);
     } else {
@@ -251,9 +255,9 @@ PHP_METHOD(judy1, first)
 }
 /* }}} */
 
-/* {{{ proto long Judy1::next(long index)
+/* {{{ proto long JudyL::next(long index)
  Search (exclusive) for the next index present that is greater than the passed Index */
-PHP_METHOD(judy1, next)
+PHP_METHOD(judyl, next)
 {
     long            index;
     int             Rc_int;
@@ -265,7 +269,7 @@ PHP_METHOD(judy1, next)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1N(Rc_int, intern->array, index);
+    JLN(Rc_int, intern->array, index);
     if (Rc_int == 1) {
         RETURN_LONG(index);
     } else {
@@ -274,9 +278,9 @@ PHP_METHOD(judy1, next)
 }
 /* }}} */
 
-/* {{{ proto long Judy1::last([long index])
+/* {{{ proto long JudyL::last([long index])
  Search (inclusive) for the last index present that is equal to or less than the passed Index */
-PHP_METHOD(judy1, last)
+PHP_METHOD(judyl, last)
 {
     long            index = -1;
     int             Rc_int;
@@ -288,7 +292,7 @@ PHP_METHOD(judy1, last)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1L(Rc_int, intern->array, index);
+    JLL(Rc_int, intern->array, index);
     if (Rc_int == 1) {
         RETURN_LONG(index);
     } else {
@@ -297,9 +301,9 @@ PHP_METHOD(judy1, last)
 }
 /* }}} */
 
-/* {{{ proto long Judy1::prev(long index)
+/* {{{ proto long JudyL::prev(long index)
  Search (exclusive) for the previous index present that is less than the passed Index */
-PHP_METHOD(judy1, prev)
+PHP_METHOD(judyl, prev)
 {
     long            index;
     int             Rc_int;
@@ -311,7 +315,7 @@ PHP_METHOD(judy1, prev)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1P(Rc_int, intern->array, index);
+    JLP(Rc_int, intern->array, index);
     if (Rc_int == 1) {
         RETURN_LONG(index);
     } else {
@@ -320,9 +324,9 @@ PHP_METHOD(judy1, prev)
 }
 /* }}} */
 
-/* {{{ proto long Judy1::first_empty([long index])
+/* {{{ proto long JudyL::first_empty([long index])
  Search (inclusive) for the first absent index that is equal to or greater than the passed Index */
-PHP_METHOD(judy1, first_empty)
+PHP_METHOD(judyl, first_empty)
 {
     long            index = 0;
     int             Rc_int;
@@ -334,7 +338,7 @@ PHP_METHOD(judy1, first_empty)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1FE(Rc_int, intern->array, index);
+    JLFE(Rc_int, intern->array, index);
     if (Rc_int == 1) {
         RETURN_LONG(index);
     } else {
@@ -343,9 +347,9 @@ PHP_METHOD(judy1, first_empty)
 }
 /* }}} */
 
-/* {{{ proto long Judy1::next_empty(long index)
+/* {{{ proto long JudyL::next_empty(long index)
  Search (exclusive) for the next absent index that is greater than the passed Index */
-PHP_METHOD(judy1, next_empty)
+PHP_METHOD(judyl, next_empty)
 {
     long            index;
     int             Rc_int;
@@ -357,7 +361,7 @@ PHP_METHOD(judy1, next_empty)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1NE(Rc_int, intern->array, index);
+    JLNE(Rc_int, intern->array, index);
     if (Rc_int == 1) {
         RETURN_LONG(index);
     } else {
@@ -366,9 +370,9 @@ PHP_METHOD(judy1, next_empty)
 }
 /* }}} */
 
-/* {{{ proto long Judy1::last_empty([long index])
+/* {{{ proto long JudyL::last_empty([long index])
  Search (inclusive) for the last absent index that is equal to or less than the passed Index */
-PHP_METHOD(judy1, last_empty)
+PHP_METHOD(judyl, last_empty)
 {
     long            index = -1;
     int             Rc_int;
@@ -380,7 +384,7 @@ PHP_METHOD(judy1, last_empty)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1LE(Rc_int, intern->array, index);
+    JLLE(Rc_int, intern->array, index);
     if (Rc_int == 1) {
         RETURN_LONG(index);
     } else {
@@ -389,9 +393,9 @@ PHP_METHOD(judy1, last_empty)
 }
 /* }}} */
 
-/* {{{ proto long Judy1::prev_empty(long index)
+/* {{{ proto long JudyL::prev_empty(long index)
  Search (inclusive) for the first index present that is equal to or greater than the passed Index */
-PHP_METHOD(judy1, prev_empty)
+PHP_METHOD(judyl, prev_empty)
 {
     long            index;
     int             Rc_int;
@@ -403,7 +407,7 @@ PHP_METHOD(judy1, prev_empty)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    J1PE(Rc_int, intern->array, index);
+    JLPE(Rc_int, intern->array, index);
     if (Rc_int == 1) {
         RETURN_LONG(index);
     } else {
