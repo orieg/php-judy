@@ -89,25 +89,20 @@ zend_module_entry judy_module_entry = {
 ZEND_GET_MODULE(judy)
 #endif
 
-/* declare judy class handlers */
-static zend_object_handlers judy_handlers;
-
-/* declare judy class entry */
-static zend_class_entry *judy_ce;
-
 /* {{{ judy_free_storage
  close all resources and the memory allocated for the object */
 static void judy_object_free_storage(void *object TSRMLS_DC)
 {
     judy_object *intern = (judy_object *) object;
 
+    if (intern->array) {
+        int Rc_word;
+        J1FA(Rc_word, intern->array);
+    }
+
     zend_object_std_dtor(&intern->std TSRMLS_CC);
     
-    zend_object_std_dtor(&(intern->std) TSRMLS_CC);
-
-    if (intern->array) {
-        efree(intern->array);
-    }
+    //zend_object_std_dtor(&(intern->std) TSRMLS_CC);
 
     efree(object);
 }
@@ -115,24 +110,66 @@ static void judy_object_free_storage(void *object TSRMLS_DC)
 
 /* {{{ judy_object_new
  */
-static zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC)
+static inline zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSRMLS_DC)
 {
     zend_object_value retval;
     judy_object *intern;
+    zval *tmp;
 
-    intern = emalloc(sizeof(judy_object));
+    intern = ecalloc(1, sizeof(judy_object));
     memset(intern, 0, sizeof(judy_object));
+    if (ptr) {
+        *ptr = intern;
+    }
+
     zend_object_std_init(&(intern->std), ce TSRMLS_CC);
 
     zend_hash_copy(intern->std.properties, 
         &ce->default_properties, (copy_ctor_func_t) zval_add_ref,
-        NULL, sizeof(zval *));
+        (void *) &tmp, sizeof(zval *));
 
     retval.handle = zend_objects_store_put(intern, (zend_objects_store_dtor_t) zend_objects_destroy_object, (zend_objects_free_object_storage_t) judy_object_free_storage, NULL TSRMLS_CC);
     retval.handlers = &judy_handlers;
+
     return retval;
 }
 /* }}} */
+
+static zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC) {
+    return judy_object_new_ex(ce, NULL TSRMLS_CC);
+}
+
+
+zend_class_entry *judy_ce;
+
+PHPAPI zend_class_entry *php_judy_ce(void)
+{
+    return judy_ce;
+}
+
+static zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
+{
+	judy_object *new_obj = NULL;
+	judy_object *old_obj = (judy_object *) zend_object_store_get_object(this_ptr TSRMLS_CC);
+	zend_object_value new_ov = judy_object_new_ex(old_obj->std.ce, &new_obj TSRMLS_CC);
+	
+	zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
+	
+    Pvoid_t   newJArray = 0;            // new Judy1 array to ppopulate
+    Word_t    kindex;                   // Key/index
+    int       Ins_rv = 0;               // Insert return value
+
+    for (kindex = 0L, Ins_rv = Judy1First(&old_obj->array, &kindex, PJE0);
+         Ins_rv == 1; Ins_rv = Judy1Next(&old_obj->array, &kindex, PJE0))
+    {
+        Ins_rv = Judy1Set(&newJArray, kindex, PJE0);
+    }
+
+    new_obj->array = newJArray;
+    new_obj->type = TYPE_JUDY1;
+
+	return new_ov;
+}
 
 /* {{{ PHP_MINIT_FUNCTION
  */
@@ -148,14 +185,16 @@ PHP_MINIT_FUNCTION(judy)
 
     zend_class_entry ce;
     INIT_CLASS_ENTRY(ce, "judy", judy_class_methods);
-    judy_ce = zend_register_internal_class(&ce TSRMLS_CC);
+    judy_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
     judy_ce->create_object = judy_object_new;
     memcpy(&judy_handlers, zend_get_std_object_handlers(),
         sizeof(zend_object_handlers));
-    judy_handlers.clone_obj = NULL;
+    judy_handlers.clone_obj = judy_object_clone;
     //zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator);
     judy_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;
     //judy_ce->get_iterator = judy_get_iterator;
+
+    REGISTER_JUDY_CLASS_CONST_LONG("TYPE_JUDY1", TYPE_JUDY1);
 
 	return SUCCESS;
 }
@@ -181,7 +220,8 @@ PHP_MSHUTDOWN_FUNCTION(judy)
 PHP_MINFO_FUNCTION(judy)
 {
 	php_info_print_table_start();
-	php_info_print_table_header(2, "judy support", "enabled");
+	php_info_print_table_header(2, "Judy support", "enabled");
+    php_info_print_table_row(2, "PHP Judy version", PHP_JUDY_VERSION);
 	php_info_print_table_end();
 }
 /* }}} */

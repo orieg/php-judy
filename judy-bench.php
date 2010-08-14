@@ -9,8 +9,10 @@
     }
 
     $v = $argv[1];
+    $count = array(100, 1000, 10000, 100000, 1000000);
 
-    echo "\n";
+foreach($count as $v) {
+    echo "## Count: $v\n";
     echo "-- ARRAY \n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
@@ -35,16 +37,19 @@
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
 
     $s=microtime(true);
-    $array = new Judy(JUDY_TYPE_JUDY1);
+    $judy = new Judy(Judy::TYPE_JUDY1);
     for ($i=0; $i<$v; $i++)
-        $array->set($i);
-    var_dump($array->get(100));
-    $array->set(102, false);
-    var_dump($array->get(102));
-    echo "Count: ".$array->count()."\n";
-    echo "MU: ".convert($array->memory_usage())."\n";
+        $judy->set($i);
+    var_dump($judy->get(100));
+    $judy->set(102, false);
+    var_dump($judy->get(102));
+    echo "Count: ".$judy->count()."\n";
+    echo "MU: ".convert($judy->memory_usage())."\n";
     $e=microtime(true);
     echo ($e - $s)."\n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
     echo "\n";
+
+    unset($judy);
+}

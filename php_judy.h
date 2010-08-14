@@ -78,19 +78,27 @@ typedef struct _judy_object {
 
 static void judy_object_free_storage(void * TSRMLS_DC);
 
-/* 
-  	Declare any global variables you may need between the BEGIN
-	and END macros here:     
-*/
+/* declare judy class entry */
+zend_class_entry *judy_ce;
 
-//ZEND_BEGIN_MODULE_GLOBALS(judy)
-//ZEND_END_MODULE_GLOBALS(judy)
+static zend_object_handlers judy_handlers;
+static zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC);
+static inline zend_object_value judy_object_new_ex(zend_class_entry *ce TSRMLS_DC, judy_object **ptr);
+static zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC);
+
+/* {{{ REGISTER_JUDY_CLASS_CONST_LONG */
+#define REGISTER_JUDY_CLASS_CONST_LONG(const_name, value) \
+    zend_declare_class_constant_long(judy_ce, const_name, sizeof(const_name)-1, (long) value TSRMLS_CC);
+/* }}} */
 
 #ifdef ZTS
 #define JUDY_G(v) TSRMG(judy_globals_id, zend_judy_globals *, v)
 #else
 #define JUDY_G(v) (judy_globals.v)
 #endif
+
+/* Grabbing CE's so that other exts can use the date objects too */
+PHPAPI zend_class_entry *php_judy_ce(void);
 
 #endif	/* PHP_JUDY_H */
 
