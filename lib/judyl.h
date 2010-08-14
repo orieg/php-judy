@@ -47,8 +47,8 @@ PHP_METHOD(judyl, next_empty);
 PHP_METHOD(judyl, last_empty);
 PHP_METHOD(judyl, prev_empty);
 
-PHP_MALIAS(judyl, ins, insert);
-PHP_MALIAS(judyl, del, remove);
+//PHP_MALIAS(judyl, ins, insert, arg_info, flags);
+//PHP_MALIAS(judyl, del, remove, arg_info, flags);
 
 void judyl_object_free_storage(void * TSRMLS_DC);
 
@@ -67,7 +67,7 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_get, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy._count, 0, 0, 0)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_count, 0, 0, 0)
     ZEND_ARG_INFO(0, index_start)
     ZEND_ARG_INFO(0, index_end)
 ZEND_END_ARG_INFO()
