@@ -203,15 +203,15 @@ PHP_METHOD(judy1, count)
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::by_count(long nth_index, long &index)
- Count the number of indexes present in the array between index_start and index_end (inclusive) */
+/* {{{ proto long Judy1::by_count(long nth_index)
+ Locate the Nth index that is present in the Judy1 array PJ1Array (Nth = 1 returns the first index present). To refer to the last index in a fully populated array (all indexes present, which is rare), use Nth = 0. */
 PHP_METHOD(judy1, by_count)
 {
     long            nth_index;
     long            index;
     int             Rc_int;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ll", &nth_index, &index) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &nth_index) == FAILURE) {
         RETURN_FALSE;
     }
 
@@ -219,18 +219,22 @@ PHP_METHOD(judy1, by_count)
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
     J1BC(Rc_int, intern->array, nth_index, index);
-    RETURN_BOOL(Rc_int);
+    if (Rc_int == 1) {
+        RETURN_LONG(index);
+    } else {
+        RETURN_NULL();
+    }
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::first(long index)
+/* {{{ proto long Judy1::first([long index])
  Search (inclusive) for the first index present that is equal to or greater than the passed Index */
 PHP_METHOD(judy1, first)
 {
-    long            index;
+    long            index = 0;
     int             Rc_int;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &index) == FAILURE) {
         RETURN_FALSE;
     }
 
@@ -238,11 +242,15 @@ PHP_METHOD(judy1, first)
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
     J1F(Rc_int, intern->array, index);
-    RETURN_BOOL(Rc_int);
+    if (Rc_int == 1) {
+        RETURN_LONG(index);
+    } else {
+        RETURN_NULL();
+    }
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::next(long index)
+/* {{{ proto long Judy1::next(long index)
  Search (exclusive) for the next index present that is greater than the passed Index */
 PHP_METHOD(judy1, next)
 {
@@ -257,18 +265,22 @@ PHP_METHOD(judy1, next)
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
     J1N(Rc_int, intern->array, index);
-    RETURN_BOOL(Rc_int);
+    if (Rc_int == 1) {
+        RETURN_LONG(index);
+    } else {
+        RETURN_NULL();
+    }
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::last(long index)
+/* {{{ proto long Judy1::last([long index])
  Search (inclusive) for the last index present that is equal to or less than the passed Index */
 PHP_METHOD(judy1, last)
 {
-    long            index;
+    long            index = -1;
     int             Rc_int;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &index) == FAILURE) {
         RETURN_FALSE;
     }
 
@@ -276,11 +288,15 @@ PHP_METHOD(judy1, last)
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
     J1L(Rc_int, intern->array, index);
-    RETURN_BOOL(Rc_int);
+    if (Rc_int == 1) {
+        RETURN_LONG(index);
+    } else {
+        RETURN_NULL();
+    }
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::prev(long index)
+/* {{{ proto long Judy1::prev(long index)
  Search (exclusive) for the previous index present that is less than the passed Index */
 PHP_METHOD(judy1, prev)
 {
@@ -295,18 +311,22 @@ PHP_METHOD(judy1, prev)
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
     J1P(Rc_int, intern->array, index);
-    RETURN_BOOL(Rc_int);
+    if (Rc_int == 1) {
+        RETURN_LONG(index);
+    } else {
+        RETURN_NULL();
+    }
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::first_empty(long index)
+/* {{{ proto long Judy1::first_empty([long index])
  Search (inclusive) for the first absent index that is equal to or greater than the passed Index */
 PHP_METHOD(judy1, first_empty)
 {
-    long            index;
+    long            index = 0;
     int             Rc_int;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &index) == FAILURE) {
         RETURN_FALSE;
     }
 
@@ -314,11 +334,15 @@ PHP_METHOD(judy1, first_empty)
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
     J1FE(Rc_int, intern->array, index);
-    RETURN_BOOL(Rc_int);
+    if (Rc_int == 1) {
+        RETURN_LONG(index);
+    } else {
+        RETURN_NULL();
+    }
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::next_empty(long index)
+/* {{{ proto long Judy1::next_empty(long index)
  Search (exclusive) for the next absent index that is greater than the passed Index */
 PHP_METHOD(judy1, next_empty)
 {
@@ -333,18 +357,22 @@ PHP_METHOD(judy1, next_empty)
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
     J1NE(Rc_int, intern->array, index);
-    RETURN_BOOL(Rc_int);
+    if (Rc_int == 1) {
+        RETURN_LONG(index);
+    } else {
+        RETURN_NULL();
+    }
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::last_empty(long index)
+/* {{{ proto long Judy1::last_empty([long index])
  Search (inclusive) for the last absent index that is equal to or less than the passed Index */
 PHP_METHOD(judy1, last_empty)
 {
-    long            index;
+    long            index = -1;
     int             Rc_int;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &index) == FAILURE) {
         RETURN_FALSE;
     }
 
@@ -352,11 +380,15 @@ PHP_METHOD(judy1, last_empty)
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
     J1LE(Rc_int, intern->array, index);
-    RETURN_BOOL(Rc_int);
+    if (Rc_int == 1) {
+        RETURN_LONG(index);
+    } else {
+        RETURN_NULL();
+    }
 }
 /* }}} */
 
-/* {{{ proto boolean Judy1::prev_empty(long index)
+/* {{{ proto long Judy1::prev_empty(long index)
  Search (inclusive) for the first index present that is equal to or greater than the passed Index */
 PHP_METHOD(judy1, prev_empty)
 {
@@ -371,7 +403,11 @@ PHP_METHOD(judy1, prev_empty)
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
     J1PE(Rc_int, intern->array, index);
-    RETURN_BOOL(Rc_int);
+    if (Rc_int == 1) {
+        RETURN_LONG(index);
+    } else {
+        RETURN_NULL();
+    }
 }
 /* }}} */
 
