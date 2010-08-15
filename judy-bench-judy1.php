@@ -21,7 +21,7 @@ foreach($count as $v) {
     $array = array();
     for ($i=0; $i<$v; $i++)
         $array[$i] = true;
-    $array[102] = false;
+    unset($array[102]);
     var_dump($array[100]);
     var_dump($array[102]);
     $e=microtime(true);

@@ -68,19 +68,22 @@ zend_object_value judyl_object_clone(zval *this_ptr TSRMLS_DC)
 	
 	zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
 	
-    Pvoid_t   newJArray = 0;            // new JudyL array to ppopulate
+    Pvoid_t   newJArray = (Pvoid_t) NULL;            // new JudyL array to ppopulate
     Word_t    kindex;                   // Key/index
-    int       Ins_rv = 0;               // Insert return value
+    Word_t    *PValue;                   // Pointer to the old value
+    Word_t    *newPValue;                // Pointer to the new value
 
-    for (kindex = 0L, Ins_rv = JudyLFirst(&old_obj->array, &kindex, PJE0);
-         Ins_rv == 1; Ins_rv = JudyLNext(&old_obj->array, &kindex, PJE0))
+    JLF(PValue, &old_obj->array, kindex);
+    while(PValue != NULL && PValue != PJERR)
     {
-        Ins_rv = JudyLSet(&newJArray, kindex, PJE0);
+        JLN(PValue, &old_obj->array, kindex)
+        JLI(newPValue, newJArray, kindex);
+        if (newPValue != NULL && newPValue != PJERR)
+            *newPValue = *PValue;
     }
 
     new_obj->array = newJArray;
     new_obj->type = TYPE_JUDYL;
-
 	return new_ov;
 }
 /* }}} */
@@ -135,7 +138,6 @@ PHP_METHOD(judyl, insert)
     long        index;
     long        value;
     Word_t      *PValue;
-    int         Rc_int;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ll", &index) == FAILURE) {
         RETURN_FALSE;
@@ -144,14 +146,19 @@ PHP_METHOD(judyl, insert)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    JLS(Rc_int, intern->array, index);
-    RETURN_BOOL(Rc_int);
+    JLI(PValue, intern->array, index);
+    if (PValue != NULL && PValue != PJERR) {
+        *PValue = value;
+        RETURN_TRUE;
+    } else {
+        RETURN_FALSE;
+    }
 }
 /* }}} */
 
-/* {{{ proto boolean JudyL::unset(long index)
+/* {{{ proto boolean JudyL::remove(long index)
  Remove the index from the JudyL array */
-PHP_METHOD(judyl, unset)
+PHP_METHOD(judyl, remove)
 {
     long        index;
     int         Rc_int;
@@ -163,17 +170,17 @@ PHP_METHOD(judyl, unset)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    JLU(Rc_int, intern->array, index);
+    JLD(Rc_int, intern->array, index);
     RETURN_BOOL(Rc_int);
 }
 /* }}} */
 
-/* {{{ proto boolean JudyL::test(long key)
- Test if index is set */
-PHP_METHOD(judyl, test)
+/* {{{ proto boolean JudyL::get(long key)
+ Get the value of a given index */
+PHP_METHOD(judyl, get)
 {
     long    index;
-    int     Rc_int;
+    Word_t  *PValue;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
         RETURN_FALSE;
@@ -182,8 +189,12 @@ PHP_METHOD(judyl, test)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    JLT(Rc_int, intern->array, index);
-    RETURN_BOOL(Rc_int);
+    JLG(PValue, intern->array, index);
+    if (PValue != NULL && PValue != PJERR) {
+        RETURN_LONG(*PValue);
+    } else {
+        RETURN_NULL();
+    }
 }
 /* }}} */
 
@@ -214,7 +225,7 @@ PHP_METHOD(judyl, by_count)
 {
     long            nth_index;
     long            index;
-    int             Rc_int;
+    PWord_t         PValue;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &nth_index) == FAILURE) {
         RETURN_FALSE;
@@ -223,8 +234,8 @@ PHP_METHOD(judyl, by_count)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    JLBC(Rc_int, intern->array, nth_index, index);
-    if (Rc_int == 1) {
+    JLBC(PValue, intern->array, nth_index, index);
+    if (PValue != NULL && PValue != PJERR) {
         RETURN_LONG(index);
     } else {
         RETURN_NULL();
@@ -237,7 +248,7 @@ PHP_METHOD(judyl, by_count)
 PHP_METHOD(judyl, first)
 {
     long            index = 0;
-    int             Rc_int;
+    PWord_t         PValue;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &index) == FAILURE) {
         RETURN_FALSE;
@@ -246,8 +257,8 @@ PHP_METHOD(judyl, first)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    JLF(Rc_int, intern->array, index);
-    if (Rc_int == 1) {
+    JLF(PValue, intern->array, index);
+    if (PValue != NULL && PValue != PJERR) {
         RETURN_LONG(index);
     } else {
         RETURN_NULL();
@@ -260,7 +271,7 @@ PHP_METHOD(judyl, first)
 PHP_METHOD(judyl, next)
 {
     long            index;
-    int             Rc_int;
+    PWord_t         PValue;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
         RETURN_FALSE;
@@ -269,8 +280,8 @@ PHP_METHOD(judyl, next)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    JLN(Rc_int, intern->array, index);
-    if (Rc_int == 1) {
+    JLN(PValue, intern->array, index);
+    if (*PValue == 1) {
         RETURN_LONG(index);
     } else {
         RETURN_NULL();
@@ -283,7 +294,7 @@ PHP_METHOD(judyl, next)
 PHP_METHOD(judyl, last)
 {
     long            index = -1;
-    int             Rc_int;
+    PWord_t         PValue;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &index) == FAILURE) {
         RETURN_FALSE;
@@ -292,8 +303,8 @@ PHP_METHOD(judyl, last)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    JLL(Rc_int, intern->array, index);
-    if (Rc_int == 1) {
+    JLL(PValue, intern->array, index);
+    if (PValue != NULL && PValue != PJERR) {
         RETURN_LONG(index);
     } else {
         RETURN_NULL();
@@ -306,7 +317,7 @@ PHP_METHOD(judyl, last)
 PHP_METHOD(judyl, prev)
 {
     long            index;
-    int             Rc_int;
+    PWord_t         PValue;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
         RETURN_FALSE;
@@ -315,8 +326,8 @@ PHP_METHOD(judyl, prev)
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    JLP(Rc_int, intern->array, index);
-    if (Rc_int == 1) {
+    JLP(PValue, intern->array, index);
+    if (PValue != NULL && PValue != PJERR) {
         RETURN_LONG(index);
     } else {
         RETURN_NULL();
