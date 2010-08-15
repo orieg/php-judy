@@ -73,7 +73,6 @@ If you encounter a bug, please submit it via the bug tracker on Git Hub:
 5. TODO
 --------
 
- * Add JudyL test suites
  * Add JudySL, JudyHS support
  * Add Multi-dimensional JudyL Arrays
- * Add Associative Array based on JudyHS
+ * Add Multi-dimensional Associative Array based on JudyHS

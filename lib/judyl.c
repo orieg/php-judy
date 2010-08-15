@@ -281,7 +281,7 @@ PHP_METHOD(judyl, next)
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
     JLN(PValue, intern->array, index);
-    if (*PValue == 1) {
+    if (PValue != NULL && PValue != PJERR) {
         RETURN_LONG(index);
     } else {
         RETURN_NULL();

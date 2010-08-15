@@ -12,14 +12,14 @@ echo "Insert 500 index with a rand value\n";
 for ($i=100; $i<600; $i++) {
         $value = rand();
         if(!$judy->ins($i, $value))
-            echo "Failed to set index $i (value: $value)\n";
+            echo "Failed to insert index $i (value: $value)\n";
 }
 
 $unset = array(150, 232, 346, 427, 589);
 foreach($unset as $i) {
-    echo "Unset index $i\n";
+    echo "Delete index $i\n";
     if(!$judy->del($i))
-        echo "Failed to delete index $i\n";
+        echo "Failed to unset index $i\n";
 }
 
 // First Empty
@@ -74,11 +74,11 @@ echo "Done\n";
 ?>
 --EXPECT--
 Insert 500 index with a rand value
-Unset index 150
-Unset index 232
-Unset index 346
-Unset index 427
-Unset index 589
+Delete index 150
+Delete index 232
+Delete index 346
+Delete index 427
+Delete index 589
 First empty index set: 0
 First empty index set from index 50: 50
 First empty index set from index 500: 589
