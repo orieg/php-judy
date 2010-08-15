@@ -98,7 +98,7 @@ static void judy_object_free_storage(void *object TSRMLS_DC)
         J1FA(Rc_word, intern->array);
     } else if (intern->array && intern->type == TYPE_JUDYL) {
         Word_t Rc_word;
-        J1FA(Rc_word, intern->array);
+        JLFA(Rc_word, intern->array);
     }
 
     zend_object_std_dtor(&intern->std TSRMLS_CC);

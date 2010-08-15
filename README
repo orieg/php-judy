@@ -17,6 +17,13 @@ php-judy is an exentsion by Nicolas Brousse for the Judy C library.
 
     http://github.com/orieg/php-judy
 
+A Judy array is a complex but very fast associative array data structure for
+storing and looking up values using integer or string keys. Unlike normal
+arrays, Judy arrays may be sparse; that is, they may have large ranges of
+unassigned indices.
+
+    http://en.wikipedia.org/wiki/Judy_array
+
 Judy is a C library that implements a dynamic array.  Empty Judy arrays are
 declared with null pointers.  A Judy array consumes memory only when
 populated yet can grow to take advantage of all available memory.  Judy's key
@@ -24,7 +31,7 @@ benefits are:  scalability, performance, memory efficiency, and ease of use.
 Judy arrays are designed to grow without tuning into the peta-element range,
 scaling near O(log-base-256) -- 1 more RAM access at 256 X population.
 
-    http://judy.sourceforge.net/
+    http://judy.sourceforge.net
 
 
 2. PHP JUDY TOP DIRECTORY CONTENTS:
@@ -70,4 +77,3 @@ If you encounter a bug, please submit it via the bug tracker on Git Hub:
  * Add JudySL, JudyHS support
  * Add Multi-dimensional JudyL Arrays
  * Add Associative Array based on JudyHS
- * Complete test suite

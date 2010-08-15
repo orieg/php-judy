@@ -139,16 +139,16 @@ PHP_METHOD(judyl, insert)
     long        value;
     Word_t      *PValue;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ll", &index) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ll", &index, &value) == FAILURE) {
         RETURN_FALSE;
     }
 
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
-    JLI(PValue, intern->array, index);
+    JLI(PValue, intern->array, (Word_t) index);
     if (PValue != NULL && PValue != PJERR) {
-        *PValue = value;
+        *PValue = (Word_t) value;
         RETURN_TRUE;
     } else {
         RETURN_FALSE;
