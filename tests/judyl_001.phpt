@@ -39,6 +39,12 @@ for ($i=0; $i<100; $i++) {
             echo "Get index $i returned $v\n";
 }
 
+echo "Testing values are properly inserted and returned\n";
+$judy->ins(150, 987);
+$v = $judy->get(150);
+if ($v != 987)
+    echo "Value doesn't match to the one inserted (expected 987 got $v)\n";
+
 echo "Done\n";
 ?>
 --EXPECT--
@@ -46,4 +52,5 @@ Insert 100 index with a rand value
 Get 100 index
 Remove 100 index
 Get 100 index (should be empty)
+Testing values are properly inserted and returned
 Done
