@@ -47,12 +47,9 @@ PHP_METHOD(judyl, next_empty);
 PHP_METHOD(judyl, last_empty);
 PHP_METHOD(judyl, prev_empty);
 
-//PHP_MALIAS(judyl, ins, insert, arg_info, flags);
-//PHP_MALIAS(judyl, del, remove, arg_info, flags);
-
 void judyl_object_free_storage(void * TSRMLS_DC);
 
-/* {{{ judy class methods parameters
+/* {{{ JudyL class methods parameters
  */
 ZEND_BEGIN_ARG_INFO_EX(arginfo_judyl_insert, 0, 0, 2)
     ZEND_ARG_INFO(0, index)
@@ -120,7 +117,7 @@ zend_object_value judyl_object_clone(zval *this_ptr TSRMLS_DC);
 /* Grabbing CE's so that other exts can use the JudyL object too */
 PHPAPI zend_class_entry *php_judyl_ce(void);
 
-#endif	/* PHP_JUDY_H */
+#endif	/* PHP_JUDYL_H */
 
 /*
  * Local variables:

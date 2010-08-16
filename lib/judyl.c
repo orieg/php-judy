@@ -26,7 +26,7 @@
 
 /* {{{ judyl_class_methodss[]
  *
- * Every user visible Judy method must have an entry in judyl_class_methods[].
+ * Every user visible JudyL method must have an entry in judyl_class_methods[].
  */
 const zend_function_entry judyl_class_methods[] = {
     PHP_ME(judyl, __construct, NULL, ZEND_ACC_CTOR | ZEND_ACC_PUBLIC)
@@ -68,7 +68,7 @@ zend_object_value judyl_object_clone(zval *this_ptr TSRMLS_DC)
 	
 	zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
 	
-    Pvoid_t   newJArray = (Pvoid_t) NULL;            // new JudyL array to ppopulate
+    Pvoid_t   newJArray = (Pvoid_t) NULL;            // new JudyL array to populate
     Word_t    kindex;                   // Key/index
     Word_t    *PValue;                   // Pointer to the old value
     Word_t    *newPValue;                // Pointer to the new value
@@ -175,7 +175,7 @@ PHP_METHOD(judyl, remove)
 }
 /* }}} */
 
-/* {{{ proto boolean JudyL::get(long key)
+/* {{{ proto long JudyL::get(long index)
  Get the value of a given index */
 PHP_METHOD(judyl, get)
 {

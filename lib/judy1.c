@@ -66,7 +66,7 @@ zend_object_value judy1_object_clone(zval *this_ptr TSRMLS_DC)
 	
 	zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
 	
-    Pvoid_t   newJArray = 0;            // new Judy1 array to ppopulate
+    Pvoid_t   newJArray = 0;            // new Judy1 array to populate
     Word_t    kindex;                   // Key/index
     int       Ins_rv = 0;               // Insert return value
 

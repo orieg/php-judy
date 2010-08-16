@@ -74,5 +74,7 @@ If you encounter a bug, please submit it via the bug tracker on Git Hub:
 --------
 
  * Add JudySL, JudyHS support
+ * Implement iterator methods
+ * Finalize Judy class
  * Add Multi-dimensional JudyL Arrays
  * Add Multi-dimensional Associative Array based on JudyHS

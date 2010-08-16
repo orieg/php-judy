@@ -36,6 +36,10 @@
 #include "lib/judyl.h"
 #endif
 
+#ifndef PHP_JUDYSL_H
+#include "lib/judysl.h"
+#endif
+
 /* {{{ judy_functions[]
  *
  * Every user visible function must have an entry in judy_functions[].
@@ -86,6 +90,21 @@ zend_module_entry judy_module_entry = {
 #ifdef COMPILE_DL_JUDY
 ZEND_GET_MODULE(judy)
 #endif
+
+/* {{{ PHP INI entries
+ */
+PHP_INI_BEGIN()
+    STD_PHP_INI_ENTRY("judy.string.maxlength", "65536", PHP_INI_ALL, OnUpdateLong, max_length, zend_judy_globals, judy_globals)
+PHP_INI_END()
+ /* }}} */
+
+/* {{{ php_judy_init_globals
+ */
+static void php_judy_init_globals(zend_judy_globals *judy_globals)
+{
+    judy_globals->max_length = 65536;
+}
+ /* }}} */
 
 /* {{{ judy_free_storage
  close all resources and the memory allocated for the object */
@@ -162,6 +181,10 @@ PHP_MINIT_FUNCTION(judy)
 {
     zend_class_entry ce;
 
+    ZEND_INIT_MODULE_GLOBALS(judy, php_judy_init_globals, NULL);
+
+    REGISTER_INI_ENTRIES();
+
     REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDY1", TYPE_JUDY1, CONST_PERSISTENT | CONST_CS);
     REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYL", TYPE_JUDYL, CONST_PERSISTENT | CONST_CS);
     REGISTER_LONG_CONSTANT("JUDY_TYPE_JUDYSL", TYPE_JUDYSL, CONST_PERSISTENT | CONST_CS);
@@ -217,6 +240,25 @@ PHP_MINIT_FUNCTION(judy)
 
     REGISTER_JUDY_CLASS_CONST_LONG("TYPE_JUDYL", TYPE_JUDYL);
 
+    /**
+     * JudySL
+     *
+     * JudySL Class for creating and accessing a dynamic array, using a
+     * null-terminated string as an Index (associative array).
+     */
+
+    INIT_CLASS_ENTRY(ce, "JudySL", judysl_class_methods);
+    judysl_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
+    judysl_ce->create_object = judy_object_new;
+    memcpy(&judysl_handlers, zend_get_std_object_handlers(),
+        sizeof(zend_object_handlers));
+    judysl_handlers.clone_obj = judysl_object_clone;
+    /* zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */
+    judysl_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;
+    /* judy_ce->get_iterator = judy_get_iterator; */
+
+    REGISTER_JUDY_CLASS_CONST_LONG("TYPE_JUDYSL", TYPE_JUDYSL);
+
 	return SUCCESS;
 }
 /* }}} */
@@ -232,6 +274,7 @@ PHP_RINIT_FUNCTION(judy)
  */
 PHP_MSHUTDOWN_FUNCTION(judy)
 {
+    UNREGISTER_INI_ENTRIES();
 	return SUCCESS;
 }
 /* }}} */
@@ -243,6 +286,7 @@ PHP_MINFO_FUNCTION(judy)
     php_info_print_table_start();
     php_info_print_table_header(2, "Judy support", "enabled");
     php_info_print_table_row(2, "PHP Judy version", PHP_JUDY_VERSION);
+    php_info_print_table_row(2, "judy.string.maxlength", JUDY_G(max_length));
     php_info_print_table_end();
 }
 /* }}} */

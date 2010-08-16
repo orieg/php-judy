@@ -87,6 +87,13 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC);
     zend_declare_class_constant_long(judy_ce, const_name, sizeof(const_name)-1, (long) value TSRMLS_CC);
 /* }}} */
 
+ZEND_BEGIN_MODULE_GLOBALS(judy)
+    long    max_length;
+    long    counter;
+ZEND_END_MODULE_GLOBALS(judy)
+
+ZEND_DECLARE_MODULE_GLOBALS(judy)
+
 #ifdef ZTS
 #define JUDY_G(v) TSRMG(judy_globals_id, zend_judy_globals *, v)
 #else
