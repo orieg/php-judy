@@ -40,6 +40,10 @@
 #include "lib/judysl.h"
 #endif
 
+#ifndef PHP_JUDYHS_H
+#include "lib/judyhs.h"
+#endif
+
 /* {{{ judy_functions[]
  *
  * Every user visible function must have an entry in judy_functions[].
@@ -258,6 +262,25 @@ PHP_MINIT_FUNCTION(judy)
     /* judy_ce->get_iterator = judy_get_iterator; */
 
     REGISTER_JUDY_CLASS_CONST_LONG("TYPE_JUDYSL", TYPE_JUDYSL);
+
+    /**
+     * JudyHS
+     *
+     * JudyHS Class for creating and accessing a dynamic array, using an array-of-bytes
+     * of Length as an Index and a word as a Value. 
+     */
+
+    INIT_CLASS_ENTRY(ce, "JudyHS", judyhs_class_methods);
+    judyhs_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
+    judyhs_ce->create_object = judy_object_new;
+    memcpy(&judyhs_handlers, zend_get_std_object_handlers(),
+        sizeof(zend_object_handlers));
+    judyhs_handlers.clone_obj = judyhs_object_clone;
+    /* zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */
+    judyhs_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;
+    /* judy_ce->get_iterator = judy_get_iterator; */
+
+    REGISTER_JUDY_CLASS_CONST_LONG("TYPE_JUDYHS", TYPE_JUDYHS);
 
 	return SUCCESS;
 }

@@ -86,7 +86,6 @@ If you encounter a bug, please submit it via the bug tracker on Git Hub:
 
  * Fix bundled libJudy (doesn't compile yet)
  * Fix JudySL test suites and JudySL::last()
- * Add JudyHS support
  * Implement iterator methods
  * Finalize Judy class (proxying other php judy class)
  * Add Multi-dimensional JudyL Arrays

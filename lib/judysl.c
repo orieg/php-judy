@@ -105,7 +105,7 @@ PHP_METHOD(judysl, __construct)
  Free the entire JudySL Array. Return the number of bytes freed */
 PHP_METHOD(judysl, free)
 {
-    unsigned long     Rc_word;
+    Word_t     Rc_word;
 
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);

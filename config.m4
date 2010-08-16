@@ -6,7 +6,7 @@ PHP_ARG_WITH(judy, for Judy support,
 [  --with-judy[=DIR]       Include Judy support.
                           DIR is the Judy install prefix [default=BUNDLED]])
 
-judy_sources="lib/judy1.c lib/judyl.c lib/judysl.c"
+judy_sources="lib/judy1.c lib/judyl.c lib/judysl.c lib/judyhs.c"
 
 if test "$PHP_JUDY" != "no" && test "$PHP_JUDY" != "yes"; then
 

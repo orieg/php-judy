@@ -102,7 +102,7 @@ PHP_METHOD(judy1, __construct)
  Free the entire Judy1 Array. Return the number of bytes freed */
 PHP_METHOD(judy1, free)
 {
-    unsigned long     Rc_word;
+    Word_t     Rc_word;
 
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
@@ -116,7 +116,7 @@ PHP_METHOD(judy1, free)
  Return the memory used by the Judy1 Array */
 PHP_METHOD(judy1, memory_usage)
 {
-    unsigned long     Rc_word;
+    Word_t     Rc_word;
 
     zval *object = getThis();
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);

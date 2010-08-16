@@ -16,8 +16,8 @@
   +----------------------------------------------------------------------+
 */
 
-#ifndef PHP_JUDYSL_H
-#define PHP_JUDYSL_H
+#ifndef PHP_JUDYHS_H
+#define PHP_JUDYHS_H
 
 #include <Judy.h>
 
@@ -30,63 +30,43 @@
 #endif
 
 /* PHP JudySL Class */
-PHP_METHOD(judysl, __construct);
-PHP_METHOD(judysl, free);
-PHP_METHOD(judysl, size);
-PHP_METHOD(judysl, insert);
-PHP_METHOD(judysl, remove);
-PHP_METHOD(judysl, get);
-PHP_METHOD(judysl, first);
-PHP_METHOD(judysl, next);
-PHP_METHOD(judysl, last);
-PHP_METHOD(judysl, prev);
+PHP_METHOD(judyhs, __construct);
+PHP_METHOD(judyhs, free);
+PHP_METHOD(judyhs, size);
+PHP_METHOD(judyhs, insert);
+PHP_METHOD(judyhs, remove);
+PHP_METHOD(judyhs, get);
 
-void judysl_object_free_storage(void * TSRMLS_DC);
+void judyhs_object_free_storage(void * TSRMLS_DC);
 
 /* {{{ JudySL class methods parameters
  */
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judysl_insert, 0, 0, 2)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyhs_insert, 0, 0, 2)
     ZEND_ARG_INFO(0, index)
     ZEND_ARG_INFO(0, value)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judysl_remove, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyhs_remove, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judysl_get, 0, 0, 1)
-    ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judysl_first, 0, 0, 1)
-    ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judysl_next, 0, 0, 1)
-    ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judysl_last, 0, 0, 1)
-    ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judysl_prev, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judyhs_get, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 /* }}}} */
 
-extern const zend_function_entry judysl_class_methods[];
+extern const zend_function_entry judyhs_class_methods[];
 
 /* declare judy class entry */
-zend_class_entry *judysl_ce;
+zend_class_entry *judyhs_ce;
 
-zend_object_handlers judysl_handlers;
-zend_object_value judysl_object_clone(zval *this_ptr TSRMLS_DC);
+zend_object_handlers judyhs_handlers;
+zend_object_value judyhs_object_clone(zval *this_ptr TSRMLS_DC);
 
-/* Grabbing CE's so that other exts can use the JudySL object too */
-PHPAPI zend_class_entry *php_judysl_ce(void);
+/* Grabbing CE's so that other exts can use the JudyHS object too */
+PHPAPI zend_class_entry *php_judyhs_ce(void);
 
-#endif	/* PHP_JUDYSL_H */
+#endif	/* PHP_JUDYHS_H */
 
 /*
  * Local variables:
