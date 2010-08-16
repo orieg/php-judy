@@ -40,7 +40,9 @@ scaling near O(log-base-256) -- 1 more RAM access at 256 X population.
 README       This file.
 LICENSE      The PHP License used by this project.
 EXPERIMENTAL Note about the status of this package.
-        
+
+lib/         Header and source libraries used by the package.
+libjudy/     Bundled libJudy.      
 tests/       Unit tests.
 *.c, *.h     Header and source files used to build the package.
 *.php        PHP test/examples scripts.
@@ -73,8 +75,11 @@ If you encounter a bug, please submit it via the bug tracker on Git Hub:
 5. TODO
 --------
 
- * Add JudySL, JudyHS support
+ * Fix bundled libJudy (doesn't compile yet)
+ * Add JudySL test suites
+ * Add JudyHS support
  * Implement iterator methods
- * Finalize Judy class
+ * Finalize Judy class (proxying other php judy class)
  * Add Multi-dimensional JudyL Arrays
  * Add Multi-dimensional Associative Array based on JudyHS
+ * Test compile/install on other platform
