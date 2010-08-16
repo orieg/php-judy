@@ -286,8 +286,9 @@ PHP_MINFO_FUNCTION(judy)
     php_info_print_table_start();
     php_info_print_table_header(2, "Judy support", "enabled");
     php_info_print_table_row(2, "PHP Judy version", PHP_JUDY_VERSION);
-    php_info_print_table_row(2, "judy.string.maxlength", JUDY_G(max_length));
     php_info_print_table_end();
+
+    DISPLAY_INI_ENTRIES();
 }
 /* }}} */
 
