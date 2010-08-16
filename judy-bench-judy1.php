@@ -11,7 +11,7 @@ function convert($size)
 $count = array(100, 500, 1000, 5000, 10000, 50000, 100000, 500000);
 
 foreach($count as $v) {
-    echo "## Count: $v\n";
+    echo "\n## Count: $v\n";
 
     echo "\n-- Judy1 \n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
@@ -30,11 +30,10 @@ foreach($count as $v) {
     echo "Elapsed time: ".($e - $s)." sec.\n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
-    echo "\n";
 
     unset($judy);
 
-    echo "-- ARRAY \n";
+    echo "\n-- ARRAY \n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
 
@@ -82,4 +81,5 @@ foreach($count as $v) {
 
     unset($spl);
 
+    echo "\n";
 }
