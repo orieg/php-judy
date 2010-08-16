@@ -201,12 +201,22 @@ PHP_METHOD(judysl, get)
  Search (inclusive) for the first index present that is equal to or greater than the passed Index */
 PHP_METHOD(judysl, first)
 {
-    uint8_t        *key = '\0';
-    int         key_length;
+    char        *str;
+    int         str_length;
+
+    uint8_t     key[JUDY_G(max_length)];
     PWord_t     PValue;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &key, &key_length) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &str, &str_length) == FAILURE) {
         RETURN_FALSE;
+    }
+
+    if (str_length == 0) {
+        key[0] = '\0';
+    } else {
+        int i;
+        for (i = 0; str[i]; i++)
+            key[i] = str[i];
     }
 
     zval *object = getThis();
@@ -229,7 +239,7 @@ PHP_METHOD(judysl, next)
     int         key_length;
     PWord_t     PValue;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &index) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &key, &key_length) == FAILURE) {
         RETURN_FALSE;
     }
 
@@ -249,19 +259,24 @@ PHP_METHOD(judysl, next)
  Search (inclusive) for the last index present that is equal to or less than the passed Index */
 PHP_METHOD(judysl, last)
 {
-    uint8_t     *key;
-    int         key_length;
+    uint8_t     *str;
+    int         str_length;
+    
+    uint8_t     key[JUDY_G(max_length)];
     PWord_t     PValue;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &key, &key_length) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &str, &str_length) == FAILURE) {
         RETURN_FALSE;
     }
     
-    if (key_length == 0) {
-        uint8_t key[JUDY_G(max_length)];
+    if (str_length == 0) {
         int i = 0;
         for(i; i < JUDY_G(max_length); i++)
             key[i] = 0xff;
+    } else {
+        int i;
+        for (i = 0; str[i]; i++)
+            key[i] = str[i];
     }
 
     zval *object = getThis();

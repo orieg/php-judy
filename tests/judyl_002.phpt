@@ -42,7 +42,7 @@ else
 // Free
 
 if (!$judy->free())
-    echo "Failed to free Judy1 array\n";
+    echo "Failed to free JudyL array\n";
 else
     echo "Freeing JudyL array\n";
 
