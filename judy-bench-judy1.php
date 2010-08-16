@@ -32,6 +32,29 @@ foreach($count as $v) {
 
     unset($array);
 
+    echo "\n-- SplDoublyLinkedList \n";
+    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
+    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
+
+    $s=microtime(true);
+    $spl = new SplDoublyLinkedList();
+    for ($i=0; $i<$v; $i++)
+        $spl->push($i);
+    try {
+        $spl->offsetUnset(102);
+        var_dump($spl->offsetGet(100));
+        var_dump($spl->offsetGet(102));
+    } catch (OutOfRangeException $e) {
+        echo $e;
+    }
+    $e=microtime(true);
+    echo "Count: ".$spl->count()."\n";
+    echo "Elapsed time: ".($e - $s)." sec.\n";
+    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
+    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
+    
+    unset($spl);
+
     echo "\n-- Judy1 \n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
