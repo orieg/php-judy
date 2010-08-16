@@ -1,15 +1,14 @@
 <?php
 
-    ini_set("memory_limit", "128M");
+ini_set("memory_limit", "128M");
 
-    function convert($size)
-    {
-        $unit=array('b','kb','mb','gb','tb','pb');
-        return @round($size/pow(1024,($i=floor(log($size,1024)))),2).' '.$unit[$i];
-    }
+function convert($size)
+{
+    $unit=array('b','kb','mb','gb','tb','pb');
+    return @round($size/pow(1024,($i=floor(log($size,1024)))),2).' '.$unit[$i];
+}
 
-    $v = $argv[1];
-    $count = array(100, 500, 1000, 5000, 10000, 50000, 100000, 500000);
+$count = array(100, 500, 1000, 5000, 10000, 50000, 100000, 500000);
 
 foreach($count as $v) {
     echo "## Count: $v\n";
