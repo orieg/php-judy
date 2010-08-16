@@ -20,10 +20,10 @@ foreach($count as $v) {
     $s=microtime(true);
     $array = array();
     for ($i=0; $i<$v; $i++)
-        $array[$i] = true;
-    unset($array[102]);
-    var_dump($array[100]);
-    var_dump($array[102]);
+        $array["$i"] = rand();
+    unset($array["102"]);
+    var_dump($array["100"]);
+    var_dump($array["102"]);
     $e=microtime(true);
     echo "Count: ".count($array)."\n";
     echo "Elapsed time: ".($e - $s)." sec.\n";
@@ -32,19 +32,18 @@ foreach($count as $v) {
 
     unset($array);
 
-    echo "\n-- Judy1 \n";
+    echo "\n-- JudySL \n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
 
     $s=microtime(true);
-    $judy = new Judy1();
+    $judy = new JudySL();
     for ($i=0; $i<$v; $i++)
-        $judy->set($i);
-    var_dump($judy->test(100));
-    $judy->unset(102);
-    var_dump($judy->test(102));
-    echo "Count: ".$judy->count()."\n";
-    echo "MU: ".convert($judy->memory_usage())."\n";
+        $judy->ins("$i", rand());
+    var_dump($judy->get(100));
+    $judy->del("102");
+    var_dump($judy->get("102"));
+    echo "Size: ".$judy->size()."\n";
     $e=microtime(true);
     echo "Elapsed time: ".($e - $s)." sec.\n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";

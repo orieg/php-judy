@@ -26,7 +26,7 @@ foreach($count as $v) {
     var_dump($array[102]);
     $e=microtime(true);
     echo "Count: ".count($array)."\n";
-    echo ($e - $s)."\n";
+    echo "Elapsed time: ".($e - $s)." sec.\n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
 
@@ -46,7 +46,7 @@ foreach($count as $v) {
     echo "Count: ".$judy->count()."\n";
     echo "MU: ".convert($judy->memory_usage())."\n";
     $e=microtime(true);
-    echo ($e - $s)."\n";
+    echo "Elapsed time: ".($e - $s)." sec.\n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
     echo "\n";
