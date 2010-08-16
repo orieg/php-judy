@@ -12,6 +12,28 @@ $count = array(100, 500, 1000, 5000, 10000, 50000, 100000, 500000);
 
 foreach($count as $v) {
     echo "## Count: $v\n";
+
+    echo "\n-- Judy1 \n";
+    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
+    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
+
+    $s=microtime(true);
+    $judy = new Judy1();
+    for ($i=0; $i<$v; $i++)
+        $judy->set($i);
+    var_dump($judy->test(100));
+    $judy->unset(102);
+    var_dump($judy->test(102));
+    echo "Count: ".$judy->count()."\n";
+    echo "MU: ".convert($judy->memory_usage())."\n";
+    $e=microtime(true);
+    echo "Elapsed time: ".($e - $s)." sec.\n";
+    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
+    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
+    echo "\n";
+
+    unset($judy);
+
     echo "-- ARRAY \n";
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
@@ -52,26 +74,12 @@ foreach($count as $v) {
     echo "Mem usage: ". convert(memory_get_usage()) . "\n";
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
     
+    try {
+        for ($i=0; $i<$v; $i++)
+            $spl->pop();
+    } catch (Exception $e) {
+    }
+
     unset($spl);
 
-    echo "\n-- Judy1 \n";
-    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
-    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
-
-    $s=microtime(true);
-    $judy = new Judy1();
-    for ($i=0; $i<$v; $i++)
-        $judy->set($i);
-    var_dump($judy->test(100));
-    $judy->unset(102);
-    var_dump($judy->test(102));
-    echo "Count: ".$judy->count()."\n";
-    echo "MU: ".convert($judy->memory_usage())."\n";
-    $e=microtime(true);
-    echo "Elapsed time: ".($e - $s)." sec.\n";
-    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
-    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
-    echo "\n";
-
-    unset($judy);
 }
