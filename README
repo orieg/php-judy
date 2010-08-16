@@ -51,7 +51,7 @@ tests/       Unit tests.
 3. HOW TO INSTALL
 ------------------
 
-This extension has only been tested with php 5.3.3 on Ubuntu Karmic 32bit.
+Note : This extension has only been tested with php 5.3.3 on Ubuntu Karmic 32bit.
 
   phpize
   ./configure --with-judy[=DIR]
@@ -59,6 +59,15 @@ This extension has only been tested with php 5.3.3 on Ubuntu Karmic 32bit.
   make test
   make install
 
+If you are using Ubuntu or Debian, you can install libJudy with apt :
+
+  apt-get install libjudydebian1 libjudy-dev
+  phpize
+  ./configure --with-judy=/usr
+  make
+  make test
+  make install
+  
 You can check everything is ok by running :
 
   php -f judy.php

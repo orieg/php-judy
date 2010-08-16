@@ -10,7 +10,7 @@ judy_sources="lib/judy1.c lib/judyl.c lib/judysl.c"
 
 if test "$PHP_JUDY" != "no" && test "$PHP_JUDY" != "yes"; then
 
-  AC_DEFINE(HAVE_BUNDLED_JUDY, 1, "no")
+  AC_DEFINE(HAVE_BUNDLED_JUDY, "no", [ ]) 
 
   dnl # --with-judy -> check with-path
   SEARCH_PATH="/usr/local /usr"
@@ -55,7 +55,7 @@ if test "$PHP_JUDY" != "no" && test "$PHP_JUDY" != "yes"; then
   PHP_SUBST(JUDY_SHARED_LIBADD)
 else
 
-  AC_DEFINE(HAVE_BUNDLED_JUDY, 1, "yes")
+  AC_DEFINE(HAVE_BUNDLED_JUDY, "yes", [ ]) 
 
   AC_MSG_CHECKING([for Judy library to use])
   AC_MSG_RESULT([bundled])
