@@ -8,9 +8,7 @@ PHP_ARG_WITH(judy, for Judy support,
 
 judy_sources="lib/judy1.c lib/judyl.c lib/judysl.c lib/judyhs.c"
 
-if test "$PHP_JUDY" != "no" && test "$PHP_JUDY" != "yes"; then
-
-  AC_DEFINE(HAVE_BUNDLED_JUDY, "no", [ ]) 
+if test "$PHP_JUDY" != "no"; then
 
   dnl # --with-judy -> check with-path
   SEARCH_PATH="/usr/local /usr"
@@ -53,27 +51,5 @@ if test "$PHP_JUDY" != "no" && test "$PHP_JUDY" != "yes"; then
   PHP_NEW_EXTENSION(judy, php_judy.c $judy_sources, $ext_shared)
   PHP_ADD_BUILD_DIR($ext_builddir/lib, 1)
   PHP_SUBST(JUDY_SHARED_LIBADD)
-else
 
-  AC_DEFINE(HAVE_BUNDLED_JUDY, "yes", [ ]) 
-
-  AC_MSG_CHECKING([for Judy library to use])
-  AC_MSG_RESULT([bundled])
-
-  libjudy_sources="libjudy/Judy.h.check.c libjudy/JudyCommon/JudyByCount.c \
-                   libjudy/JudyCommon/JudyCascade.c libjudy/JudyCommon/JudyCount.c \
-                   libjudy/JudyCommon/JudyCreateBranch.c libjudy/JudyCommon/JudyDecascade.c \
-                   libjudy/JudyCommon/JudyDel.c libjudy/JudyCommon/JudyFirst.c \
-                   libjudy/JudyCommon/JudyFreeArray.c libjudy/JudyCommon/JudyGet.c \
-                   libjudy/JudyCommon/JudyInsArray.c libjudy/JudyCommon/JudyIns.c \
-                   libjudy/JudyCommon/JudyInsertBranch.c libjudy/JudyCommon/JudyMalloc.c \
-                   libjudy/JudyCommon/JudyMallocIF.c libjudy/JudyCommon/JudyMemActive.c \
-                   libjudy/JudyCommon/JudyMemUsed.c libjudy/JudyCommon/JudyPrevNext.c \
-                   libjudy/JudyCommon/JudyPrevNextEmpty.c libjudy/JudyCommon/JudyPrintJP.c \
-                   libjudy/JudyCommon/JudyTables.c libjudy/JudyHS/JudyHS.c libjudy/JudySL/JudySL.c"
-
-  PHP_INSTALL_HEADERS([ext/judy], [php_judy.h lib/ libjudy/])
-  PHP_NEW_EXTENSION(judy, php_judy.c $libjudy_sources $judy_sources, $ext_shared,, -I@ext_srcdir@/libjudy)
-  PHP_ADD_BUILD_DIR($ext_builddir/lib, 1)
-  PHP_SUBST(JUDY_SHARED_LIBADD)
 fi

@@ -309,9 +309,6 @@ PHP_MINFO_FUNCTION(judy)
     php_info_print_table_start();
     php_info_print_table_header(2, "Judy support", "enabled");
     php_info_print_table_row(2, "PHP Judy version", PHP_JUDY_VERSION);
-#ifdef HAVE_BUNDLED_JUDY
-    php_info_print_table_row(2, "Using bundled Judy library", HAVE_BUNDLED_JUDY);
-#endif
     php_info_print_table_end();
 
     DISPLAY_INI_ENTRIES();
