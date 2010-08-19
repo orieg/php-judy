@@ -85,10 +85,11 @@ zend_object_value judyhs_object_clone(zval *this_ptr TSRMLS_DC)
  Constructs a new JudyHS array of the given type */
 PHP_METHOD(judyhs, __construct)
 {
-    judy_object *intern;
-    zend_error_handling error_handling;
+    
+    JUDY_METHOD_ERROR_HANDLING;
 
-    zend_replace_error_handling(EH_THROW, NULL, &error_handling TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
+
     intern = (judy_object*) zend_object_store_get_object(getThis() TSRMLS_CC);
     intern->type = TYPE_JUDYHS;
     intern->array = (Pvoid_t) NULL;
@@ -104,8 +105,7 @@ PHP_METHOD(judyhs, free)
 {
     Word_t     Rc_word;
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JHSFA(Rc_word, intern->array);
     JUDY_G(counter) = 0;
@@ -134,8 +134,7 @@ PHP_METHOD(judyhs, insert)
         RETURN_FALSE;
     }
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JHSI(PValue, intern->array, key, key_length);
     if (PValue != NULL && PValue != PJERR) {
@@ -160,8 +159,7 @@ PHP_METHOD(judyhs, remove)
         RETURN_FALSE;
     }
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JHSD(Rc_int, intern->array, key, key_length);
     if (Rc_int == 1)
@@ -182,8 +180,7 @@ PHP_METHOD(judyhs, get)
         RETURN_FALSE;
     }
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JHSG(PValue, intern->array, key, key_length);
     if (PValue != NULL && PValue != PJERR) {

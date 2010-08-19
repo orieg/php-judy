@@ -66,6 +66,14 @@ typedef enum _judy_type {
     jtype = type; \
 }
 
+#define JUDY_METHOD_ERROR_HANDLING \
+    zend_error_handling error_handling; \
+    zend_replace_error_handling(EH_THROW, NULL, &error_handling TSRMLS_CC);
+
+#define JUDY_METHOD_GET_OBJECT \
+    zval *object = getThis(); \
+    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+
 typedef struct _judy_object {
     zend_object     std;
     long            type;

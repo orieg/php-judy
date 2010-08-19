@@ -88,11 +88,11 @@ zend_object_value judysl_object_clone(zval *this_ptr TSRMLS_DC)
  Constructs a new JudySL array of the given type */
 PHP_METHOD(judysl, __construct)
 {
-    judy_object *intern;
-    zend_error_handling error_handling;
 
-    zend_replace_error_handling(EH_THROW, NULL, &error_handling TSRMLS_CC);
-    intern = (judy_object*) zend_object_store_get_object(getThis() TSRMLS_CC);
+    JUDY_METHOD_ERROR_HANDLING;
+
+    JUDY_METHOD_GET_OBJECT;
+
     intern->type = TYPE_JUDYSL;
     intern->array = (Pvoid_t) NULL;
     zend_restore_error_handling(&error_handling TSRMLS_CC);
@@ -107,8 +107,7 @@ PHP_METHOD(judysl, free)
 {
     Word_t     Rc_word;
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JSLFA(Rc_word, intern->array);
     JUDY_G(counter) = 0;
@@ -137,8 +136,7 @@ PHP_METHOD(judysl, insert)
         RETURN_FALSE;
     }
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JSLI(PValue, intern->array, key);
     if (PValue != NULL && PValue != PJERR) {
@@ -163,8 +161,7 @@ PHP_METHOD(judysl, remove)
         RETURN_FALSE;
     }
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JSLD(Rc_int, intern->array, key);
     if (Rc_int == 1)
@@ -185,8 +182,7 @@ PHP_METHOD(judysl, get)
         RETURN_FALSE;
     }
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JSLG(PValue, intern->array, key);
     if (PValue != NULL && PValue != PJERR) {
@@ -219,8 +215,7 @@ PHP_METHOD(judysl, first)
             key[i] = str[i];
     }
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JSLF(PValue, intern->array, key);
     if (PValue != NULL && PValue != PJERR) {
@@ -243,8 +238,7 @@ PHP_METHOD(judysl, next)
         RETURN_FALSE;
     }
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JSLN(PValue, intern->array, key);
     if (PValue != NULL && PValue != PJERR) {
@@ -279,8 +273,7 @@ PHP_METHOD(judysl, last)
             key[i] = str[i];
     }
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JSLL(PValue, intern->array, key);
     if (PValue != NULL && PValue != PJERR) {
@@ -303,8 +296,7 @@ PHP_METHOD(judysl, prev)
         RETURN_FALSE;
     }
 
-    zval *object = getThis();
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    JUDY_METHOD_GET_OBJECT;
 
     JSLP(PValue, intern->array, key);
     if (PValue != NULL && PValue != PJERR) {

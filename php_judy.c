@@ -44,63 +44,6 @@
 #include "lib/judyhs.h"
 #endif
 
-/* {{{ judy_functions[]
- *
- * Every user visible function must have an entry in judy_functions[].
- */
-const zend_function_entry judy_functions[] = {
-	PHP_FE(judy_version, NULL)
-	{NULL, NULL, NULL}
-};
-/* }}} */
-
-/* {{{ judy class methods parameters
- */
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy___construct, 0, 0, 1)
-    ZEND_ARG_INFO(0, type)
-ZEND_END_ARG_INFO()
-/* }}}} */
-
-/* {{{ judy_class_methodss[]
- *
- * Every user visible Judy method must have an entry in judy_class_methods[].
- */
-const zend_function_entry judy_class_methods[] = {
-    PHP_ME(judy, __construct, arginfo_judy___construct, ZEND_ACC_CTOR | ZEND_ACC_PUBLIC)
-	{NULL, NULL, NULL}
-};
-/* }}} */
-
-/* {{{ judy_module_entry
- */
-zend_module_entry judy_module_entry = {
-#if ZEND_MODULE_API_NO >= 20010901
-    STANDARD_MODULE_HEADER,
-#endif
-    PHP_JUDY_EXTNAME,
-    judy_functions,
-    PHP_MINIT(judy),
-    PHP_MSHUTDOWN(judy),
-    PHP_RINIT(judy),
-    NULL,
-    PHP_MINFO(judy),
-#if ZEND_MODULE_API_NO >= 20010901
-    PHP_JUDY_VERSION,
-#endif
-    STANDARD_MODULE_PROPERTIES
-};
-/* }}} */
-
-#ifdef COMPILE_DL_JUDY
-ZEND_GET_MODULE(judy)
-#endif
-
-/* {{{ PHP INI entries
- */
-PHP_INI_BEGIN()
-    STD_PHP_INI_ENTRY("judy.string.maxlength", "65536", PHP_INI_ALL, OnUpdateLong, max_length, zend_judy_globals, judy_globals)
-PHP_INI_END()
- /* }}} */
 
 /* {{{ php_judy_init_globals
  */
@@ -117,11 +60,17 @@ static void judy_object_free_storage(void *object TSRMLS_DC)
     judy_object *intern = (judy_object *) object;
 
     if (intern->array && intern->type == TYPE_JUDY1) {
-        int Rc_word;
-        J1FA(Rc_word, intern->array);
+        int Rc_int;
+        J1FA(Rc_int, intern->array);
     } else if (intern->array && intern->type == TYPE_JUDYL) {
         Word_t Rc_word;
         JLFA(Rc_word, intern->array);
+    } else if (intern->array && intern->type == TYPE_JUDYSL) {
+        Word_t Rc_word;
+        JSLFA(Rc_word, intern->array);
+    } else if (intern->array && intern->type == TYPE_JUDYHS) {
+        Word_t Rc_word;
+        JHSFA(Rc_word, intern->array);
     }
 
     zend_object_std_dtor(&intern->std TSRMLS_CC);
@@ -159,7 +108,8 @@ zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSR
 
 /* {{{ judy_object_new
  */
-zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC) {
+zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC)
+{
     return judy_object_new_ex(ce, NULL TSRMLS_CC);
 }
 /* }}} */
@@ -179,6 +129,60 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
 }
 /* }}} */
 
+/* {{{ judy class methods parameters
+ */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy___construct, 0, 0, 1)
+    ZEND_ARG_INFO(0, type)
+ZEND_END_ARG_INFO()
+/* }}}} */
+
+/* {{{ judy_functions[]
+ *
+ * Every user visible function must have an entry in judy_functions[].
+ */
+const zend_function_entry judy_functions[] = {
+	PHP_FE(judy_version, NULL)
+	{NULL, NULL, NULL}
+};
+/* }}} */
+
+/* {{{ judy_class_methodss[]
+ *
+ * Every user visible Judy method must have an entry in judy_class_methods[].
+ */
+const zend_function_entry judy_class_methods[] = {
+    PHP_ME(judy, __construct, arginfo_judy___construct, ZEND_ACC_CTOR | ZEND_ACC_PUBLIC)
+	{NULL, NULL, NULL}
+};
+/* }}} */
+
+/* {{{ judy_module_entry
+ */
+zend_module_entry judy_module_entry = {
+#if ZEND_MODULE_API_NO >= 20010901
+    STANDARD_MODULE_HEADER,
+#endif
+    PHP_JUDY_EXTNAME,
+    judy_functions,
+    PHP_MINIT(judy),
+    PHP_MSHUTDOWN(judy),
+    PHP_RINIT(judy),
+    NULL,
+    PHP_MINFO(judy),
+#if ZEND_MODULE_API_NO >= 20010901
+    PHP_JUDY_VERSION,
+#endif
+    STANDARD_MODULE_PROPERTIES
+};
+/* }}} */
+
+/* {{{ PHP INI entries
+ */
+PHP_INI_BEGIN()
+    STD_PHP_INI_ENTRY("judy.string.maxlength", "65536", PHP_INI_ALL, OnUpdateLong, max_length, zend_judy_globals, judy_globals)
+PHP_INI_END()
+ /* }}} */
+
 /* {{{ PHP_MINIT_FUNCTION
  */
 PHP_MINIT_FUNCTION(judy)
@@ -196,7 +200,7 @@ PHP_MINIT_FUNCTION(judy)
 
     /* Judy */
 
-    INIT_CLASS_ENTRY(ce, "judy", judy_class_methods);
+    INIT_CLASS_ENTRY(ce, "Judy", judy_class_methods);
     judy_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
     judy_ce->create_object = judy_object_new;
     memcpy(&judy_handlers, zend_get_std_object_handlers(),
@@ -315,16 +319,16 @@ PHP_MINFO_FUNCTION(judy)
 }
 /* }}} */
 
-/* {{{ proto void judy::__construct(long type)
+/* {{{ proto Judy::__construct(long type)
  Constructs a new Judy array of the given type */
 PHP_METHOD(judy, __construct)
 {
-    judy_object *intern;
-    long        type;
-    judy_type  jtype;
-    zend_error_handling error_handling;
+    long                    type;
+    judy_type               jtype;
+    judy_object             *intern;
 
-    zend_replace_error_handling(EH_THROW, NULL, &error_handling TSRMLS_CC);
+    JUDY_METHOD_ERROR_HANDLING;
+
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &type) == SUCCESS) {
         JTYPE(jtype, type);
         if (jtype == TYPE_JUDY1) {
@@ -344,6 +348,10 @@ PHP_FUNCTION(judy_version)
    php_printf("PHP Judy Version: %s\n", PHP_JUDY_VERSION);
 }
 /* }}} */
+
+#ifdef COMPILE_DL_JUDY
+ZEND_GET_MODULE(judy)
+#endif
 
 /*
  * Local variables:
