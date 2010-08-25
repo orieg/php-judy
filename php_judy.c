@@ -201,7 +201,7 @@ PHP_MINIT_FUNCTION(judy)
     /* Judy */
 
     INIT_CLASS_ENTRY(ce, "Judy", judy_class_methods);
-    judy_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
+    judy_ce = zend_register_internal_class_ex(&ce, NULL, NULL TSRMLS_CC);
     judy_ce->create_object = judy_object_new;
     memcpy(&judy_handlers, zend_get_std_object_handlers(),
         sizeof(zend_object_handlers));
@@ -218,7 +218,7 @@ PHP_MINIT_FUNCTION(judy)
      */
 
     INIT_CLASS_ENTRY(ce, "Judy1", judy1_class_methods);
-    judy1_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
+    judy1_ce = zend_register_internal_class_ex(&ce, NULL, NULL TSRMLS_CC);
     judy1_ce->create_object = judy_object_new;
     memcpy(&judy1_handlers, zend_get_std_object_handlers(),
         sizeof(zend_object_handlers));
@@ -237,7 +237,7 @@ PHP_MINIT_FUNCTION(judy)
      */
 
     INIT_CLASS_ENTRY(ce, "JudyL", judyl_class_methods);
-    judyl_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
+    judyl_ce = zend_register_internal_class_ex(&ce, NULL, NULL TSRMLS_CC);
     judyl_ce->create_object = judy_object_new;
     memcpy(&judyl_handlers, zend_get_std_object_handlers(),
         sizeof(zend_object_handlers));
@@ -256,7 +256,7 @@ PHP_MINIT_FUNCTION(judy)
      */
 
     INIT_CLASS_ENTRY(ce, "JudySL", judysl_class_methods);
-    judysl_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
+    judysl_ce = zend_register_internal_class_ex(&ce, NULL, NULL TSRMLS_CC);
     judysl_ce->create_object = judy_object_new;
     memcpy(&judysl_handlers, zend_get_std_object_handlers(),
         sizeof(zend_object_handlers));
@@ -275,7 +275,7 @@ PHP_MINIT_FUNCTION(judy)
      */
 
     INIT_CLASS_ENTRY(ce, "JudyHS", judyhs_class_methods);
-    judyhs_ce = zend_register_internal_class_ex(&ce TSRMLS_CC, NULL, NULL TSRMLS_CC);
+    judyhs_ce = zend_register_internal_class_ex(&ce, NULL, NULL TSRMLS_CC);
     judyhs_ce->create_object = judy_object_new;
     memcpy(&judyhs_handlers, zend_get_std_object_handlers(),
         sizeof(zend_object_handlers));

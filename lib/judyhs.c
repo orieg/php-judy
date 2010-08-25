@@ -121,16 +121,16 @@ PHP_METHOD(judyhs, size)
 }
 /* }}} */
 
-/* {{{ proto boolean JudyHS::insert(string key, long value)
+/* {{{ proto boolean JudyHS::insert(string key, mixed value)
  Set the current index */
 PHP_METHOD(judyhs, insert)
 {
     uint8_t     *key;
     int         key_length;
-    long        value;
-    Word_t      *PValue;
+    zval        *value;
+    Pvoid_t     *PValue;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sl", &key, &key_length, &value) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sz", &key, &key_length, &value) == FAILURE) {
         RETURN_FALSE;
     }
 
@@ -138,7 +138,7 @@ PHP_METHOD(judyhs, insert)
 
     JHSI(PValue, intern->array, key, key_length);
     if (PValue != NULL && PValue != PJERR) {
-        *PValue = (Word_t) value;
+        *((zval **)PValue) = value;
         JUDY_G(counter)++;
         RETURN_TRUE;
     } else {
@@ -184,7 +184,9 @@ PHP_METHOD(judyhs, get)
 
     JHSG(PValue, intern->array, key, key_length);
     if (PValue != NULL && PValue != PJERR) {
-        RETURN_LONG(*PValue);
+        //RETURN_ZVAL(*((zval **)PValue), 1, 0);
+        *return_value = *(*((zval **)PValue));
+        //return *PValue;
     } else {
         RETURN_NULL();
     }

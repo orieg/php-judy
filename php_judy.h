@@ -86,7 +86,7 @@ static void judy_object_free_storage(void * TSRMLS_DC);
 zend_class_entry *judy_ce;
 
 zend_object_handlers judy_handlers;
-zend_object_value judy_object_new(zend_class_entry *ce);
+zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC);
 zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSRMLS_DC);
 zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC);
 
