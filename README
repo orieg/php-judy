@@ -33,6 +33,11 @@ scaling near O(log-base-256) -- 1 more RAM access at 256 X population.
 
     http://judy.sourceforge.net
 
+Judy1  - maps an Index (word) to a bit
+JudyL  - maps an Index (word) to a Value (word/pointer)
+JudySL - maps an Index (null terminated string) to a Value
+JudyHS - maps an Index (array-of-bytes) of Length to a Value
+
 
 2. PHP JUDY TOP DIRECTORY CONTENTS:
 ------------------------------------
