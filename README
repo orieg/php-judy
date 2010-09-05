@@ -89,7 +89,6 @@ If you encounter a bug, please submit it via the bug tracker on Git Hub:
 5. TODO
 --------
 
- * Fix JudySL test suites and JudySL::last()
  * Implement iterator methods
  * Finalize Judy class (proxying other php judy class)
  * Add Multi-dimensional JudyL Arrays
