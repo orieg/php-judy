@@ -11,7 +11,7 @@ $judy = new JudyHS();
 echo "Insert 100 index with a rand value\n";
 for ($i=0; $i<100; $i++) {
         $value = rand();
-        if(!$judy->ins("$i", $value))
+        if (!$judy->ins("$i", $value))
             echo "Failed to insert index $i (value: $value)\n";
 }
 

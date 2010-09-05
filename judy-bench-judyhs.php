@@ -36,7 +36,7 @@ foreach($count as $v) {
     echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
 
     $s=microtime(true);
-    $judy = new JudySL();
+    $judy = new JudyHS();
     for ($i=0; $i<$v; $i++)
         $judy->ins("$i", rand());
     var_dump($judy->get(100));

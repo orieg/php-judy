@@ -38,7 +38,7 @@ $index = $firstIndexDefault;
 while ($index < $lastIndexDefault) {
     $parent_index = $index;
     $index = $judy->next($parent_index);
-    if (empty($index)) {
+    if ($index === null) {
         echo "Failed to get next index from parent index ($parent_index)\n";
         break;
     }
@@ -51,7 +51,7 @@ $index = $lastIndexDefault;
 while ($index > $firstIndexDefault) {
     $parent_index = $index;
     $index = $judy->prev($parent_index);
-    if (empty($index)) {
+    if ($index === null) {
         echo "Failed to get previous index from parent index ($parent_index)\n";
         break;
     }
@@ -62,8 +62,8 @@ echo "Done\n";
 --EXPECT--
 Insert 100 index with a rand value
 First index set: 0
-First index set from index 50: 51
-Last index set: 
+First index set from index 50: 50
+Last index set: 99
 Last index set from index 1000: 10
 Testing next()
 Testing prev()

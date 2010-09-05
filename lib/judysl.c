@@ -213,6 +213,7 @@ PHP_METHOD(judysl, first)
         int i;
         for (i = 0; str[i]; i++)
             key[i] = str[i];
+        key[i++] = '\0';
     }
 
     JUDY_METHOD_GET_OBJECT;
@@ -230,12 +231,23 @@ PHP_METHOD(judysl, first)
  Search (exclusive) for the next index present that is greater than the passed Index */
 PHP_METHOD(judysl, next)
 {
-    uint8_t     *key;
-    int         key_length;
+    char        *str;
+    int         str_length;
+
+    uint8_t     key[JUDY_G(max_length)];
     PWord_t     PValue;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &key, &key_length) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &str, &str_length) == FAILURE) {
         RETURN_FALSE;
+    }
+
+    if (str_length == 0) {
+        key[0] = '\0';
+    } else {
+        int i;
+        for (i = 0; str[i]; i++)
+            key[i] = str[i];
+        key[i++] = '\0';
     }
 
     JUDY_METHOD_GET_OBJECT;
@@ -257,6 +269,7 @@ PHP_METHOD(judysl, last)
     int         str_length;
     
     uint8_t     key[JUDY_G(max_length)];
+    int         key_length;
     PWord_t     PValue;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &str, &str_length) == FAILURE) {
@@ -271,6 +284,7 @@ PHP_METHOD(judysl, last)
         int i;
         for (i = 0; str[i]; i++)
             key[i] = str[i];
+        key[i++] = '\0';
     }
 
     JUDY_METHOD_GET_OBJECT;
@@ -288,12 +302,23 @@ PHP_METHOD(judysl, last)
  Search (exclusive) for the previous index present that is less than the passed Index */
 PHP_METHOD(judysl, prev)
 {
-    char        *key;
-    int         key_length;
+    char        *str;
+    int         str_length;
+
+    uint8_t     key[JUDY_G(max_length)];
     PWord_t     PValue;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &key, &key_length) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &str, &str_length) == FAILURE) {
         RETURN_FALSE;
+    }
+
+    if (str_length == 0) {
+        key[0] = '\0';
+    } else {
+        int i;
+        for (i = 0; str[i]; i++)
+            key[i] = str[i];
+        key[i++] = '\0';
     }
 
     JUDY_METHOD_GET_OBJECT;
