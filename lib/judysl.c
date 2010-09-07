@@ -95,6 +95,7 @@ PHP_METHOD(judysl, __construct)
 
     intern->type = TYPE_JUDYSL;
     intern->array = (Pvoid_t) NULL;
+
     zend_restore_error_handling(&error_handling TSRMLS_CC);
 
     JUDY_G(counter) = 0;
@@ -109,8 +110,23 @@ PHP_METHOD(judysl, free)
 
     JUDY_METHOD_GET_OBJECT;
 
+    uint8_t   kindex[JUDY_G(max_length)];           // Key/index
+    Word_t    *PValue;                              // Pointer to the value
+
+    // Del ref to zval objects
+    JSLF(PValue, intern->array, kindex);
+    while(PValue != NULL && PValue != PJERR)
+    {
+        zval_ptr_dtor((zval **)PValue);
+        JSLN(PValue, intern->array, kindex);
+    }
+
+    // Free Judy Array
     JSLFA(Rc_word, intern->array);
+
+    // Reset counter
     JUDY_G(counter) = 0;
+
     RETURN_LONG(Rc_word);
 }
 /* }}} */
@@ -129,10 +145,10 @@ PHP_METHOD(judysl, insert)
 {
     uint8_t     *key;
     int         key_length;
-    long        value;
-    Word_t      *PValue;
+    zval        *value;
+    Pvoid_t     *PValue;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sl", &key, &key_length, &value) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sz", &key, &key_length, &value) == FAILURE) {
         RETURN_FALSE;
     }
 
@@ -140,7 +156,8 @@ PHP_METHOD(judysl, insert)
 
     JSLI(PValue, intern->array, key);
     if (PValue != NULL && PValue != PJERR) {
-        *PValue = (Word_t) value;
+        *(zval **)PValue = value;
+        Z_ADDREF_P(*(zval **)PValue);
         JUDY_G(counter)++;
         RETURN_TRUE;
     } else {
@@ -163,9 +180,16 @@ PHP_METHOD(judysl, remove)
 
     JUDY_METHOD_GET_OBJECT;
 
-    JSLD(Rc_int, intern->array, key);
-    if (Rc_int == 1)
-        JUDY_G(counter)--;
+    Pvoid_t      *PValue;
+    JSLG(PValue, intern->array, key);
+    if (PValue != NULL && PValue != PJERR) {
+        zval_ptr_dtor((zval **)PValue);
+        JSLD(Rc_int, intern->array, key);
+        if (Rc_int == 1) {
+            JUDY_G(counter)--;
+        }
+    }
+
     RETURN_BOOL(Rc_int);
 }
 /* }}} */
@@ -186,7 +210,7 @@ PHP_METHOD(judysl, get)
 
     JSLG(PValue, intern->array, key);
     if (PValue != NULL && PValue != PJERR) {
-        RETURN_LONG(*PValue);
+        RETURN_ZVAL(*((zval **)PValue), 1 ,0);
     } else {
         RETURN_NULL();
     }

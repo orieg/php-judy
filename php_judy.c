@@ -22,6 +22,7 @@
 
 #include "php.h"
 #include "php_ini.h"
+#include "zend_interfaces.h"
 #include "ext/standard/info.h"
 
 #ifndef PHP_JUDY_H
@@ -53,28 +54,57 @@ static void php_judy_init_globals(zend_judy_globals *judy_globals)
 }
  /* }}} */
 
+/* {{{ judy_object_destroy_object
+ free Judy array and any other references */
+static void judy_object_destroy_object(zend_object *object, zend_object_handle handle TSRMLS_DC)
+{
+    judy_object *intern = (judy_object *) object;
+
+            Word_t     Rc_word;
+
+            uint8_t   kindex[JUDY_G(max_length)];           // Key/index
+            Word_t    *PValue;                              // Pointer to the value
+    switch (intern->type)
+    {
+
+        case TYPE_JUDYSL:
+
+            // Del ref to zval objects
+            JSLF(PValue, intern->array, kindex);
+            while(PValue != NULL && PValue != PJERR)
+            {
+                zval_ptr_dtor((zval **)PValue);
+                JSLN(PValue, intern->array, kindex);
+            }
+
+            // Free Judy Array
+            JSLFA(Rc_word, intern->array);
+
+            // Reset counter
+            JUDY_G(counter) = 0;
+
+            break;
+/*
+        zval *rv;
+        zend_function *free;
+
+        zend_hash_find(&intern->std.ce->function_table, "free", sizeof("free"),(void **) &free);
+        zend_call_method_with_0_params((zval **) intern->zobj, intern->std.ce, &free , "free", &rv);
+*/
+    }
+
+    /* call standard dtor */
+    zend_objects_destroy_object(object, handle TSRMLS_CC);
+
+}
+/* }}} */
+
 /* {{{ judy_free_storage
  close all resources and the memory allocated for the object */
 static void judy_object_free_storage(void *object TSRMLS_DC)
 {
     judy_object *intern = (judy_object *) object;
-
-    if (intern->array && intern->type == TYPE_JUDY1) {
-        int Rc_int;
-        J1FA(Rc_int, intern->array);
-    } else if (intern->array && intern->type == TYPE_JUDYL) {
-        Word_t Rc_word;
-        JLFA(Rc_word, intern->array);
-    } else if (intern->array && intern->type == TYPE_JUDYSL) {
-        Word_t Rc_word;
-        JSLFA(Rc_word, intern->array);
-    } else if (intern->array && intern->type == TYPE_JUDYHS) {
-        Word_t Rc_word;
-        JHSFA(Rc_word, intern->array);
-    }
-
     zend_object_std_dtor(&intern->std TSRMLS_CC);
-
     efree(object);
 }
 /* }}} */
@@ -99,7 +129,7 @@ zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSR
         &ce->default_properties, (copy_ctor_func_t) zval_add_ref,
         (void *) &tmp, sizeof(zval *));
 
-    retval.handle = zend_objects_store_put(intern, (zend_objects_store_dtor_t) zend_objects_destroy_object, (zend_objects_free_object_storage_t) judy_object_free_storage, NULL TSRMLS_CC);
+    retval.handle = zend_objects_store_put(intern, (zend_objects_store_dtor_t) judy_object_destroy_object, (zend_objects_free_object_storage_t) judy_object_free_storage, NULL TSRMLS_CC);
     retval.handlers = &judy_handlers;
 
     return retval;

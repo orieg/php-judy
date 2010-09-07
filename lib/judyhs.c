@@ -107,8 +107,12 @@ PHP_METHOD(judyhs, free)
 
     JUDY_METHOD_GET_OBJECT;
 
+    // Free Judy Array
     JHSFA(Rc_word, intern->array);
+
+    // Reset counter
     JUDY_G(counter) = 0;
+
     RETURN_LONG(Rc_word);
 }
 /* }}} */
@@ -128,7 +132,7 @@ PHP_METHOD(judyhs, insert)
     uint8_t     *key;
     int         key_length;
     Word_t      *value;
-    Pvoid_t     *PValue;
+    Word_t      *PValue;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sl", &key, &key_length, &value) == FAILURE) {
         RETURN_FALSE;
@@ -164,6 +168,7 @@ PHP_METHOD(judyhs, remove)
     JHSD(Rc_int, intern->array, key, key_length);
     if (Rc_int == 1)
         JUDY_G(counter)--;
+
     RETURN_BOOL(Rc_int);
 }
 /* }}} */
