@@ -63,6 +63,10 @@ Word_t judy_object_free_array(judy_object *object TSRMLS_DC)
     Word_t    *PValue;                              // Pointer to the value
     switch (object->type)
     {
+        case TYPE_JUDY1:
+            J1FA(Rc_word, intern->array);
+            break;
+
         case TYPE_JUDYSL:
 
             // Del ref to zval objects

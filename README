@@ -89,8 +89,11 @@ If you encounter a bug, please submit it via the bug tracker on Git Hub:
 5. TODO
 --------
 
+ * Change api to use only the "Judy" class and the following types :
+     - BITSET (aka Judy1)
+     - INT_TO_INT (aka JudyL)
+     - INT_TO_MIXED (aka Multi-dimensionnal JudyL)
+     - STRING_TO_INT (aka JudySL)
+     - STRING_TO_MIXED (aka Multi-dimensionnal JudySL)
  * Implement iterator methods
- * Finalize Judy class (proxying other php judy class)
- * Add Multi-dimensional JudyL Arrays
- * Add Multi-dimensional Associative Array based on JudyHS
  * Test compile/install on other platform
