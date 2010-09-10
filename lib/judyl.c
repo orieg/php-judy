@@ -107,12 +107,10 @@ PHP_METHOD(judyl, __construct)
  Free the entire JudyL Array. Return the number of bytes freed */
 PHP_METHOD(judyl, free)
 {
-    Word_t     Rc_word;
-
     JUDY_METHOD_GET_OBJECT;
 
-    JLFA(Rc_word, intern->array);
-    RETURN_LONG(Rc_word);
+    /* free judy array */
+    RETURN_LONG(judy_object_free_array(intern TSRMLS_CC));
 }
 /* }}} */
 

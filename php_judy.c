@@ -64,7 +64,11 @@ Word_t judy_object_free_array(judy_object *object TSRMLS_DC)
     switch (object->type)
     {
         case TYPE_JUDY1:
-            J1FA(Rc_word, intern->array);
+            J1FA(Rc_word, object->array);
+            break;
+
+        case TYPE_JUDYL:
+            JLFA(Rc_word, object->array);
             break;
 
         case TYPE_JUDYSL:
