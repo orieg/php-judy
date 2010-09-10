@@ -54,48 +54,49 @@ static void php_judy_init_globals(zend_judy_globals *judy_globals)
 }
  /* }}} */
 
-/* {{{ judy_object_destroy_object
- free Judy array and any other references */
-static void judy_object_destroy_object(zend_object *object, zend_object_handle handle TSRMLS_DC)
+/* {{{ judy_object_free_array
+ free judy array */
+Word_t judy_object_free_array(judy_object *object TSRMLS_DC)
 {
-    judy_object *intern = (judy_object *) object;
-
-            Word_t     Rc_word;
-
-            uint8_t   kindex[JUDY_G(max_length)];           // Key/index
-            Word_t    *PValue;                              // Pointer to the value
-    switch (intern->type)
+    Word_t    Rc_word;
+    uint8_t   kindex[JUDY_G(max_length)];           // Key/index
+    Word_t    *PValue;                              // Pointer to the value
+    switch (object->type)
     {
-
         case TYPE_JUDYSL:
 
             // Del ref to zval objects
-            JSLF(PValue, intern->array, kindex);
+            JSLF(PValue, object->array, kindex);
             while(PValue != NULL && PValue != PJERR)
             {
                 zval_ptr_dtor((zval **)PValue);
-                JSLN(PValue, intern->array, kindex);
+                JSLN(PValue, object->array, kindex);
             }
-
+        
             // Free Judy Array
-            JSLFA(Rc_word, intern->array);
+            JSLFA(Rc_word, object->array);
 
             // Reset counter
             JUDY_G(counter) = 0;
 
             break;
-/*
-        zval *rv;
-        zend_function *free;
-
-        zend_hash_find(&intern->std.ce->function_table, "free", sizeof("free"),(void **) &free);
-        zend_call_method_with_0_params((zval **) intern->zobj, intern->std.ce, &free , "free", &rv);
-*/
     }
+
+    return Rc_word;
+}
+/* }}} */
+
+/* {{{ judy_object_destroy_object
+ free Judy array and any other references */
+static void judy_object_destroy_object(zend_object *object, zend_object_handle handle TSRMLS_DC)
+{
+    judy_object *intern = (judy_object *) object;
+    
+    /* free judy array */
+    judy_object_free_array(intern TSRMLS_CC);
 
     /* call standard dtor */
     zend_objects_destroy_object(object, handle TSRMLS_CC);
-
 }
 /* }}} */
 

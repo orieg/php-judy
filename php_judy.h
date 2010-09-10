@@ -80,7 +80,10 @@ typedef struct _judy_object {
     Pvoid_t         array;
 } judy_object;
 
+static void judy_object_destroy_object(zend_object *object, zend_object_handle handle TSRMLS_DC);
 static void judy_object_free_storage(void * TSRMLS_DC);
+
+Word_t judy_object_free_array(judy_object *object TSRMLS_DC);
 
 /* declare judy class entry */
 zend_class_entry *judy_ce;

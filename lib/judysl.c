@@ -106,28 +106,10 @@ PHP_METHOD(judysl, __construct)
  Free the entire JudySL Array. Return the number of bytes freed */
 PHP_METHOD(judysl, free)
 {
-    Word_t     Rc_word;
-
     JUDY_METHOD_GET_OBJECT;
 
-    uint8_t   kindex[JUDY_G(max_length)];           // Key/index
-    Word_t    *PValue;                              // Pointer to the value
-
-    // Del ref to zval objects
-    JSLF(PValue, intern->array, kindex);
-    while(PValue != NULL && PValue != PJERR)
-    {
-        zval_ptr_dtor((zval **)PValue);
-        JSLN(PValue, intern->array, kindex);
-    }
-
-    // Free Judy Array
-    JSLFA(Rc_word, intern->array);
-
-    // Reset counter
-    JUDY_G(counter) = 0;
-
-    RETURN_LONG(Rc_word);
+    /* free judy array */
+    RETURN_LONG(judy_object_free_array(intern TSRMLS_CC));
 }
 /* }}} */
 
