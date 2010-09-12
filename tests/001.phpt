@@ -1,10 +1,11 @@
 --TEST--
-Check for judy presence
+Check for Judy presence
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php 
-echo "judy extension is available";
+echo "judy extension is available\n";
+judy_version();
 /*
 	you can add regression tests for your extension here
 
@@ -19,3 +20,4 @@ echo "judy extension is available";
 ?>
 --EXPECT--
 judy extension is available
+PHP Judy Version: 0.1

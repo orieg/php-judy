@@ -1,17 +1,17 @@
 --TEST--
-Check for Judy INT_TO_INT free/count/by_count methods
+Check for Judy INT_TO_MIXED free/count/by_count methods
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php 
-$judy = new Judy(Judy::INT_TO_INT);
+$judy = new Judy(Judy::INT_TO_MIXED);
 
 // Init array
 
 echo "Insert 100 index with a rand value\n";
 for ($i=0; $i<100; $i++) {
         $value = rand();
-        if(!$judy->set($i, $value))
+        if(!$judy->set($i, "$value"))
             echo "Failed to insert index $i (value: $value)\n";
 }
 
