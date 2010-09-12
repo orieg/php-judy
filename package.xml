@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package packagerversion="1.4.11" version="2.0" xmlns="http://pear.php.net/dtd/package-2.0" xmlns:tasks="http://pear.php.net/dtd/tasks-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pear.php.net/dtd/tasks-1.0
+http://pear.php.net/dtd/tasks-1.0.xsd
+http://pear.php.net/dtd/package-2.0
+http://pear.php.net/dtd/package-2.0.xsd">
+
+ <name>judy</name>
+ <channel>pecl.php.net</channel>
+
+ <summary>PHP Judy implements a sparse dynamic array (Judy Arrays)</summary>
+ <description>
+    PHP Judy implements a sparse dynamic array. A Judy array consumes memory only when
+    it is populated, yet can grow to take advantage of all available memory if desired.
+    Judy's key benefits are scalability, high performance, and memory efficiency.
+ </description>
+
+ <lead>
+  <name>Nicolas Brousse</name>
+  <user>nicolas</user>
+  <email>nicolas@brousse.info</email>
+  <active>yes</active>
+ </lead>
+
+ <date>2010-09-12</date>
+ <version>
+  <release>0.0.1</release>
+  <api>0.0.1</api>
+ </version>
+ <stability>
+  <release>alpha</release>
+  <api>alpha</api>
+ </stability>
+
+ <license uri="http://www.php.net/license">PHP</license>
+
+ <notes>
+    - Initial PECL release
+ </notes>
+
+ <contents>
+  <dir name="/">
+   <file role='doc' name='EXPERIMENTAL'/>
+   <file role='doc' name='README'/>
+   <file role='doc' name='LICENSE'/>
+   <file role='src' name='config.m4'/>
+   <file role='src' name='config.w32'/>
+   <file role='src' name='php_judy.h'/>
+   <file role='src' name='php_judy.c'/>
+   <file role='php' name='judy-bench-bitset.php'/>
+   <file role='php' name='judy-bench-int_to_int.php'/>
+   <file role='php' name='judy-bench-string_to_int.php'/>
+   <file role='php' name='judy.php'/>
+  </dir>
+  <dir name="tests">
+   <file role='test' name='001.phpt'/>
+   <file role='test' name='bitset_001.phpt'/>
+   <file role='test' name='bitset_002.phpt'/>
+   <file role='test' name='bitset_003.phpt'/>
+   <file role='test' name='bitset_004.phpt'/>
+   <file role='test' name='int_to_int_001.phpt'/>
+   <file role='test' name='int_to_int_002.phpt'/>
+   <file role='test' name='int_to_int_003.phpt'/>
+   <file role='test' name='int_to_int_004.phpt'/>
+   <file role='test' name='int_to_mixed_001.phpt'/>
+   <file role='test' name='int_to_mixed_002.phpt'/>
+   <file role='test' name='int_to_mixed_003.phpt'/>
+   <file role='test' name='int_to_mixed_004.phpt'/>
+   <file role='test' name='string_to_int_001.phpt'/>
+   <file role='test' name='string_to_int_002.phpt'/>
+   <file role='test' name='string_to_int_003.phpt'/>
+   <file role='test' name='string_to_mixed_001.phpt'/>
+   <file role='test' name='string_to_mixed_002.phpt'/>
+   <file role='test' name='string_to_mixed_003.phpt'/>
+  </dir>
+ </contents>
+
+ <dependencies>
+  <required>
+   <php>
+    <min>5.3.3</min>
+   </php>
+   <pearinstaller>
+    <min>1.4.0</min>
+   </pearinstaller>
+  </required>
+ </dependencies>
+
+ <providesextension>judy</providesextension>
+
+ <extsrcrelease>
+  <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
+ </extsrcrelease>
+
+ <changelog>
+ </changelog>
+
+</package>
+<!--
+vim:et:ts=1:sw=1
+-->
