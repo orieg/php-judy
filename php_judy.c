@@ -59,6 +59,7 @@ static Word_t judy_object_free_array(judy_object *object TSRMLS_DC)
             break;
 
         case TYPE_INT_TO_MIXED:
+            index = 0;
 
             // Del ref to zval objects
             JLF(PValue, object->array, index);
