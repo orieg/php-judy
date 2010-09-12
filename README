@@ -15,6 +15,13 @@ Content
 
 php-judy is an extension by Nicolas Brousse for the Judy C library.
 
+Structures available in the PHP Judy extension :
+ - BITSET (using Judy1)
+ - INT_TO_INT (using JudyL)
+ - INT_TO_MIXED (using JudyL)
+ - STRING_TO_INT (using JudySL)
+ - STRING_TO_MIXED (using JudySL)
+
     http://github.com/orieg/php-judy
 
 A Judy array is a complex but very fast associative array data structure for
@@ -32,12 +39,6 @@ Judy arrays are designed to grow without tuning into the peta-element range,
 scaling near O(log-base-256) -- 1 more RAM access at 256 X population.
 
     http://judy.sourceforge.net
-
-Judy1  - maps an Index (word) to a bit
-JudyL  - maps an Index (word) to a Value (word/pointer)
-JudySL - maps an Index (null terminated string) to a Value
-JudyHS - maps an Index (array-of-bytes) of Length to a Value
-
 
 2. PHP JUDY TOP DIRECTORY CONTENTS:
 ------------------------------------
@@ -89,11 +90,5 @@ If you encounter a bug, please submit it via the bug tracker on Git Hub:
 5. TODO
 --------
 
- * Change api to use only the "Judy" class and the following types :
-     - BITSET (aka Judy1)
-     - INT_TO_INT (aka JudyL)
-     - INT_TO_MIXED (aka Multi-dimensionnal JudyL)
-     - STRING_TO_INT (aka JudySL)
-     - STRING_TO_MIXED (aka Multi-dimensionnal JudySL)
  * Implement iterator methods
  * Test compile/install on other platform

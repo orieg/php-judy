@@ -82,6 +82,7 @@ static Word_t judy_object_free_array(judy_object *object TSRMLS_DC)
             break;
 
         case TYPE_STRING_TO_MIXED:
+            kindex[0] = '\0';
 
             // Del ref to zval objects
             JSLF(PValue, object->array, kindex);
@@ -669,7 +670,7 @@ PHP_METHOD(judy, first)
             RETURN_LONG(index);
     } else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
         char        *str;
-        int         str_length;
+        int         str_length = 0;
 
         uint8_t     key[JUDY_G(max_length)];
         PWord_t     PValue;
@@ -787,7 +788,7 @@ PHP_METHOD(judy, last)
             RETURN_LONG(index);
     } else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
         uint8_t     *str;
-        int         str_length;
+        int         str_length = 0;
     
         uint8_t     key[JUDY_G(max_length)];
         int         key_length;
