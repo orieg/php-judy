@@ -1,10 +1,10 @@
 --TEST--
-Check for Judy1 set/unset/test methods
+Check for Judy BITSET set/unset/test methods
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php 
-$judy = new Judy1();
+$judy = new Judy(Judy::BITSET);
 
 // Set
 
@@ -18,7 +18,7 @@ for ($i=0; $i<100; $i++) {
 
 echo "Test 100 index are set\n";
 for ($i=0; $i<100; $i++) {
-        if(!$judy->test($i))
+        if(!$judy->get($i))
             echo "Test index $i returned false\n";
 }
 
@@ -34,7 +34,7 @@ for ($i=0; $i<100; $i++) {
 
 echo "Test 100 index are not set\n";
 for ($i=0; $i<100; $i++) {
-        if($judy->test($i))
+        if($judy->get($i))
             echo "Test index $i returned true\n";
 }
 

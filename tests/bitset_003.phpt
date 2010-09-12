@@ -1,10 +1,10 @@
 --TEST--
-Check for Judy1 first/next/last/prev methods
+Check for Judy BITSET first/next/last/prev methods
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php 
-$judy = new Judy1();
+$judy = new Judy(Judy::BITSET);
 
 // Init array
 

@@ -21,7 +21,7 @@ foreach ($constants[$module] as $const => $v) {
     echo "\t$const => $v$br\n";
 }
 
-$class=array('Judy', 'Judy1', 'JudyL', 'JudySL', 'JudyHS');
+$class=array('Judy');
 foreach ($class as $c) {
     echo "$br\n";
     $class_methods = get_class_methods($c);

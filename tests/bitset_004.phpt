@@ -1,24 +1,23 @@
 --TEST--
-Check for JudyL first_empty/next_empty/last_empty/prev_empty methods
+Check for Judy BITSET first_empty/next_empty/last_empty/prev_empty methods
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php 
-$judy = new JudyL();
+$judy = new Judy(Judy::BITSET);
 
 // Init array
 
-echo "Insert 500 index with a rand value\n";
+echo "Insert 500 index\n";
 for ($i=100; $i<600; $i++) {
-        $value = rand();
-        if(!$judy->ins($i, $value))
-            echo "Failed to set index $i (value: $value)\n";
+        if(!$judy->set($i))
+            echo "Failed to set index $i\n";
 }
 
 $unset = array(150, 232, 346, 427, 589);
 foreach($unset as $i) {
     echo "Unset index $i\n";
-    if(!$judy->del($i))
+    if(!$judy->unset($i))
         echo "Failed to delete index $i\n";
 }
 
@@ -73,7 +72,7 @@ while ($index > $firstIndexDefault) {
 echo "Done\n";
 ?>
 --EXPECT--
-Insert 500 index with a rand value
+Insert 500 index
 Unset index 150
 Unset index 232
 Unset index 346

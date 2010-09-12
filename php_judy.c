@@ -330,7 +330,7 @@ PHP_METHOD(judy, __construct)
 
 /* {{{ proto long Judy::free()
  Free the entire Judy Array. Return the number of bytes freed */
-PHP_METHOD(judysl, free)
+PHP_METHOD(judy, free)
 {
     JUDY_METHOD_GET_OBJECT;
 

@@ -1,10 +1,10 @@
 --TEST--
-Check for Judy1 free/count/by_count methods
+Check for Judy BITSET free/count/by_count methods
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php 
-$judy = new Judy1();
+$judy = new Judy(Judy::BITSET);
 
 // Init array
 
