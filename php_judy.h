@@ -49,19 +49,95 @@ PHP_FUNCTION(judy_version);
 
 /* PHP Judy Class */
 PHP_METHOD(judy, __construct);
+PHP_METHOD(judy, free);
+PHP_METHOD(judy, memory_usage);
+PHP_METHOD(judy, set);
+PHP_METHOD(judy, unset);
+PHP_METHOD(judy, get);
+PHP_METHOD(judy, count);
+PHP_METHOD(judy, by_count);
+PHP_METHOD(judy, first);
+PHP_METHOD(judy, next);
+PHP_METHOD(judy, last);
+PHP_METHOD(judy, prev);
+PHP_METHOD(judy, first_empty);
+PHP_METHOD(judy, next_empty);
+PHP_METHOD(judy, last_empty);
+PHP_METHOD(judy, prev_empty);
+
+/* {{{ Judy class methods parameters
+ */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_set, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+    ZEND_ARG_INFO(0, value)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_unset, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_get, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_count, 0, 0, 0)
+    ZEND_ARG_INFO(0, index_start)
+    ZEND_ARG_INFO(0, index_end)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_by_count, 0, 0, 1)
+    ZEND_ARG_INFO(0, nth_index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_first, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_next, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_last, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prev, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_first_empty, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_next_empty, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_last_empty, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prev_empty, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+/* }}}} */
+
+extern const zend_function_entry judy_class_methods[];
 
 typedef enum _judy_type {
-    TYPE_JUDY1=1,
-    TYPE_JUDYL,
-    TYPE_JUDYSL,
-    TYPE_JUDYHS
+    TYPE_BITSET=1,
+    TYPE_INT_TO_INT,
+    TYPE_INT_TO_MIXED,
+    TYPE_STRING_TO_INT,
+    TYPE_STRING_TO_MIXED
 } judy_type;
 
 #define JTYPE(jtype, type) { \
-    if (type != TYPE_JUDY1 && type != TYPE_JUDYL \
-                           && type != TYPE_JUDYSL \
-                           && type != TYPE_JUDYHS) { \
-        php_error_docref(NULL TSRMLS_CC, E_WARNING, "Type must be JUDY_TYPE_JUDY1 or JUDY_TYPE_JUDYL or JUDY_TYPE_JUDYSL or JUDY_TYPE_JUDYHS"); \
+    if (type != TYPE_BITSET && type != TYPE_INT_TO_INT \
+                           && type != TYPE_INT_TO_MIXED \
+                           && type != TYPE_STRING_TO_INT \
+                           && type != TYPE_STRING_TO_MIXED) { \
+        php_error_docref(NULL TSRMLS_CC, E_WARNING, "Not a valid Judy type. Please check the documentation for valid Judy type constant."); \
     } \
     jtype = type; \
 }
@@ -83,7 +159,7 @@ typedef struct _judy_object {
 static void judy_object_destroy_object(zend_object *object, zend_object_handle handle TSRMLS_DC);
 static void judy_object_free_storage(void * TSRMLS_DC);
 
-Word_t judy_object_free_array(judy_object *object TSRMLS_DC);
+static Word_t judy_object_free_array(judy_object *object TSRMLS_DC);
 
 /* declare judy class entry */
 zend_class_entry *judy_ce;
@@ -99,8 +175,8 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC);
 /* }}} */
 
 ZEND_BEGIN_MODULE_GLOBALS(judy)
-    long    max_length;
-    long    counter;
+    unsigned long    max_length;
+    unsigned long    counter;
 ZEND_END_MODULE_GLOBALS(judy)
 
 ZEND_DECLARE_MODULE_GLOBALS(judy)

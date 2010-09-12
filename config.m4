@@ -6,7 +6,7 @@ PHP_ARG_WITH(judy, for Judy support,
 [  --with-judy[=DIR]       Include Judy support.
                           DIR is the Judy install prefix [default=BUNDLED]])
 
-judy_sources="lib/judy1.c lib/judyl.c lib/judysl.c lib/judyhs.c"
+judy_sources=""
 
 if test "$PHP_JUDY" != "no"; then
 
@@ -47,7 +47,7 @@ if test "$PHP_JUDY" != "no"; then
     -L$JUDY_DIR/$PHP_LIBDIR -lJudy
   ])
 
-  PHP_INSTALL_HEADERS([ext/judy], [php_judy.h lib/])
+  PHP_INSTALL_HEADERS([ext/judy], [php_judy.h])
   PHP_NEW_EXTENSION(judy, php_judy.c $judy_sources, $ext_shared)
   PHP_ADD_BUILD_DIR($ext_builddir/lib, 1)
   PHP_SUBST(JUDY_SHARED_LIBADD)
