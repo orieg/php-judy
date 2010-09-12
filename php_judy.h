@@ -49,6 +49,7 @@ PHP_FUNCTION(judy_version);
 
 /* PHP Judy Class */
 PHP_METHOD(judy, __construct);
+PHP_METHOD(judy, __destruct);
 PHP_METHOD(judy, free);
 PHP_METHOD(judy, memory_usage);
 PHP_METHOD(judy, set);
@@ -156,7 +157,6 @@ typedef struct _judy_object {
     Pvoid_t         array;
 } judy_object;
 
-static void judy_object_destroy_object(zend_object *object, zend_object_handle handle TSRMLS_DC);
 static void judy_object_free_storage(void * TSRMLS_DC);
 
 static Word_t judy_object_free_array(judy_object *object TSRMLS_DC);

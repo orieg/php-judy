@@ -104,20 +104,6 @@ static Word_t judy_object_free_array(judy_object *object TSRMLS_DC)
 }
 /* }}} */
 
-/* {{{ judy_object_destroy_object
- free Judy array and any other references */
-static void judy_object_destroy_object(zend_object *object, zend_object_handle handle TSRMLS_DC)
-{
-    judy_object *intern = (judy_object *) object;
-    
-    /* free judy array */
-    judy_object_free_array(intern TSRMLS_CC);
-
-    /* call standard dtor */
-    zend_objects_destroy_object(object, handle TSRMLS_CC);
-}
-/* }}} */
-
 /* {{{ judy_free_storage
  close all resources and the memory allocated for the object */
 static void judy_object_free_storage(void *object TSRMLS_DC)
@@ -148,7 +134,7 @@ zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSR
         &ce->default_properties, (copy_ctor_func_t) zval_add_ref,
         (void *) &tmp, sizeof(zval *));
 
-    retval.handle = zend_objects_store_put(intern, (zend_objects_store_dtor_t) judy_object_destroy_object, (zend_objects_free_object_storage_t) judy_object_free_storage, NULL TSRMLS_CC);
+    retval.handle = zend_objects_store_put(intern, (zend_objects_store_dtor_t) zend_objects_destroy_object, (zend_objects_free_object_storage_t) judy_object_free_storage, NULL TSRMLS_CC);
     retval.handlers = &judy_handlers;
 
     return retval;
@@ -193,7 +179,8 @@ const zend_function_entry judy_functions[] = {
  * Every user visible Judy method must have an entry in judy_class_methods[].
  */
 const zend_function_entry judy_class_methods[] = {
-    PHP_ME(judy, __construct, NULL, ZEND_ACC_CTOR | ZEND_ACC_PUBLIC)
+    PHP_ME(judy, __construct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
+    PHP_ME(judy, __destruct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_DTOR)
     PHP_ME(judy, free, NULL, ZEND_ACC_PUBLIC)
     PHP_ME(judy, memory_usage, NULL, ZEND_ACC_PUBLIC)
     PHP_ME(judy, set, arginfo_judy_set, ZEND_ACC_PUBLIC)
@@ -329,6 +316,18 @@ PHP_METHOD(judy, __construct)
 	}
 
     zend_restore_error_handling(&error_handling TSRMLS_CC);
+}
+/* }}} */
+
+/* {{{ proto Judy::__destruct()
+ Free Judy array and any other references */
+PHP_METHOD(judy, __destruct)
+{
+
+    JUDY_METHOD_GET_OBJECT;
+    
+    /* free judy array */
+    judy_object_free_array(intern TSRMLS_CC);
 }
 /* }}} */
 
