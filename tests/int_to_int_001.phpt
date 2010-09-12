@@ -1,5 +1,5 @@
 --TEST--
-Check for Judy INT_TO_INT ins/del/get methods
+Check for Judy INT_TO_INT set/unset/get methods
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--

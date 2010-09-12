@@ -1,17 +1,17 @@
 --TEST--
-Check for JudySL ins/del/get methods
+Check for Judy STRING_TO_INT set/unset/get methods
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php 
-$judy = new JudySL();
+$judy = new Judy(Judy::STRING_TO_INT);
 
 // Insert 
 
 echo "Insert 100 index with a rand value\n";
 for ($i=0; $i<100; $i++) {
         $value = rand();
-        if(!$judy->ins("$i", $value))
+        if(!$judy->set("$i", $value))
             echo "Failed to insert index $i (value: $value)\n";
 }
 
@@ -27,7 +27,7 @@ for ($i=0; $i<100; $i++) {
 
 echo "Remove 100 index\n";
 for ($i=0; $i<100; $i++) {
-        if(!$judy->del("$i"))
+        if(!$judy->unset("$i"))
             echo "Failed to remove index $i\n";
 }
 
@@ -40,7 +40,7 @@ for ($i=0; $i<100; $i++) {
 }
 
 echo "Testing values are properly inserted and returned\n";
-$judy->ins("test string index", 987);
+$judy->set("test string index", 987);
 $v = $judy->get("test string index");
 if ($v != 987)
     echo "Value doesn't match to the one inserted (expected 987 got $v)\n";

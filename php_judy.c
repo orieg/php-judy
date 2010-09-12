@@ -70,11 +70,14 @@ static Word_t judy_object_free_array(judy_object *object TSRMLS_DC)
         
             // Free Judy Array
             JLFA(Rc_word, object->array);
-
             break;
     
         case TYPE_STRING_TO_INT:
+            // Free Judy Array
             JSLFA(Rc_word, object->array);
+
+            // Reset counter
+            JUDY_G(counter) = 0;
             break;
 
         case TYPE_STRING_TO_MIXED:
@@ -92,7 +95,6 @@ static Word_t judy_object_free_array(judy_object *object TSRMLS_DC)
 
             // Reset counter
             JUDY_G(counter) = 0;
-
             break;
     }
 
@@ -486,10 +488,10 @@ PHP_METHOD(judy, unset)
             if (PValue != NULL && PValue != PJERR) {
                 zval_ptr_dtor((zval **)PValue);
                 JLD(Rc_int, intern->array, index);
-                if (Rc_int == 1)
-                    JUDY_G(counter)--;
             }
         }
+        if (Rc_int == 1)
+            JUDY_G(counter)--;
     } else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
         uint8_t     *key;
         int         key_length;
@@ -506,10 +508,10 @@ PHP_METHOD(judy, unset)
             if (PValue != NULL && PValue != PJERR) {
                 zval_ptr_dtor((zval **)PValue);
                 JSLD(Rc_int, intern->array, key);
-                if (Rc_int == 1)
-                    JUDY_G(counter)--;
             }
         }
+        if (Rc_int == 1)
+            JUDY_G(counter)--;
     }
     
     RETURN_BOOL(Rc_int);
