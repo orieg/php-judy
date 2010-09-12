@@ -1,24 +1,24 @@
 --TEST--
-Check for JudyL first_empty/next_empty/last_empty/prev_empty methods
+Check for Judy INT_TO_INT first_empty/next_empty/last_empty/prev_empty methods
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php 
-$judy = new JudyL();
+$judy = new Judy(Judy::INT_TO_INT);
 
 // Init array
 
 echo "Insert 500 index with a rand value\n";
 for ($i=100; $i<600; $i++) {
         $value = rand();
-        if(!$judy->ins($i, $value))
+        if(!$judy->set($i, $value))
             echo "Failed to insert index $i (value: $value)\n";
 }
 
 $unset = array(150, 232, 346, 427, 589);
 foreach($unset as $i) {
     echo "Delete index $i\n";
-    if(!$judy->del($i))
+    if(!$judy->unset($i))
         echo "Failed to unset index $i\n";
 }
 

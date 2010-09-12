@@ -41,9 +41,9 @@ else
 // Free
 
 if (!$judy->free())
-    echo "Failed to free Judy1 array\n";
+    echo "Failed to free Judy array\n";
 else
-    echo "Freeing Judy1 array\n";
+    echo "Freeing Judy array\n";
 
 echo "Count: ".$judy->count()."\n";
 
@@ -59,6 +59,6 @@ Second half count: 49
 Count: 99
 By count (50th): 49
 By count (51th): 51
-Freeing Judy1 array
+Freeing Judy array
 Count: 0
 Done

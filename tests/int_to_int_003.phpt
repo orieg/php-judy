@@ -1,17 +1,17 @@
 --TEST--
-Check for JudyL first/next/last/prev methods
+Check for Judy INT_TO_INT first/next/last/prev methods
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php 
-$judy = new JudyL();
+$judy = new Judy(Judy::INT_TO_INT);
 
 // Init array
 
 echo "Insert 500 index with a rand value\n";
 for ($i=100; $i<600; $i++) {
         $value = rand();
-        if(!$judy->ins($i, $value))
+        if(!$judy->set($i, $value))
             echo "Failed to insert index $i (value: $value)\n";
 }
 
