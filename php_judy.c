@@ -160,7 +160,71 @@ PHPAPI zend_class_entry *php_judy_ce(void)
  */
 zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
 {
-    /* TODO clone Judy */
+    judy_object *new_obj = NULL;
+    judy_object *old_obj = (judy_object *) zend_object_store_get_object(this_ptr TSRMLS_CC);
+    zend_object_value new_ov = judy_object_new_ex(old_obj->std.ce, &new_obj TSRMLS_CC);
+
+    zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
+
+    Pvoid_t newJArray = (Pvoid_t) NULL; // new Judy array to populate
+
+    if (old_obj->type == TYPE_BITSET) {
+        /* Cloning Judy1 Array */
+
+        Word_t  kindex = 0; // Key/index
+        int     Rc_int = 0; // Insert return value
+
+        J1F(Rc_int, old_obj->array, kindex);
+        while (Rc_int == 1)
+        {
+            J1S(Rc_int, newJArray, kindex);
+            J1N(Rc_int, newJArray, kindex); 
+        }
+    } else if (old_obj->type == TYPE_INT_TO_INT || old_obj->type == TYPE_INT_TO_MIXED) {
+        /* Cloning JudyL Array */
+
+        Word_t kindex = 0; // Key/index
+        Word_t *PValue; // Pointer to the old value
+        Word_t *newPValue; // Pointer to the new value
+
+        JLF(PValue, old_obj->array, kindex);
+        while(PValue != NULL && PValue != PJERR)
+        {
+            JLI(newPValue, newJArray, kindex);
+            if (newPValue != NULL && newPValue != PJERR) {
+                *newPValue = *PValue;
+                if (old_obj->type == TYPE_INT_TO_MIXED)
+                    Z_ADDREF_P(*(zval **)PValue);
+            }
+            JLN(PValue, old_obj->array, kindex)
+        }
+    } else if (old_obj->type == TYPE_STRING_TO_INT || old_obj->type == TYPE_STRING_TO_MIXED) {
+        /* Cloning JudySL Array */
+
+        uint8_t kindex[JUDY_G(max_length)]; // Key/index
+        Word_t *PValue; // Pointer to the old value
+        Word_t *newPValue; // Pointer to the new value
+    
+        /* smallest string is a null-terminated character */
+        kindex[0] = '\0';
+
+        JSLF(PValue, old_obj->array, kindex);
+        while(PValue != NULL && PValue != PJERR)
+        {
+            JSLI(newPValue, newJArray, kindex);
+            if (newPValue != NULL && newPValue != PJERR) {
+                *newPValue = *PValue;
+                if (old_obj->type == TYPE_STRING_TO_MIXED)
+                    Z_ADDREF_P(*(zval **)PValue);
+            }
+            JSLN(PValue, old_obj->array, kindex)
+        }
+    }
+
+    new_obj->array = newJArray;
+    new_obj->type = old_obj->type;
+
+    return new_ov; 
 }
 /* }}} */
 
