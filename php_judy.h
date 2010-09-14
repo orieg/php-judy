@@ -41,6 +41,8 @@ extern zend_module_entry judy_module_entry;
 
 extern const zend_function_entry judy_class_methods[];
 
+/* {{{ judy_type
+ internal Judy Array type (aka Judy1, JudyL and JudySL) */
 typedef enum _judy_type {
     TYPE_BITSET=1,
     TYPE_INT_TO_INT,
@@ -48,6 +50,7 @@ typedef enum _judy_type {
     TYPE_STRING_TO_INT,
     TYPE_STRING_TO_MIXED
 } judy_type;
+/* }}} */
 
 #define JTYPE(jtype, type) { \
     if (type != TYPE_BITSET && type != TYPE_INT_TO_INT \
