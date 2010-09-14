@@ -57,20 +57,25 @@ http://pear.php.net/dtd/package-2.0.xsd">
    <file role='test' name='bitset_002.phpt'/>
    <file role='test' name='bitset_003.phpt'/>
    <file role='test' name='bitset_004.phpt'/>
+   <file role='test' name='bitset_005.phpt'/>
    <file role='test' name='int_to_int_001.phpt'/>
    <file role='test' name='int_to_int_002.phpt'/>
    <file role='test' name='int_to_int_003.phpt'/>
    <file role='test' name='int_to_int_004.phpt'/>
+   <file role='test' name='int_to_int_005.phpt'/>
    <file role='test' name='int_to_mixed_001.phpt'/>
    <file role='test' name='int_to_mixed_002.phpt'/>
    <file role='test' name='int_to_mixed_003.phpt'/>
    <file role='test' name='int_to_mixed_004.phpt'/>
+   <file role='test' name='int_to_mixed_005.phpt'/>
    <file role='test' name='string_to_int_001.phpt'/>
    <file role='test' name='string_to_int_002.phpt'/>
    <file role='test' name='string_to_int_003.phpt'/>
+   <file role='test' name='string_to_int_004.phpt'/>
    <file role='test' name='string_to_mixed_001.phpt'/>
    <file role='test' name='string_to_mixed_002.phpt'/>
    <file role='test' name='string_to_mixed_003.phpt'/>
+   <file role='test' name='string_to_mixed_004.phpt'/>
   </dir>
  </contents>
 
