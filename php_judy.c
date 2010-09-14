@@ -162,8 +162,7 @@ PHPAPI zend_class_entry *php_judy_ce(void)
 int judy_object_count(zval *object, long *count TSRMLS_DC)
 {
 	zval *rv;
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
-    
+
     /* calling the object's count() method */
 	zend_call_method_with_0_params(&object, NULL, NULL, "count", &rv);
 	*count = Z_LVAL_P(rv);
@@ -172,6 +171,28 @@ int judy_object_count(zval *object, long *count TSRMLS_DC)
 	zval_ptr_dtor(&rv);
 	
 	return SUCCESS;
+}
+/* }}} */
+
+/* {{{ judy_object_get
+ */
+zval* judy_object_get(zval *object TSRMLS_DC)
+{
+	zval *rv;
+	
+    /* calling the object's get() method */
+	zend_call_method_with_0_params(&object, NULL, NULL, "get", &rv);
+	
+	return rv;
+}
+/* }}} */
+
+/* {{{ judy_object_set
+ */
+void judy_object_set(zval **object, zval *value TSRMLS_DC)
+{
+    /* calling the object's get() method */
+	zend_call_method_with_1_params(object, NULL, NULL, "set", NULL, value);
 }
 /* }}} */
 
@@ -270,15 +291,22 @@ PHP_MINIT_FUNCTION(judy)
     REGISTER_LONG_CONSTANT("JUDY_STRING_TO_INT", TYPE_STRING_TO_INT, CONST_PERSISTENT | CONST_CS);
     REGISTER_LONG_CONSTANT("JUDY_STRING_TO_MIXED", TYPE_STRING_TO_MIXED, CONST_PERSISTENT | CONST_CS);
 
-    /* Judy */
+    /* Judy class definition */
 
     INIT_CLASS_ENTRY(ce, "Judy", judy_class_methods);
+    
     judy_ce = zend_register_internal_class_ex(&ce, NULL, NULL TSRMLS_CC);
     judy_ce->create_object = judy_object_new;
+    
     memcpy(&judy_handlers, zend_get_std_object_handlers(),
         sizeof(zend_object_handlers));
+    
+    /* set some internal handlers */
     judy_handlers.clone_obj = judy_object_clone;
     judy_handlers.count_elements = judy_object_count;
+    judy_handlers.get = judy_object_get;
+    judy_handlers.set = judy_object_set;
+    
     /* zend_classImplements(judy_ce TSRMLS_CC, 1, zend_ce_arrayaccess); 
     zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */
     judy_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;

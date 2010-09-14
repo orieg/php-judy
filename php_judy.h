@@ -83,10 +83,15 @@ static Word_t judy_object_free_array(judy_object *object TSRMLS_DC);
 /* declare judy class entry */
 zend_class_entry *judy_ce;
 
-zend_object_handlers judy_handlers;
 zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC);
 zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSRMLS_DC);
+
+zend_object_handlers judy_handlers;
+
 zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC);
+int judy_object_count(zval *object, long *count TSRMLS_DC);
+zval* judy_object_get(zval *object TSRMLS_DC);
+void judy_object_set(zval **object, zval *value TSRMLS_DC);
 
 /* {{{ REGISTER_JUDY_CLASS_CONST_LONG */
 #define REGISTER_JUDY_CLASS_CONST_LONG(const_name, value) \
