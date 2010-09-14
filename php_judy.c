@@ -22,6 +22,7 @@
 
 #include "php.h"
 #include "php_ini.h"
+#include "zend_exceptions.h"
 #include "zend_interfaces.h"
 #include "ext/standard/info.h"
 
@@ -155,6 +156,24 @@ PHPAPI zend_class_entry *php_judy_ce(void)
 {
     return judy_ce;
 }
+
+/* {{{ judy_object_count
+ */
+int judy_object_count(zval *object, long *count TSRMLS_DC)
+{
+	zval *rv;
+    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    
+    /* calling the object's count() method */
+	zend_call_method_with_0_params(&object, NULL, NULL, "count", &rv);
+	*count = Z_LVAL_P(rv);
+	
+	/* destruct the zval returned value */
+	zval_ptr_dtor(&rv);
+	
+	return SUCCESS;
+}
+/* }}} */
 
 /* {{{ judy_object_clone
  */
@@ -318,7 +337,9 @@ PHP_MINIT_FUNCTION(judy)
     memcpy(&judy_handlers, zend_get_std_object_handlers(),
         sizeof(zend_object_handlers));
     judy_handlers.clone_obj = judy_object_clone;
-    /* zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */
+    judy_handlers.count_elements = judy_object_count;
+    /* zend_classImplements(judy_ce TSRMLS_CC, 1, zend_ce_arrayaccess); 
+    zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */
     judy_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;
     /* judy_ce->get_iterator = judy_get_iterator; */
 

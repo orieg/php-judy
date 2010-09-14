@@ -17,14 +17,16 @@ for ($i=0; $i<100; $i++) {
 // Count
 
 echo "Half count: ".$judy->count(0, 49)."\n";
-echo "Count: ".$judy->count()."\n";
+echo "Count Method: ".$judy->count()."\n";
+echo "Count Function: ".count($judy)."\n";
 
 if ($judy->unset(50))
     echo "Unset index 50\n";
 
 echo "First half count: ".$judy->count(0, 49)."\n";
 echo "Second half count: ".$judy->count(50, 100)."\n";
-echo "Count: ".$judy->count()."\n";
+echo "Count Method: ".$judy->count()."\n";
+echo "Count Function: ".count($judy)."\n";
 
 // By count
 
@@ -52,11 +54,13 @@ echo "Done\n";
 --EXPECT--
 Set 100 index
 Half count: 50
-Count: 100
+Count Method: 100
+Count Function: 100
 Unset index 50
 First half count: 50
 Second half count: 49
-Count: 99
+Count Method: 99
+Count Function: 99
 By count (50th): 49
 By count (51th): 51
 Freeing Judy array
