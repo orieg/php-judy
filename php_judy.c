@@ -247,65 +247,6 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
 }
 /* }}} */
 
-/* {{{ judy_functions[]
- *
- * Every user visible function must have an entry in judy_functions[].
- */
-const zend_function_entry judy_functions[] = {
-	PHP_FE(judy_version, NULL)
-	{NULL, NULL, NULL}
-};
-/* }}} */
-
-/* {{{ judy_class_methodss[]
- *
- * Every user visible Judy method must have an entry in judy_class_methods[].
- */
-const zend_function_entry judy_class_methods[] = {
-    PHP_ME(judy, __construct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
-    PHP_ME(judy, __destruct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_DTOR)
-    PHP_ME(judy, free, NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, memory_usage, NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, set, arginfo_judy_set, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, unset, arginfo_judy_unset, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, get, arginfo_judy_get, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, count, arginfo_judy_count, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, by_count, arginfo_judy_by_count, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, first, arginfo_judy_first, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, next, arginfo_judy_next, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, last, arginfo_judy_last, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, prev, arginfo_judy_prev, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, first_empty, arginfo_judy_first_empty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, next_empty, arginfo_judy_next_empty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, last_empty, arginfo_judy_last_empty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, prev_empty, arginfo_judy_prev_empty, ZEND_ACC_PUBLIC)
-    PHP_MALIAS(judy, size, count, NULL, ZEND_ACC_PUBLIC)
-    PHP_MALIAS(judy, insert, set, NULL, ZEND_ACC_PUBLIC)
-    PHP_MALIAS(judy, remove, unset, NULL, ZEND_ACC_PUBLIC)
-	{NULL, NULL, NULL}
-};
-/* }}} */
-
-/* {{{ judy_module_entry
- */
-zend_module_entry judy_module_entry = {
-#if ZEND_MODULE_API_NO >= 20010901
-    STANDARD_MODULE_HEADER,
-#endif
-    PHP_JUDY_EXTNAME,
-    judy_functions,
-    PHP_MINIT(judy),
-    PHP_MSHUTDOWN(judy),
-    PHP_RINIT(judy),
-    NULL,
-    PHP_MINFO(judy),
-#if ZEND_MODULE_API_NO >= 20010901
-    PHP_JUDY_VERSION,
-#endif
-    STANDARD_MODULE_PROPERTIES
-};
-/* }}} */
-
 /* {{{ PHP INI entries
  */
 PHP_INI_BEGIN()
@@ -1096,6 +1037,150 @@ PHP_FUNCTION(judy_version)
 {
    php_printf("PHP Judy Version: %s\n", PHP_JUDY_VERSION);
 }
+/* }}} */
+
+
+PHP_MINIT_FUNCTION(judy);
+PHP_MSHUTDOWN_FUNCTION(judy);
+PHP_RINIT_FUNCTION(judy);
+PHP_MINFO_FUNCTION(judy);
+
+/* PHP Judy Function */
+PHP_FUNCTION(judy_version);
+
+/* PHP Judy Class */
+PHP_METHOD(judy, __construct);
+PHP_METHOD(judy, __destruct);
+PHP_METHOD(judy, free);
+PHP_METHOD(judy, memory_usage);
+PHP_METHOD(judy, set);
+PHP_METHOD(judy, unset);
+PHP_METHOD(judy, get);
+PHP_METHOD(judy, count);
+PHP_METHOD(judy, by_count);
+PHP_METHOD(judy, first);
+PHP_METHOD(judy, next);
+PHP_METHOD(judy, last);
+PHP_METHOD(judy, prev);
+PHP_METHOD(judy, first_empty);
+PHP_METHOD(judy, next_empty);
+PHP_METHOD(judy, last_empty);
+PHP_METHOD(judy, prev_empty);
+
+/* {{{ Judy class methods parameters
+ */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_set, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+    ZEND_ARG_INFO(0, value)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_unset, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_get, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_count, 0, 0, 0)
+    ZEND_ARG_INFO(0, index_start)
+    ZEND_ARG_INFO(0, index_end)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_by_count, 0, 0, 1)
+    ZEND_ARG_INFO(0, nth_index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_first, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_next, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_last, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prev, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_first_empty, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_next_empty, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_last_empty, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prev_empty, 0, 0, 1)
+    ZEND_ARG_INFO(0, index)
+ZEND_END_ARG_INFO()
+/* }}}} */
+
+/* {{{ judy_functions[]
+ *
+ * Every user visible function must have an entry in judy_functions[].
+ */
+const zend_function_entry judy_functions[] = {
+	PHP_FE(judy_version, NULL)
+	{NULL, NULL, NULL}
+};
+/* }}} */
+
+/* {{{ judy_class_methodss[]
+ *
+ * Every user visible Judy method must have an entry in judy_class_methods[].
+ */
+const zend_function_entry judy_class_methods[] = {
+    PHP_ME(judy, __construct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
+    PHP_ME(judy, __destruct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_DTOR)
+    PHP_ME(judy, free, NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, memory_usage, NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, set, arginfo_judy_set, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, unset, arginfo_judy_unset, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, get, arginfo_judy_get, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, count, arginfo_judy_count, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, by_count, arginfo_judy_by_count, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, first, arginfo_judy_first, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, next, arginfo_judy_next, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, last, arginfo_judy_last, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, prev, arginfo_judy_prev, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, first_empty, arginfo_judy_first_empty, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, next_empty, arginfo_judy_next_empty, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, last_empty, arginfo_judy_last_empty, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, prev_empty, arginfo_judy_prev_empty, ZEND_ACC_PUBLIC)
+    PHP_MALIAS(judy, size, count, NULL, ZEND_ACC_PUBLIC)
+    PHP_MALIAS(judy, insert, set, NULL, ZEND_ACC_PUBLIC)
+    PHP_MALIAS(judy, remove, unset, NULL, ZEND_ACC_PUBLIC)
+	{NULL, NULL, NULL}
+};
+/* }}} */
+
+/* {{{ judy_module_entry
+ */
+zend_module_entry judy_module_entry = {
+#if ZEND_MODULE_API_NO >= 20010901
+    STANDARD_MODULE_HEADER,
+#endif
+    PHP_JUDY_EXTNAME,
+    judy_functions,
+    PHP_MINIT(judy),
+    PHP_MSHUTDOWN(judy),
+    PHP_RINIT(judy),
+    NULL,
+    PHP_MINFO(judy),
+#if ZEND_MODULE_API_NO >= 20010901
+    PHP_JUDY_VERSION,
+#endif
+    STANDARD_MODULE_PROPERTIES
+};
 /* }}} */
 
 #ifdef COMPILE_DL_JUDY
