@@ -38,73 +38,6 @@ static void php_judy_init_globals(zend_judy_globals *judy_globals)
 }
  /* }}} */
 
-/* {{{ judy_object_free_array
- free judy array */
-static Word_t judy_object_free_array(judy_object *object TSRMLS_DC)
-{
-    Word_t    Rc_word;
-    Word_t    index;
-    uint8_t   kindex[JUDY_G(max_length)];           // Key/index
-    Word_t    *PValue;                              // Pointer to the value
-
-    switch (object->type)
-    {
-        case TYPE_BITSET:
-            // Free Judy Array
-            J1FA(Rc_word, object->array);
-            break;
-
-        case TYPE_INT_TO_INT:
-            // Free Judy Array
-            JLFA(Rc_word, object->array);
-            break;
-
-        case TYPE_INT_TO_MIXED:
-            index = 0;
-
-            // Del ref to zval objects
-            JLF(PValue, object->array, index);
-            while(PValue != NULL && PValue != PJERR)
-            {
-                zval_ptr_dtor((zval **)PValue);
-                JLN(PValue, object->array, index);
-            }
-        
-            // Free Judy Array
-            JLFA(Rc_word, object->array);
-            break;
-    
-        case TYPE_STRING_TO_INT:
-            // Free Judy Array
-            JSLFA(Rc_word, object->array);
-
-            // Reset counter
-            JUDY_G(counter) = 0;
-            break;
-
-        case TYPE_STRING_TO_MIXED:
-            kindex[0] = '\0';
-
-            // Del ref to zval objects
-            JSLF(PValue, object->array, kindex);
-            while(PValue != NULL && PValue != PJERR)
-            {
-                zval_ptr_dtor((zval **)PValue);
-                JSLN(PValue, object->array, kindex);
-            }
-        
-            // Free Judy Array
-            JSLFA(Rc_word, object->array);
-
-            // Reset counter
-            JUDY_G(counter) = 0;
-            break;
-    }
-
-    return Rc_word;
-}
-/* }}} */
-
 /* {{{ judy_free_storage
  close all resources and the memory allocated for the object */
 static void judy_object_free_storage(void *object TSRMLS_DC)
@@ -191,7 +124,7 @@ zval* judy_object_get(zval *object TSRMLS_DC)
  */
 void judy_object_set(zval **object, zval *value TSRMLS_DC)
 {
-    /* calling the object's get() method */
+    /* calling the object's set() method */
 	zend_call_method_with_1_params(object, NULL, NULL, "set", NULL, value);
 }
 /* }}} */
@@ -377,11 +310,10 @@ PHP_METHOD(judy, __construct)
  Free Judy array and any other references */
 PHP_METHOD(judy, __destruct)
 {
-
     JUDY_METHOD_GET_OBJECT;
     
-    /* free judy array */
-    judy_object_free_array(intern TSRMLS_CC);
+    /* calling the object's free() method */
+	zend_call_method_with_0_params(&object, NULL, NULL, "free", NULL);
 }
 /* }}} */
 
@@ -391,8 +323,66 @@ PHP_METHOD(judy, free)
 {
     JUDY_METHOD_GET_OBJECT;
 
-    /* free judy array */
-    RETURN_LONG(judy_object_free_array(intern TSRMLS_CC));
+    Word_t    Rc_word;
+    Word_t    index;
+    uint8_t   kindex[JUDY_G(max_length)];           // Key/index
+    Word_t    *PValue;                              // Pointer to the value
+
+    switch (intern->type)
+    {
+        case TYPE_BITSET:
+            // Free Judy Array
+            J1FA(Rc_word, intern->array);
+            break;
+
+        case TYPE_INT_TO_INT:
+            // Free Judy Array
+            JLFA(Rc_word, intern->array);
+            break;
+
+        case TYPE_INT_TO_MIXED:
+            index = 0;
+
+            // Del ref to zval objects
+            JLF(PValue, intern->array, index);
+            while(PValue != NULL && PValue != PJERR)
+            {
+                zval_ptr_dtor((zval **)PValue);
+                JLN(PValue, intern->array, index);
+            }
+        
+            // Free Judy Array
+            JLFA(Rc_word, intern->array);
+            break;
+    
+        case TYPE_STRING_TO_INT:
+            // Free Judy Array
+            JSLFA(Rc_word, intern->array);
+
+            // Reset counter
+            JUDY_G(counter) = 0;
+            break;
+
+        case TYPE_STRING_TO_MIXED:
+            kindex[0] = '\0';
+
+            // Del ref to zval objects
+            JSLF(PValue, intern->array, kindex);
+            while(PValue != NULL && PValue != PJERR)
+            {
+                zval_ptr_dtor((zval **)PValue);
+                JSLN(PValue, intern->array, kindex);
+            }
+        
+            // Free Judy Array
+            JSLFA(Rc_word, intern->array);
+
+            // Reset counter
+            JUDY_G(counter) = 0;
+            break;
+    }
+
+    RETURN_LONG(Rc_word);
 }
 /* }}} */
 

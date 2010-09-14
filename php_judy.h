@@ -78,8 +78,6 @@ typedef struct _judy_object {
 
 static void judy_object_free_storage(void * TSRMLS_DC);
 
-static Word_t judy_object_free_array(judy_object *object TSRMLS_DC);
-
 /* declare judy class entry */
 zend_class_entry *judy_ce;
 
