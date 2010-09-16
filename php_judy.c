@@ -139,13 +139,17 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
 
     zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
 
-    Pvoid_t newJArray = (Pvoid_t) NULL; // new Judy array to populate
+    /* new Judy array to populate */
+    Pvoid_t newJArray = (Pvoid_t) NULL;
 
     if (old_obj->type == TYPE_BITSET) {
         /* Cloning Judy1 Array */
 
-        Word_t  kindex = 0; // Key/index
-        int     Rc_int = 0; // Insert return value
+        /* Key/index */
+        Word_t  kindex = 0;
+
+        /* Insert return value */
+        int     Rc_int = 0;
 
         J1F(Rc_int, old_obj->array, kindex);
         while (Rc_int == 1)
@@ -156,9 +160,14 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
     } else if (old_obj->type == TYPE_INT_TO_INT || old_obj->type == TYPE_INT_TO_MIXED) {
         /* Cloning JudyL Array */
 
-        Word_t kindex = 0; // Key/index
-        Word_t *PValue; // Pointer to the old value
-        Word_t *newPValue; // Pointer to the new value
+        /* Key/index */
+        Word_t kindex = 0;
+
+        /* Pointer to the old value */
+        Word_t *PValue;
+
+        /* Pointer to the new value */
+        Word_t *newPValue;
 
         JLF(PValue, old_obj->array, kindex);
         while(PValue != NULL && PValue != PJERR)
@@ -174,9 +183,14 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
     } else if (old_obj->type == TYPE_STRING_TO_INT || old_obj->type == TYPE_STRING_TO_MIXED) {
         /* Cloning JudySL Array */
 
-        uint8_t kindex[JUDY_G(max_length)]; // Key/index
-        Word_t *PValue; // Pointer to the old value
-        Word_t *newPValue; // Pointer to the new value
+        /* Key/index */
+        uint8_t kindex[JUDY_G(max_length)];
+
+        /* Pointer to the old value */
+        Word_t *PValue;
+
+        /* Pointer to the new value */
+        Word_t *newPValue;
     
         /* smallest string is a null-terminated character */
         kindex[0] = '\0';
@@ -325,25 +339,25 @@ PHP_METHOD(judy, free)
 
     Word_t    Rc_word;
     Word_t    index;
-    uint8_t   kindex[JUDY_G(max_length)];           // Key/index
-    Word_t    *PValue;                              // Pointer to the value
+    uint8_t   kindex[JUDY_G(max_length)];
+    Word_t    *PValue;
 
     switch (intern->type)
     {
         case TYPE_BITSET:
-            // Free Judy Array
+            /* Free Judy1 Array */
             J1FA(Rc_word, intern->array);
             break;
 
         case TYPE_INT_TO_INT:
-            // Free Judy Array
+            /* Free JudyL Array */
             JLFA(Rc_word, intern->array);
             break;
 
         case TYPE_INT_TO_MIXED:
             index = 0;
 
-            // Del ref to zval objects
+            /* Del ref to zval objects */
             JLF(PValue, intern->array, index);
             while(PValue != NULL && PValue != PJERR)
             {
@@ -351,22 +365,22 @@ PHP_METHOD(judy, free)
                 JLN(PValue, intern->array, index);
             }
         
-            // Free Judy Array
+            /* Free JudyL Array */
             JLFA(Rc_word, intern->array);
             break;
     
         case TYPE_STRING_TO_INT:
-            // Free Judy Array
+            /* Free JudySL Array */
             JSLFA(Rc_word, intern->array);
 
-            // Reset counter
+            /* Reset counter */
             JUDY_G(counter) = 0;
             break;
 
         case TYPE_STRING_TO_MIXED:
             kindex[0] = '\0';
 
-            // Del ref to zval objects
+            /* Del ref to zval objects */
             JSLF(PValue, intern->array, kindex);
             while(PValue != NULL && PValue != PJERR)
             {
@@ -374,10 +388,10 @@ PHP_METHOD(judy, free)
                 JSLN(PValue, intern->array, kindex);
             }
         
-            // Free Judy Array
+            /* Free JudySL Array */
             JSLFA(Rc_word, intern->array);
 
-            // Reset counter
+            /* Reset counter */
             JUDY_G(counter) = 0;
             break;
     }
