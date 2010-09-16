@@ -400,9 +400,9 @@ PHP_METHOD(judy, free)
 }
 /* }}} */
 
-/* {{{ proto long Judy::memory_usage()
+/* {{{ proto long Judy::memoryUsage()
  Return the memory used by the Judy Array */
-PHP_METHOD(judy, memory_usage)
+PHP_METHOD(judy, memoryUsage)
 {
     Word_t     Rc_word;
 
@@ -662,10 +662,10 @@ PHP_METHOD(judy, count)
 }
 /* }}} */
 
-/* {{{ proto long Judy::by_count(long nth_index)
+/* {{{ proto long Judy::byCount(long nth_index)
  Locate the Nth index that is present in the Judy array (Nth = 1 returns the first index present).
  To refer to the last index in a fully populated array (all indexes present, which is rare), use Nth = 0. */
-PHP_METHOD(judy, by_count)
+PHP_METHOD(judy, byCount)
 {
 
     JUDY_METHOD_GET_OBJECT;
@@ -935,9 +935,9 @@ PHP_METHOD(judy, prev)
 }
 /* }}} */
 
-/* {{{ proto long Judy::first_empty([long index])
+/* {{{ proto long Judy::firstEmpty([long index])
  Search (inclusive) for the first absent index that is equal to or greater than the passed Index */
-PHP_METHOD(judy, first_empty)
+PHP_METHOD(judy, firstEmpty)
 {
     Word_t         index = 0;
     int            Rc_int;
@@ -967,9 +967,9 @@ PHP_METHOD(judy, first_empty)
 }
 /* }}} */
 
-/* {{{ proto long Judy::last_empty([long index])
+/* {{{ proto long Judy::lastEmpty([long index])
  Search (inclusive) for the last absent index that is equal to or less than the passed Index */
-PHP_METHOD(judy, last_empty)
+PHP_METHOD(judy, lastEmpty)
 {
     Word_t         index = -1;
     int            Rc_int;
@@ -999,9 +999,9 @@ PHP_METHOD(judy, last_empty)
 }
 /* }}} */
 
-/* {{{ proto long Judy::next_empty(long index)
+/* {{{ proto long Judy::nextEmpty(long index)
  Search (exclusive) for the next absent index that is greater than the passed Index */
-PHP_METHOD(judy, next_empty)
+PHP_METHOD(judy, nextEmpty)
 {
     Word_t         index;
     int            Rc_int;
@@ -1031,9 +1031,9 @@ PHP_METHOD(judy, next_empty)
 }
 /* }}} */
 
-/* {{{ proto long Judy::prev_empty(long index)
+/* {{{ proto long Judy::prevEmpty(long index)
  Search (inclusive) for the first index present that is equal to or greater than the passed Index */
-PHP_METHOD(judy, prev_empty)
+PHP_METHOD(judy, prevEmpty)
 {
     Word_t         index;
     int            Rc_int;
@@ -1084,20 +1084,20 @@ PHP_FUNCTION(judy_version);
 PHP_METHOD(judy, __construct);
 PHP_METHOD(judy, __destruct);
 PHP_METHOD(judy, free);
-PHP_METHOD(judy, memory_usage);
+PHP_METHOD(judy, memoryUsage);
 PHP_METHOD(judy, set);
 PHP_METHOD(judy, unset);
 PHP_METHOD(judy, get);
 PHP_METHOD(judy, count);
-PHP_METHOD(judy, by_count);
+PHP_METHOD(judy, byCount);
 PHP_METHOD(judy, first);
 PHP_METHOD(judy, next);
 PHP_METHOD(judy, last);
 PHP_METHOD(judy, prev);
-PHP_METHOD(judy, first_empty);
-PHP_METHOD(judy, next_empty);
-PHP_METHOD(judy, last_empty);
-PHP_METHOD(judy, prev_empty);
+PHP_METHOD(judy, firstEmpty);
+PHP_METHOD(judy, nextEmpty);
+PHP_METHOD(judy, lastEmpty);
+PHP_METHOD(judy, prevEmpty);
 
 /* {{{ Judy class methods parameters
  */
@@ -1119,7 +1119,7 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_count, 0, 0, 0)
     ZEND_ARG_INFO(0, index_end)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_by_count, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_byCount, 0, 0, 1)
     ZEND_ARG_INFO(0, nth_index)
 ZEND_END_ARG_INFO()
 
@@ -1139,19 +1139,19 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prev, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_first_empty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_firstEmpty, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_next_empty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_nextEmpty, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_last_empty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_lastEmpty, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prev_empty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prevEmpty, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 /* }}}} */
@@ -1174,20 +1174,20 @@ const zend_function_entry judy_class_methods[] = {
     PHP_ME(judy, __construct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
     PHP_ME(judy, __destruct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_DTOR)
     PHP_ME(judy, free, NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, memory_usage, NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, memoryUsage, NULL, ZEND_ACC_PUBLIC)
     PHP_ME(judy, set, arginfo_judy_set, ZEND_ACC_PUBLIC)
     PHP_ME(judy, unset, arginfo_judy_unset, ZEND_ACC_PUBLIC)
     PHP_ME(judy, get, arginfo_judy_get, ZEND_ACC_PUBLIC)
     PHP_ME(judy, count, arginfo_judy_count, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, by_count, arginfo_judy_by_count, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, byCount, arginfo_judy_byCount, ZEND_ACC_PUBLIC)
     PHP_ME(judy, first, arginfo_judy_first, ZEND_ACC_PUBLIC)
     PHP_ME(judy, next, arginfo_judy_next, ZEND_ACC_PUBLIC)
     PHP_ME(judy, last, arginfo_judy_last, ZEND_ACC_PUBLIC)
     PHP_ME(judy, prev, arginfo_judy_prev, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, first_empty, arginfo_judy_first_empty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, next_empty, arginfo_judy_next_empty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, last_empty, arginfo_judy_last_empty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, prev_empty, arginfo_judy_prev_empty, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, firstEmpty, arginfo_judy_firstEmpty, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, nextEmpty, arginfo_judy_nextEmpty, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, lastEmpty, arginfo_judy_lastEmpty, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, prevEmpty, arginfo_judy_prevEmpty, ZEND_ACC_PUBLIC)
     PHP_MALIAS(judy, size, count, NULL, ZEND_ACC_PUBLIC)
     PHP_MALIAS(judy, insert, set, NULL, ZEND_ACC_PUBLIC)
     PHP_MALIAS(judy, remove, unset, NULL, ZEND_ACC_PUBLIC)

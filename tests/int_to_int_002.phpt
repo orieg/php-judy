@@ -1,5 +1,5 @@
 --TEST--
-Check for Judy INT_TO_INT free/count/by_count methods
+Check for Judy INT_TO_INT free/count/byCount methods
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
@@ -31,12 +31,12 @@ echo "Count Function: ".count($judy)."\n";
 
 // By count
 
-if (($index = $judy->by_count(50)) !== null)
+if (($index = $judy->byCount(50)) !== null)
     echo "By count (50th): $index\n";
 else
     echo "By count (50th set index) failed\n";
 
-if (($index = $judy->by_count(51)) !== null)
+if (($index = $judy->byCount(51)) !== null)
     echo "By count (51th): $index\n";
 else
     echo "By count (51th set index) failed\n";

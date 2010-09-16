@@ -1,5 +1,5 @@
 --TEST--
-Check for Judy BITSET first_empty/next_empty/last_empty/prev_empty methods
+Check for Judy BITSET firstEmpty/nextEmpty/lastEmpty/prevEmpty methods
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
@@ -23,33 +23,33 @@ foreach($unset as $i) {
 
 // First Empty
 
-$firstIndexDefault = $judy->first_empty();
+$firstIndexDefault = $judy->firstEmpty();
 echo "First empty index set: $firstIndexDefault\n";
 
-$firstIndex50 = $judy->first_empty(50);
+$firstIndex50 = $judy->firstEmpty(50);
 echo "First empty index set from index 50: $firstIndex50\n";
 
-$firstIndex500 = $judy->first_empty(500);
+$firstIndex500 = $judy->firstEmpty(500);
 echo "First empty index set from index 500: $firstIndex500\n";
 
 // Last Empty
 
-$lastIndexDefault = $judy->last_empty();
+$lastIndexDefault = $judy->lastEmpty();
 echo "Last empty index set: $lastIndexDefault\n";
 
-$lastIndex1000 = $judy->last_empty(1000);
+$lastIndex1000 = $judy->lastEmpty(1000);
 echo "Last empty index set from index 1000: $lastIndex1000\n";
 
-$lastIndex500 = $judy->last_empty(500);
+$lastIndex500 = $judy->lastEmpty(500);
 echo "Last empty index set from index 500: $lastIndex500\n";
 
 // Next Empty
 
-echo "Testing next_empty()\n";
+echo "Testing nextEmpty()\n";
 $index = $firstIndexDefault;
 while ($index < $lastIndex500) {
     $parent_index = $index;
-    $index = $judy->next_empty($parent_index);
+    $index = $judy->nextEmpty($parent_index);
     if (empty($index) || $index < $firstIndexDefault) {
         echo "Failed to get next index from parent index ($parent_index)\n";
         break;
@@ -58,11 +58,11 @@ while ($index < $lastIndex500) {
 
 // Prev Empty
 
-echo "Testing prev_empty()\n";
+echo "Testing prevEmpty()\n";
 $index = 600;
 while ($index > $firstIndexDefault) {
     $parent_index = $index;
-    $index = $judy->prev_empty($parent_index);
+    $index = $judy->prevEmpty($parent_index);
     if ($index < 0) {
         echo "Failed to get previous index from parent index ($parent_index)\n";
         break;
@@ -84,6 +84,6 @@ First empty index set from index 500: 589
 Last empty index set: -1
 Last empty index set from index 1000: 1000
 Last empty index set from index 500: 427
-Testing next_empty()
-Testing prev_empty()
+Testing nextEmpty()
+Testing prevEmpty()
 Done
