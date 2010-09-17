@@ -2,7 +2,7 @@
 
 ini_set("memory_limit", "128M");
 
-function convert($size)
+function __convert($size)
 {
     $unit=array('b','kb','mb','gb','tb','pb');
     return @round($size/pow(1024,($i=floor(log($size,1024)))),2).' '.$unit[$i];
@@ -14,8 +14,8 @@ foreach($count as $v) {
     echo "\n## Count: $v\n";
 
     echo "\n-- Judy BITSET \n";
-    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
-    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
+    echo "Mem usage: ". __convert(memory_get_usage()) . "\n";
+    echo "Mem real: ". __convert(memory_get_usage(true)) . "\n";
 
     $s=microtime(true);
     $judy = new Judy(Judy::BITSET);
@@ -25,17 +25,17 @@ foreach($count as $v) {
     $judy->unset(102);
     var_dump($judy->get(102));
     echo "Count: ".$judy->count()."\n";
-    echo "MU: ".convert($judy->memory_usage())."\n";
+    echo "MU: ".__convert($judy->memory_usage())."\n";
     $e=microtime(true);
     echo "Elapsed time: ".($e - $s)." sec.\n";
-    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
-    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
+    echo "Mem usage: ". __convert(memory_get_usage()) . "\n";
+    echo "Mem real: ". __convert(memory_get_usage(true)) . "\n";
 
     unset($judy);
 
     echo "\n-- ARRAY \n";
-    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
-    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
+    echo "Mem usage: ". __convert(memory_get_usage()) . "\n";
+    echo "Mem real: ". __convert(memory_get_usage(true)) . "\n";
 
     $s=microtime(true);
     $array = array();
@@ -47,14 +47,14 @@ foreach($count as $v) {
     $e=microtime(true);
     echo "Count: ".count($array)."\n";
     echo "Elapsed time: ".($e - $s)." sec.\n";
-    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
-    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
+    echo "Mem usage: ". __convert(memory_get_usage()) . "\n";
+    echo "Mem real: ". __convert(memory_get_usage(true)) . "\n";
 
     unset($array);
 
     echo "\n-- SplDoublyLinkedList \n";
-    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
-    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
+    echo "Mem usage: ". __convert(memory_get_usage()) . "\n";
+    echo "Mem real: ". __convert(memory_get_usage(true)) . "\n";
 
     $s=microtime(true);
     $spl = new SplDoublyLinkedList();
@@ -70,8 +70,8 @@ foreach($count as $v) {
     $e=microtime(true);
     echo "Count: ".$spl->count()."\n";
     echo "Elapsed time: ".($e - $s)." sec.\n";
-    echo "Mem usage: ". convert(memory_get_usage()) . "\n";
-    echo "Mem real: ". convert(memory_get_usage(true)) . "\n";
+    echo "Mem usage: ". __convert(memory_get_usage()) . "\n";
+    echo "Mem real: ". __convert(memory_get_usage(true)) . "\n";
     
     try {
         for ($i=0; $i<$v; $i++)
