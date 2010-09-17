@@ -309,7 +309,9 @@ PHP_METHOD(judy, __construct)
 
     JUDY_METHOD_GET_OBJECT;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &type) == SUCCESS) {
+    if (intern->type) {
+        php_error_docref(NULL TSRMLS_CC, E_ERROR, "Judy Array already instantiated");
+    } else if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &type) == SUCCESS) {
         JTYPE(jtype, type);
         JUDY_G(counter) = 0;
         intern->type = type;
@@ -325,7 +327,7 @@ PHP_METHOD(judy, __construct)
 PHP_METHOD(judy, __destruct)
 {
     JUDY_METHOD_GET_OBJECT;
-    
+
     /* calling the object's free() method */
     zend_call_method_with_0_params(&object, NULL, NULL, "free", NULL);
 }
