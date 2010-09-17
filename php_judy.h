@@ -28,11 +28,11 @@ extern zend_module_entry judy_module_entry;
 #define phpext_judy_ptr &judy_module_entry
 
 #ifdef PHP_WIN32
-#	define PHP_JUDY_API __declspec(dllexport)
+#    define PHP_JUDY_API __declspec(dllexport)
 #elif defined(__GNUC__) && __GNUC__ >= 4
-#	define PHP_JUDY_API __attribute__ ((visibility("default")))
+#    define PHP_JUDY_API __attribute__ ((visibility("default")))
 #else
-#	define PHP_JUDY_API
+#    define PHP_JUDY_API
 #endif
 
 #ifdef ZTS
@@ -112,7 +112,7 @@ ZEND_DECLARE_MODULE_GLOBALS(judy)
 /* Grabbing CE's so that other exts can use the date objects too */
 PHPAPI zend_class_entry *php_judy_ce(void);
 
-#endif	/* PHP_JUDY_H */
+#endif    /* PHP_JUDY_H */
 
 
 /*

@@ -94,16 +94,16 @@ PHPAPI zend_class_entry *php_judy_ce(void)
  */
 int judy_object_count(zval *object, long *count TSRMLS_DC)
 {
-	zval *rv;
+    zval *rv;
 
     /* calling the object's count() method */
-	zend_call_method_with_0_params(&object, NULL, NULL, "count", &rv);
-	*count = Z_LVAL_P(rv);
-	
-	/* destruct the zval returned value */
-	zval_ptr_dtor(&rv);
-	
-	return SUCCESS;
+    zend_call_method_with_0_params(&object, NULL, NULL, "count", &rv);
+    *count = Z_LVAL_P(rv);
+    
+    /* destruct the zval returned value */
+    zval_ptr_dtor(&rv);
+    
+    return SUCCESS;
 }
 /* }}} */
 
@@ -111,12 +111,12 @@ int judy_object_count(zval *object, long *count TSRMLS_DC)
  */
 zval* judy_object_get(zval *object TSRMLS_DC)
 {
-	zval *rv;
-	
+    zval *rv;
+    
     /* calling the object's get() method */
-	zend_call_method_with_0_params(&object, NULL, NULL, "get", &rv);
-	
-	return rv;
+    zend_call_method_with_0_params(&object, NULL, NULL, "get", &rv);
+    
+    return rv;
 }
 /* }}} */
 
@@ -125,7 +125,7 @@ zval* judy_object_get(zval *object TSRMLS_DC)
 void judy_object_set(zval **object, zval *value TSRMLS_DC)
 {
     /* calling the object's set() method */
-	zend_call_method_with_1_params(object, NULL, NULL, "set", NULL, value);
+    zend_call_method_with_1_params(object, NULL, NULL, "set", NULL, value);
 }
 /* }}} */
 
@@ -265,7 +265,7 @@ PHP_MINIT_FUNCTION(judy)
     REGISTER_JUDY_CLASS_CONST_LONG("STRING_TO_INT", TYPE_STRING_TO_INT);
     REGISTER_JUDY_CLASS_CONST_LONG("STRING_TO_MIXED", TYPE_STRING_TO_MIXED);
 
-	return SUCCESS;
+    return SUCCESS;
 }
 /* }}} */
 
@@ -281,7 +281,7 @@ PHP_RINIT_FUNCTION(judy)
 PHP_MSHUTDOWN_FUNCTION(judy)
 {
     UNREGISTER_INI_ENTRIES();
-	return SUCCESS;
+    return SUCCESS;
 }
 /* }}} */
 
@@ -309,12 +309,12 @@ PHP_METHOD(judy, __construct)
 
     JUDY_METHOD_GET_OBJECT;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &type) == SUCCESS) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &type) == SUCCESS) {
         JTYPE(jtype, type);
         JUDY_G(counter) = 0;
         intern->type = type;
         intern->array = (Pvoid_t) NULL;
-	}
+    }
 
     zend_restore_error_handling(&error_handling TSRMLS_CC);
 }
@@ -327,7 +327,7 @@ PHP_METHOD(judy, __destruct)
     JUDY_METHOD_GET_OBJECT;
     
     /* calling the object's free() method */
-	zend_call_method_with_0_params(&object, NULL, NULL, "free", NULL);
+    zend_call_method_with_0_params(&object, NULL, NULL, "free", NULL);
 }
 /* }}} */
 
@@ -1161,8 +1161,8 @@ ZEND_END_ARG_INFO()
  * Every user visible function must have an entry in judy_functions[].
  */
 const zend_function_entry judy_functions[] = {
-	PHP_FE(judy_version, NULL)
-	{NULL, NULL, NULL}
+    PHP_FE(judy_version, NULL)
+    {NULL, NULL, NULL}
 };
 /* }}} */
 
@@ -1191,7 +1191,7 @@ const zend_function_entry judy_class_methods[] = {
     PHP_MALIAS(judy, size, count, NULL, ZEND_ACC_PUBLIC)
     PHP_MALIAS(judy, insert, set, NULL, ZEND_ACC_PUBLIC)
     PHP_MALIAS(judy, remove, unset, NULL, ZEND_ACC_PUBLIC)
-	{NULL, NULL, NULL}
+    {NULL, NULL, NULL}
 };
 /* }}} */
 
