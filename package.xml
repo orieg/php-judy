@@ -100,7 +100,7 @@ http://pear.php.net/dtd/package-2.0.xsd">
   </required>
  </dependencies>
 
- <providesextension>judy</providesextension>
+ <providesextension>Judy</providesextension>
 
  <extsrcrelease>
   <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />

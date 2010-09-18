@@ -23,7 +23,6 @@
 
 #endif /* JUDY_ARRAYACCESS_H */
 
-
 /*
  * Local variables:
  * tab-width: 4

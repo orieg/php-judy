@@ -120,8 +120,6 @@ PHP_MINIT_FUNCTION(judy)
     /* set some internal handlers */
     judy_handlers.clone_obj = judy_object_clone;
     judy_handlers.count_elements = judy_object_count;
-    judy_handlers.get = judy_object_get;
-    judy_handlers.set = judy_object_set;
     
     zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_arrayaccess);
     /* zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */

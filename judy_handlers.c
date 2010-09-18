@@ -36,28 +36,6 @@ int judy_object_count(zval *object, long *count TSRMLS_DC)
 }
 /* }}} */
 
-/* {{{ judy_object_get
- */
-zval* judy_object_get(zval *object TSRMLS_DC)
-{
-    zval *rv;
-
-    /* calling the object's get() method */
-    zend_call_method_with_0_params(&object, NULL, NULL, "get", &rv);
-
-    return rv;
-}
-/* }}} */
-
-/* {{{ judy_object_set
- */
-void judy_object_set(zval **object, zval *value TSRMLS_DC)
-{
-    /* calling the object's set() method */
-    zend_call_method_with_1_params(object, NULL, NULL, "set", NULL, value);
-}
-/* }}} */
-
 /* {{{ judy_object_clone
  */
 zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)

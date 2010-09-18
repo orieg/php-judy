@@ -25,11 +25,8 @@ zend_object_handlers judy_handlers;
 
 zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC);
 int judy_object_count(zval *object, long *count TSRMLS_DC);
-zval* judy_object_get(zval *object TSRMLS_DC);
-void judy_object_set(zval **object, zval *value TSRMLS_DC);
 
 #endif /* JUDY_HANDLERS_H */
-
 
 /*
  * Local variables:
