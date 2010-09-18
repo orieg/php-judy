@@ -7,11 +7,12 @@ http://pear.php.net/dtd/package-2.0.xsd">
  <name>Judy</name>
  <channel>pecl.php.net</channel>
 
- <summary>PHP Judy implements sparse dynamic arrays</summary>
+ <summary>PHP Judy implements sparse dynamic arrays (aka Judy Arrays)</summary>
  <description>
-    PHP Judy implements sparse dynamic arrays. A Judy array consumes memory only when
-    it is populated, yet can grow to take advantage of all available memory if desired.
-    Judy's key benefits are scalability, high performance, and memory efficiency.
+    PHP Judy implements sparse dynamic arrays (aka Judy Arrays). This extension is based
+    on the Judy C library. A Judy array consumes memory only when it is populated,
+    yet can grow to take advantage of all available memory if desired. Judy's key benefits
+    are scalability, high performance, and memory efficiency.
  </description>
 
  <lead>
