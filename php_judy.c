@@ -934,6 +934,15 @@ PHP_METHOD(judy, prevEmpty)
 }
 /* }}} */
 
+/* {{{ proto int Judy::getType()
+ Return the current Judy Array type */
+PHP_METHOD(judy, getType)
+{
+    JUDY_METHOD_GET_OBJECT
+    RETURN_LONG(intern->type);
+}
+/* }}} */
+
 /* {{{ proto string judy_version()
    Return the php judy version */
 PHP_FUNCTION(judy_version)
@@ -946,6 +955,20 @@ PHP_FUNCTION(judy_version)
 }
 /* }}} */
 
+/* {{{ proto int judy_type(Judy array)
+   Return the php judy type for the given array */
+PHP_FUNCTION(judy_type)
+{
+	zval *object;
+
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &object) == FAILURE) {
+        RETURN_FALSE;
+    }
+
+    judy_object *array = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    RETURN_LONG(array->type);
+}
+/* }}} */
 
 PHP_MINIT_FUNCTION(judy);
 PHP_MSHUTDOWN_FUNCTION(judy);
@@ -954,11 +977,13 @@ PHP_MINFO_FUNCTION(judy);
 
 /* PHP Judy Function */
 PHP_FUNCTION(judy_version);
+PHP_FUNCTION(judy_type);
 
 /* {{{ PHP Judy Methods
  */
 PHP_METHOD(judy, __construct);
 PHP_METHOD(judy, __destruct);
+PHP_METHOD(judy, getType);
 PHP_METHOD(judy, free);
 PHP_METHOD(judy, memoryUsage);
 PHP_METHOD(judy, set);
@@ -984,6 +1009,13 @@ PHP_METHOD(judy, offsetGet);
 PHP_METHOD(judy, offsetExists);
 /* }}} */
 
+/* {{{ Judy function parameters
+ */
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_type, 0, 0, 1)
+    ZEND_ARG_INFO(0, array)
+ZEND_END_ARG_INFO()
+/* }}} */
+
 /* {{{ Judy class methods parameters
  */
 ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_set, 0, 0, 1)
@@ -992,7 +1024,6 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_set, 0, 0, 1)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_unset, 0, 0, 1)
-    ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_get, 0, 0, 1)
@@ -1065,6 +1096,7 @@ ZEND_END_ARG_INFO()
 const zend_function_entry judy_functions[] = {
 	/* PHP JUDY FUNCTIONS */
     PHP_FE(judy_version, NULL)
+    PHP_FE(judy_type, arginfo_judy_type)
 
     /* NULL TEMRINATED VECTOR */
     {NULL, NULL, NULL}
@@ -1079,6 +1111,7 @@ const zend_function_entry judy_class_methods[] = {
 	/* PHP JUDY METHODS */
     PHP_ME(judy, __construct, 		NULL, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
     PHP_ME(judy, __destruct, 		NULL, ZEND_ACC_PUBLIC | ZEND_ACC_DTOR)
+    PHP_ME(judy, getType, 			NULL, ZEND_ACC_PUBLIC)
     PHP_ME(judy, free, 				NULL, ZEND_ACC_PUBLIC)
     PHP_ME(judy, memoryUsage, 		NULL, ZEND_ACC_PUBLIC)
     PHP_ME(judy, set, 				arginfo_judy_set, ZEND_ACC_PUBLIC)
