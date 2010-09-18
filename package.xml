@@ -48,6 +48,10 @@ http://pear.php.net/dtd/package-2.0.xsd">
    <file role='src' name='config.w32'/>
    <file role='src' name='php_judy.h'/>
    <file role='src' name='php_judy.c'/>
+   <file role='src' name='judy_handlers.h'/>
+   <file role='src' name='judy_handlers.c'/>
+   <file role='src' name='judy_arrayaccess.h'/>
+   <file role='src' name='judy_arrayaccess.c'/>
    <dir name="examples">
     <file role='doc' name='judy-bench-bitset.php'/>
     <file role='doc' name='judy-bench-int_to_int.php'/>
@@ -56,6 +60,8 @@ http://pear.php.net/dtd/package-2.0.xsd">
    </dir>
    <dir name="tests">
     <file role='test' name='001.phpt'/>
+    <file role='test' name='judy_error.phpt'/>
+    <file role='test' name='judy_type.phpt'/>
     <file role='test' name='bitset_001.phpt'/>
     <file role='test' name='bitset_002.phpt'/>
     <file role='test' name='bitset_003.phpt'/>
