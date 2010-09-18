@@ -1,6 +1,6 @@
 /*
   +----------------------------------------------------------------------+
-  | PHP Version 5                                                        |
+  | PHP Judy                                                             |
   +----------------------------------------------------------------------+
   | Copyright (c) 1997-2010 The PHP Group                                |
   +----------------------------------------------------------------------+
@@ -23,6 +23,12 @@
 #define PHP_JUDY_EXTNAME "judy"
 
 #include <Judy.h>
+
+#include "php.h"
+#include "php_ini.h"
+#include "zend_exceptions.h"
+#include "zend_interfaces.h"
+#include "ext/standard/info.h"
 
 extern zend_module_entry judy_module_entry;
 #define phpext_judy_ptr &judy_module_entry
@@ -83,13 +89,6 @@ zend_class_entry *judy_ce;
 
 zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC);
 zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSRMLS_DC);
-
-zend_object_handlers judy_handlers;
-
-zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC);
-int judy_object_count(zval *object, long *count TSRMLS_DC);
-zval* judy_object_get(zval *object TSRMLS_DC);
-void judy_object_set(zval **object, zval *value TSRMLS_DC);
 
 /* {{{ REGISTER_JUDY_CLASS_CONST_LONG */
 #define REGISTER_JUDY_CLASS_CONST_LONG(const_name, value) \

@@ -1,6 +1,6 @@
 /*
   +----------------------------------------------------------------------+
-  | PHP Version 5                                                        |
+  | PHP Judy                                                             |
   +----------------------------------------------------------------------+
   | Copyright (c) 1997-2010 The PHP Group                                |
   +----------------------------------------------------------------------+
@@ -20,15 +20,9 @@
 #include "config.h"
 #endif
 
-#include "php.h"
-#include "php_ini.h"
-#include "zend_exceptions.h"
-#include "zend_interfaces.h"
-#include "ext/standard/info.h"
-
-#ifndef PHP_JUDY_H
 #include "php_judy.h"
-#endif
+#include "judy_handlers.h"
+#include "judy_arrayaccess.h"
 
 /* {{{ php_judy_init_globals
  */
@@ -90,131 +84,6 @@ PHPAPI zend_class_entry *php_judy_ce(void)
     return judy_ce;
 }
 
-/* {{{ judy_object_count
- */
-int judy_object_count(zval *object, long *count TSRMLS_DC)
-{
-    zval *rv;
-
-    /* calling the object's count() method */
-    zend_call_method_with_0_params(&object, NULL, NULL, "count", &rv);
-    *count = Z_LVAL_P(rv);
-    
-    /* destruct the zval returned value */
-    zval_ptr_dtor(&rv);
-    
-    return SUCCESS;
-}
-/* }}} */
-
-/* {{{ judy_object_get
- */
-zval* judy_object_get(zval *object TSRMLS_DC)
-{
-    zval *rv;
-    
-    /* calling the object's get() method */
-    zend_call_method_with_0_params(&object, NULL, NULL, "get", &rv);
-    
-    return rv;
-}
-/* }}} */
-
-/* {{{ judy_object_set
- */
-void judy_object_set(zval **object, zval *value TSRMLS_DC)
-{
-    /* calling the object's set() method */
-    zend_call_method_with_1_params(object, NULL, NULL, "set", NULL, value);
-}
-/* }}} */
-
-/* {{{ judy_object_clone
- */
-zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
-{
-    judy_object *new_obj = NULL;
-    judy_object *old_obj = (judy_object *) zend_object_store_get_object(this_ptr TSRMLS_CC);
-    zend_object_value new_ov = judy_object_new_ex(old_obj->std.ce, &new_obj TSRMLS_CC);
-
-    zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
-
-    /* new Judy array to populate */
-    Pvoid_t newJArray = (Pvoid_t) NULL;
-
-    if (old_obj->type == TYPE_BITSET) {
-        /* Cloning Judy1 Array */
-
-        /* Key/index */
-        Word_t  kindex = 0;
-
-        /* Insert return value */
-        int     Rc_int = 0;
-
-        J1F(Rc_int, old_obj->array, kindex);
-        while (Rc_int == 1)
-        {
-            J1S(Rc_int, newJArray, kindex);
-            J1N(Rc_int, newJArray, kindex); 
-        }
-    } else if (old_obj->type == TYPE_INT_TO_INT || old_obj->type == TYPE_INT_TO_MIXED) {
-        /* Cloning JudyL Array */
-
-        /* Key/index */
-        Word_t kindex = 0;
-
-        /* Pointer to the old value */
-        Word_t *PValue;
-
-        /* Pointer to the new value */
-        Word_t *newPValue;
-
-        JLF(PValue, old_obj->array, kindex);
-        while(PValue != NULL && PValue != PJERR)
-        {
-            JLI(newPValue, newJArray, kindex);
-            if (newPValue != NULL && newPValue != PJERR) {
-                *newPValue = *PValue;
-                if (old_obj->type == TYPE_INT_TO_MIXED)
-                    Z_ADDREF_P(*(zval **)PValue);
-            }
-            JLN(PValue, old_obj->array, kindex)
-        }
-    } else if (old_obj->type == TYPE_STRING_TO_INT || old_obj->type == TYPE_STRING_TO_MIXED) {
-        /* Cloning JudySL Array */
-
-        /* Key/index */
-        uint8_t kindex[JUDY_G(max_length)];
-
-        /* Pointer to the old value */
-        Word_t *PValue;
-
-        /* Pointer to the new value */
-        Word_t *newPValue;
-    
-        /* smallest string is a null-terminated character */
-        kindex[0] = '\0';
-
-        JSLF(PValue, old_obj->array, kindex);
-        while(PValue != NULL && PValue != PJERR)
-        {
-            JSLI(newPValue, newJArray, kindex);
-            if (newPValue != NULL && newPValue != PJERR) {
-                *newPValue = *PValue;
-                if (old_obj->type == TYPE_STRING_TO_MIXED)
-                    Z_ADDREF_P(*(zval **)PValue);
-            }
-            JSLN(PValue, old_obj->array, kindex)
-        }
-    }
-
-    new_obj->array = newJArray;
-    new_obj->type = old_obj->type;
-
-    return new_ov; 
-}
-/* }}} */
-
 /* {{{ PHP INI entries
  */
 PHP_INI_BEGIN()
@@ -254,8 +123,8 @@ PHP_MINIT_FUNCTION(judy)
     judy_handlers.get = judy_object_get;
     judy_handlers.set = judy_object_set;
     
-    /* zend_classImplements(judy_ce TSRMLS_CC, 1, zend_ce_arrayaccess); 
-    zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */
+    zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_arrayaccess);
+    /* zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */
     judy_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;
     /* judy_ce->get_iterator = judy_get_iterator; */
 
@@ -307,7 +176,7 @@ PHP_METHOD(judy, __construct)
 
     JUDY_METHOD_ERROR_HANDLING;
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     if (intern->type) {
         php_error_docref(NULL TSRMLS_CC, E_ERROR, "Judy Array already instantiated");
@@ -326,7 +195,7 @@ PHP_METHOD(judy, __construct)
  Free Judy array and any other references */
 PHP_METHOD(judy, __destruct)
 {
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     /* calling the object's free() method */
     zend_call_method_with_0_params(&object, NULL, NULL, "free", NULL);
@@ -337,7 +206,7 @@ PHP_METHOD(judy, __destruct)
  Free the entire Judy Array. Return the number of bytes freed */
 PHP_METHOD(judy, free)
 {
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     Word_t    Rc_word;
     Word_t    index;
@@ -408,7 +277,7 @@ PHP_METHOD(judy, memoryUsage)
 {
     Word_t     Rc_word;
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     switch (intern->type)
     {
@@ -431,7 +300,7 @@ PHP_METHOD(judy, memoryUsage)
  Set the current index */
 PHP_METHOD(judy, set)
 {
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     if (intern->type == TYPE_BITSET)
     {
@@ -524,7 +393,7 @@ PHP_METHOD(judy, unset)
 {
     int         Rc_int;
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     if (intern->type == TYPE_BITSET) {
         Word_t      index;
@@ -584,7 +453,7 @@ PHP_METHOD(judy, unset)
 PHP_METHOD(judy, get)
 {
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     if (intern->type == TYPE_BITSET) {
         Word_t  index;
@@ -639,7 +508,7 @@ PHP_METHOD(judy, get)
  Return the current size of the array. */
 PHP_METHOD(judy, count)
 {
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     if (intern->type == TYPE_BITSET || intern->type == TYPE_INT_TO_INT
                                     || intern->type == TYPE_INT_TO_MIXED) {
@@ -670,7 +539,7 @@ PHP_METHOD(judy, count)
 PHP_METHOD(judy, byCount)
 {
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     if (intern->type == TYPE_BITSET || intern->type == TYPE_INT_TO_INT
                                     || intern->type == TYPE_INT_TO_MIXED) {
@@ -703,7 +572,7 @@ PHP_METHOD(judy, byCount)
 PHP_METHOD(judy, first)
 {
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     if (intern->type == TYPE_BITSET) {
         Word_t          index = 0;
@@ -762,7 +631,7 @@ PHP_METHOD(judy, first)
 PHP_METHOD(judy, next)
 {
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     if (intern->type == TYPE_BITSET) {
         Word_t          index;
@@ -821,7 +690,7 @@ PHP_METHOD(judy, next)
 PHP_METHOD(judy, last)
 {
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     if (intern->type == TYPE_BITSET) {
         Word_t       index = -1;
@@ -883,7 +752,7 @@ PHP_METHOD(judy, last)
 PHP_METHOD(judy, prev)
 {
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     if (intern->type == TYPE_BITSET) {
         Word_t       index;
@@ -948,7 +817,7 @@ PHP_METHOD(judy, firstEmpty)
         RETURN_FALSE;
     }
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     switch (intern->type)
     {
@@ -980,7 +849,7 @@ PHP_METHOD(judy, lastEmpty)
         RETURN_FALSE;
     }
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     switch (intern->type)
     {
@@ -1012,7 +881,7 @@ PHP_METHOD(judy, nextEmpty)
         RETURN_FALSE;
     }
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     switch (intern->type)
     {
@@ -1044,7 +913,7 @@ PHP_METHOD(judy, prevEmpty)
         RETURN_FALSE;
     }
 
-    JUDY_METHOD_GET_OBJECT;
+    JUDY_METHOD_GET_OBJECT
 
     switch (intern->type)
     {
@@ -1065,11 +934,15 @@ PHP_METHOD(judy, prevEmpty)
 }
 /* }}} */
 
-/* {{{ proto void judy_version()
+/* {{{ proto string judy_version()
    Return the php judy version */
 PHP_FUNCTION(judy_version)
 {
-   php_printf("PHP Judy Version: %s\n", PHP_JUDY_VERSION);
+	if (return_value_used) {
+		RETURN_STRING(PHP_JUDY_VERSION, strlen(PHP_JUDY_VERSION));
+	} else {
+		php_printf("PHP Judy Version: %s\n", PHP_JUDY_VERSION);
+	}
 }
 /* }}} */
 
@@ -1082,7 +955,8 @@ PHP_MINFO_FUNCTION(judy);
 /* PHP Judy Function */
 PHP_FUNCTION(judy_version);
 
-/* PHP Judy Class */
+/* {{{ PHP Judy Methods
+ */
 PHP_METHOD(judy, __construct);
 PHP_METHOD(judy, __destruct);
 PHP_METHOD(judy, free);
@@ -1100,6 +974,15 @@ PHP_METHOD(judy, firstEmpty);
 PHP_METHOD(judy, nextEmpty);
 PHP_METHOD(judy, lastEmpty);
 PHP_METHOD(judy, prevEmpty);
+/* }}} */
+
+/* {{{ PHP Judy Methods for the Array Access Interface
+ */
+PHP_METHOD(judy, offsetSet);
+PHP_METHOD(judy, offsetUnset);
+PHP_METHOD(judy, offsetGet);
+PHP_METHOD(judy, offsetExists);
+/* }}} */
 
 /* {{{ Judy class methods parameters
  */
@@ -1156,14 +1039,34 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prevEmpty, 0, 0, 1)
     ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
-/* }}}} */
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetSet, 0, 0, 2)
+    ZEND_ARG_INFO(0, offset)
+    ZEND_ARG_INFO(0, value)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetUnset, 0, 0, 1)
+    ZEND_ARG_INFO(0, offset)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetGet, 0, 0, 1)
+    ZEND_ARG_INFO(0, offset)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetExists, 0, 0, 1)
+    ZEND_ARG_INFO(0, offset)
+ZEND_END_ARG_INFO()
+/* }}} */
 
 /* {{{ judy_functions[]
  *
  * Every user visible function must have an entry in judy_functions[].
  */
 const zend_function_entry judy_functions[] = {
+	/* PHP JUDY FUNCTIONS */
     PHP_FE(judy_version, NULL)
+
+    /* NULL TEMRINATED VECTOR */
     {NULL, NULL, NULL}
 };
 /* }}} */
@@ -1173,26 +1076,37 @@ const zend_function_entry judy_functions[] = {
  * Every user visible Judy method must have an entry in judy_class_methods[].
  */
 const zend_function_entry judy_class_methods[] = {
-    PHP_ME(judy, __construct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
-    PHP_ME(judy, __destruct, NULL, ZEND_ACC_PUBLIC | ZEND_ACC_DTOR)
-    PHP_ME(judy, free, NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, memoryUsage, NULL, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, set, arginfo_judy_set, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, unset, arginfo_judy_unset, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, get, arginfo_judy_get, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, count, arginfo_judy_count, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, byCount, arginfo_judy_byCount, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, first, arginfo_judy_first, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, next, arginfo_judy_next, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, last, arginfo_judy_last, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, prev, arginfo_judy_prev, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, firstEmpty, arginfo_judy_firstEmpty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, nextEmpty, arginfo_judy_nextEmpty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, lastEmpty, arginfo_judy_lastEmpty, ZEND_ACC_PUBLIC)
-    PHP_ME(judy, prevEmpty, arginfo_judy_prevEmpty, ZEND_ACC_PUBLIC)
-    PHP_MALIAS(judy, size, count, NULL, ZEND_ACC_PUBLIC)
-    PHP_MALIAS(judy, insert, set, NULL, ZEND_ACC_PUBLIC)
-    PHP_MALIAS(judy, remove, unset, NULL, ZEND_ACC_PUBLIC)
+	/* PHP JUDY METHODS */
+    PHP_ME(judy, __construct, 		NULL, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
+    PHP_ME(judy, __destruct, 		NULL, ZEND_ACC_PUBLIC | ZEND_ACC_DTOR)
+    PHP_ME(judy, free, 				NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, memoryUsage, 		NULL, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, set, 				arginfo_judy_set, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, unset, 			arginfo_judy_unset, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, get, 				arginfo_judy_get, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, count, 			arginfo_judy_count, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, byCount, 			arginfo_judy_byCount, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, first, 			arginfo_judy_first, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, next, 				arginfo_judy_next, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, last, 				arginfo_judy_last, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, prev, 				arginfo_judy_prev, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, firstEmpty, 		arginfo_judy_firstEmpty, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, nextEmpty, 		arginfo_judy_nextEmpty, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, lastEmpty, 		arginfo_judy_lastEmpty, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, prevEmpty, 		arginfo_judy_prevEmpty, ZEND_ACC_PUBLIC)
+
+    /* PHP JUDY METHODS / ARRAYACCESS INTERFACE */
+    PHP_ME(judy, offsetSet, 		arginfo_judy_offsetSet, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, offsetUnset, 		arginfo_judy_offsetUnset, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, offsetGet, 		arginfo_judy_offsetGet, ZEND_ACC_PUBLIC)
+    PHP_ME(judy, offsetExists, 		arginfo_judy_offsetExists, ZEND_ACC_PUBLIC)
+
+    /* PHP JUDY METHODS ALIAS */
+    PHP_MALIAS(judy, size, 			count, NULL, ZEND_ACC_PUBLIC)
+    PHP_MALIAS(judy, insert, 		set, NULL, ZEND_ACC_PUBLIC)
+    PHP_MALIAS(judy, remove, 		unset, NULL, ZEND_ACC_PUBLIC)
+
+    /* NULL TEMRINATED VECTOR */
     {NULL, NULL, NULL}
 };
 /* }}} */
