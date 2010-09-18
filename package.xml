@@ -7,7 +7,7 @@ http://pear.php.net/dtd/package-2.0.xsd">
  <name>Judy</name>
  <channel>pecl.php.net</channel>
 
- <summary>PHP Judy implements a sparse dynamic array (Judy Arrays)</summary>
+ <summary>PHP Judy implements sparse dynamic arrays</summary>
  <description>
     PHP Judy implements sparse dynamic arrays. A Judy array consumes memory only when
     it is populated, yet can grow to take advantage of all available memory if desired.
@@ -21,20 +21,21 @@ http://pear.php.net/dtd/package-2.0.xsd">
   <active>yes</active>
  </lead>
 
+ <license uri="http://www.php.net/license">PHP</license>
+
  <date>2010-09-17</date>
  <version>
-  <release>0.0.1</release>
-  <api>0.0.1</api>
+  <release>0.0.2</release>
+  <api>0.0.2</api>
  </version>
  <stability>
   <release>alpha</release>
   <api>alpha</api>
  </stability>
-
- <license uri="http://www.php.net/license">PHP</license>
-
  <notes>
-    - Initial PECL release
+    - Add a judy_type() function and Judy::getType() method
+    - Implement array access interface to provide accessing judy objects as arrays
+    - Refactor and clean-up some code
  </notes>
 
  <contents>
@@ -99,6 +100,20 @@ http://pear.php.net/dtd/package-2.0.xsd">
  </extsrcrelease>
 
  <changelog>
+   <release>
+    <date>2010-09-17</date>
+    <version>
+        <release>0.0.1</release>
+        <api>0.0.1</api>
+    </version>
+    <stability>
+        <release>alpha</release>
+        <api>alpha</api>
+    </stability>
+    <notes>
+    - Initial PECL release
+    </notes>
+  </release>
  </changelog>
 
 </package>
