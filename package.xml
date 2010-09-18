@@ -46,10 +46,12 @@ http://pear.php.net/dtd/package-2.0.xsd">
    <file role='src' name='config.w32'/>
    <file role='src' name='php_judy.h'/>
    <file role='src' name='php_judy.c'/>
-   <file role='php' name='judy-bench-bitset.php'/>
-   <file role='php' name='judy-bench-int_to_int.php'/>
-   <file role='php' name='judy-bench-string_to_int.php'/>
-   <file role='php' name='judy.php'/>
+   <dir name="examples">
+    <file role='doc' name='judy-bench-bitset.php'/>
+    <file role='doc' name='judy-bench-int_to_int.php'/>
+    <file role='doc' name='judy-bench-string_to_int.php'/>
+    <file role='doc' name='judy.php'/>
+   </dir>
    <dir name="tests">
     <file role='test' name='001.phpt'/>
     <file role='test' name='bitset_001.phpt'/>
