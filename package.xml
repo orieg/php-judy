@@ -36,7 +36,7 @@ http://pear.php.net/dtd/package-2.0.xsd">
  <notes>
     - Add a judy_type() function and Judy::getType() method
     - Implement array access interface to provide accessing judy objects as arrays
-    - Refactor and clean-up some code
+    - Remove unused methods, refactor and clean-up some code
  </notes>
 
  <contents>

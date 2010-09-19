@@ -10,7 +10,8 @@ $judy = new Judy(Judy::BITSET);
 
 echo "Set 100 index\n";
 for ($i=0; $i<100; $i++) {
-        if(!$judy->set($i))
+        $judy[$i] = true;
+        if(!$judy[$i])
             echo "Failed to set index $i\n";
 }
 
@@ -20,7 +21,8 @@ echo "Half count: ".$judy->count(0, 49)."\n";
 echo "Count Method: ".$judy->count()."\n";
 echo "Count Function: ".count($judy)."\n";
 
-if ($judy->unset(50))
+unset($judy[50]);
+if (!$judy[50])
     echo "Unset index 50\n";
 
 echo "First half count: ".$judy->count(0, 49)."\n";

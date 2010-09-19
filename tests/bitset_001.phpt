@@ -10,7 +10,8 @@ $judy = new Judy(Judy::BITSET);
 
 echo "Set 100 index\n";
 for ($i=0; $i<100; $i++) {
-        if(!$judy->set($i))
+        $judy[$i] = true;
+        if(!$judy[$i])
             echo "Failed to set index $i\n";
 }
 
@@ -18,7 +19,7 @@ for ($i=0; $i<100; $i++) {
 
 echo "Test 100 index are set\n";
 for ($i=0; $i<100; $i++) {
-        if(!$judy->get($i))
+        if(!$judy[$i])
             echo "Test index $i returned false\n";
 }
 
@@ -26,7 +27,8 @@ for ($i=0; $i<100; $i++) {
 
 echo "Unset 100 index\n";
 for ($i=0; $i<100; $i++) {
-        if(!$judy->unset($i))
+        unset($judy[$i]);
+        if ($judy[$i])
             echo "Failed to unset index $i\n";
 }
 
@@ -34,7 +36,7 @@ for ($i=0; $i<100; $i++) {
 
 echo "Test 100 index are not set\n";
 for ($i=0; $i<100; $i++) {
-        if($judy->get($i))
+        if($judy[$i])
             echo "Test index $i returned true\n";
 }
 

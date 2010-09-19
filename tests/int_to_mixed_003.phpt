@@ -11,7 +11,8 @@ $judy = new Judy(Judy::INT_TO_MIXED);
 echo "Insert 500 index with a rand value\n";
 for ($i=100; $i<600; $i++) {
         $value = rand();
-        if(!$judy->set($i, "$value"))
+        $judy[$i] = "$value";
+        if(!$judy[$i])
             echo "Failed to insert index $i (value: $value)\n";
 }
 

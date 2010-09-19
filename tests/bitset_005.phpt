@@ -5,12 +5,12 @@ Check for Judy BITSET __clone() method
 --FILE--
 <?php 
 $judy = new Judy(Judy::BITSET);
-$judy->set(1);
+$judy[1] = true;
 
 $judy2 = clone $judy;
 
-var_dump($judy->get(1));
-var_dump($judy2->get(1));
+var_dump($judy[1]);
+var_dump($judy2[1]);
 
 if ($judy == $judy2)
     echo "Clone OK\n";

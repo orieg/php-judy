@@ -10,7 +10,8 @@ $judy = new Judy(Judy::BITSET);
 
 echo "Set 500 index\n";
 for ($i=100; $i<600; $i++) {
-        if(!$judy->set($i))
+        $judy[$i] = true;
+        if(!$judy[$i])
             echo "Failed to set index $i\n";
 }
 

@@ -11,14 +11,16 @@ $judy = new Judy(Judy::INT_TO_INT);
 echo "Insert 500 index with a rand value\n";
 for ($i=100; $i<600; $i++) {
         $value = rand();
-        if(!$judy->set($i, $value))
+        $judy[$i] = $value;
+        if(!$judy[$i])
             echo "Failed to insert index $i (value: $value)\n";
 }
 
 $unset = array(150, 232, 346, 427, 589);
 foreach($unset as $i) {
     echo "Delete index $i\n";
-    if(!$judy->unset($i))
+    unset($judy[$i]);
+    if($judy[$i])
         echo "Failed to unset index $i\n";
 }
 

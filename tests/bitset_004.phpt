@@ -10,14 +10,16 @@ $judy = new Judy(Judy::BITSET);
 
 echo "Insert 500 index\n";
 for ($i=100; $i<600; $i++) {
-        if(!$judy->set($i))
+        $judy[$i] = true;
+        if(!$judy[$i])
             echo "Failed to set index $i\n";
 }
 
 $unset = array(150, 232, 346, 427, 589);
 foreach($unset as $i) {
     echo "Unset index $i\n";
-    if(!$judy->unset($i))
+    unset($judy[$i]);
+    if ($judy[$i])
         echo "Failed to delete index $i\n";
 }
 

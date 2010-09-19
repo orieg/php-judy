@@ -11,7 +11,8 @@ $judy = new Judy(Judy::INT_TO_MIXED);
 echo "Insert 100 index with a rand value\n";
 for ($i=0; $i<100; $i++) {
         $value = rand();
-        if(!$judy->set($i, "$value"))
+        $judy[$i] = "$value";
+        if(!$judy[$i])
             echo "Failed to insert index $i (value: $value)\n";
 }
 
@@ -21,7 +22,8 @@ echo "Half count: ".$judy->count(0, 49)."\n";
 echo "Count Method: ".$judy->count()."\n";
 echo "Count Function: ".count($judy)."\n";
 
-if ($judy->unset(50))
+unset($judy[50]);
+if (!$judy[50])
     echo "Unset index 50\n";
 
 echo "First half count: ".$judy->count(0, 49)."\n";

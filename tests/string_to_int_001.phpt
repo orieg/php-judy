@@ -11,7 +11,8 @@ $judy = new Judy(Judy::STRING_TO_INT);
 echo "Insert 100 index with a rand value\n";
 for ($i=0; $i<100; $i++) {
         $value = rand();
-        if(!$judy->set("$i", $value))
+        $judy["$i"] = $value;
+        if(!$judy["$i"])
             echo "Failed to insert index $i (value: $value)\n";
 }
 
@@ -19,7 +20,7 @@ for ($i=0; $i<100; $i++) {
 
 echo "Get 100 index\n";
 for ($i=0; $i<100; $i++) {
-        if($judy->get("$i") === null)
+        if($judy["$i"] === null)
             echo "Get index $i returned null\n";
 }
 
@@ -27,7 +28,8 @@ for ($i=0; $i<100; $i++) {
 
 echo "Remove 100 index\n";
 for ($i=0; $i<100; $i++) {
-        if(!$judy->unset("$i"))
+        unset($judy["$i"]);
+        if($judy[$i])
             echo "Failed to remove index $i\n";
 }
 
@@ -35,13 +37,13 @@ for ($i=0; $i<100; $i++) {
 
 echo "Get 100 index (should be empty)\n";
 for ($i=0; $i<100; $i++) {
-        if(($v = $judy->get("$i")) !== null)
+        if(($v = $judy["$i"]) !== null)
             echo "Get index $i returned $v\n";
 }
 
 echo "Testing values are properly inserted and returned\n";
-$judy->set("test string index", 987);
-$v = $judy->get("test string index");
+$judy["test string index"] = 987;
+$v = $judy["test string index"];
 if ($v != 987)
     echo "Value doesn't match to the one inserted (expected 987 got $v)\n";
 

@@ -25,8 +25,94 @@ PHP_METHOD(judy, offsetSet)
 {
     JUDY_METHOD_GET_OBJECT
 
-    /* calling the object's free() method */
-    //zend_call_method_with_2_params(&object, NULL, NULL, "set", NULL);
+    if (intern->type == TYPE_BITSET)
+    {
+        Word_t      index;
+        zend_bool	value;
+        int         Rc_int;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "lb", &index, &value) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        if (value == 1) {
+        	J1S(Rc_int, intern->array, index);
+        } else {
+        	J1U(Rc_int, intern->array, index);
+        }
+        RETURN_BOOL(Rc_int);
+    } else if (intern->type == TYPE_INT_TO_INT) {
+        Word_t      index;
+        Word_t      value;
+        Word_t      *PValue;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ll", &index, &value) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        JLI(PValue, intern->array, index);
+        if (PValue != NULL && PValue != PJERR) {
+            *PValue = value;
+            RETURN_TRUE;
+        } else {
+            RETURN_FALSE;
+        }
+    } else if (intern->type == TYPE_INT_TO_MIXED) {
+        Word_t      index;
+        zval        *value;
+        Pvoid_t     *PValue;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "lz", &index, &value) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        JLI(PValue, intern->array, index);
+        if (PValue != NULL && PValue != PJERR) {
+            *(zval **)PValue = value;
+            Z_ADDREF_P(*(zval **)PValue);
+            RETURN_TRUE;
+        } else {
+            RETURN_FALSE;
+        }
+    } else if (intern->type == TYPE_STRING_TO_INT) {
+        uint8_t     *key;
+        int         key_length;
+        Word_t      *value;
+        PWord_t     *PValue;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sl", &key, &key_length, &value) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        JSLI(PValue, intern->array, key);
+        if (PValue != NULL && PValue != PJERR) {
+            *PValue = value;
+            JUDY_G(counter)++;
+            RETURN_TRUE;
+        } else {
+            RETURN_FALSE;
+        }
+    } else if (intern->type == TYPE_STRING_TO_MIXED) {
+        uint8_t     *key;
+        int         key_length;
+        zval        *value;
+        Pvoid_t     *PValue;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "sz", &key, &key_length, &value) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        JSLI(PValue, intern->array, key);
+        if (PValue != NULL && PValue != PJERR) {
+            *(zval **)PValue = value;
+            Z_ADDREF_P(*(zval **)PValue);
+            JUDY_G(counter)++;
+            RETURN_TRUE;
+        } else {
+            RETURN_FALSE;
+        }
+    }
+    RETURN_FALSE;
 }
 /* }}} */
 
@@ -34,10 +120,60 @@ PHP_METHOD(judy, offsetSet)
  set the value at the given offset in the Judy Array */
 PHP_METHOD(judy, offsetUnset)
 {
+    int         Rc_int;
+
     JUDY_METHOD_GET_OBJECT
 
-    /* calling the object's free() method */
-    //zend_call_method_with_2_params(&object, NULL, NULL, "set", NULL);
+    if (intern->type == TYPE_BITSET) {
+        Word_t      index;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        J1U(Rc_int, intern->array, index);
+    } else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_INT_TO_MIXED) {
+        Word_t      index;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        if (intern->type == TYPE_INT_TO_INT) {
+            JLD(Rc_int, intern->array, index);
+        } else {
+            Pvoid_t     *PValue;
+            JLG(PValue, intern->array, index);
+            if (PValue != NULL && PValue != PJERR) {
+                zval_ptr_dtor((zval **)PValue);
+                JLD(Rc_int, intern->array, index);
+            }
+        }
+        if (Rc_int == 1)
+            JUDY_G(counter)--;
+    } else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+        uint8_t     *key;
+        int         key_length;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &key, &key_length) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        if (intern->type == TYPE_STRING_TO_INT) {
+            JSLD(Rc_int, intern->array, key);
+        } else {
+            Pvoid_t     *PValue;
+            JSLG(PValue, intern->array, key);
+            if (PValue != NULL && PValue != PJERR) {
+                zval_ptr_dtor((zval **)PValue);
+                JSLD(Rc_int, intern->array, key);
+            }
+        }
+        if (Rc_int == 1)
+            JUDY_G(counter)--;
+    }
+
+    RETURN_BOOL(Rc_int);
 }
 /* }}} */
 
@@ -47,8 +183,52 @@ PHP_METHOD(judy, offsetGet)
 {
     JUDY_METHOD_GET_OBJECT
 
-    /* calling the object's free() method */
-    //zend_call_method_with_2_params(&object, NULL, NULL, "set", NULL);
+    if (intern->type == TYPE_BITSET) {
+        Word_t  index;
+        int     Rc_int;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        J1T(Rc_int, intern->array, index);
+        RETURN_BOOL(Rc_int);
+    } else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_INT_TO_MIXED) {
+        Word_t    index;
+        Word_t    *PValue;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        JLG(PValue, intern->array, index);
+        if (PValue != NULL && PValue != PJERR) {
+            if (intern->type == TYPE_INT_TO_INT) {
+                RETURN_LONG(*PValue);
+            } else {
+                RETURN_ZVAL(*((zval **)PValue), 1, 0);
+            }
+        }
+    } else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+        uint8_t     *key;
+        int         key_length;
+        Word_t      *PValue;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &key, &key_length) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        JSLG(PValue, intern->array, key);
+        if (PValue != NULL && PValue != PJERR) {
+            if (intern->type == TYPE_STRING_TO_INT) {
+                RETURN_LONG(*PValue);
+            } else {
+                RETURN_ZVAL(*((zval **)PValue), 1 ,0);
+            }
+        }
+    }
+
+    RETURN_NULL();
 }
 /* }}} */
 
@@ -58,8 +238,44 @@ PHP_METHOD(judy, offsetExists)
 {
     JUDY_METHOD_GET_OBJECT
 
-    /* calling the object's free() method */
-    //zend_call_method_with_2_params(&object, NULL, NULL, "set", NULL);
+    if (intern->type == TYPE_BITSET) {
+        Word_t  index;
+        int     Rc_int;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        J1T(Rc_int, intern->array, index);
+        RETURN_BOOL(Rc_int);
+    } else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_INT_TO_MIXED) {
+        Word_t    index;
+        Word_t    *PValue;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        JLG(PValue, intern->array, index);
+        if (PValue != NULL && PValue != PJERR) {
+            RETURN_TRUE;
+        }
+    } else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+        uint8_t     *key;
+        int         key_length;
+        Word_t      *PValue;
+
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &key, &key_length) == FAILURE) {
+            RETURN_FALSE;
+        }
+
+        JSLG(PValue, intern->array, key);
+        if (PValue != NULL && PValue != PJERR) {
+            RETURN_TRUE;
+        }
+    }
+
+    RETURN_FALSE;
 }
 /* }}} */
 
