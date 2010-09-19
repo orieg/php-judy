@@ -23,6 +23,7 @@
 #include "php_judy.h"
 #include "judy_handlers.h"
 #include "judy_arrayaccess.h"
+#include "judy_iterator.h"
 
 /* {{{ php_judy_init_globals
  */
@@ -121,10 +122,11 @@ PHP_MINIT_FUNCTION(judy)
     judy_handlers.clone_obj = judy_object_clone;
     judy_handlers.count_elements = judy_object_count;
     
-    zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_arrayaccess);
-    /* zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_iterator); */
+    /* implements some interface to provide access to judy object as an array */
+    zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_arrayaccess, zend_ce_iterator);
+
     judy_ce->ce_flags |= ZEND_ACC_FINAL_CLASS;
-    /* judy_ce->get_iterator = judy_get_iterator; */
+    judy_ce->get_iterator = judy_get_iterator;
 
     REGISTER_JUDY_CLASS_CONST_LONG("BITSET", TYPE_BITSET);
     REGISTER_JUDY_CLASS_CONST_LONG("INT_TO_INT", TYPE_INT_TO_INT);

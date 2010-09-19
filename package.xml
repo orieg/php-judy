@@ -22,20 +22,19 @@ http://pear.php.net/dtd/package-2.0.xsd">
   <active>yes</active>
  </lead>
 
- <license uri="http://www.php.net/license">PHP</license>
-
- <date>2010-09-17</date>
+ <date>2010-09-18</date>
  <version>
-  <release>0.0.2</release>
-  <api>0.0.2</api>
+  <release>0.1.0</release>
+  <api>0.1.0</api>
  </version>
  <stability>
-  <release>alpha</release>
-  <api>alpha</api>
+  <release>beta</release>
+  <api>beta</api>
  </stability>
+ <license uri="http://www.php.net/license">PHP</license>
  <notes>
+    - Implement array access and iterator to provide access to judy objects as arrays
     - Add a judy_type() function and Judy::getType() method
-    - Implement array access interface to provide accessing judy objects as arrays
     - Remove unused methods, refactor and clean-up some code
  </notes>
 
@@ -52,6 +51,8 @@ http://pear.php.net/dtd/package-2.0.xsd">
    <file role='src' name='judy_handlers.c'/>
    <file role='src' name='judy_arrayaccess.h'/>
    <file role='src' name='judy_arrayaccess.c'/>
+   <file role='src' name='judy_iterator.h'/>
+   <file role='src' name='judy_iterator.c'/>
    <dir name="examples">
     <file role='doc' name='judy-bench-bitset.php'/>
     <file role='doc' name='judy-bench-int_to_int.php'/>
@@ -62,6 +63,7 @@ http://pear.php.net/dtd/package-2.0.xsd">
     <file role='test' name='001.phpt'/>
     <file role='test' name='judy_error.phpt'/>
     <file role='test' name='judy_type.phpt'/>
+    <file role='test' name='judy_foreach.phpt'/>
     <file role='test' name='bitset_001.phpt'/>
     <file role='test' name='bitset_002.phpt'/>
     <file role='test' name='bitset_003.phpt'/>
