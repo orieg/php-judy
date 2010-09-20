@@ -90,7 +90,6 @@ If you encounter a bug, please submit it via the bug tracker on Git Hub:
 5. TODO
 --------
 
- * Implement iterator methods
  * Implements comparator and cast handler
  * Add bitset comparator (cf. Judy1Op sample)
  * Test compile/install on other platform

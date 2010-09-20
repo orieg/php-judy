@@ -27,12 +27,25 @@ PHP_METHOD(judy, offsetSet)
 
     if (intern->type == TYPE_BITSET)
     {
-        Word_t      index;
+        zval        *zindex;
+        Word_t		index;
         zend_bool	value;
         int         Rc_int;
 
-        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "lb", &index, &value) == FAILURE) {
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z!b", &zindex, &value) == FAILURE) {
             RETURN_FALSE;
+        }
+
+        if (!zindex){
+        	index = -1;
+    		J1L(Rc_int, intern->array, index);
+    		if (Rc_int == 1) {
+    			index += 1;
+			} else {
+				RETURN_FALSE;
+			}
+        } else {
+        	index = Z_LVAL_P(zindex);
         }
 
         if (value == 1) {
@@ -42,12 +55,25 @@ PHP_METHOD(judy, offsetSet)
         }
         RETURN_BOOL(Rc_int);
     } else if (intern->type == TYPE_INT_TO_INT) {
+    	zval        *zindex;
         Word_t      index;
         Word_t      value;
         Word_t      *PValue;
 
-        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ll", &index, &value) == FAILURE) {
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z!l", &zindex, &value) == FAILURE) {
             RETURN_FALSE;
+        }
+
+        if (!zindex){
+        	index = -1;
+    		JLL(PValue, intern->array, index);
+            if (PValue != NULL && PValue != PJERR) {
+    			index += 1;
+			} else {
+				RETURN_FALSE;
+			}
+        } else {
+        	index = Z_LVAL_P(zindex);
         }
 
         JLI(PValue, intern->array, index);
@@ -58,12 +84,25 @@ PHP_METHOD(judy, offsetSet)
             RETURN_FALSE;
         }
     } else if (intern->type == TYPE_INT_TO_MIXED) {
+    	zval        *zindex;
         Word_t      index;
         zval        *value;
         Pvoid_t     *PValue;
 
-        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "lz", &index, &value) == FAILURE) {
+        if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z!z", &zindex, &value) == FAILURE) {
             RETURN_FALSE;
+        }
+
+        if (!zindex){
+        	index = -1;
+    		JLL(PValue, intern->array, index);
+            if (PValue != NULL && PValue != PJERR) {
+    			index += 1;
+			} else {
+				RETURN_FALSE;
+			}
+        } else {
+        	index = Z_LVAL_P(zindex);
         }
 
         JLI(PValue, intern->array, index);
