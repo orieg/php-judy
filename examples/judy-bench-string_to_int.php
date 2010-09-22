@@ -38,10 +38,10 @@ foreach($count as $v) {
     $s=microtime(true);
     $judy = new Judy(Judy::STRING_TO_INT);
     for ($i=0; $i<$v; $i++)
-        $judy->set("$i", rand());
-    var_dump($judy->get(100));
-    $judy->unset("102");
-    var_dump($judy->get("102"));
+        $judy["$i"] = rand();
+    var_dump($judy[100]);
+    unset($judy["102"]);
+    var_dump($judy["102"]);
     echo "Size: ".$judy->size()."\n";
     $e=microtime(true);
     echo "Elapsed time: ".($e - $s)." sec.\n";
