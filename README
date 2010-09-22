@@ -1,0 +1,95 @@
+        PHP Judy - extension creating and accessing dynamic arrays
+     ================================================================
+
+Content
+---------
+ 1. Introduction
+ 2. Directory Contents
+ 3. How to install
+ 4. Reporting Bugs
+ 5. Todo
+
+
+1. INTRODUCTION
+-----------------
+
+php-judy is an extension by Nicolas Brousse for the Judy C library.
+  -> http://pecl.php.net/package/Judy
+  -> http://github.com/orieg/php-judy
+
+Structures available in the PHP Judy extension :
+ - BITSET (using Judy1)
+ - INT_TO_INT (using JudyL)
+ - INT_TO_MIXED (using JudyL)
+ - STRING_TO_INT (using JudySL)
+ - STRING_TO_MIXED (using JudySL)
+
+A Judy array is a complex but very fast associative array data structure for
+storing and looking up values using integer or string keys. Unlike normal
+arrays, Judy arrays may be sparse; that is, they may have large ranges of
+unassigned indices.
+
+  -> http://en.wikipedia.org/wiki/Judy_array
+
+The PHP extension is base on the Judy C library that implements a dynamic array.
+A Judy array consumes memory only when populated yet can grow to take advantage
+of all available memory.  Judy's key benefits are:  scalability, performance,
+memory efficiency, and ease of use. Judy arrays are designed to grow without
+tuning into the peta-element range, scaling near O(log-base-256) -- 1 more RAM
+access at 256 X population.
+
+  -> http://judy.sourceforge.net
+
+2. PHP JUDY TOP DIRECTORY CONTENTS:
+------------------------------------
+
+README       This file.
+LICENSE      The PHP License used by this project.
+EXPERIMENTAL Note about the status of this package.
+
+lib/         Header and source libraries used by the package.
+libjudy/     Bundled libJudy.      
+tests/       Unit tests.
+*.c, *.h     Header and source files used to build the package.
+*.php        PHP test/examples scripts.
+
+
+3. HOW TO INSTALL
+------------------
+
+Note : This extension has only been tested with php 5.3.3 on Ubuntu Karmic 32bit.
+
+  phpize
+  ./configure --with-judy[=DIR]
+  make
+  make test
+  make install
+
+If you are using Ubuntu or Debian, you can install libJudy with apt :
+
+  apt-get install libjudydebian1 libjudy-dev
+  phpize
+  ./configure --with-judy=/usr
+  make
+  make test
+  make install
+  
+You can check everything is ok by running :
+
+  php -f judy.php
+
+
+4. REPORTING BUGS
+------------------
+
+If you encounter a bug, please submit it via the bug tracker on Git Hub:
+
+    http://github.com/orieg/php-judy/issues
+
+
+5. TODO
+--------
+
+ * Implements comparator and cast handler
+ * Add bitset comparator (cf. Judy1Op sample)
+ * Test compile/install on other platform

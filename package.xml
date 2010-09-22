@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package packagerversion="1.9.1" version="2.0" xmlns="http://pear.php.net/dtd/package-2.0" xmlns:tasks="http://pear.php.net/dtd/tasks-1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://pear.php.net/dtd/tasks-1.0 http://pear.php.net/dtd/tasks-1.0.xsd http://pear.php.net/dtd/package-2.0 http://pear.php.net/dtd/package-2.0.xsd">
+ <name>Judy</name>
+ <channel>pecl.php.net</channel>
+ <summary>PHP Judy implements sparse dynamic arrays (aka Judy Arrays)</summary>
+ <description>PHP Judy implements sparse dynamic arrays (aka Judy Arrays). This extension is based
+    on the Judy C library. A Judy array consumes memory only when it is populated,
+    yet can grow to take advantage of all available memory if desired. Judy&apos;s key benefits
+    are scalability, high performance, and memory efficiency.</description>
+ <lead>
+  <name>Nicolas Brousse</name>
+  <user>nicolas</user>
+  <email>nicolas@brousse.info</email>
+  <active>yes</active>
+ </lead>
+ <date>2010-09-21</date>
+ <time>07:57:30</time>
+ <version>
+  <release>0.1.1</release>
+  <api>0.1.1</api>
+ </version>
+ <stability>
+  <release>beta</release>
+  <api>beta</api>
+ </stability>
+ <license uri="http://www.php.net/license">PHP</license>
+ <notes>
+- Implement array access and iterator to provide access to judy objects as arrays
+- Add a judy_type() function and Judy::getType() method
+- Remove unused methods, refactor and clean-up some code
+ </notes>
+ <contents>
+  <dir name="/">
+   <file md5sum="3c37eb1fb59368faf739638ff528b603" name="examples/judy-bench-bitset.php" role="doc" />
+   <file md5sum="0248cded5a4d5acf666df27d4519cace" name="examples/judy-bench-int_to_int.php" role="doc" />
+   <file md5sum="774b4ef5cbbf67fb4bea3e1159b287d3" name="examples/judy-bench-string_to_int.php" role="doc" />
+   <file md5sum="6f4ffdc3ed7d1b534fbe9bddcafa7bc3" name="examples/judy.php" role="doc" />
+   <file md5sum="62d789e0cdb50dc1c84802b08cee1e28" name="tests/001.phpt" role="test" />
+   <file md5sum="b8b657f713499d2d22a9956a1402aa49" name="tests/judy_error.phpt" role="test" />
+   <file md5sum="0528774ce53b70abb9719014fc3aa390" name="tests/judy_type.phpt" role="test" />
+   <file md5sum="c5ef6c3951cea08e079a9a415e143bd8" name="tests/judy_foreach.phpt" role="test" />
+   <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />
+   <file md5sum="e92af47f680808ffe646c687328b635b" name="tests/bitset_002.phpt" role="test" />
+   <file md5sum="6de1cfacaf09e629802cfa0094810244" name="tests/bitset_003.phpt" role="test" />
+   <file md5sum="64c6e4bdb179e6026e03290223edab24" name="tests/bitset_004.phpt" role="test" />
+   <file md5sum="a24fe01daca1f0b7f6de90cf54d0bd4c" name="tests/bitset_005.phpt" role="test" />
+   <file md5sum="ebf5a62bedc4d0100256bc6db614cac0" name="tests/int_to_int_001.phpt" role="test" />
+   <file md5sum="bd87f52688e52377fa34d381932bcb6a" name="tests/int_to_int_002.phpt" role="test" />
+   <file md5sum="5db25515878faf3266ce6186117f43cb" name="tests/int_to_int_003.phpt" role="test" />
+   <file md5sum="5a0395aa3b2c7fa6eccb88c7663f3f00" name="tests/int_to_int_004.phpt" role="test" />
+   <file md5sum="2ae7774ca6bde199d8c83d0a75473e02" name="tests/int_to_int_005.phpt" role="test" />
+   <file md5sum="e3c8985f9faffcfc8a53f77d4665af6d" name="tests/int_to_mixed_001.phpt" role="test" />
+   <file md5sum="7e72f45fd50d1fb79da8287957dd5be7" name="tests/int_to_mixed_002.phpt" role="test" />
+   <file md5sum="e6d34cd27ea81a0e99b10bfca673adaf" name="tests/int_to_mixed_003.phpt" role="test" />
+   <file md5sum="5a0395aa3b2c7fa6eccb88c7663f3f00" name="tests/int_to_mixed_004.phpt" role="test" />
+   <file md5sum="aca9d41d8d47647dd20f11b2404739d2" name="tests/int_to_mixed_005.phpt" role="test" />
+   <file md5sum="4b6779ecc79013a966df0db7f1266191" name="tests/string_to_int_001.phpt" role="test" />
+   <file md5sum="8867218e501903d3a595a8bae7b9cc82" name="tests/string_to_int_002.phpt" role="test" />
+   <file md5sum="eee2e3eedaf0f3b6e83c5d2870092b64" name="tests/string_to_int_003.phpt" role="test" />
+   <file md5sum="c12fb2958e56862ea9ece7ae60be7cee" name="tests/string_to_int_004.phpt" role="test" />
+   <file md5sum="4e82c79a4070352220757692ac74dcc2" name="tests/string_to_mixed_001.phpt" role="test" />
+   <file md5sum="6cea334c0973671920ffbaeae01be796" name="tests/string_to_mixed_002.phpt" role="test" />
+   <file md5sum="8f74c4556364be53d1f65e4f5fead041" name="tests/string_to_mixed_003.phpt" role="test" />
+   <file md5sum="54f0986d39c75ae066b48a09490e938c" name="tests/string_to_mixed_004.phpt" role="test" />
+   <file md5sum="526749d04b3b93bf8e909b79362ec409" name="EXPERIMENTAL" role="doc" />
+   <file md5sum="33dab5aaa9e936b2cec56c8586d281b5" name="README" role="doc" />
+   <file md5sum="cb564efdf78cce8ea6e4b5a4f7c05d97" name="LICENSE" role="doc" />
+   <file md5sum="6dd9765c5dd60b10ed05388b21d0b841" name="config.m4" role="src" />
+   <file md5sum="74ddf40cdeb1762a2bc5c9d21a870934" name="config.w32" role="src" />
+   <file md5sum="f5d140673669ec70dea47da432d953dc" name="php_judy.h" role="src" />
+   <file md5sum="947a6e7fb2957a9eeeafa0ab88ea975f" name="php_judy.c" role="src" />
+   <file md5sum="4bac63971141b6db25fdb33e4d16aafa" name="judy_handlers.h" role="src" />
+   <file md5sum="ca61bc1bf2d327b2addc3a7df4fd75ee" name="judy_handlers.c" role="src" />
+   <file md5sum="f2e35cd52cb1ed5cb00eae5431680d33" name="judy_arrayaccess.h" role="src" />
+   <file md5sum="88172813167344f82bab874473542bd7" name="judy_arrayaccess.c" role="src" />
+   <file md5sum="bb50417da4862b83e47ace07d673f391" name="judy_iterator.h" role="src" />
+   <file md5sum="f33bb039e265fbd654fdcba1ae3312e7" name="judy_iterator.c" role="src" />
+  </dir>
+ </contents>
+ <dependencies>
+  <required>
+   <php>
+    <min>5.3.3</min>
+   </php>
+   <pearinstaller>
+    <min>1.4.0</min>
+   </pearinstaller>
+  </required>
+ </dependencies>
+ <providesextension>Judy</providesextension>
+ <extsrcrelease>
+  <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
+ </extsrcrelease>
+ <changelog>
+  <release>
+   <date>2010-09-17</date>
+   <version>
+    <release>0.0.1</release>
+    <api>0.0.1</api>
+   </version>
+   <stability>
+    <release>alpha</release>
+    <api>alpha</api>
+   </stability>
+   <notes>
+- Initial PECL release
+   </notes>
+  </release>
+ </changelog>
+</package>
