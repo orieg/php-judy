@@ -14,9 +14,8 @@
   <active>yes</active>
  </lead>
  <date>2010-09-22</date>
- <time>02:23:30</time>
  <version>
-  <release>0.1.1</release>
+  <release>0.1.2</release>
   <api>0.1.1</api>
  </version>
  <stability>
@@ -25,10 +24,7 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-- Implement array access and iterator to provide access to judy objects as arrays
-- Add a judy_type() function and Judy::getType() method
-- Remove unused methods, refactor and clean-up some code
-- Proper Windows support
+- Fixing examples and benchmark code
  </notes>
  <contents>
   <dir name="/">
@@ -93,6 +89,23 @@
   <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2010-09-22</date>
+   <version>
+    <release>0.1.1</release>
+    <api>0.1.1</api>
+   </version>
+   <stability>
+    <release>beta</release>
+    <api>beta</api>
+   </stability>
+   <notes>
+- Implement array access and iterator to provide access to judy objects as arrays
+- Add a judy_type() function and Judy::getType() method
+- Remove unused methods, refactor and clean-up some code
+- Proper Windows support
+   </notes>
+  </release>
   <release>
    <date>2010-09-17</date>
    <version>
