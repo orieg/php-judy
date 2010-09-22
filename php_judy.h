@@ -84,6 +84,14 @@ typedef struct _judy_object {
 
 static void judy_object_free_storage(void * TSRMLS_DC);
 
+/* Max length, this must be a constant for it to work in 
+ * declarings as we cannot use runtime decided values at 
+ * compile time ofcourse
+ *
+ * TODO:	This needs to be handled better
+ */
+#define PHP_JUDY_MAX_LENGTH 65536
+
 /* declare judy class entry */
 zend_class_entry *judy_ce;
 

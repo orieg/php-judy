@@ -43,11 +43,11 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
     judy_object *new_obj = NULL;
     judy_object *old_obj = (judy_object *) zend_object_store_get_object(this_ptr TSRMLS_CC);
     zend_object_value new_ov = judy_object_new_ex(old_obj->std.ce, &new_obj TSRMLS_CC);
-
-    zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
-
+    
     /* new Judy array to populate */
     Pvoid_t newJArray = (Pvoid_t) NULL;
+
+    zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
 
     if (old_obj->type == TYPE_BITSET) {
         /* Cloning Judy1 Array */
@@ -91,7 +91,7 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
         /* Cloning JudySL Array */
 
         /* Key/index */
-        uint8_t kindex[JUDY_G(max_length)];
+        uint8_t kindex[PHP_JUDY_MAX_LENGTH];
 
         /* Pointer to the old value */
         Word_t *PValue;
