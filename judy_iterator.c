@@ -107,7 +107,7 @@ int judy_iterator_valid(zend_object_iterator *iterator TSRMLS_DC)
         	return SUCCESS;
         }
     } else if (object->type == TYPE_STRING_TO_INT || object->type == TYPE_STRING_TO_MIXED) {
-        uint8_t     key[JUDY_G(max_length)];
+        uint8_t     key[PHP_JUDY_MAX_LENGTH];
         Word_t      *PValue;
 
     	char *str = Z_STRVAL_P(it->key);
@@ -146,18 +146,18 @@ int judy_iterator_current_key(zend_object_iterator *iterator,
 	str_key = NULL;
 	*str_key_len = 0;
 	*int_key = 0;
-
-	switch (Z_TYPE_P(it->key)) {
-		case IS_LONG:
-			*int_key = Z_LVAL_P(it->key);
-			return HASH_KEY_IS_LONG;
-			break;
-		case IS_STRING:
-			str_key = &Z_STRVAL_P(it->key);
-			*str_key_len = Z_STRLEN_P(it->key);
-			return HASH_KEY_IS_STRING;
-			break;
+	
+	if (Z_TYPE_P(it->key) == IS_LONG) {
+		*int_key = Z_LVAL_P(it->key);
+		return HASH_KEY_IS_LONG;
+	} else if(Z_TYPE_P(it->key) != IS_STRING) {
+		convert_to_string(it->key);
 	}
+	
+	str_key = &Z_STRVAL_P(it->key);
+	*str_key_len = Z_STRLEN_P(it->key);
+	
+	return HASH_KEY_IS_STRING;
 }
 /* }}} */
 
@@ -190,7 +190,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
     } else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED) {
 
         Word_t          index;
-        Word_t          *PValue;
+        Word_t          *PValue = NULL;
 
 		if (Z_TYPE_P(it->key) == IS_NULL) {
 			index = 0;
@@ -214,7 +214,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
 
     } else if (object->type == TYPE_STRING_TO_INT || object->type == TYPE_STRING_TO_MIXED) {
 
-        uint8_t     key[JUDY_G(max_length)];
+        uint8_t     key[PHP_JUDY_MAX_LENGTH];
         Word_t      *PValue;
 
         /* JudySL require null temrinated strings */
@@ -264,7 +264,7 @@ void judy_iterator_rewind(zend_object_iterator *iterator TSRMLS_DC)
     } else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED) {
 
         Word_t          index = 0;
-        Word_t          *PValue;
+        Word_t          *PValue = NULL;
 
 		J1F(*PValue, object->array, index);
 
@@ -280,7 +280,7 @@ void judy_iterator_rewind(zend_object_iterator *iterator TSRMLS_DC)
 
     } else if (object->type == TYPE_STRING_TO_INT || object->type == TYPE_STRING_TO_MIXED) {
 
-        uint8_t     key[JUDY_G(max_length)];
+        uint8_t     key[PHP_JUDY_MAX_LENGTH];
         Word_t      *PValue;
 
         /* JudySL require null temrinated strings */

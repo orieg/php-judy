@@ -74,6 +74,38 @@ If you are using Ubuntu or Debian, you can install libJudy with apt :
   make test
   make install
   
+On Windows, you will need to build LibJudy yourself.
+
+        Download the sources at 
+
+	  http://sourceforge.net/projects/judy/
+	  
+	Extract the sources, and open the Visual Studio command prompt and navigate to 
+	the source directory. Then execute:
+
+	  build
+	  
+	This creates "Judy.lib", copy this into the php-sdk library folder and name it 
+
+	 libJudy.lib
+	 
+	Then copy the include file "judy.h" into the php-sdk includes folder. Now its 
+	time to build pecl/judy, extract the pecl/judy into your build folder where 
+	the build scripts will be able to pick it up, e.g.:
+	
+	 C:\php\pecl\judy\
+	 
+	If your source of PHP is located in:
+	
+	 C:\php\src\
+	 
+	The rest of the steps is pretty straight forward, like any other external 
+	extension:
+	
+	 buildconf
+	 configure --with-judy=shared
+	 nmake
+  
 You can check everything is ok by running :
 
   php -f judy.php

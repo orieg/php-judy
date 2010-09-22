@@ -174,9 +174,9 @@ PHP_METHOD(judy, __construct)
     long                    type;
     judy_type               jtype;
 
-    JUDY_METHOD_ERROR_HANDLING;
-
     JUDY_METHOD_GET_OBJECT
+
+    JUDY_METHOD_ERROR_HANDLING;
 
     if (intern->type) {
         php_error_docref(NULL TSRMLS_CC, E_ERROR, "Judy Array already instantiated");
@@ -210,7 +210,7 @@ PHP_METHOD(judy, free)
 
     Word_t    Rc_word;
     Word_t    index;
-    uint8_t   kindex[JUDY_G(max_length)];
+    uint8_t   kindex[PHP_JUDY_MAX_LENGTH];
     Word_t    *PValue;
 
     switch (intern->type)
@@ -392,7 +392,7 @@ PHP_METHOD(judy, first)
         char        *str;
         int         str_length = 0;
 
-        uint8_t     key[JUDY_G(max_length)];
+        uint8_t     key[PHP_JUDY_MAX_LENGTH];
         PWord_t     PValue;
 
         if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &str, &str_length) == FAILURE) {
@@ -451,7 +451,7 @@ PHP_METHOD(judy, next)
         char        *str;
         int         str_length;
 
-        uint8_t     key[JUDY_G(max_length)];
+        uint8_t     key[PHP_JUDY_MAX_LENGTH];
         PWord_t     PValue;
 
         if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &str, &str_length) == FAILURE) {
@@ -510,8 +510,7 @@ PHP_METHOD(judy, last)
         uint8_t     *str;
         int         str_length = 0;
     
-        uint8_t     key[JUDY_G(max_length)];
-        int         key_length;
+        uint8_t     key[PHP_JUDY_MAX_LENGTH];
         PWord_t     PValue;
 
         if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|s", &str, &str_length) == FAILURE) {
@@ -520,7 +519,7 @@ PHP_METHOD(judy, last)
     
         /* JudySL require null temrinated strings */
         if (str_length == 0) {
-            int i = 0;
+            unsigned int i = 0;
             for(i; i < JUDY_G(max_length); i++)
                 key[i] = 0xff;
         } else {
@@ -572,7 +571,7 @@ PHP_METHOD(judy, prev)
         char        *str;
         int         str_length;
 
-        uint8_t     key[JUDY_G(max_length)];
+        uint8_t     key[PHP_JUDY_MAX_LENGTH];
         PWord_t     PValue;
 
         if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &str, &str_length) == FAILURE) {
@@ -605,11 +604,11 @@ PHP_METHOD(judy, firstEmpty)
     Word_t         index = 0;
     int            Rc_int;
 
+    JUDY_METHOD_GET_OBJECT
+
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &index) == FAILURE) {
         RETURN_FALSE;
     }
-
-    JUDY_METHOD_GET_OBJECT
 
     switch (intern->type)
     {
@@ -637,11 +636,11 @@ PHP_METHOD(judy, lastEmpty)
     Word_t         index = -1;
     int            Rc_int;
 
+    JUDY_METHOD_GET_OBJECT
+
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|l", &index) == FAILURE) {
         RETURN_FALSE;
     }
-
-    JUDY_METHOD_GET_OBJECT
 
     switch (intern->type)
     {
@@ -669,11 +668,11 @@ PHP_METHOD(judy, nextEmpty)
     Word_t         index;
     int            Rc_int;
 
+    JUDY_METHOD_GET_OBJECT
+
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
         RETURN_FALSE;
     }
-
-    JUDY_METHOD_GET_OBJECT
 
     switch (intern->type)
     {
@@ -701,11 +700,11 @@ PHP_METHOD(judy, prevEmpty)
     Word_t         index;
     int            Rc_int;
 
+    JUDY_METHOD_GET_OBJECT
+
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &index) == FAILURE) {
         RETURN_FALSE;
     }
-
-    JUDY_METHOD_GET_OBJECT
 
     switch (intern->type)
     {
@@ -751,13 +750,14 @@ PHP_FUNCTION(judy_version)
    Return the php judy type for the given array */
 PHP_FUNCTION(judy_type)
 {
-	zval *object;
+    zval *object;
+    judy_object *array;
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &object) == FAILURE) {
         RETURN_FALSE;
     }
 
-    judy_object *array = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    array = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
     RETURN_LONG(array->type);
 }
 /* }}} */
