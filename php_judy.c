@@ -25,6 +25,13 @@
 #include "judy_arrayaccess.h"
 #include "judy_iterator.h"
 
+ZEND_DECLARE_MODULE_GLOBALS(judy)
+
+/* declare judy class entry */
+zend_class_entry *judy_ce;
+
+zend_object_handlers judy_handlers;
+
 /* {{{ php_judy_init_globals
  */
 static void php_judy_init_globals(zend_judy_globals *judy_globals)
@@ -77,8 +84,6 @@ zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC)
     return judy_object_new_ex(ce, NULL TSRMLS_CC);
 }
 /* }}} */
-
-zend_class_entry *judy_ce;
 
 PHPAPI zend_class_entry *php_judy_ce(void)
 {
