@@ -16,6 +16,7 @@
   +----------------------------------------------------------------------+
 */
 
+#include "php_judy.h"
 #include "judy_handlers.h"
 
 /* {{{ judy_object_count

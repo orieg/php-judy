@@ -19,9 +19,9 @@
 #ifndef JUDY_HANDLERS_H
 #define JUDY_HANDLERS_H
 
-#include "php_judy.h"
-
-zend_object_handlers judy_handlers;
+#include "php.h"
+#include "zend_exceptions.h"
+#include "zend_interfaces.h"
 
 zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC);
 int judy_object_count(zval *object, long *count TSRMLS_DC);

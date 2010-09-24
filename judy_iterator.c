@@ -60,10 +60,12 @@ void judy_iterator_data_dtor(judy_iterator	*it)
 {
 	if (it->key) {
 		zval_ptr_dtor(&it->key);
+		it->key = NULL;
 	}
 
 	if (it->data) {
 		zval_ptr_dtor(&it->data);
+		it->data = NULL;
 	}
 }
 /* }}} */

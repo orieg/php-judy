@@ -13,7 +13,7 @@
   <email>nicolas@brousse.info</email>
   <active>yes</active>
  </lead>
- <date>2010-09-22</date>
+ <date>2010-09-24</date>
  <version>
   <release>0.1.2</release>
   <api>0.1.1</api>
@@ -24,7 +24,9 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-- Fixing examples and benchmark code
+- Update examples php code
+- Fix Mac OS X support
+- Fix infinite loop with foreach() on Windows
  </notes>
  <contents>
   <dir name="/">

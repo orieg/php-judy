@@ -92,9 +92,6 @@ static void judy_object_free_storage(void * TSRMLS_DC);
  */
 #define PHP_JUDY_MAX_LENGTH 65536
 
-/* declare judy class entry */
-zend_class_entry *judy_ce;
-
 zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC);
 zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSRMLS_DC);
 
@@ -108,7 +105,7 @@ ZEND_BEGIN_MODULE_GLOBALS(judy)
     unsigned long    counter;
 ZEND_END_MODULE_GLOBALS(judy)
 
-ZEND_DECLARE_MODULE_GLOBALS(judy)
+ZEND_EXTERN_MODULE_GLOBALS(judy)
 
 #ifdef ZTS
 #define JUDY_G(v) TSRMG(judy_globals_id, zend_judy_globals *, v)
