@@ -53,8 +53,6 @@ tests/       Unit tests.
 3. HOW TO INSTALL
 ------------------
 
-Note : This extension has only been tested with php 5.3.3 on Ubuntu Karmic 32bit.
-
  A. Linux
 
    From the PHP Judy sources :
@@ -110,7 +108,7 @@ Note : This extension has only been tested with php 5.3.3 on Ubuntu Karmic 32bit
 
  C. Mac OS X
 
-   You will need to install the libJudy firt. Download the sources at 
+   You will need to install the libJudy first. Download the sources at 
 
      http://sourceforge.net/projects/judy/
 	  
@@ -210,4 +208,3 @@ If you encounter a bug, please submit it via the bug tracker on Git Hub:
 
  * Implements comparator and cast handler
  * Add bitset comparator (cf. Judy1Op sample)
- * Test compile/install on other platform
