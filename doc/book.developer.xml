@@ -36,7 +36,7 @@
 ]>
 
 <book xml:id="book.judy" xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xml:lang="en">
- <title>Judy</title>
+ <title>Judy Arrays</title>
  <titleabbrev>Judy</titleabbrev>
 
  <preface xml:id="intro.judy">
@@ -47,8 +47,7 @@
  </preface>
 
  &reference.judy.setup;
- &reference.judy.constants;
- &reference.judy.examples;
+ &reference.judy.judy;
  &reference.judy.reference;
 
 </book>

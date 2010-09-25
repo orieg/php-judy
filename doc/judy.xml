@@ -3,7 +3,7 @@
 
 <phpdoc:classref xml:id="class.judy" xmlns:phpdoc="http://php.net/ns/phpdoc" xmlns="http://docbook.org/ns/docbook" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xi="http://www.w3.org/2001/XInclude">
 
- <title>The Judy class</title>
+ <title>The <classname>Judy</classname> class</title>
  <titleabbrev>Judy</titleabbrev>
 
  <partintro>
@@ -12,13 +12,32 @@
   <section xml:id="judy.intro">
    &reftitle.intro;
    <para>
-<acronym>PHP</acronym> Judy is a <acronym>PECL</acronym> extension for the <link xlink:href="http://judy.sourceforge.net">Judy C library</link> implementing dynamic spare arrays.
+The Judy class implements the <link linkend="class.arrayaccess">ArrayAccess</link> interface and the <link linkend="class.iterator">Iterator</link> interface. This class, once instantiated, can be accessed like a <acronym>PHP</acronym> <link linkend="book.array">array</link>.
    </para>
    <para>
-A Judy array is a complex but very fast associative array data structure for storing and looking up values using integer or string keys. Unlike normal arrays, Judy arrays may be sparse; that is, they may have large ranges of unassigned indices.
+A PHP Judy object (or Judy Array) can be one of the following type :
+<simplelist type="vert" columns="1">
+ <member><link linkend="judy.constants.bitset">Judy::BITSET</link></member>
+ <member><link linkend="judy.constants.int-to-int">Judy::INT_TO_INT</link></member>
+ <member><link linkend="judy.constants.int-to-mixed">Judy::INT_TO_STRING</link></member>
+ <member><link linkend="judy.constants.string-to-int">Judy::STRING_TO_INT</link></member>
+ <member><link linkend="judy.constants.string-to-mixed">Judy::STRING_TO_MIXED</link></member>
+</simplelist>
    </para>
    <para>
-A Judy array consumes memory only when populated yet can grow to take advantage of all available memory.  Judy's key benefits are:  scalability, performance, memory efficiency, and ease of use. Judy arrays are designed to grow without tuning into the peta-element range, scaling near O(log-base-256) -- 1 more RAM access at 256 X population.
+    <example>
+      <info><title>Judy array example</title></info>
+      <programlisting role="php">
+<![CDATA[
+<?php
+    $judy = new Judy(Judy::INT_TO_MIXED);
+    $judy[1] = "one";
+    $judy[2] = array('a', 'b', 'c');
+    $judy[3] = new Judy(Judy::BITSET);
+?>
+]]>
+      </programlisting>
+    </example>
    </para>
   </section>
 <!-- }}} -->
@@ -38,6 +57,8 @@ A Judy array consumes memory only when populated yet can grow to take advantage 
      
      <oointerface>
       <interfacename>ArrayAccess</interfacename>
+     </oointerface>
+     <oointerface>
       <interfacename>Iterator</interfacename>
      </oointerface>
     </classsynopsisinfo>
@@ -74,7 +95,7 @@ A Judy array consumes memory only when populated yet can grow to take advantage 
      <initializer>5</initializer>
     </fieldsynopsis>
     
-    <classsynopsisinfo role="comment">Methods</classsynopsisinfo>
+    <classsynopsisinfo role="comment">&Methods;</classsynopsisinfo>
     <xi:include xpointer="xmlns(db=http://docbook.org/ns/docbook) xpointer(id('class.judy')/db:refentry/db:refsect1[@role='description']/descendant::db:methodsynopsis[1])" />
    </classsynopsis>
 <!-- }}} -->
