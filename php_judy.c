@@ -693,7 +693,7 @@ PHP_METHOD(judy, nextEmpty)
 /* }}} */
 
 /* {{{ proto long Judy::prevEmpty(long index)
- Search (inclusive) for the first index present that is equal to or greater than the passed Index */
+   Search (exclusive) for the previous index absent that is less than the passed Index */
 PHP_METHOD(judy, prevEmpty)
 {
     Word_t         index;
