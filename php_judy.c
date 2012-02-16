@@ -56,7 +56,9 @@ zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSR
 {
     zend_object_value retval;
     judy_object *intern;
+#if PHP_VERSION_ID < 50399
     zval *tmp;
+#endif
 
     intern = ecalloc(1, sizeof(judy_object));
     memset(intern, 0, sizeof(judy_object));
@@ -66,9 +68,13 @@ zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSR
 
     zend_object_std_init(&(intern->std), ce TSRMLS_CC);
 
+#if PHP_VERSION_ID < 50399
     zend_hash_copy(intern->std.properties, 
         &ce->default_properties, (copy_ctor_func_t) zval_add_ref,
         (void *) &tmp, sizeof(zval *));
+#else
+    object_properties_init(&intern->std, ce);
+#endif
 
     retval.handle = zend_objects_store_put(intern, (zend_objects_store_dtor_t) zend_objects_destroy_object, (zend_objects_free_object_storage_t) judy_object_free_storage, NULL TSRMLS_CC);
     retval.handlers = &judy_handlers;
