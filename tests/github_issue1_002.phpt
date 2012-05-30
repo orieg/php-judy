@@ -1,5 +1,5 @@
 --TEST--
-Check for Judy count() and count() method when two instances STRING_TO_MIXED are declared
+Check for Judy count() method when two instances STRING_TO_MIXED are declared
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
