@@ -1,0 +1,9 @@
+.deps
+.libs
+*.lo
+tests/*.diff
+tests/*.exp
+tests/*.log
+tests/*.out
+tests/*.sh
+tests/*.php
