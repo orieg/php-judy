@@ -200,7 +200,7 @@ You can use foreach() and the PHP array notation on all PHP Judy arrays.
 
 If you encounter a bug, please submit it via the bug tracker on Git Hub:
 
-  http://pecl.php.net/bugs/report.php?package=judy
+  https://github.com/orieg/php-judy/issues
 
 
 6. TODO
