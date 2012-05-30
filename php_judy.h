@@ -80,6 +80,7 @@ typedef struct _judy_object {
     zend_object     std;
     long            type;
     Pvoid_t         array;
+    unsigned long   counter;
 } judy_object;
 
 static void judy_object_free_storage(void * TSRMLS_DC);
@@ -102,7 +103,6 @@ zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSR
 
 ZEND_BEGIN_MODULE_GLOBALS(judy)
     unsigned long    max_length;
-    unsigned long    counter;
 ZEND_END_MODULE_GLOBALS(judy)
 
 ZEND_EXTERN_MODULE_GLOBALS(judy)

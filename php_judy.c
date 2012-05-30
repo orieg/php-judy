@@ -187,7 +187,7 @@ PHP_METHOD(judy, __construct)
         php_error_docref(NULL TSRMLS_CC, E_ERROR, "Judy Array already instantiated");
     } else if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &type) == SUCCESS) {
         JTYPE(jtype, type);
-        JUDY_G(counter) = 0;
+        intern->counter = 0;
         intern->type = type;
         intern->array = (Pvoid_t) NULL;
     }
@@ -250,7 +250,7 @@ PHP_METHOD(judy, free)
             JSLFA(Rc_word, intern->array);
 
             /* Reset counter */
-            JUDY_G(counter) = 0;
+            intern->counter = 0;
             break;
 
         case TYPE_STRING_TO_MIXED:
@@ -268,7 +268,7 @@ PHP_METHOD(judy, free)
             JSLFA(Rc_word, intern->array);
 
             /* Reset counter */
-            JUDY_G(counter) = 0;
+            intern->counter = 0;
             break;
     }
 
@@ -325,7 +325,7 @@ PHP_METHOD(judy, count)
                 
         RETURN_LONG(Rc_word);
     } else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
-        RETURN_LONG(JUDY_G(counter));
+        RETURN_LONG(intern->counter);
     }
 }
 /* }}} */

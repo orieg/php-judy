@@ -126,7 +126,7 @@ PHP_METHOD(judy, offsetSet)
         JSLI(PValue, intern->array, key);
         if (PValue != NULL && PValue != PJERR) {
             *PValue = value;
-            JUDY_G(counter)++;
+            intern->counter++;
             RETURN_TRUE;
         } else {
             RETURN_FALSE;
@@ -145,7 +145,7 @@ PHP_METHOD(judy, offsetSet)
         if (PValue != NULL && PValue != PJERR) {
             *(zval **)PValue = value;
             Z_ADDREF_P(*(zval **)PValue);
-            JUDY_G(counter)++;
+            intern->counter++;
             RETURN_TRUE;
         } else {
             RETURN_FALSE;
@@ -189,7 +189,7 @@ PHP_METHOD(judy, offsetUnset)
             }
         }
         if (Rc_int == 1)
-            JUDY_G(counter)--;
+            intern->counter--;
     } else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
         uint8_t     *key;
         int         key_length;
@@ -209,7 +209,7 @@ PHP_METHOD(judy, offsetUnset)
             }
         }
         if (Rc_int == 1)
-            JUDY_G(counter)--;
+            intern->counter--;
     }
 
     RETURN_BOOL(Rc_int);
