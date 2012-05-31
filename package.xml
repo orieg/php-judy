@@ -109,6 +109,7 @@
 - Fix Mac OS X support
 - Fix infinite loop with foreach() on Windows
    </notes>
+  </release>
   <release>
    <date>2010-09-22</date>
    <version>
