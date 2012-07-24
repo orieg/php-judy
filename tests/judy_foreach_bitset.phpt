@@ -1,5 +1,5 @@
 --TEST--
-Check for Judy ITERATOR using foreach()
+Check for Judy ITERATOR using foreach() and BITSET
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
