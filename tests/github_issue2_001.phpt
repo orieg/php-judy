@@ -36,6 +36,7 @@ Instantiate object: $judy
 echo values
 17
 71
+var_dump($judy)
 object(Judy)#1 (0){
 }
 var_dump($judy[125])
