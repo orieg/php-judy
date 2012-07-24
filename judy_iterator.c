@@ -235,7 +235,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
 
 		ZVAL_STRING(it->key, key, 0);
 
-        JSLG(PValue, object->array, index);
+        JSLG(PValue, object->array, key);
 		if (PValue != NULL && PValue != PJERR) {
 			if (object->type == TYPE_STRING_TO_INT) {
 				ZVAL_LONG(it->data, *PValue);
@@ -291,10 +291,13 @@ void judy_iterator_rewind(zend_object_iterator *iterator TSRMLS_DC)
         /* JudySL require null temrinated strings */
         key[0] = '\0';
     	JSLF(PValue, object->array, key);
-
+//XXX: Fix this
+puts(key);
 		ZVAL_STRING(it->key, key, 0);
+        //strcpy(it->key, key);
+puts(it->key);
 
-        JSLG(PValue, object->array, index);
+        JSLG(PValue, object->array, key);
 		if (PValue != NULL && PValue != PJERR) {
 			if (object->type == TYPE_STRING_TO_INT) {
 				ZVAL_LONG(it->data, *PValue);
