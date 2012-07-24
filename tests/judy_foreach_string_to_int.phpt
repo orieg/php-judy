@@ -6,7 +6,7 @@ Check for Judy ITERATOR using foreach() and STRING_TO_INT
 <?php 
 $judy = new Judy(Judy::STRING_TO_INT);
 
-echo "Set 3 index";
+echo "Set 3 index\n";
 $judy["one"] = 100;
 $judy["two"] = 101;
 $judy["three"] = 102;
