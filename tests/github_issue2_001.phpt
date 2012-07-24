@@ -37,7 +37,7 @@ echo values
 17
 71
 var_dump($judy)
-object(Judy)#1 (0){
+object(Judy)#1 (0) {
 }
 var_dump($judy[125])
 int(17)
