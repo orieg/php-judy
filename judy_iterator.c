@@ -198,7 +198,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
 			index = 0;
 			J1F(*PValue, object->array, index);
 		} else {
-			index = Z_LVAL_P(it->key);
+	 		index = Z_LVAL_P(it->key);
 			J1N(PValue, object->array, index);
 		}
 

@@ -36,7 +36,7 @@ PHP_METHOD(judy, offsetSet)
             RETURN_FALSE;
         }
 
-        if (!zindex){
+        if (!zindex || Z_LVAL_P(zindex) <= -1){
         	index = -1;
     		J1L(Rc_int, intern->array, index);
     		if (Rc_int == 1) {
@@ -64,7 +64,7 @@ PHP_METHOD(judy, offsetSet)
             RETURN_FALSE;
         }
 
-        if (!zindex){
+        if (!zindex || Z_LVAL_P(zindex) <= -1){
         	index = -1;
     		JLL(PValue, intern->array, index);
             if (PValue != NULL && PValue != PJERR) {
@@ -93,7 +93,7 @@ PHP_METHOD(judy, offsetSet)
             RETURN_FALSE;
         }
 
-        if (!zindex){
+        if (!zindex || Z_LVAL_P(zindex) <= -1){
         	index = -1;
     		JLL(PValue, intern->array, index);
             if (PValue != NULL && PValue != PJERR) {

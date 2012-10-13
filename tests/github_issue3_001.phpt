@@ -20,4 +20,4 @@ unset($judy);
 --EXPECT--
 Set INT_TO_INT Judy object
 k: 0, v: 456
-k: -1, v: 123
+k: 1, v: 123
