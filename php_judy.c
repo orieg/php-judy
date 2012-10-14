@@ -236,7 +236,7 @@ PHP_METHOD(judy, free)
             JLF(PValue, intern->array, index);
             while(PValue != NULL && PValue != PJERR)
             {
-                zval_ptr_dtor((zval **)PValue);
+                Z_DELREF_P(*(zval **)PValue);
                 JLN(PValue, intern->array, index);
             }
 
@@ -259,7 +259,7 @@ PHP_METHOD(judy, free)
             JSLF(PValue, intern->array, kindex);
             while(PValue != NULL && PValue != PJERR)
             {
-                zval_ptr_dtor((zval **)PValue);
+                Z_DELREF_P(*(zval **)PValue);
                 JSLN(PValue, intern->array, kindex);
             }
 
