@@ -112,7 +112,11 @@ int judy_iterator_valid(zend_object_iterator *iterator TSRMLS_DC)
         uint8_t     key[PHP_JUDY_MAX_LENGTH];
         Word_t      *PValue;
 
-    	char *str = Z_STRVAL_P(it->key);
+        if (Z_STRVAL_P(it->key) == NULL) {
+            return FAILURE;
+        }
+
+        char *str = Z_STRVAL_P(it->key);
         int i;
         for (i = 0; str[i]; i++)
             key[i] = str[i];
@@ -157,7 +161,7 @@ int judy_iterator_current_key(zend_object_iterator *iterator,
 	}
 	
 	str_key = &Z_STRVAL_P(it->key);
-	*str_key_len = Z_STRLEN_P(it->key);
+	*str_key_len = Z_STRLEN_P(it->key)+1;
 	
 	return HASH_KEY_IS_STRING;
 }
@@ -233,7 +237,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
             JSLN(PValue, object->array, key);
         }
 
-		ZVAL_STRING(it->key, key, 0);
+        ZVAL_STRING(it->key, key, 0);
 
         JSLG(PValue, object->array, key);
 		if (PValue != NULL && PValue != PJERR) {
@@ -291,11 +295,7 @@ void judy_iterator_rewind(zend_object_iterator *iterator TSRMLS_DC)
         /* JudySL require null temrinated strings */
         key[0] = '\0';
     	JSLF(PValue, object->array, key);
-//XXX: Fix this
-puts(key);
-		ZVAL_STRING(it->key, key, 0);
-        //strcpy(it->key, key);
-puts(it->key);
+        ZVAL_STRING(it->key, (const char *) key, 0);
 
         JSLG(PValue, object->array, key);
 		if (PValue != NULL && PValue != PJERR) {
