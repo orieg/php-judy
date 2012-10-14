@@ -184,7 +184,7 @@ PHP_METHOD(judy, offsetUnset)
             Pvoid_t     *PValue;
             JLG(PValue, intern->array, index);
             if (PValue != NULL && PValue != PJERR) {
-                zval_ptr_dtor((zval **)PValue);
+                Z_DELREF_P(*(zval **)PValue);
                 JLD(Rc_int, intern->array, index);
             }
         }
@@ -204,7 +204,7 @@ PHP_METHOD(judy, offsetUnset)
             Pvoid_t     *PValue;
             JSLG(PValue, intern->array, key);
             if (PValue != NULL && PValue != PJERR) {
-                zval_ptr_dtor((zval **)PValue);
+                Z_DELREF_P(*(zval **)PValue);
                 JSLD(Rc_int, intern->array, key);
             }
         }
