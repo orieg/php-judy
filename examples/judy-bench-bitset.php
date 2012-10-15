@@ -20,7 +20,7 @@ foreach($count as $v) {
     $s=microtime(true);
     $judy = new Judy(Judy::BITSET);
     for ($i=0; $i<$v; $i++)
-        $judy[$i];
+        $judy[$i] = true;
     var_dump($judy[100]);
     unset($judy[102]);
     var_dump($judy[102]);
