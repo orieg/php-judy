@@ -76,7 +76,6 @@
     <file role="test" name="string_to_mixed_003.phpt"/>
     <file role="test" name="string_to_mixed_004.phpt"/>
    </dir>
-   <file role="src" name="config.h"/>
    <file role="src" name="config.m4"/>
    <file role="src" name="config.w32"/>
    <file role="src" name="judy_arrayaccess.c"/>
