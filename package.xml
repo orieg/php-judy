@@ -13,9 +13,9 @@
   <email>nicolas@brousse.info</email>
   <active>yes</active>
  </lead>
- <date>2012-05-30</date>
+ <date>2012-10-14</date>
  <version>
-  <release>0.1.3</release>
+  <release>0.1.4</release>
   <api>0.1.1</api>
  </version>
  <stability>
@@ -24,8 +24,9 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-- Add PHP 5.4 support
-- Bug fix count() for STRING_TO_MIXED type, cf. https://github.com/orieg/php-judy/issues/1
+- Bug fix foreach with usigned/signed int, see https://github.com/orieg/php-judy/issues/3
+- Bug fix segfault with iterator, see https://github.com/orieg/php-judy/issues/2
+- Add new test case + fix some ZVAL refcount
  </notes>
  <contents>
   <dir name="/">
@@ -44,18 +45,27 @@
     <file role="test" name="bitset_005.phpt"/>
     <file role="test" name="github_issue1_001.phpt"/>
     <file role="test" name="github_issue1_002.phpt"/>
+    <file role="test" name="github_issue2_001.phpt"/>
+    <file role="test" name="github_issue2_002.phpt"/>
+    <file role="test" name="github_issue2_003.phpt"/>
+    <file role="test" name="github_issue3_001.phpt"/>
     <file role="test" name="int_to_int_001.phpt"/>
     <file role="test" name="int_to_int_002.phpt"/>
     <file role="test" name="int_to_int_003.phpt"/>
     <file role="test" name="int_to_int_004.phpt"/>
     <file role="test" name="int_to_int_005.phpt"/>
+    <file role="test" name="int_to_int_006.phpt"/>
     <file role="test" name="int_to_mixed_001.phpt"/>
     <file role="test" name="int_to_mixed_002.phpt"/>
     <file role="test" name="int_to_mixed_003.phpt"/>
     <file role="test" name="int_to_mixed_004.phpt"/>
     <file role="test" name="int_to_mixed_005.phpt"/>
     <file role="test" name="judy_error.phpt"/>
-    <file role="test" name="judy_foreach.phpt"/>
+    <file role="test" name="judy_foreach_bitset.phpt"/>
+    <file role="test" name="judy_foreach_int_to_int.phpt"/>
+    <file role="test" name="judy_foreach_int_to_mixed.phpt"/>
+    <file role="test" name="judy_foreach_string_to_int.phpt"/>
+    <file role="test" name="judy_foreach_string_to_mixed.phpt"/>
     <file role="test" name="judy_type.phpt"/>
     <file role="test" name="string_to_int_001.phpt"/>
     <file role="test" name="string_to_int_002.phpt"/>
@@ -94,6 +104,21 @@
   <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2012-05-30</date>
+   <version>
+    <release>0.1.3</release>
+    <api>0.1.1</api>
+   </version>
+   <stability>
+    <release>beta</release>
+    <api>beta</api>
+   </stability>
+   <notes>
+- Add PHP 5.4 support
+- Bug fix count() for STRING_TO_MIXED type, cf. https://github.com/orieg/php-judy/issues/1
+   </notes>
+  </release>
   <release>
    <date>2010-09-24</date>
    <version>
