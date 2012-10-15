@@ -20,5 +20,5 @@ unset($judy);
 --EXPECT--
 Set 3 index
 k: one, v: 100
-k: two, v: 101
 k: three, v: 102
+k: two, v: 101

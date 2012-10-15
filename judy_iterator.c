@@ -156,7 +156,7 @@ int judy_iterator_current_key(zend_object_iterator *iterator,
 {
     JUDY_ITERATOR_GET_OBJECT
 
-    str_key = NULL;
+    *str_key = NULL;
     *str_key_len = 0;
     *int_key = 0;
     
@@ -167,7 +167,7 @@ int judy_iterator_current_key(zend_object_iterator *iterator,
         convert_to_string(it->key);
     }
     
-    str_key = &Z_STRVAL_P(it->key);
+    *str_key = estrndup(Z_STRVAL_P(it->key), Z_STRLEN_P(it->key));
     *str_key_len = Z_STRLEN_P(it->key)+1;
     
     return HASH_KEY_IS_STRING;
@@ -230,6 +230,9 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
 
         uint8_t     key[PHP_JUDY_MAX_LENGTH];
         Word_t      *PValue;
+        char        *prev_key;
+
+        prev_key = estrdup(Z_STRVAL_P(it->key));
 
         /* JudySL require null temrinated strings */
         if (Z_TYPE_P(it->key) == IS_NULL) {
@@ -247,7 +250,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
         ZVAL_STRING(it->key, key, 0);
 
         JSLG(PValue, object->array, key);
-        if (PValue != NULL && PValue != PJERR) {
+        if ((PValue != NULL && PValue != PJERR) && strcmp(prev_key, key) != NULL) {
             if (object->type == TYPE_STRING_TO_INT) {
                 ZVAL_LONG(it->data, *PValue);
             } else {
