@@ -203,14 +203,14 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
     } else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED) {
 
         Word_t          index;
-        Word_t          *PValue = NULL;
+        Pvoid_t          *PValue = NULL;
 
         if (Z_TYPE_P(it->key) == IS_NULL) {
             index = 0;
-            J1F(*PValue, object->array, index);
+            JLF(*PValue, object->array, index);
         } else {
              index = Z_LVAL_P(it->key);
-            J1N(PValue, object->array, index);
+            JLN(PValue, object->array, index);
         }
 
         ZVAL_LONG(it->key, index);
@@ -218,7 +218,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
         JLG(PValue, object->array, index);
         if (PValue != NULL && PValue != PJERR) {
             if (object->type == TYPE_INT_TO_INT) {
-                ZVAL_LONG(it->data, *PValue);
+                ZVAL_LONG(it->data, (long)*PValue);
             } else {
                 it->data = *(zval **)PValue;
             }
@@ -229,7 +229,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
     } else if (object->type == TYPE_STRING_TO_INT || object->type == TYPE_STRING_TO_MIXED) {
 
         uint8_t     key[PHP_JUDY_MAX_LENGTH];
-        Word_t      *PValue;
+        Pvoid_t      *PValue;
         char        *prev_key;
 
         prev_key = estrdup(Z_STRVAL_P(it->key));
@@ -252,7 +252,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
         JSLG(PValue, object->array, key);
         if ((PValue != NULL && PValue != PJERR) && strcmp(prev_key, key) != NULL) {
             if (object->type == TYPE_STRING_TO_INT) {
-                ZVAL_LONG(it->data, *PValue);
+                ZVAL_LONG(it->data, (long)*PValue);
             } else {
                 it->data = *(zval **)PValue;
             }
@@ -282,16 +282,16 @@ void judy_iterator_rewind(zend_object_iterator *iterator TSRMLS_DC)
     } else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED) {
 
         Word_t          index   = 0;
-        Word_t          *PValue = NULL;
+        Pvoid_t          *PValue = NULL;
 
-        J1F(PValue, object->array, index);
+        JLF(PValue, object->array, index);
 
         ZVAL_LONG(it->key, index);
 
         JLG(PValue, object->array, index);
         if (PValue != NULL && PValue != PJERR) {
             if (object->type == TYPE_INT_TO_INT) {
-                ZVAL_LONG(it->data, *PValue);
+                ZVAL_LONG(it->data, (long)*PValue);
             } else {
                 it->data = *(zval **)PValue;
             }
