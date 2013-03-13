@@ -236,7 +236,8 @@ PHP_METHOD(judy, free)
             JLF(PValue, intern->array, index);
             while(PValue != NULL && PValue != PJERR)
             {
-                Z_DELREF_P(*(zval **)PValue);
+				zval *value = (zval *)*PValue;
+				zval_ptr_dtor(&value);
                 JLN(PValue, intern->array, index);
             }
 
@@ -259,7 +260,8 @@ PHP_METHOD(judy, free)
             JSLF(PValue, intern->array, kindex);
             while(PValue != NULL && PValue != PJERR)
             {
-                Z_DELREF_P(*(zval **)PValue);
+				zval *value = (zval *)*PValue;
+				zval_ptr_dtor(&value);
                 JSLN(PValue, intern->array, kindex);
             }
 
@@ -407,10 +409,9 @@ PHP_METHOD(judy, first)
        if (str_length == 0) {
             key[0] = '\0';
         } else {
-            int i;
-            for (i = 0; str[i]; i++)
-                key[i] = str[i];
-            key[i++] = '\0';
+			int key_len = str_length >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_length;
+			memcpy(key, str, key_len);
+			key[key_len] = '\0';
         }
 
         JSLF(PValue, intern->array, key);
@@ -466,10 +467,9 @@ PHP_METHOD(judy, next)
         if (str_length == 0) {
             key[0] = '\0';
         } else {
-            int i;
-            for (i = 0; str[i]; i++)
-                key[i] = str[i];
-            key[i++] = '\0';
+			int key_len = str_length >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_length;
+			memcpy(key, str, key_len);
+			key[key_len] = '\0';
         }
 
         JSLN(PValue, intern->array, key);
@@ -523,14 +523,12 @@ PHP_METHOD(judy, last)
 
         /* JudySL require null terminated strings */
         if (str_length == 0) {
-            unsigned int i;
-            for(i = 0; i < JUDY_G(max_length); i++)
-                key[i] = 0xff;
+			memset(key, 0xff, PHP_JUDY_MAX_LENGTH);
+			key[PHP_JUDY_MAX_LENGTH-1] = '\0';
         } else {
-            int i;
-            for (i = 0; str[i]; i++)
-                key[i] = str[i];
-            key[i++] = '\0';
+			int key_len = str_length >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_length;
+			memcpy(key, str, key_len);
+			key[key_len] = '\0';
         }
 
         JSLL(PValue, intern->array, key);
@@ -586,10 +584,9 @@ PHP_METHOD(judy, prev)
         if (str_length == 0) {
             key[0] = '\0';
         } else {
-            int i;
-            for (i = 0; str[i]; i++)
-                key[i] = str[i];
-            key[i++] = '\0';
+			int key_len = str_length >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_length;
+			memcpy(key, str, key_len);
+			key[key_len] = '\0';
         }
 
         JSLP(PValue, intern->array, key);

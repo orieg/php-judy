@@ -107,7 +107,11 @@ PHP_METHOD(judy, offsetSet)
 
         JLI(PValue, intern->array, index);
         if (PValue != NULL && PValue != PJERR) {
-            *(zval **)PValue = value;
+			if (*PValue != NULL) {
+				zval *old_value = (zval *)*PValue;
+				zval_ptr_dtor(&old_value);
+			}
+            *PValue = value;
             Z_ADDREF_P(*(zval **)PValue);
             RETURN_TRUE;
         } else {
@@ -143,8 +147,12 @@ PHP_METHOD(judy, offsetSet)
 
         JSLI(PValue, intern->array, key);
         if (PValue != NULL && PValue != PJERR) {
-            *(zval **)PValue = value;
-            Z_ADDREF_P(*(zval **)PValue);
+			if (*PValue != NULL) {
+				zval *old_value = (zval *)*PValue;
+				zval_ptr_dtor(&old_value);
+			}
+            *PValue = value;
+            Z_ADDREF_P(value);
             intern->counter++;
             RETURN_TRUE;
         } else {
@@ -184,7 +192,8 @@ PHP_METHOD(judy, offsetUnset)
             Pvoid_t     *PValue;
             JLG(PValue, intern->array, index);
             if (PValue != NULL && PValue != PJERR) {
-                Z_DELREF_P(*(zval **)PValue);
+				zval *value = (zval *)*PValue;
+				zval_ptr_dtor(&value);
                 JLD(Rc_int, intern->array, index);
             }
         }
@@ -204,7 +213,8 @@ PHP_METHOD(judy, offsetUnset)
             Pvoid_t     *PValue;
             JSLG(PValue, intern->array, key);
             if (PValue != NULL && PValue != PJERR) {
-                Z_DELREF_P(*(zval **)PValue);
+				zval *value = (zval *)*PValue;
+				zval_ptr_dtor(&value);
                 JSLD(Rc_int, intern->array, key);
             }
         }
