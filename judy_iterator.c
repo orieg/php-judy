@@ -247,7 +247,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
             JSLN(PValue, object->array, key);
         }
 
-        ZVAL_STRING(it->key, (char *)key, 0);
+        ZVAL_STRING(it->key, (char *)key, 1);
 
         JSLG(PValue, object->array, key);
         if ((PValue != NULL && PValue != PJERR) && strcmp(prev_key, (char *)key) != 0) {
@@ -305,7 +305,7 @@ void judy_iterator_rewind(zend_object_iterator *iterator TSRMLS_DC)
         /* JudySL require null temrinated strings */
         key[0] = '\0';
         JSLF(PValue, object->array, key);
-        ZVAL_STRING(it->key, (const char *) key, 0);
+        ZVAL_STRING(it->key, (const char *) key, 1);
 
         JSLG(PValue, object->array, key);
         if (PValue != NULL && PValue != PJERR) {
