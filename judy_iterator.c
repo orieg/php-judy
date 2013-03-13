@@ -247,10 +247,10 @@ void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC)
             JSLN(PValue, object->array, key);
         }
 
-        ZVAL_STRING(it->key, key, 0);
+        ZVAL_STRING(it->key, (char *)key, 0);
 
         JSLG(PValue, object->array, key);
-        if ((PValue != NULL && PValue != PJERR) && strcmp(prev_key, key) != NULL) {
+        if ((PValue != NULL && PValue != PJERR) && strcmp(prev_key, (char *)key) != 0) {
             if (object->type == TYPE_STRING_TO_INT) {
                 ZVAL_LONG(it->data, (long)*PValue);
             } else {
