@@ -83,8 +83,6 @@ typedef struct _judy_object {
     unsigned long   counter;
 } judy_object;
 
-static void judy_object_free_storage(void * TSRMLS_DC);
-
 /* Max length, this must be a constant for it to work in 
  * declarings as we cannot use runtime decided values at 
  * compile time ofcourse
