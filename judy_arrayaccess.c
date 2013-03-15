@@ -27,7 +27,7 @@ PHP_METHOD(judy, offsetSet)
 
 		if (intern->type == TYPE_BITSET)
 		{
-			zval        *zindex;
+			zval       *zindex;
 			Word_t		index;
 			zend_bool	value;
 			int         Rc_int;
@@ -36,13 +36,22 @@ PHP_METHOD(judy, offsetSet)
 				RETURN_FALSE;
 			}
 
-			if (!zindex || Z_LVAL_P(zindex) <= -1){
-				index = -1;
-				J1L(Rc_int, intern->array, index);
-				if (Rc_int == 1) {
-					index += 1;
+			if (zindex && Z_TYPE_P(zindex) != IS_LONG) {
+				php_error_docref(NULL TSRMLS_CC, E_WARNING, "index parameter expected to be integer, %s given", zend_zval_type_name(zindex));
+				RETURN_FALSE;
+			}
+
+			if (!zindex || Z_LVAL_P(zindex) <= -1) {
+				if (intern->array) {
+					index = -1;
+					J1L(Rc_int, intern->array, index);
+					if (Rc_int == 1) {
+						index += 1;
+					} else {
+						RETURN_FALSE;
+					}
 				} else {
-					RETURN_FALSE;
+					index = 0;
 				}
 			} else {
 				index = Z_LVAL_P(zindex);
@@ -55,12 +64,17 @@ PHP_METHOD(judy, offsetSet)
 			}
 			RETURN_BOOL(Rc_int);
 		} else if (intern->type == TYPE_INT_TO_INT) {
-			zval        *zindex;
-			Word_t      index;
-			Word_t      value;
-			Word_t      *PValue;
+			zval     *zindex;
+			Word_t    index;
+			long      value;
+			Pvoid_t   *PValue;
 
 			if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z!l", &zindex, &value) == FAILURE) {
+				RETURN_FALSE;
+			}
+
+			if (zindex && Z_TYPE_P(zindex) != IS_LONG) {
+				php_error_docref(NULL TSRMLS_CC, E_WARNING, "index parameter expected to be integer, %s given", zend_zval_type_name(zindex));
 				RETURN_FALSE;
 			}
 
@@ -82,18 +96,23 @@ PHP_METHOD(judy, offsetSet)
 
 			JLI(PValue, intern->array, index);
 			if (PValue != NULL && PValue != PJERR) {
-				*PValue = value;
+				*PValue = (void *)value;
 				RETURN_TRUE;
 			} else {
 				RETURN_FALSE;
 			}
 		} else if (intern->type == TYPE_INT_TO_MIXED) {
 			zval        *zindex;
-			Word_t      index;
+			Word_t       index;
 			zval        *value;
 			Pvoid_t     *PValue;
 
 			if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z!z", &zindex, &value) == FAILURE) {
+				RETURN_FALSE;
+			}
+
+			if (zindex && Z_TYPE_P(zindex) != IS_LONG) {
+				php_error_docref(NULL TSRMLS_CC, E_WARNING, "index parameter expected to be integer, %s given", zend_zval_type_name(zindex));
 				RETURN_FALSE;
 			}
 
@@ -120,7 +139,7 @@ PHP_METHOD(judy, offsetSet)
 					zval_ptr_dtor(&old_value);
 				}
 				*PValue = value;
-				Z_ADDREF_P(*(zval **)PValue);
+				Z_ADDREF_P(value);
 				RETURN_TRUE;
 			} else {
 				RETURN_FALSE;
