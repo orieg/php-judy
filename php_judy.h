@@ -81,6 +81,8 @@ typedef struct _judy_object {
 	long            type;
 	Pvoid_t         array;
 	unsigned long   counter;
+	Word_t			next_empty;
+	zend_bool		next_empty_is_valid;
 } judy_object;
 
 /* Max length, this must be a constant for it to work in 
