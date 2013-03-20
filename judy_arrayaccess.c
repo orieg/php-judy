@@ -43,18 +43,28 @@ PHP_METHOD(judy, offsetSet)
 
 			if (!zindex || Z_LVAL_P(zindex) <= -1) {
 				if (intern->array) {
-					index = -1;
-					J1L(Rc_int, intern->array, index);
-					if (Rc_int == 1) {
-						index += 1;
+					if (!zindex && intern->next_empty_is_valid) {
+						index = intern->next_empty++;
 					} else {
-						RETURN_FALSE;
+						index = -1;
+						J1L(Rc_int, intern->array, index);
+
+						if (Rc_int == 1) {
+							index += 1;
+							if (!zindex) {
+								intern->next_empty = index + 1;
+								intern->next_empty_is_valid = 1;
+							}
+						} else {
+							RETURN_FALSE;
+						}
 					}
 				} else {
 					index = 0;
 				}
 			} else {
 				index = Z_LVAL_P(zindex);
+				intern->next_empty_is_valid = 0;
 			}
 
 			if (value == 1) {
@@ -80,15 +90,25 @@ PHP_METHOD(judy, offsetSet)
 
 			if (!zindex || Z_LVAL_P(zindex) <= -1) {
 				if (intern->array) {
-					index = -1;
-					JLL(PValue, intern->array, index);
-					if (PValue != NULL && PValue != PJERR) {
-						index += 1;
+					if (!zindex && intern->next_empty_is_valid) {
+						index = intern->next_empty++;
 					} else {
-						RETURN_FALSE;
+						index = -1;
+						JLL(PValue, intern->array, index);
+
+						if (PValue != NULL && PValue != PJERR) {
+							index += 1;
+							if (!zindex) {
+								intern->next_empty = index + 1;
+								intern->next_empty_is_valid = 1;
+							}
+						} else {
+							RETURN_FALSE;
+						}
 					}
 				} else {
 					index = 0;
+					intern->next_empty_is_valid = 0;
 				}
 			} else {
 				index = Z_LVAL_P(zindex);
@@ -118,18 +138,28 @@ PHP_METHOD(judy, offsetSet)
 
 			if (!zindex || Z_LVAL_P(zindex) <= -1) {
 				if (intern->array){
-					index = -1;
-					JLL(PValue, intern->array, index);
-					if (PValue != NULL && PValue != PJERR) {
-						index += 1;
+					if (!zindex && intern->next_empty_is_valid) {
+						index = intern->next_empty++;
 					} else {
-						RETURN_FALSE;
+						index = -1;
+						JLL(PValue, intern->array, index);
+
+						if (PValue != NULL && PValue != PJERR) {
+							index += 1;
+							if (!zindex) {
+								intern->next_empty = index + 1;
+								intern->next_empty_is_valid = 1;
+							}
+						} else {
+							RETURN_FALSE;
+						}
 					}
 				} else {
 					index = 0;
 				}
 			} else {
 				index = Z_LVAL_P(zindex);
+				intern->next_empty_is_valid = 0;
 			}
 
 			JLI(PValue, intern->array, index);
