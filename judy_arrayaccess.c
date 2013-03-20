@@ -60,7 +60,11 @@ PHP_METHOD(judy, offsetSet)
 						}
 					}
 				} else {
-					index = 0;
+					if (intern->next_empty_is_valid) {
+						index = intern->next_empty++;
+					} else {
+						index = 0;
+					}
 				}
 			} else {
 				index = Z_LVAL_P(zindex);
@@ -107,11 +111,15 @@ PHP_METHOD(judy, offsetSet)
 						}
 					}
 				} else {
-					index = 0;
-					intern->next_empty_is_valid = 0;
+					if (intern->next_empty_is_valid) {
+						index = intern->next_empty++;
+					} else {
+						index = 0;
+					}
 				}
 			} else {
 				index = Z_LVAL_P(zindex);
+				intern->next_empty_is_valid = 0;
 			}
 
 			JLI(PValue, intern->array, index);
@@ -155,7 +163,11 @@ PHP_METHOD(judy, offsetSet)
 						}
 					}
 				} else {
-					index = 0;
+					if (intern->next_empty_is_valid) {
+						index = intern->next_empty++;
+					} else {
+						index = 0;
+					}
 				}
 			} else {
 				index = Z_LVAL_P(zindex);
