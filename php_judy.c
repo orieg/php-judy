@@ -340,7 +340,7 @@ PHP_METHOD(judy, byCount)
     if (intern->type == TYPE_BITSET || intern->type == TYPE_INT_TO_INT
                                     || intern->type == TYPE_INT_TO_MIXED) {
         long            nth_index;
-        long            index;
+        Word_t            index;
 
         if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &nth_index) == FAILURE) {
             RETURN_FALSE;
@@ -415,7 +415,7 @@ PHP_METHOD(judy, first)
 
         JSLF(PValue, intern->array, key);
         if (PValue != NULL && PValue != PJERR)
-            RETURN_STRING(key, 1);
+            RETURN_STRING((char *)key, 1);
     }
 
     RETURN_NULL();
@@ -474,7 +474,7 @@ PHP_METHOD(judy, next)
 
         JSLN(PValue, intern->array, key);
         if (PValue != NULL && PValue != PJERR)
-            RETURN_STRING(key, 1);
+            RETURN_STRING((char *)key, 1);
     }
 
     RETURN_NULL();
@@ -521,10 +521,10 @@ PHP_METHOD(judy, last)
             RETURN_FALSE;
         }
 
-        /* JudySL require null temrinated strings */
+        /* JudySL require null terminated strings */
         if (str_length == 0) {
-            unsigned int i = 0;
-            for(i; i < JUDY_G(max_length); i++)
+            unsigned int i;
+            for(i = 0; i < JUDY_G(max_length); i++)
                 key[i] = 0xff;
         } else {
             int i;
@@ -535,7 +535,7 @@ PHP_METHOD(judy, last)
 
         JSLL(PValue, intern->array, key);
         if (PValue != NULL && PValue != PJERR)
-            RETURN_STRING(key, 1);
+            RETURN_STRING((char *)key, 1);
     }
 
     RETURN_NULL();
@@ -594,7 +594,7 @@ PHP_METHOD(judy, prev)
 
         JSLP(PValue, intern->array, key);
         if (PValue != NULL && PValue != PJERR)
-            RETURN_STRING(key, 1);
+            RETURN_STRING((char *)key, 1);
     }
 
     RETURN_NULL();
