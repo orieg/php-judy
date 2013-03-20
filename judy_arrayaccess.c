@@ -64,13 +64,17 @@ PHP_METHOD(judy, offsetSet)
 				RETURN_FALSE;
 			}
 
-			if (!zindex || Z_LVAL_P(zindex) <= -1){
-				index = -1;
-				JLL(PValue, intern->array, index);
-				if (PValue != NULL && PValue != PJERR) {
-					index += 1;
+			if (!zindex || Z_LVAL_P(zindex) <= -1) {
+				if (intern->array) {
+					index = -1;
+					JLL(PValue, intern->array, index);
+					if (PValue != NULL && PValue != PJERR) {
+						index += 1;
+					} else {
+						RETURN_FALSE;
+					}
 				} else {
-					RETURN_FALSE;
+					index = 0;
 				}
 			} else {
 				index = Z_LVAL_P(zindex);
@@ -93,13 +97,17 @@ PHP_METHOD(judy, offsetSet)
 				RETURN_FALSE;
 			}
 
-			if (!zindex || Z_LVAL_P(zindex) <= -1){
-				index = -1;
-				JLL(PValue, intern->array, index);
-				if (PValue != NULL && PValue != PJERR) {
-					index += 1;
+			if (!zindex || Z_LVAL_P(zindex) <= -1) {
+				if (intern->array){
+					index = -1;
+					JLL(PValue, intern->array, index);
+					if (PValue != NULL && PValue != PJERR) {
+						index += 1;
+					} else {
+						RETURN_FALSE;
+					}
 				} else {
-					RETURN_FALSE;
+					index = 0;
 				}
 			} else {
 				index = Z_LVAL_P(zindex);
