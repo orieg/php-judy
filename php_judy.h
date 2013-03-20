@@ -77,10 +77,10 @@ typedef enum _judy_type {
     judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
 typedef struct _judy_object {
-    zend_object     std;
-    long            type;
-    Pvoid_t         array;
-    unsigned long   counter;
+	zend_object     std;
+	long            type;
+	Pvoid_t         array;
+	unsigned long   counter;
 } judy_object;
 
 /* Max length, this must be a constant for it to work in 
