@@ -13,9 +13,9 @@
   <email>nicolas@brousse.info</email>
   <active>yes</active>
  </lead>
- <date>2012-10-14</date>
+ <date>2013-03-20</date>
  <version>
-  <release>0.1.4</release>
+  <release>0.1.5</release>
   <api>0.1.1</api>
  </version>
  <stability>
@@ -24,9 +24,7 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-- Bug fix foreach with usigned/signed int, see https://github.com/orieg/php-judy/issues/3
-- Bug fix segfault with iterator, see https://github.com/orieg/php-judy/issues/2
-- Add new test case + fix some ZVAL refcount
+- Multiple bug fixes and improvment from GitHub pull request #8
  </notes>
  <contents>
   <dir name="/">
@@ -103,6 +101,22 @@
   <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2012-10-14</date>
+   <version>
+    <release>0.1.4</release>
+    <api>0.1.1</api>
+   </version>
+   <stability>
+    <release>beta</release>
+    <api>beta</api>
+   </stability>
+   <notes>
+- Bug fix foreach with usigned/signed int, see https://github.com/orieg/php-judy/issues/3
+- Bug fix segfault with iterator, see https://github.com/orieg/php-judy/issues/2
+- Add new test case + fix some ZVAL refcount
+   </notes>
+  </release>
   <release>
    <date>2012-05-30</date>
    <version>
