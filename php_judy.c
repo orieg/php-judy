@@ -66,6 +66,9 @@ zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSR
 		*ptr = intern;
 	}
 
+	intern->next_empty_is_valid = 1;
+	intern->next_empty = 0;
+
 	zend_object_std_init(&(intern->std), ce TSRMLS_CC);
 
 #if PHP_VERSION_ID < 50399
