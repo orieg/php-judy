@@ -27,10 +27,9 @@
 
 ZEND_DECLARE_MODULE_GLOBALS(judy)
 
-	/* declare judy class entry */
-	zend_class_entry *judy_ce;
-
-	zend_object_handlers judy_handlers;
+/* declare judy class entry */
+zend_class_entry *judy_ce;
+zend_object_handlers judy_handlers;
 
 	/* {{{ php_judy_init_globals
 	*/
@@ -104,10 +103,419 @@ PHPAPI zend_class_entry *php_judy_ce(void)
 PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("judy.string.maxlength", "65536", PHP_INI_ALL, OnUpdateLong, max_length, zend_judy_globals, judy_globals)
 PHP_INI_END()
-	/* }}} */
+/* }}} */
 
-	/* {{{ PHP_MINIT_FUNCTION
-	*/
+#define CHECK_ARRAY_AND_ARG_TYPE(_index_, _string_key_, _return_)	\
+	switch (intern->type) {					\
+		case TYPE_BITSET:					\
+		case TYPE_INT_TO_INT:				\
+		case TYPE_INT_TO_MIXED:				\
+			if (Z_TYPE_P(offset) != IS_LONG) {	\
+				zval tmp = *offset;				\
+				zval_copy_ctor(&tmp);			\
+				INIT_PZVAL(&tmp);				\
+				convert_to_long(&tmp);			\
+				_index_ = Z_LVAL(tmp);			\
+			} else {							\
+				_index_ = Z_LVAL_P(offset);		\
+			}									\
+			/* avoid zval_dtor() */				\
+			_string_key_ = offset;				\
+			break;							\
+		case TYPE_STRING_TO_INT:			\
+		case TYPE_STRING_TO_MIXED:			\
+			if (Z_TYPE_P(offset) != IS_STRING) {	\
+				*_string_key_ = *offset;			\
+				zval_copy_ctor(_string_key_);		\
+				INIT_PZVAL(_string_key_);			\
+				convert_to_string(_string_key_);	\
+			} else {								\
+				_string_key_ = offset;	\
+			}								\
+			break;							\
+		default:							\
+			php_error_docref(NULL TSRMLS_CC, E_WARNING, "invalid Judy Array type, please report");	\
+			_return_;						\
+	}
+
+zval *judy_object_read_dimension_helper(zval *object, zval *offset TSRMLS_DC) /* {{{ */
+{
+	long index = 0;
+	Word_t j_index;
+	Pvoid_t *PValue = NULL;
+	zval *result;
+	zval string_key, *pstring_key = &string_key;
+	judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+
+	if (intern->array == NULL) {
+		return NULL;
+	}
+
+	CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, return NULL);
+
+	j_index = index;
+
+	if (intern->type == TYPE_BITSET) {
+		int     Rc_int;
+
+		J1T(Rc_int, intern->array, j_index);
+		MAKE_STD_ZVAL(result);
+		Z_SET_REFCOUNT_P(result, 0);
+		Z_UNSET_ISREF_P(result);
+		ZVAL_BOOL(result, Rc_int);
+		return result;
+	}
+
+	switch(intern->type) {
+		case TYPE_INT_TO_INT:
+		case TYPE_INT_TO_MIXED:
+			JLG(PValue, intern->array, j_index);
+			break;
+		case TYPE_STRING_TO_INT:
+		case TYPE_STRING_TO_MIXED:
+			JSLG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
+			break;
+	}
+
+	if (PValue != NULL && PValue != PJERR) {
+		MAKE_STD_ZVAL(result);
+		Z_SET_REFCOUNT_P(result, 0);
+		Z_UNSET_ISREF_P(result);
+
+		if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_STRING_TO_INT) {
+			ZVAL_LONG(result, (long)*PValue);
+		} else if (intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_STRING_TO_MIXED) {
+			ZVAL_ZVAL(result, *(zval **)PValue, 1, 0);
+		}
+		if (pstring_key != offset) {
+			zval_dtor(pstring_key);
+		}
+		return result;
+	}
+	if (pstring_key != offset) {
+		zval_dtor(pstring_key);
+	}
+	return NULL;
+}
+/* }}} */
+
+static zval *judy_object_read_dimension(zval *object, zval *offset, int type TSRMLS_DC) /* {{{ */
+{
+	return judy_object_read_dimension_helper(object, offset TSRMLS_CC);
+}
+/* }}} */
+
+int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value TSRMLS_DC) /* {{{ */
+{
+	long dummy;
+	zval string_key, *pstring_key = &string_key;
+	judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+
+	if (offset) {
+		CHECK_ARRAY_AND_ARG_TYPE(dummy, pstring_key, return FAILURE);
+		(void)dummy;
+	}
+
+	if (intern->type == TYPE_BITSET) {
+		Word_t		index;
+		int         Rc_int;
+
+		if (!offset || Z_LVAL_P(offset) <= -1) {
+			if (intern->array) {
+				if (!offset && intern->next_empty_is_valid) {
+					index = intern->next_empty++;
+				} else {
+					index = -1;
+					J1L(Rc_int, intern->array, index);
+
+					if (Rc_int == 1) {
+						index += 1;
+						if (!offset) {
+							intern->next_empty = index + 1;
+							intern->next_empty_is_valid = 1;
+						}
+					} else {
+						return FAILURE;
+					}
+				}
+			} else {
+				if (intern->next_empty_is_valid) {
+					index = intern->next_empty++;
+				} else {
+					index = 0;
+				}
+			}
+		} else {
+			index = Z_LVAL_P(offset);
+			intern->next_empty_is_valid = 0;
+		}
+
+		if (zend_is_true(value)) {
+			J1S(Rc_int, intern->array, index);
+		} else {
+			J1U(Rc_int, intern->array, index);
+		}
+		return Rc_int ? SUCCESS : FAILURE;
+	} else if (intern->type == TYPE_INT_TO_INT) {
+		Word_t    index;
+		Pvoid_t   *PValue;
+
+		if (!offset || Z_LVAL_P(offset) <= -1) {
+			if (intern->array) {
+				if (!offset && intern->next_empty_is_valid) {
+					index = intern->next_empty++;
+				} else {
+					index = -1;
+					JLL(PValue, intern->array, index);
+
+					if (PValue != NULL && PValue != PJERR) {
+						index += 1;
+						if (!offset) {
+							intern->next_empty = index + 1;
+							intern->next_empty_is_valid = 1;
+						}
+					} else {
+						return FAILURE;
+					}
+				}
+			} else {
+				if (intern->next_empty_is_valid) {
+					index = intern->next_empty++;
+				} else {
+					index = 0;
+				}
+			}
+		} else {
+			index = Z_LVAL_P(offset);
+			intern->next_empty_is_valid = 0;
+		}
+
+		JLI(PValue, intern->array, index);
+		if (PValue != NULL && PValue != PJERR) {
+			*PValue = (void *)Z_LVAL_P(value);
+			return SUCCESS;
+		}
+		return FAILURE;
+	} else if (intern->type == TYPE_INT_TO_MIXED) {
+		Word_t      index;
+		Pvoid_t     *PValue;
+
+		if (!offset || Z_LVAL_P(offset) <= -1) {
+			if (intern->array){
+				if (!offset && intern->next_empty_is_valid) {
+					index = intern->next_empty++;
+				} else {
+					index = -1;
+					JLL(PValue, intern->array, index);
+
+					if (PValue != NULL && PValue != PJERR) {
+						index += 1;
+						if (!offset) {
+							intern->next_empty = index + 1;
+							intern->next_empty_is_valid = 1;
+						}
+					} else {
+						return FAILURE;
+					}
+				}
+			} else {
+				if (intern->next_empty_is_valid) {
+					index = intern->next_empty++;
+				} else {
+					index = 0;
+				}
+			}
+		} else {
+			index = Z_LVAL_P(offset);
+			intern->next_empty_is_valid = 0;
+		}
+
+		JLI(PValue, intern->array, index);
+		if (PValue != NULL && PValue != PJERR) {
+			if (*PValue != NULL) {
+				zval *old_value = (zval *)*PValue;
+				zval_ptr_dtor(&old_value);
+			}
+			*PValue = value;
+			Z_ADDREF_P(value);
+			return SUCCESS;
+		}
+		return FAILURE;
+	} else if (intern->type == TYPE_STRING_TO_INT) {
+		PWord_t     *PValue;
+		int res;
+
+		JSLI(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
+		if (PValue != NULL && PValue != PJERR) {
+			*PValue = (void *)Z_LVAL_P(value);
+			intern->counter++;
+			res = SUCCESS;
+		} else {
+			res = FAILURE;
+		}
+		if (pstring_key != offset) {
+			zval_dtor(pstring_key);
+		}
+		return res;
+	} else if (intern->type == TYPE_STRING_TO_MIXED) {
+		Pvoid_t     *PValue;
+		int res;
+
+		JSLI(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
+		if (PValue != NULL && PValue != PJERR) {
+			if (*PValue != NULL) {
+				zval *old_value = (zval *)*PValue;
+				zval_ptr_dtor(&old_value);
+			}
+			*PValue = value;
+			Z_ADDREF_P(value);
+			intern->counter++;
+			res = SUCCESS;
+		} else {
+			res = FAILURE;
+		}
+		if (pstring_key != offset) {
+			zval_dtor(pstring_key);
+		}
+		return res;
+	}
+	return FAILURE;
+}
+/* }}} */
+
+static void judy_object_write_dimension(zval *object, zval *offset, zval *value TSRMLS_DC) /* {{{ */
+{
+	judy_object_write_dimension_helper(object, offset, value TSRMLS_CC);
+}
+/* }}} */
+
+int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty TSRMLS_DC) /* {{{ */
+{
+	long index = 0;
+	Word_t j_index;
+	Pvoid_t *PValue = NULL;
+	zval string_key, *pstring_key = &string_key;
+	judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+
+	if (intern->array == NULL) {
+		return 0;
+	}
+
+	CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, return 0);
+
+	j_index = index;
+
+	if (intern->type == TYPE_BITSET) {
+		int     Rc_int;
+
+		J1T(Rc_int, intern->array, j_index);
+		return Rc_int;
+	}
+
+	switch(intern->type) {
+		case TYPE_INT_TO_INT:
+		case TYPE_INT_TO_MIXED:
+			JLG(PValue, intern->array, j_index);
+			break;
+		case TYPE_STRING_TO_INT:
+		case TYPE_STRING_TO_MIXED:
+			JSLG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
+			if (pstring_key != offset) {
+				zval_dtor(pstring_key);
+			}
+			break;
+	}
+
+	if (PValue != NULL && PValue != PJERR) {
+		if (!check_empty) {
+			return 1;
+		} else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_STRING_TO_INT) {
+			if (*PValue) {
+				return 1;
+			}
+			return 0;
+		} else if (intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_STRING_TO_MIXED) {
+			if (*PValue && zend_is_true((zval *)*PValue)) {
+				return 1;
+			}
+			return 0;
+		}
+	}
+	return 0;
+}
+/* }}} */
+
+static int judy_object_has_dimension(zval *object, zval *offset, int check_empty TSRMLS_DC) /* {{{ */
+{
+	return judy_object_has_dimension_helper(object, offset, check_empty TSRMLS_CC);
+}
+/* }}} */
+
+int judy_object_unset_dimension_helper(zval *object, zval *offset TSRMLS_DC) /* {{{ */
+{
+	int Rc_int = 0;
+	long index = 0;
+	Word_t j_index;
+	zval string_key, *pstring_key = &string_key;
+	judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+
+	if (intern->array == NULL) {
+		return FAILURE;
+	}
+
+	CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, return FAILURE);
+
+	j_index = index;
+
+	if (intern->type == TYPE_BITSET) {
+		J1U(Rc_int, intern->array, j_index);
+	} else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_INT_TO_MIXED) {
+		if (intern->type == TYPE_INT_TO_INT) {
+			JLD(Rc_int, intern->array, j_index);
+		} else {
+			Pvoid_t     *PValue;
+
+			JLG(PValue, intern->array, j_index);
+			if (PValue != NULL && PValue != PJERR) {
+				zval *value = (zval *)*PValue;
+				zval_ptr_dtor(&value);
+				JLD(Rc_int, intern->array, j_index);
+			}
+		}
+		if (Rc_int == 1) {
+			intern->counter--;
+		}
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+		if (intern->type == TYPE_STRING_TO_INT) {
+			JSLD(Rc_int, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
+		} else {
+			Pvoid_t     *PValue;
+			JSLG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
+			if (PValue != NULL && PValue != PJERR) {
+				zval *value = (zval *)*PValue;
+				zval_ptr_dtor(&value);
+				JSLD(Rc_int, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
+			}
+		}
+		if (Rc_int == 1) {
+			intern->counter--;
+		}
+		if (pstring_key != offset) {
+			zval_dtor(pstring_key);
+		}
+	}
+	return Rc_int ? SUCCESS : FAILURE;
+}
+/* }}} */
+
+static void judy_object_unset_dimension(zval *object, zval *offset TSRMLS_DC) /* {{{ */
+{
+	judy_object_unset_dimension_helper(object, offset TSRMLS_CC);
+}
+/* }}} */
+
+/* {{{ PHP_MINIT_FUNCTION
+*/
 PHP_MINIT_FUNCTION(judy)
 {
 	zend_class_entry ce;
@@ -129,9 +537,13 @@ PHP_MINIT_FUNCTION(judy)
 	/* set some internal handlers */
 	judy_handlers.clone_obj = judy_object_clone;
 	judy_handlers.count_elements = judy_object_count;
+	judy_handlers.read_dimension = judy_object_read_dimension;
+	judy_handlers.write_dimension = judy_object_write_dimension;
+	judy_handlers.unset_dimension = judy_object_unset_dimension;
+	judy_handlers.has_dimension = judy_object_has_dimension;
 
 	/* implements some interface to provide access to judy object as an array */
-	zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_arrayaccess, zend_ce_iterator);
+	zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_arrayaccess);
 
 	judy_ce->get_iterator = judy_get_iterator;
 
@@ -184,7 +596,7 @@ PHP_METHOD(judy, __construct)
 
 	JUDY_METHOD_GET_OBJECT
 
-		JUDY_METHOD_ERROR_HANDLING;
+	JUDY_METHOD_ERROR_HANDLING;
 
 	if (intern->type) {
 		php_error_docref(NULL TSRMLS_CC, E_ERROR, "Judy Array already instantiated");
@@ -805,87 +1217,85 @@ PHP_METHOD(judy, offsetExists);
 
 /* {{{ Judy function parameters
 */
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_type, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_type, 0, 0, 1)
 	ZEND_ARG_INFO(0, array)
 ZEND_END_ARG_INFO()
-	/* }}} */
+/* }}} */
 
-	/* {{{ Judy class methods parameters
-	*/
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_count, 0, 0, 0)
+/* {{{ Judy class methods parameters
+*/
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_count, 0, 0, 0)
 	ZEND_ARG_INFO(0, index_start)
 	ZEND_ARG_INFO(0, index_end)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_byCount, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_byCount, 0, 0, 1)
 	ZEND_ARG_INFO(0, nth_index)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_first, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_first, 0, 0, 1)
 	ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_next, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_next, 0, 0, 1)
 	ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_last, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_last, 0, 0, 1)
 	ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prev, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prev, 0, 0, 1)
 	ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_firstEmpty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_firstEmpty, 0, 0, 1)
 	ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_nextEmpty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_nextEmpty, 0, 0, 1)
 	ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_lastEmpty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_lastEmpty, 0, 0, 1)
 	ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prevEmpty, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prevEmpty, 0, 0, 1)
 	ZEND_ARG_INFO(0, index)
 ZEND_END_ARG_INFO()
-	/* }}} */
+/* }}} */
 
-	/* {{{ Judy class methods parameters the Array Access Interface
-	*/
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetSet, 0, 0, 2)
+/* {{{ Judy class methods parameters the Array Access Interface
+*/
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetSet, 0, 0, 2)
 	ZEND_ARG_INFO(0, offset)
 	ZEND_ARG_INFO(0, value)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetUnset, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetUnset, 0, 0, 1)
 	ZEND_ARG_INFO(0, offset)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetGet, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetGet, 0, 0, 1)
 	ZEND_ARG_INFO(0, offset)
 ZEND_END_ARG_INFO()
 
-	ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetExists, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_offsetExists, 0, 0, 1)
 	ZEND_ARG_INFO(0, offset)
 ZEND_END_ARG_INFO()
-	/* }}} */
+/* }}} */
 
-	/* {{{ judy_functions[]
-	 *
-	 * Every user visible function must have an entry in judy_functions[].
-	 */
-	const zend_function_entry judy_functions[] = {
-		/* PHP JUDY FUNCTIONS */
-		PHP_FE(judy_version, NULL)
-			PHP_FE(judy_type, arginfo_judy_type)
-
-			/* NULL TEMRINATED VECTOR */
-			{NULL, NULL, NULL}
-	};
+/* {{{ judy_functions[]
+ *
+ * Every user visible function must have an entry in judy_functions[].
+ */
+const zend_function_entry judy_functions[] = {
+	/* PHP JUDY FUNCTIONS */
+	PHP_FE(judy_version, NULL)
+	PHP_FE(judy_type, arginfo_judy_type)
+	{NULL, NULL, NULL}
+};
 /* }}} */
 
 /* {{{ judy_class_methodss[]
@@ -895,32 +1305,32 @@ ZEND_END_ARG_INFO()
 const zend_function_entry judy_class_methods[] = {
 	/* PHP JUDY METHODS */
 	PHP_ME(judy, __construct, 		NULL, ZEND_ACC_PUBLIC | ZEND_ACC_CTOR)
-		PHP_ME(judy, __destruct, 		NULL, ZEND_ACC_PUBLIC | ZEND_ACC_DTOR)
-		PHP_ME(judy, getType, 			NULL, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, free, 				NULL, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, memoryUsage, 		NULL, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, count, 			arginfo_judy_count, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, byCount, 			arginfo_judy_byCount, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, first, 			arginfo_judy_first, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, next, 				arginfo_judy_next, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, last, 				arginfo_judy_last, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, prev, 				arginfo_judy_prev, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, firstEmpty, 		arginfo_judy_firstEmpty, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, nextEmpty, 		arginfo_judy_nextEmpty, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, lastEmpty, 		arginfo_judy_lastEmpty, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, prevEmpty, 		arginfo_judy_prevEmpty, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, __destruct, 		NULL, ZEND_ACC_PUBLIC | ZEND_ACC_DTOR)
+	PHP_ME(judy, getType, 			NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, free, 				NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, memoryUsage, 		NULL, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, count, 			arginfo_judy_count, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, byCount, 			arginfo_judy_byCount, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, first, 			arginfo_judy_first, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, next, 				arginfo_judy_next, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, last, 				arginfo_judy_last, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, prev, 				arginfo_judy_prev, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, firstEmpty, 		arginfo_judy_firstEmpty, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, nextEmpty, 		arginfo_judy_nextEmpty, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, lastEmpty, 		arginfo_judy_lastEmpty, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, prevEmpty, 		arginfo_judy_prevEmpty, ZEND_ACC_PUBLIC)
 
-		/* PHP JUDY METHODS / ARRAYACCESS INTERFACE */
-		PHP_ME(judy, offsetSet, 		arginfo_judy_offsetSet, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, offsetUnset, 		arginfo_judy_offsetUnset, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, offsetGet, 		arginfo_judy_offsetGet, ZEND_ACC_PUBLIC)
-		PHP_ME(judy, offsetExists, 		arginfo_judy_offsetExists, ZEND_ACC_PUBLIC)
+	/* PHP JUDY METHODS / ARRAYACCESS INTERFACE */
+	PHP_ME(judy, offsetSet, 		arginfo_judy_offsetSet, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, offsetUnset, 		arginfo_judy_offsetUnset, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, offsetGet, 		arginfo_judy_offsetGet, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, offsetExists, 		arginfo_judy_offsetExists, ZEND_ACC_PUBLIC)
 
-		/* PHP JUDY METHODS ALIAS */
-		PHP_MALIAS(judy, size, 			count, NULL, ZEND_ACC_PUBLIC)
+	/* PHP JUDY METHODS ALIAS */
+	PHP_MALIAS(judy, size, 			count, NULL, ZEND_ACC_PUBLIC)
 
-		/* NULL TEMRINATED VECTOR */
-		{NULL, NULL, NULL}
+	/* NULL TEMRINATED VECTOR */
+	{NULL, NULL, NULL}
 };
 /* }}} */
 
@@ -928,7 +1338,7 @@ const zend_function_entry judy_class_methods[] = {
 */
 zend_module_entry judy_module_entry = {
 #if ZEND_MODULE_API_NO >= 20010901
-	STANDARD_MODULE_HEADER,
+    STANDARD_MODULE_HEADER,
 #endif
 	PHP_JUDY_EXTNAME,
 	judy_functions,
