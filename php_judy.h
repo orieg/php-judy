@@ -85,8 +85,8 @@ typedef struct _judy_object {
 	zend_bool		next_empty_is_valid;
 } judy_object;
 
-/* Max length, this must be a constant for it to work in 
- * declarings as we cannot use runtime decided values at 
+/* Max length, this must be a constant for it to work in
+ * declarings as we cannot use runtime decided values at
  * compile time ofcourse
  *
  * TODO:	This needs to be handled better
@@ -95,6 +95,11 @@ typedef struct _judy_object {
 
 zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC);
 zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSRMLS_DC);
+
+zval *judy_object_read_dimension_helper(zval *object, zval *offset TSRMLS_DC);
+int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value TSRMLS_DC);
+int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty TSRMLS_DC);
+int judy_object_unset_dimension_helper(zval *object, zval *offset TSRMLS_DC);
 
 /* {{{ REGISTER_JUDY_CLASS_CONST_LONG */
 #define REGISTER_JUDY_CLASS_CONST_LONG(const_name, value) \
