@@ -179,14 +179,13 @@ zval *judy_object_read_dimension_helper(zval *object, zval *offset TSRMLS_DC) /*
 	}
 
 	if (PValue != NULL && PValue != PJERR) {
-		MAKE_STD_ZVAL(result);
-		Z_SET_REFCOUNT_P(result, 0);
-		Z_UNSET_ISREF_P(result);
-
 		if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_STRING_TO_INT) {
+			MAKE_STD_ZVAL(result);
+			Z_SET_REFCOUNT_P(result, 0);
+			Z_UNSET_ISREF_P(result);
 			ZVAL_LONG(result, (long)*PValue);
 		} else if (intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_STRING_TO_MIXED) {
-			ZVAL_ZVAL(result, *(zval **)PValue, 1, 0);
+			result = (zval *)*PValue;
 		}
 		if (pstring_key != offset) {
 			zval_dtor(pstring_key);
