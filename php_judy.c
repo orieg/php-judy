@@ -24,6 +24,7 @@
 #include "judy_handlers.h"
 #include "judy_arrayaccess.h"
 #include "judy_iterator.h"
+#include "ext/spl/spl_iterators.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(judy)
 
@@ -543,7 +544,7 @@ PHP_MINIT_FUNCTION(judy)
 	judy_handlers.has_dimension = judy_object_has_dimension;
 
 	/* implements some interface to provide access to judy object as an array */
-	zend_class_implements(judy_ce TSRMLS_CC, 1, zend_ce_arrayaccess);
+	zend_class_implements(judy_ce TSRMLS_CC, 2, zend_ce_arrayaccess, spl_ce_Countable);
 
 	judy_ce->get_iterator = judy_get_iterator;
 
@@ -1334,12 +1335,16 @@ const zend_function_entry judy_class_methods[] = {
 };
 /* }}} */
 
+static const zend_module_dep judy_deps[] = {
+	ZEND_MOD_REQUIRED("spl")
+	{NULL, NULL, NULL}
+};
+
 /* {{{ judy_module_entry
 */
 zend_module_entry judy_module_entry = {
-#if ZEND_MODULE_API_NO >= 20010901
-    STANDARD_MODULE_HEADER,
-#endif
+	STANDARD_MODULE_HEADER_EX, NULL,
+	judy_deps,
 	PHP_JUDY_EXTNAME,
 	judy_functions,
 	PHP_MINIT(judy),
