@@ -13,19 +13,18 @@
   <email>nicolas@brousse.info</email>
   <active>yes</active>
  </lead>
- <date>2013-03-31</date>
+ <date>2013-05-28</date>
  <version>
-  <release>0.1.6</release>
-  <api>0.1.1</api>
+  <release>1.0.0</release>
+  <api>1.0.0</api>
  </version>
  <stability>
-  <release>beta</release>
-  <api>beta</api>
+  <release>stable</release>
+  <api>stable</api>
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-- Performance improvement from GitHub pull request #10
-- Add countable spl interface from GitHub pull request #9
+- First stable release based on 0.1.6 beta
  </notes>
  <contents>
   <dir name="/">
@@ -102,6 +101,21 @@
   <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2013-03-31</date>
+    <version>
+     <release>0.1.6</release>
+     <api>0.1.1</api>
+    </version>
+    <stability>
+     <release>beta</release>
+     <api>beta</api>
+    </stability>
+    <notes>
+- Performance improvement from GitHub pull request #10
+- Add countable spl interface from GitHub pull request #9
+    </notes>
+  </release>
   <release>
    <date>2013-03-20</date>
    <version>
