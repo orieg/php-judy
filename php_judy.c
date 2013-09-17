@@ -94,7 +94,7 @@ zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC)
 }
 /* }}} */
 
-PHPAPI zend_class_entry *php_judy_ce(void)
+PHP_JUDY_API zend_class_entry *php_judy_ce(void)
 {
 	return judy_ce;
 }

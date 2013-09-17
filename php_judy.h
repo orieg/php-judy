@@ -119,7 +119,7 @@ ZEND_EXTERN_MODULE_GLOBALS(judy)
 #endif
 
 /* Grabbing CE's so that other exts can use the date objects too */
-PHPAPI zend_class_entry *php_judy_ce(void);
+PHP_JUDY_API zend_class_entry *php_judy_ce(void);
 
 #endif    /* PHP_JUDY_H */
 
