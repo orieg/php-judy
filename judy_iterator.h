@@ -43,8 +43,12 @@ zend_object_iterator *judy_get_iterator(zend_class_entry *ce, zval *object, int 
 void judy_iterator_dtor(zend_object_iterator *iterator TSRMLS_DC);
 int judy_iterator_valid(zend_object_iterator *iterator TSRMLS_DC);
 void judy_iterator_current_data(zend_object_iterator *iterator,	zval ***data TSRMLS_DC);
+#if ZEND_MODULE_API_NO >= 20121212
+void judy_iterator_current_key(zend_object_iterator *iterator, zval *key TSRMLS_DC);
+#else
 int judy_iterator_current_key(zend_object_iterator *iterator,
 		char **str_key, uint *str_key_len, ulong *int_key TSRMLS_DC);
+#endif
 void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC);
 void judy_iterator_rewind(zend_object_iterator *iterator TSRMLS_DC);
 /* }}} */
