@@ -2,6 +2,8 @@
 Check for Judy ITERATOR using foreach() and INT_TO_MIXED
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
+--INI--
+date.timezone=UTC
 --FILE--
 <?php
 /*
