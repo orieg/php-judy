@@ -144,7 +144,7 @@ zval *judy_object_read_dimension_helper(zval *object, zval *offset TSRMLS_DC) /*
 	long index = 0;
 	Word_t j_index;
 	Pvoid_t *PValue = NULL;
-	zval *result;
+	zval *result = NULL;
 	zval string_key, *pstring_key = &string_key;
 	judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
@@ -603,7 +603,7 @@ PHP_METHOD(judy, __construct)
 	} else if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &type) == SUCCESS) {
 		JTYPE(jtype, type);
 		intern->counter = 0;
-		intern->type = type;
+		intern->type = jtype;
 		intern->array = (Pvoid_t) NULL;
 	}
 
@@ -615,7 +615,7 @@ PHP_METHOD(judy, __construct)
    Free Judy array and any other references */
 PHP_METHOD(judy, __destruct)
 {
-	JUDY_METHOD_GET_OBJECT
+	zval *object = getThis();
 
 		/* calling the object's free() method */
 		zend_call_method_with_0_params(&object, NULL, NULL, "free", NULL);
@@ -628,7 +628,7 @@ PHP_METHOD(judy, free)
 {
 	JUDY_METHOD_GET_OBJECT
 
-		Word_t    Rc_word;
+		Word_t    Rc_word = 0;
 	Word_t    index;
 	uint8_t   kindex[PHP_JUDY_MAX_LENGTH];
 	Word_t    *PValue;
@@ -1019,7 +1019,7 @@ PHP_METHOD(judy, prev)
 PHP_METHOD(judy, firstEmpty)
 {
 	Word_t         index = 0;
-	int            Rc_int;
+	int            Rc_int = 0;
 
 	JUDY_METHOD_GET_OBJECT
 
@@ -1051,7 +1051,7 @@ PHP_METHOD(judy, firstEmpty)
 PHP_METHOD(judy, lastEmpty)
 {
 	Word_t         index = -1;
-	int            Rc_int;
+	int            Rc_int = 0;
 
 	JUDY_METHOD_GET_OBJECT
 
@@ -1083,7 +1083,7 @@ PHP_METHOD(judy, lastEmpty)
 PHP_METHOD(judy, nextEmpty)
 {
 	Word_t         index;
-	int            Rc_int;
+	int            Rc_int = 0;
 
 	JUDY_METHOD_GET_OBJECT
 
@@ -1115,7 +1115,7 @@ PHP_METHOD(judy, nextEmpty)
 PHP_METHOD(judy, prevEmpty)
 {
 	Word_t         index;
-	int            Rc_int;
+	int            Rc_int = 0;
 
 	JUDY_METHOD_GET_OBJECT
 

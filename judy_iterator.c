@@ -151,6 +151,14 @@ void judy_iterator_current_data(zend_object_iterator *iterator,
 
 /* {{{ judy_iterator_current_key
 */
+#if ZEND_MODULE_API_NO >= 20121212
+void judy_iterator_current_key(zend_object_iterator *iterator, zval *key TSRMLS_DC)
+{
+	judy_iterator 	*it = (judy_iterator*) iterator;
+	
+	ZVAL_ZVAL(key, it->key, 1, 0);
+
+#else
 int judy_iterator_current_key(zend_object_iterator *iterator,
 		char **str_key, uint *str_key_len, ulong *int_key TSRMLS_DC)
 {
@@ -171,6 +179,7 @@ int judy_iterator_current_key(zend_object_iterator *iterator,
 	*str_key_len = Z_STRLEN_P(it->key)+1;
 
 	return HASH_KEY_IS_STRING;
+#endif
 }
 /* }}} */
 
