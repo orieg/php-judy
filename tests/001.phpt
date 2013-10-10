@@ -20,4 +20,4 @@ judy_version();
 ?>
 --EXPECT--
 judy extension is available
-PHP Judy Version: 0.1.6
+PHP Judy Version: 1.0.0

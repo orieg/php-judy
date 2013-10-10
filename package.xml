@@ -15,6 +15,11 @@
  </lead>
  <date>2013-05-28</date>
  <version>
+<!-- 
+   Remember to change extension version in
+   - php_judy.h for PHP_JUDY_VERSION
+   - tests/001.phpt
+-->
   <release>1.0.0</release>
   <api>1.0.0</api>
  </version>
