@@ -17,7 +17,7 @@ foreach($functions as $func) {
 echo "$br\n";
 $constants = get_defined_constants(true);
 echo "Constants available in $module extension:$br\n";
-if (in_array($module, $constants) {
+if (in_array($module, $constants)) {
   foreach ($constants[$module] as $const => $v) {
     echo "\t$const => $v$br\n";
   }
