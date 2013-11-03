@@ -366,10 +366,11 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value T
 			if (*PValue != NULL) {
 				zval *old_value = (zval *)*PValue;
 				zval_ptr_dtor(&old_value);
-			}
+			} else {
+			    intern->counter++;
+            }
 			*PValue = value;
 			Z_ADDREF_P(value);
-			intern->counter++;
 			res = SUCCESS;
 		} else {
 			res = FAILURE;
