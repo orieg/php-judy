@@ -9,7 +9,7 @@ Ref. https://github.com/orieg/php-judy/issues/15
 */
 
 echo "Instantiate first object: \$judy1\n";
-$judy1 = new Judy(Judy::STRING_TO_MIXED);
+$judy1 = new Judy(Judy::INT_TO_INT);
 
 echo "Assign a value while in a loop of 1\n";
 for ($i = 0;$i < 1;$i++) {
