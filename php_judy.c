@@ -214,6 +214,11 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value T
 	if (offset) {
 		CHECK_ARRAY_AND_ARG_TYPE(dummy, pstring_key, return FAILURE);
 		(void)dummy;
+	} else {
+		if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+			php_error_docref(NULL TSRMLS_CC, E_ERROR, "Judy STRING_TO_INT and STRING_TO_MIXED values cannot be set without key specifying");
+			return FAILURE;
+		}
 	}
 
 	if (intern->type == TYPE_BITSET) {
