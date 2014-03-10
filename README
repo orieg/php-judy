@@ -27,7 +27,7 @@ unassigned indices.
 
   -> http://en.wikipedia.org/wiki/Judy_array
 
-The PHP extension is base on the Judy C library that implements a dynamic array.
+The PHP extension is based on the Judy C library that implements a dynamic array.
 A Judy array consumes memory only when populated yet can grow to take advantage
 of all available memory.  Judy's key benefits are:  scalability, performance,
 memory efficiency, and ease of use. Judy arrays are designed to grow without
