@@ -207,13 +207,12 @@ static zval *judy_object_read_dimension(zval *object, zval *offset, int type TSR
 
 int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value TSRMLS_DC) /* {{{ */
 {
-	long dummy;
+	long index;
 	zval string_key, *pstring_key = &string_key;
 	judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
 
 	if (offset) {
-		CHECK_ARRAY_AND_ARG_TYPE(dummy, pstring_key, return FAILURE);
-		(void)dummy;
+		CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, return FAILURE);
 	} else {
 		if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
 			php_error_docref(NULL TSRMLS_CC, E_ERROR, "Judy STRING_TO_INT and STRING_TO_MIXED values cannot be set without key specifying");
@@ -222,10 +221,9 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value T
 	}
 
 	if (intern->type == TYPE_BITSET) {
-		Word_t		index;
 		int         Rc_int;
 
-		if (!offset || Z_LVAL_P(offset) <= -1) {
+		if (!offset || index <= -1) {
 			if (intern->array) {
 				if (!offset && intern->next_empty_is_valid) {
 					index = intern->next_empty++;
@@ -251,7 +249,6 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value T
 				}
 			}
 		} else {
-			index = Z_LVAL_P(offset);
 			intern->next_empty_is_valid = 0;
 		}
 
@@ -262,10 +259,20 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value T
 		}
 		return Rc_int ? SUCCESS : FAILURE;
 	} else if (intern->type == TYPE_INT_TO_INT) {
-		Word_t    index;
 		Pvoid_t   *PValue;
+		long value_long;
 
-		if (!offset || Z_LVAL_P(offset) <= -1) {
+		if (Z_TYPE_P(value) != IS_LONG) {
+			zval tmp = *value;
+			zval_copy_ctor(&tmp);
+			INIT_PZVAL(&tmp);
+			convert_to_long(&tmp);
+			value_long = Z_LVAL(tmp);
+		} else {
+			value_long = Z_LVAL_P(value);
+		}
+
+		if (!offset || index <= -1) {
 			if (intern->array) {
 				if (!offset && intern->next_empty_is_valid) {
 					index = intern->next_empty++;
@@ -291,21 +298,19 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value T
 				}
 			}
 		} else {
-			index = Z_LVAL_P(offset);
 			intern->next_empty_is_valid = 0;
 		}
 
 		JLI(PValue, intern->array, index);
 		if (PValue != NULL && PValue != PJERR) {
-			*PValue = (void *)Z_LVAL_P(value);
+			*PValue = (void *)value_long;
 			return SUCCESS;
 		}
 		return FAILURE;
 	} else if (intern->type == TYPE_INT_TO_MIXED) {
-		Word_t      index;
 		Pvoid_t     *PValue;
 
-		if (!offset || Z_LVAL_P(offset) <= -1) {
+		if (!offset || index <= -1) {
 			if (intern->array){
 				if (!offset && intern->next_empty_is_valid) {
 					index = intern->next_empty++;
@@ -331,7 +336,6 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value T
 				}
 			}
 		} else {
-			index = Z_LVAL_P(offset);
 			intern->next_empty_is_valid = 0;
 		}
 
