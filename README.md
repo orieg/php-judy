@@ -113,7 +113,7 @@ tests/       Unit tests.
 
  C. Mac OS X
 
-    *Install with Homebrew*
+## Install with Homebrew
 
    Install Homebrew Package Manager http://brew.sh/
    ```sh
@@ -132,14 +132,14 @@ tests/       Unit tests.
    brew install php53-judy
    ```
 
-    *PECL Install*
+## PECL Install
 
    Use pecl to install the PHP Judy extension :
    ```sh
    sudo pecl -d preferred_state=beta install Judy
    ```
 
-   *Manual install*
+## Manual install
 
    You will need to install the libJudy first. Download the sources at 
 
