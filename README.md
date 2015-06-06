@@ -90,7 +90,7 @@ tests/       Unit tests.
      build
 	  
    This creates "Judy.lib", copy this into the php-sdk library folder and name it 
- 
+
      libJudy.lib
 	 
    Then copy the include file "judy.h" into the php-sdk includes folder. Now its 
@@ -118,7 +118,7 @@ tests/       Unit tests.
    Install Homebrew Package Manager
    ```sh
     ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-    ```
+   ```
 
    Install homebrew-php
    ```sh
