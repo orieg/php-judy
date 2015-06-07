@@ -129,7 +129,7 @@ tests/       Unit tests.
 
    Install PHP Judy
    ```sh
-   brew install php53-judy
+   brew install php56-judy
    ```
 
 ### PECL Install
