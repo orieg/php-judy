@@ -174,23 +174,25 @@ You can use foreach() and the PHP array notation on all PHP Judy arrays.
   Bitset implementation is quite basic for now. It allow you to set a bunch of index
   setting the value to false will be the same than using unset().
 
+  ```php
     $bitset = new Judy(Judy::BITSET);
     $bitset[124] = true;
-    ...
  
     print $bitset[124]; // will print 1
  
     $bitset[124] = false; // is the same as unset($bitset[124])
+  ```
 
   B. INT_TO_INT
 
   This type let you create an array with key and value of integer, and integer only.
 
+  ```php
     $int2int = new Judy(Judy::INT_TO_INT);
     $int2int[125] = 17;
-    ...
 
     print $int2int[125]; // will print 17
+  ```
 
   C. INT_TO_MIXED
 
