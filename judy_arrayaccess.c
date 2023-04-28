@@ -25,11 +25,11 @@ PHP_METHOD(judy, offsetSet)
 {
 	zval *offset, *value;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zz", &offset, &value) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zz", &offset, &value) == FAILURE) {
 		RETURN_FALSE;
 	}
 
-	if (judy_object_write_dimension_helper(getThis(), offset, value TSRMLS_CC) == SUCCESS) {
+	if (judy_object_write_dimension_helper(getThis(), offset, value) == SUCCESS) {
 		RETURN_TRUE;
 	}
 	RETURN_FALSE;
@@ -42,11 +42,11 @@ PHP_METHOD(judy, offsetUnset)
 {
 	zval *offset;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &offset) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &offset) == FAILURE) {
 		RETURN_FALSE;
 	}
 
-	if (judy_object_unset_dimension_helper(getThis(), offset TSRMLS_CC) == SUCCESS) {
+	if (judy_object_unset_dimension_helper(getThis(), offset) == SUCCESS) {
 		RETURN_TRUE;
 	}
 	RETURN_FALSE;
@@ -57,17 +57,17 @@ PHP_METHOD(judy, offsetUnset)
    Fetch the given offset in the Judy Array */
 PHP_METHOD(judy, offsetGet)
 {
-	zval *offset, *result;
+	zval *offset, result, *result_ptr;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &offset) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &offset) == FAILURE) {
 		RETURN_FALSE;
 	}
 
-	result = judy_object_read_dimension_helper(getThis(), offset TSRMLS_CC);
-	if (!result) {
+	result_ptr = judy_object_read_dimension_helper(getThis(), offset, &result);
+	if (!result_ptr) {
 		RETURN_FALSE;
 	}
-	RETURN_ZVAL(result, 1, 0);
+	RETURN_ZVAL(&result, 1, 0);
 }
 /* }}} */
 
@@ -77,11 +77,11 @@ PHP_METHOD(judy, offsetExists)
 {
 	zval *offset;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &offset) == FAILURE) {
+	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &offset) == FAILURE) {
 		RETURN_FALSE;
 	}
 
-	if (judy_object_has_dimension_helper(getThis(), offset, 0 TSRMLS_CC)) {
+	if (judy_object_has_dimension_helper(getThis(), offset, 0)) {
 		RETURN_TRUE;
 	}
 	RETURN_FALSE;

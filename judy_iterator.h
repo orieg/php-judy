@@ -23,34 +23,29 @@
 
 #define JUDY_ITERATOR_GET_OBJECT \
 	judy_iterator 	*it = (judy_iterator*) iterator; \
-	zval			*intern = (zval*) it->intern.data; \
-	judy_object 	*object = (judy_object*) zend_object_store_get_object(intern TSRMLS_CC);
+	zval			*intern = (zval*) &it->intern.data; \
+	judy_object 	*object = php_judy_object(Z_OBJ_P(intern));
 
 /* {{{ judy_iterator
  define an overloaded structure */
 typedef struct {
 	zend_object_iterator	intern;
-	zval					*key;
-	zval					*data;
+	zval					key;
+	zval					data;
 } judy_iterator;
 /* }}} */
 
 /* judy_get_iterator */
-zend_object_iterator *judy_get_iterator(zend_class_entry *ce, zval *object, int by_ref TSRMLS_DC);
+zend_object_iterator *judy_get_iterator(zend_class_entry *ce, zval *object, int by_ref);
 
 /* {{{ judy iterator handlers
  */
-void judy_iterator_dtor(zend_object_iterator *iterator TSRMLS_DC);
-int judy_iterator_valid(zend_object_iterator *iterator TSRMLS_DC);
-void judy_iterator_current_data(zend_object_iterator *iterator,	zval ***data TSRMLS_DC);
-#if ZEND_MODULE_API_NO >= 20121212
-void judy_iterator_current_key(zend_object_iterator *iterator, zval *key TSRMLS_DC);
-#else
-int judy_iterator_current_key(zend_object_iterator *iterator,
-		char **str_key, uint *str_key_len, ulong *int_key TSRMLS_DC);
-#endif
-void judy_iterator_move_forward(zend_object_iterator *iterator TSRMLS_DC);
-void judy_iterator_rewind(zend_object_iterator *iterator TSRMLS_DC);
+void judy_iterator_dtor(zend_object_iterator *iterator);
+int judy_iterator_valid(zend_object_iterator *iterator);
+zval *judy_iterator_current_data(zend_object_iterator *iterator);
+void judy_iterator_current_key(zend_object_iterator *iterator, zval *key);
+void judy_iterator_move_forward(zend_object_iterator *iterator);
+void judy_iterator_rewind(zend_object_iterator *iterator);
 /* }}} */
 
 #endif /* JUDY_ITERATOR_H */

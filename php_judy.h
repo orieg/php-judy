@@ -63,27 +63,31 @@ typedef enum _judy_type {
                            && type != TYPE_INT_TO_MIXED \
                            && type != TYPE_STRING_TO_INT \
                            && type != TYPE_STRING_TO_MIXED) { \
-        php_error_docref(NULL TSRMLS_CC, E_WARNING, "Not a valid Judy type. Please check the documentation for valid Judy type constant."); \
+        php_error_docref(NULL, E_WARNING, "Not a valid Judy type. Please check the documentation for valid Judy type constant."); \
     } \
     jtype = type; \
 }
 
 #define JUDY_METHOD_ERROR_HANDLING \
     zend_error_handling error_handling; \
-    zend_replace_error_handling(EH_THROW, NULL, &error_handling TSRMLS_CC);
+    zend_replace_error_handling(EH_THROW, NULL, &error_handling);
 
 #define JUDY_METHOD_GET_OBJECT \
     zval *object = getThis(); \
-    judy_object *intern = (judy_object *) zend_object_store_get_object(object TSRMLS_CC);
+    judy_object *intern = php_judy_object(Z_OBJ_P(object));
 
 typedef struct _judy_object {
-	zend_object     std;
 	long            type;
 	Pvoid_t         array;
 	unsigned long   counter;
 	Word_t			next_empty;
 	zend_bool		next_empty_is_valid;
+	zend_object     std;
 } judy_object;
+
+static inline judy_object *php_judy_object(zend_object *obj) {
+	return (judy_object *)((char*)(obj) - XtOffsetOf(judy_object, std));
+}
 
 /* Max length, this must be a constant for it to work in
  * declarings as we cannot use runtime decided values at
@@ -93,17 +97,17 @@ typedef struct _judy_object {
  */
 #define PHP_JUDY_MAX_LENGTH 65536
 
-zend_object_value judy_object_new(zend_class_entry *ce TSRMLS_DC);
-zend_object_value judy_object_new_ex(zend_class_entry *ce, judy_object **ptr TSRMLS_DC);
+zend_object *judy_object_new(zend_class_entry *ce);
+zend_object *judy_object_new_ex(zend_class_entry *ce, judy_object **ptr);
 
-zval *judy_object_read_dimension_helper(zval *object, zval *offset TSRMLS_DC);
-int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value TSRMLS_DC);
-int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty TSRMLS_DC);
-int judy_object_unset_dimension_helper(zval *object, zval *offset TSRMLS_DC);
+zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv);
+int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value);
+int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty);
+int judy_object_unset_dimension_helper(zval *object, zval *offset);
 
 /* {{{ REGISTER_JUDY_CLASS_CONST_LONG */
 #define REGISTER_JUDY_CLASS_CONST_LONG(const_name, value) \
-    zend_declare_class_constant_long(judy_ce, const_name, sizeof(const_name)-1, (long) value TSRMLS_CC);
+    zend_declare_class_constant_long(judy_ce, const_name, sizeof(const_name)-1, (long) value);
 /* }}} */
 
 ZEND_BEGIN_MODULE_GLOBALS(judy)

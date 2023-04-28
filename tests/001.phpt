@@ -5,7 +5,7 @@ Check for Judy presence
 --FILE--
 <?php 
 echo "judy extension is available\n";
-judy_version();
+echo judy_version();
 /*
 	you can add regression tests for your extension here
 
@@ -20,4 +20,4 @@ judy_version();
 ?>
 --EXPECT--
 judy extension is available
-PHP Judy Version: 1.0.2
+1.0.2
