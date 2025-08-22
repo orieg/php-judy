@@ -14,8 +14,8 @@ $judy[125]  = 17;
 $judy[521]  = 71; 
 
 echo "echo values\n";
-echo "${judy[125]}\n";
-echo "${judy[521]}\n";
+echo "{$judy[125]}\n";
+echo "{$judy[521]}\n";
 
 echo "var_dump(\$judy)\n";
 var_dump($judy);

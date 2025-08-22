@@ -23,8 +23,7 @@
 #include "zend_exceptions.h"
 #include "zend_interfaces.h"
 
-zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC);
-int judy_object_count(zval *object, long *count TSRMLS_DC);
+zend_object *judy_object_clone(zend_object *this_ptr);
 
 #endif /* JUDY_HANDLERS_H */
 

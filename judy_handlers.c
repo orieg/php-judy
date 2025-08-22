@@ -19,35 +19,19 @@
 #include "php_judy.h"
 #include "judy_handlers.h"
 
-/* {{{ judy_object_count
-*/
-int judy_object_count(zval *object, long *count TSRMLS_DC)
-{
-	zval *rv;
-
-	/* calling the object's count() method */
-	zend_call_method_with_0_params(&object, NULL, NULL, "count", &rv);
-	*count = Z_LVAL_P(rv);
-
-	/* destruct the zval returned value */
-	zval_ptr_dtor(&rv);
-
-	return SUCCESS;
-}
-/* }}} */
-
 /* {{{ judy_object_clone
 */
-zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
+zend_object *judy_object_clone(zend_object *this_ptr)
 {
 	judy_object *new_obj = NULL;
-	judy_object *old_obj = (judy_object *) zend_object_store_get_object(this_ptr TSRMLS_CC);
-	zend_object_value new_ov = judy_object_new_ex(old_obj->std.ce, &new_obj TSRMLS_CC);
+	judy_object *old_obj = php_judy_object(this_ptr);
+
+	judy_object_new_ex(old_obj->std.ce, &new_obj);
 
 	/* new Judy array to populate */
 	Pvoid_t newJArray = (Pvoid_t) NULL;
 
-	zend_objects_clone_members(&new_obj->std, new_ov, &old_obj->std, Z_OBJ_HANDLE_P(this_ptr) TSRMLS_CC);
+	zend_objects_clone_members(&new_obj->std, &old_obj->std);
 
 	if (old_obj->type == TYPE_BITSET) {
 		/* Cloning Judy1 Array */
@@ -71,10 +55,10 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
 		Word_t kindex = 0;
 
 		/* Pointer to the old value */
-		Word_t *PValue;
+		Pvoid_t *PValue;
 
 		/* Pointer to the new value */
-		Word_t *newPValue;
+		Pvoid_t *newPValue;
 
 		JLF(PValue, old_obj->array, kindex);
 		while(PValue != NULL && PValue != PJERR)
@@ -82,8 +66,11 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
 			JLI(newPValue, newJArray, kindex);
 			if (newPValue != NULL && newPValue != PJERR) {
 				*newPValue = *PValue;
-				if (old_obj->type == TYPE_INT_TO_MIXED)
-					Z_ADDREF_P(*(zval **)PValue);
+				if (old_obj->type == TYPE_INT_TO_MIXED) {
+					zval *value = ecalloc(1, sizeof(zval));
+					ZVAL_DUP(value, *(zval **)PValue);
+					*newPValue = value;
+				}
 			}
 			JLN(PValue, old_obj->array, kindex)
 		}
@@ -94,10 +81,10 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
 		uint8_t kindex[PHP_JUDY_MAX_LENGTH];
 
 		/* Pointer to the old value */
-		Word_t *PValue;
+		Pvoid_t *PValue;
 
 		/* Pointer to the new value */
-		Word_t *newPValue;
+		Pvoid_t *newPValue;
 
 		/* smallest string is a null-terminated character */
 		kindex[0] = '\0';
@@ -108,8 +95,11 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
 			JSLI(newPValue, newJArray, kindex);
 			if (newPValue != NULL && newPValue != PJERR) {
 				*newPValue = *PValue;
-				if (old_obj->type == TYPE_STRING_TO_MIXED)
-					Z_ADDREF_P(*(zval **)PValue);
+				if (old_obj->type == TYPE_STRING_TO_MIXED) {
+					zval *value = ecalloc(1, sizeof(zval));
+					ZVAL_DUP(value, *(zval **)PValue);
+					*newPValue = value;
+				}
 			}
 			JSLN(PValue, old_obj->array, kindex)
 		}
@@ -118,7 +108,7 @@ zend_object_value judy_object_clone(zval *this_ptr TSRMLS_DC)
 	new_obj->array = newJArray;
 	new_obj->type = old_obj->type;
 
-	return new_ov;
+	return &new_obj->std;
 }
 /* }}} */
 
