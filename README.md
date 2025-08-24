@@ -14,7 +14,7 @@ Content
 1. INTRODUCTION
 -----------------
 
-php-judy is an extension by Nicolas Brousse for the Judy C library.
+php-judy is an extension by Nicolas Brousse for the Judy C library. It is compatible with PHP 8.0 and newer.
   -> http://pecl.php.net/package/Judy
   -> http://github.com/orieg/php-judy
 
@@ -115,35 +115,19 @@ tests/       Unit tests.
 
 ## C. Mac OS X
 
-### Install with Homebrew
+The recommended way to install `php-judy` on Mac OS X is by using `pecl`. You will need to have the Judy C library installed first, which can be done easily with Homebrew.
 
-   Install Homebrew Package Manager http://brew.sh/
    ```sh
-    ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-   ```
+   # First, install the Judy C library
+   brew install judy
 
-   Install homebrew-php
-   ```sh
-   brew tap homebrew/dupes
-   brew tap homebrew/versions
-   brew tap homebrew/homebrew-php
-   ```
-
-   Install PHP Judy
-   ```sh
-   brew install php56-judy
-   ```
-
-### PECL Install
-
-   Use pecl to install the PHP Judy extension :
-   ```sh
-   sudo pecl -d preferred_state=beta install Judy
+   # Then, install the extension with pecl
+   pecl install judy
    ```
 
 ### Manual install
 
-   You will need to install the libJudy first. Download the sources at 
+   If you prefer to compile from source, you will need to install the libJudy first. Download the sources at 
 
      http://sourceforge.net/projects/judy/
 	  
