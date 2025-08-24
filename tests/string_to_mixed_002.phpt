@@ -18,7 +18,7 @@ for ($i=0; $i<100; $i++) {
 
 // Size
 
-echo "Size: ".$judy->size()."\n";
+echo "Size Method: ".$judy->size()."\n";
 echo "Count Method: ".$judy->count()."\n";
 echo "Count Function: ".count($judy)."\n";
 
@@ -26,7 +26,7 @@ unset($judy["50"]);
 if (!$judy["50"])
     echo "Delete index 50\n";
 
-echo "Size: ".$judy->size()."\n";
+echo "Size Method: ".$judy->size()."\n";
 echo "Count Method: ".$judy->count()."\n";
 echo "Count Function: ".count($judy)."\n";
 
@@ -38,18 +38,20 @@ else
     echo "Freeing Judy array\n";
 
 echo "Size: ".$judy->size()."\n";
+echo "Count: ".$judy->count()."\n";
 
 echo "Done\n";
 ?>
 --EXPECT--
 Insert 100 index with a rand value
-Size: 100
+Size Method: 100
 Count Method: 100
 Count Function: 100
 Delete index 50
-Size: 99
+Size Method: 99
 Count Method: 99
 Count Function: 99
 Freeing Judy array
 Size: 0
+Count: 0
 Done

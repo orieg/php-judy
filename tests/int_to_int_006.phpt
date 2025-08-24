@@ -14,13 +14,13 @@ $judy[-1] = -17;
 if ($judy[2] == -17)
     echo "\$judy[-1] set value for latest index, ie \$judy[2]\n";
 else
-    echo "\$judy[2] should be equal to -17 but got ${judy[2]}\n";
+    echo "\$judy[2] should be equal to -17 but got {$judy[2]}\n";
 
 $judy[2] = -12;
 if ($judy[2] == -12)
     echo "\$judy[2] has been reset to -12\n";
 else
-    echo "\$judy[2] should be equal to -12 but got ${judy[2]}\n";
+    echo "\$judy[2] should be equal to -12 but got {$judy[2]}\n";
 
 $judy[3] = 8;
 $judy[4] = -19;
