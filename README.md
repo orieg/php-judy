@@ -36,6 +36,8 @@ access at 256 X population.
 
   -> http://judy.sourceforge.net
 
+For a detailed performance comparison with native PHP arrays, please see the [BENCHMARK.md](BENCHMARK.md) file.
+
 2. PHP JUDY TOP DIRECTORY CONTENTS:
 ------------------------------------
 
