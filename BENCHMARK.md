@@ -86,10 +86,11 @@ Based on these results, the guidance is clear:
 
 ## Running the Benchmarks
 
-To run the benchmarks yourself:
+### Quick Benchmarks (Single Run)
+For quick performance checks:
 
 ```bash
-# Run all benchmarks
+# Run all benchmarks (single iteration)
 php examples/run-benchmarks.php
 
 # Run individual benchmark types
@@ -97,5 +98,49 @@ php examples/judy-bench-int_to_int.php
 php examples/judy-bench-string_to_int.php
 php examples/judy-bench-bitset.php
 ```
+
+### Robust Benchmarks (Multiple Iterations)
+For statistically significant results with variance analysis:
+
+```bash
+# Run robust benchmarks with 20 iterations (default)
+php examples/run-benchmarks-robust.php
+
+# Run with custom number of iterations
+php examples/run-benchmarks-robust.php 50
+
+# Run with custom memory limit
+php examples/run-benchmarks-robust.php 20 8G
+
+# Generate JSON output for analysis
+php examples/run-benchmarks-robust.php 20 4G json
+
+# Generate both text and JSON output
+php examples/run-benchmarks-robust.php 20 4G both
+```
+
+### Robust Benchmark Features
+
+The robust benchmark system provides:
+
+- **Multiple Iterations**: Configurable number of runs (default: 20)
+- **Statistical Measures**: Min, max, median, mean, 95th percentile, 99th percentile, standard deviation
+- **Variance Analysis**: Understand performance consistency and outliers
+- **JSON Output**: Machine-readable results for further analysis
+- **Memory Tracking**: Accurate memory usage measurements across iterations
+- **Garbage Collection**: Proper cleanup between iterations
+
+### Benchmark Methodology
+
+**Single-Run Benchmarks:**
+- Quick performance assessment
+- Suitable for development and testing
+- Results may vary due to system load and caching
+
+**Robust Benchmarks:**
+- Statistically significant results
+- Accounts for system variance and outliers
+- Provides confidence intervals through percentiles
+- Recommended for production performance analysis
 
 The benchmarks use Docker for consistent results across different environments.
