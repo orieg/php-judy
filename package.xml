@@ -18,10 +18,10 @@
    - php_judy.h for PHP_JUDY_VERSION
    - tests/001.phpt
 -->
- <date>2013-11-03</date>
+ <date>2025-08-24</date>
  <version>
-  <release>1.0.2</release>
-  <api>1.0.0</api>
+  <release>2.0.0</release>
+  <api>2.0.0</api>
  </version>
  <stability>
   <release>stable</release>
@@ -29,8 +29,12 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-- Bug fix with count/size, see https://github.com/orieg/php-judy/issues/15
-- Add missing test files in package.xml
+- Added compatibility for PHP 8.0 and newer.
+- Dropped support for PHP versions older than 8.0 (Breaking Change).
+- Added a comprehensive benchmark suite (`examples/run-benchmarks.php`) to test realistic workloads.
+- Added a `BENCHMARK.md` file with detailed performance results and recommendations.
+- Added a `Dockerfile` to provide a consistent development and testing environment.
+- Updated `README.md` with modern installation instructions and a link to the benchmark results.
  </notes>
  <contents>
   <dir name="/">
@@ -39,6 +43,9 @@
     <file role="doc" name="judy-bench-int_to_int.php"/>
     <file role="doc" name="judy-bench-string_to_int.php"/>
     <file role="doc" name="judy.php"/>
+    <file role="doc" name="run-benchmarks.php"/>
+    <file role="doc" name="judy-bench-realistic-php-array.php"/>
+    <file role="doc" name="judy-bench-realistic-judy.php"/>
    </dir>
    <dir name="tests">
     <file role="test" name="001.phpt"/>
@@ -99,14 +106,16 @@
    <file role="src" name="php_judy.c"/>
    <file role="src" name="php_judy.h"/>
    <file role="doc" name="LICENSE" />
-   <file role="doc" name="README" />
+   <file role="doc" name="README.md" />
    <file role="doc" name="CREDITS" />
+   <file role="doc" name="BENCHMARK.md" />
+   <file role="doc" name="Dockerfile" />
   </dir>
  </contents>
  <dependencies>
   <required>
    <php>
-    <min>5.3.0</min>
+    <min>8.0.0</min>
    </php>
    <pearinstaller>
     <min>1.4.8</min>
@@ -118,6 +127,40 @@
   <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2025-08-24</date>
+   <version>
+    <release>2.0.0</release>
+    <api>2.0.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <notes>
+- Added compatibility for PHP 8.0 and newer.
+- Dropped support for PHP versions older than 8.0 (Breaking Change).
+- Added a comprehensive benchmark suite (`examples/run-benchmarks.php`) to test realistic workloads.
+- Added a `BENCHMARK.md` file with detailed performance results and recommendations.
+- Added a `Dockerfile` to provide a consistent development and testing environment.
+- Updated `README.md` with modern installation instructions and a link to the benchmark results.
+   </notes>
+  </release>
+  <release>
+   <date>2013-11-03</date>
+   <version>
+    <release>1.0.2</release>
+    <api>1.0.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <notes>
+- Bug fix with count/size, see https://github.com/orieg/php-judy/issues/15
+- Add missing test files in package.xml
+   </notes>
+  </release>
   <release>
    <date>2013-10-20</date>
    <version>

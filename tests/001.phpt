@@ -4,20 +4,18 @@ Check for Judy presence
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php 
-echo "judy extension is available\n";
-echo judy_version();
-/*
-	you can add regression tests for your extension here
+echo "judy extension is available";
+$version = judy_version();
+var_dump($version);
 
-  the output of your test code has to be equal to the
-  text in the --EXPECT-- section below for the tests
-  to pass, differences between the output and the
-  expected text are interpreted as failure
+// judy_version() is an alias of phpversion('judy')
+var_dump(phpversion('judy'));
 
-	see php5/README.TESTING for further information on
-  writing regression tests
-*/
+// Test constant
+var_dump(JUDY_VERSION);
 ?>
---EXPECT--
+--EXPECTF--
 judy extension is available
-1.0.2
+string(5) "2.0.0"
+string(5) "2.0.0"
+string(5) "2.0.0"
