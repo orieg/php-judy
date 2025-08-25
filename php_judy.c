@@ -1051,11 +1051,10 @@ PHP_METHOD(judy, rewind)
 		Pvoid_t          *PValue = NULL;
 
 		JLF(PValue, intern->array, index);
-		zval_dtor(&intern->iterator_key);
-		ZVAL_LONG(&intern->iterator_key, index);
-
-		JLG(PValue, intern->array, index);
 		if (PValue != NULL && PValue != PJERR) {
+			zval_dtor(&intern->iterator_key);
+			ZVAL_LONG(&intern->iterator_key, index);
+
 			if (intern->type == TYPE_INT_TO_INT) {
 				ZVAL_LONG(&intern->iterator_data, (long)*PValue);
 			} else {
@@ -1063,6 +1062,10 @@ PHP_METHOD(judy, rewind)
 				ZVAL_COPY(&intern->iterator_data, value);
 			}
 			intern->iterator_initialized = 1;
+		} else {
+			ZVAL_UNDEF(&intern->iterator_key);
+			ZVAL_UNDEF(&intern->iterator_data);
+			intern->iterator_initialized = 0;
 		}
 
 	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
