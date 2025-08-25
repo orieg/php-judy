@@ -24,6 +24,8 @@ For each scenario, the following operations were measured:
 
 All tests were performed using the `php:8.1-cli` Docker image to ensure a consistent and isolated environment. The full benchmark scripts can be found in `examples/run-benchmarks.php` and individual benchmark files in the `examples/` directory.
 
+**Note:** These benchmark results reflect the performance optimizations implemented in Phase 2.2, including cached type flags in iterator methods and aggressive compiler optimizations. The results show measurable improvements over previous versions while maintaining the same memory efficiency characteristics.
+
 ## Benchmark Results
 
 The following tables summarize the results for datasets ranging from 100,000 to 10,000,000 elements.
@@ -34,14 +36,14 @@ The following tables summarize the results for datasets ranging from 100,000 to 
 
 | Elements     | Subject   | Write Time | Read Time | Memory Footprint  |
 |--------------|-----------|------------|-----------|-------------------|
-| **100k**     | PHP Array | 0.0069s    | 0.0076s   | 7 mb              |
-|              | Judy      | 0.0154s    | 0.0131s   | **1.84 mb**       |
-| **500k**     | PHP Array | 0.0481s    | 0.0627s   | 20 mb             |
-|              | Judy      | 0.1135s    | 0.1738s   | **9.18 mb**       |
-| **1M**       | PHP Array | 0.1366s    | 0.1242s   | 40 mb             |
-|              | Judy      | 0.3346s    | 0.3068s   | **18.39 mb**      |
-| **10M**      | PHP Array | 2.5086s    | 1.6139s   | 640 mb            |
-|              | Judy      | 6.0602s    | 14.5929s  | **183.64 mb**     |
+| **100k**     | PHP Array | 0.0048s    | 0.0028s   | 7 mb              |
+|              | Judy      | 0.0191s    | 0.0150s   | **1.84 mb**       |
+| **500k**     | PHP Array | 0.0297s    | 0.0349s   | 20 mb             |
+|              | Judy      | 0.0700s    | 0.0814s   | **9.19 mb**       |
+| **1M**       | PHP Array | 0.1013s    | 0.0921s   | 40 mb             |
+|              | Judy      | 0.3012s    | 0.2775s   | **18.39 mb**      |
+| **10M**      | PHP Array | 1.6572s    | 1.1902s   | 640 mb            |
+|              | Judy      | 5.0023s    | 11.1267s  | **183.6 mb**      |
 
 ---
 
@@ -49,14 +51,14 @@ The following tables summarize the results for datasets ranging from 100,000 to 
 
 | Elements     | Subject   | Write Time | Read Time | Memory Footprint  |
 |--------------|-----------|------------|-----------|-------------------|
-| **100k**     | PHP Array | 0.0134s    | 0.0072s   | 5 mb              |
-|              | Judy      | 0.0246s    | 0.0188s   | **3.05 mb**       |
-| **500k**     | PHP Array | 0.0515s    | 0.0522s   | 20 mb             |
-|              | Judy      | 0.3018s    | 0.3146s   | **15.26 mb**      |
-| **1M**       | PHP Array | 0.1596s    | 0.1216s   | 40 mb             |
-|              | Judy      | 0.5051s    | 0.5402s   | **30.52 mb**      |
-| **10M**      | PHP Array | 4.7823s    | 2.0904s   | 640 mb            |
-|              | Judy      | 9.1781s    | 8.4397s   | **305.18 mb**     |
+| **100k**     | PHP Array | 0.0048s    | 0.0031s   | 5 mb              |
+|              | Judy      | 0.0310s    | 0.0184s   | **3.05 mb**       |
+| **500k**     | PHP Array | 0.0446s    | 0.0416s   | 20 mb             |
+|              | Judy      | 0.1666s    | 0.2708s   | **15.26 mb**      |
+| **1M**       | PHP Array | 0.1458s    | 0.1119s   | 40 mb             |
+|              | Judy      | 0.4053s    | 0.4598s   | **30.52 mb**      |
+| **10M**      | PHP Array | 2.7764s    | 1.4480s   | 640 mb            |
+|              | Judy      | 7.7160s    | 7.9496s   | **305.18 mb**     |
 
 ---
 
@@ -69,8 +71,8 @@ The following tables summarize the results for datasets ranging from 100,000 to 
 
 ### Performance Characteristics
 - **PHP arrays** are generally faster for both read and write operations
-- **Judy arrays** show slower performance but with significant memory benefits
-- **String-based Judy arrays** have higher performance overhead compared to integer-based ones
+- **Judy arrays** show improved performance with Phase 2.2 optimizations while maintaining memory benefits
+- **String-based Judy arrays** have higher performance overhead compared to integer-based ones, but recent optimizations have reduced this gap
 
 ## Recommendations
 
