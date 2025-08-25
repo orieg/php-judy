@@ -1,0 +1,28 @@
+{
+    "name": "orieg/judy",
+    "type": "php-ext",
+    "description": "PHP Judy implements sparse dynamic arrays (aka Judy Arrays).",
+    "license": "PHP-3.01",
+    "homepage": "https://github.com/orieg/judy",
+    "authors": [
+        {
+            "name": "Nicolas Brousse",
+            "email": "nicolas@brousse.info",
+            "homepage": "https://nicolas.brousse.info",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=8.0.0"
+    },
+    "php-ext": {
+        "extension-name": "judy",
+        "configure-options": [
+            {
+                "name": "with-judy",
+                "description": "Specify the path to the libJudy installation prefix",
+                "needs-value": true
+            }
+        ]
+    }
+}
