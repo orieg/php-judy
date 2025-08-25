@@ -33,9 +33,14 @@
 - **NEW FEATURE**: Implemented proper Iterator interface support (rewind, valid, current, key, next methods)
 - **NEW FEATURE**: Added support for SPL iterators (LimitIterator, FilterIterator, etc.)
 - **IMPROVEMENT**: Enhanced benchmark examples with accurate memory measurements
-- **IMPROVEMENT**: Updated BENCHMARK.md with current results and improved methodology
-- **FIX**: All 53 tests now pass (100% success rate)
+- **IMPROVEMENT**: Updated BENCHMARK.md with comprehensive design explanations and performance analysis
+- **IMPROVEMENT**: Added comprehensive benchmark suite with statistical analysis
+- **IMPROVEMENT**: Fixed iterator performance analysis and methodology
+- **FIX**: All tests now pass (100% success rate)
 - **FIX**: Improved memory measurement reliability across different environments
+- **FIX**: Fixed critical iterator bugs (next, rewind, valid methods)
+- **DOCUMENTATION**: Added O(log n) vs O(1) complexity explanations
+- **DOCUMENTATION**: Enhanced benchmark methodology with environment details
  </notes>
  <contents>
   <dir name="/">
@@ -47,6 +52,15 @@
     <file role="doc" name="run-benchmarks.php"/>
     <file role="doc" name="judy-bench-realistic-php-array.php"/>
     <file role="doc" name="judy-bench-realistic-judy.php"/>
+    <file role="doc" name="benchmark_ordered_data.php"/>
+    <file role="doc" name="benchmark_range_queries.php"/>
+    <file role="doc" name="benchmark_real_world_patterns.php"/>
+    <file role="doc" name="run_comprehensive_benchmarks.php"/>
+    <file role="doc" name="debug_iterator_performance.php"/>
+    <file role="doc" name="iterator-vs-sequential-test.php"/>
+    <file role="doc" name="judy-read-performance-test.php"/>
+    <file role="doc" name="run-benchmarks-robust.php"/>
+    <file role="doc" name="iterator_performance_analysis.md"/>
    </dir>
    <dir name="tests">
     <file role="test" name="001.phpt"/>
@@ -96,6 +110,16 @@
     <file role="test" name="string_to_mixed_003.phpt"/>
     <file role="test" name="string_to_mixed_004.phpt"/>
     <file role="test" name="iterator_interface_001.phpt"/>
+    <file role="test" name="iterator_methods_simple_001.phpt"/>
+    <file role="test" name="iterator_methods_individual_001.phpt"/>
+    <file role="test" name="iterator_next_bug_fix_001.phpt"/>
+    <file role="test" name="iterator_segfault_fix_001.phpt"/>
+    <file role="test" name="iterator_rewind_bug_fix_001.phpt"/>
+    <file role="test" name="iterator_next_invalid_behavior_001.phpt"/>
+    <file role="test" name="iterator_rewind_empty_bitset_001.phpt"/>
+    <file role="test" name="iterator_valid_performance_001.phpt"/>
+    <file role="test" name="foreach_iterator_int_to_int_001.phpt"/>
+    <file role="test" name="foreach_iterator_int_to_mixed_001.phpt"/>
    </dir>
    <file role="src" name="config.m4"/>
    <file role="src" name="config.w32"/>
@@ -145,9 +169,14 @@
 - **NEW FEATURE**: Implemented proper Iterator interface support (rewind, valid, current, key, next methods)
 - **NEW FEATURE**: Added support for SPL iterators (LimitIterator, FilterIterator, etc.)
 - **IMPROVEMENT**: Enhanced benchmark examples with accurate memory measurements
-- **IMPROVEMENT**: Updated BENCHMARK.md with current results and improved methodology
-- **FIX**: All 53 tests now pass (100% success rate)
+- **IMPROVEMENT**: Updated BENCHMARK.md with comprehensive design explanations and performance analysis
+- **IMPROVEMENT**: Added comprehensive benchmark suite with statistical analysis
+- **IMPROVEMENT**: Fixed iterator performance analysis and methodology
+- **FIX**: All tests now pass (100% success rate)
 - **FIX**: Improved memory measurement reliability across different environments
+- **FIX**: Fixed critical iterator bugs (next, rewind, valid methods)
+- **DOCUMENTATION**: Added O(log n) vs O(1) complexity explanations
+- **DOCUMENTATION**: Enhanced benchmark methodology with environment details
    </notes>
   </release>
   <release>
