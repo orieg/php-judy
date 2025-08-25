@@ -232,3 +232,50 @@ If you encounter a bug, please submit it via the bug tracker on Git Hub:
 
  * Implements comparator and cast handler
  * Add bitset comparator (cf. Judy1Op sample)
+
+
+7. DEVELOPMENT AND RELEASE PROCESS
+---------------------------------
+
+This section outlines the process for preparing and publishing a new release of the `php-judy` extension to PECL.
+
+### Step 1: Update Version Numbers
+
+Before creating a new release, the version number must be updated in three key places:
+
+1.  **`php_judy.h`**: Update the `PHP_JUDY_VERSION` macro.
+2.  **`tests/001.phpt`**: Update the expected version number in the `--EXPECTF--` section.
+3.  **`package.xml`**: Update the `<release>` and `<api>` tags in the `<version>` block at the top of the file.
+
+### Step 2: Update `package.xml`
+
+This is the manifest for the PECL package and must be carefully updated.
+
+1.  **Date:** Update the `<date>` tag to the current release date.
+2.  **PHP Dependency:** Ensure the minimum required PHP version in `<dependencies><required><php><min>` is correct. For version 2.0.0 and newer, this should be `8.0.0`.
+3.  **File List (`<contents>`):** Manually add any new files to the `<contents>` section. This includes new source files, tests, documentation (`BENCHMARK.md`), or tooling (`Dockerfile`, `Dockerfile.validate`).
+4.  **Changelog:** Add a new `<release>` block to the *top* of the `<changelog>` section. This should contain the new version number, date, and a `<notes>` section with a bulleted list of the changes in this release. The top-level `<notes>` section of the `package.xml` should be identical to the notes in this new changelog entry.
+
+### Step 3: Build the PECL Package
+
+The `.tgz` package for PECL is built using the Docker container to ensure a consistent environment.
+
+   ```sh
+   # Build the PECL .tgz package
+   docker run -v $(pwd):/usr/src/php-judy -w /usr/src/php-judy --rm php-judy-test pecl package
+   ```
+   This command will generate a versioned `.tgz` file (e.g., `Judy-2.0.0.tgz`) in the project root.
+
+### Step 4: Validate the Package
+
+Before publishing, validate that the generated package can be installed in a clean environment. This is done using the `Dockerfile.validate` file.
+
+   ```sh
+   # Build the validation Docker image
+   docker build -f Dockerfile.validate -t judy-validation-test .
+   ```
+   A successful build of this image confirms that the package is valid and installable.
+
+### Step 5: Publish
+
+After validating the package, the final step is to upload the generated `.tgz` file to the PECL website through the maintainer interface.
