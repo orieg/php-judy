@@ -28,70 +28,21 @@ jobs:
         architecture: ${{ matrix.arch }}
         threadsafe: ${{ matrix.ts == 'ts' }}
 
-    - name: Install dependencies
+    - name: Create package structure
       run: |
-        # Install Visual Studio Build Tools
-        choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
-        
-        # Install Judy library (if available) or build from source
-        # For now, we'll need to build Judy from source on Windows
-        
-        # Set environment variables for Visual Studio
-        echo "Setting up Visual Studio environment..."
-        $env:Path = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\bin\Hostx64\x64;$env:Path"
-        $env:INCLUDE = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include;$env:INCLUDE"
-        $env:LIB = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\lib\x64;$env:LIB"
-
-    - name: Build Judy library
-      run: |
-        # Download and build Judy library
-        $judyVersion = "1.0.5"
-        $judyUrl = "https://sourceforge.net/projects/judy/files/Judy/Judy-$judyVersion/Judy-$judyVersion.tar.gz/download"
-        $judyArchive = "judy-$judyVersion.tar.gz"
-        $judyDir = "judy-$judyVersion"
-        
-        # Download Judy
-        Invoke-WebRequest -Uri $judyUrl -OutFile $judyArchive
-        
-        # Extract (we'll need to handle this differently on Windows)
-        # For now, we'll assume Judy is pre-built or use a different approach
-        
-        Write-Host "Judy library setup completed"
-
-    - name: Build PHP extension
-      run: |
-        # Navigate to the extension directory
-        cd ${{ github.workspace }}
-        
-        # Run phpize
-        phpize
-        
-        # Configure with Judy
-        ./configure --with-judy=shared
-        
-        # Build the extension
-        nmake
-        
-        # Run tests
-        nmake test
-        
-        Write-Host "Extension build completed"
-
-    - name: Create package directory
-      run: |
-        # Create the expected directory structure
+        # Create the expected directory structure for PHP Windows Builder
         $packageDir = "test-package\judy-2.2.0"
         New-Item -ItemType Directory -Path $packageDir -Force
         
-        # Copy necessary files
-        Copy-Item -Path "*.c" -Destination $packageDir -Force
-        Copy-Item -Path "*.h" -Destination $packageDir -Force
-        Copy-Item -Path "*.m4" -Destination $packageDir -Force
-        Copy-Item -Path "*.xml" -Destination $packageDir -Force
-        Copy-Item -Path "*.md" -Destination $packageDir -Force
-        Copy-Item -Path "LICENSE" -Destination $packageDir -Force
-        Copy-Item -Path "CREDITS" -Destination $packageDir -Force
-        Copy-Item -Path "Dockerfile" -Destination $packageDir -Force
+        # Copy source files
+        Copy-Item -Path "*.c" -Destination $packageDir -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path "*.h" -Destination $packageDir -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path "*.m4" -Destination $packageDir -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path "*.xml" -Destination $packageDir -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path "*.md" -Destination $packageDir -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path "LICENSE" -Destination $packageDir -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path "CREDITS" -Destination $packageDir -Force -ErrorAction SilentlyContinue
+        Copy-Item -Path "Dockerfile" -Destination $packageDir -Force -ErrorAction SilentlyContinue
         
         # Copy directories
         if (Test-Path "examples") {
@@ -106,6 +57,13 @@ jobs:
         
         Write-Host "Package directory created: $packageDir"
         Get-ChildItem -Path $packageDir -Recurse | Select-Object Name, FullName
+
+    - name: Build the extension
+      uses: php/php-windows-builder/extension@v1
+      with:
+        php-version: ${{ matrix.php-version }}
+        arch: ${{ matrix.arch }}
+        ts: ${{ matrix.ts }}
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
