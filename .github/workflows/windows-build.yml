@@ -28,21 +28,44 @@ jobs:
         $arch = "${{ matrix.arch }}"
         $ts = "${{ matrix.ts }}"
         
-        # Construct download URL for PHP development package
-        $downloadUrl = "https://windows.php.net/downloads/releases/php-$phpVersion-Win32-vc15-$arch.zip"
-        $devUrl = "https://windows.php.net/downloads/releases/devel/php-$phpVersion-devel-Win32-vc15-$arch.zip"
+        # Use the correct PHP development package URLs
+        # For PHP 8.x, we need to use the correct version format
+        $phpVersionFormatted = $phpVersion -replace '\.', ''
         
-        Write-Host "Downloading PHP development package for version $phpVersion..."
-        Write-Host "Download URL: $devUrl"
+        # Try different URL patterns for PHP development packages
+        $devUrls = @(
+          "https://windows.php.net/downloads/releases/php-$phpVersion-Win32-vc15-$arch.zip",
+          "https://windows.php.net/downloads/releases/php-$phpVersion-Win32-vc16-$arch.zip",
+          "https://windows.php.net/downloads/releases/php-$phpVersion-Win32-vc17-$arch.zip"
+        )
         
-        # Create PHP directory
+        Write-Host "Trying to download PHP development package for version $phpVersion..."
+        
         $phpDir = "C:\php"
         New-Item -ItemType Directory -Path $phpDir -Force
         
-        # Download and extract PHP development package
-        $devZip = "php-dev.zip"
-        Invoke-WebRequest -Uri $devUrl -OutFile $devZip
-        Expand-Archive -Path $devZip -DestinationPath $phpDir -Force
+        $success = $false
+        foreach ($devUrl in $devUrls) {
+          Write-Host "Trying URL: $devUrl"
+          try {
+            $devZip = "php-dev.zip"
+            Invoke-WebRequest -Uri $devUrl -OutFile $devZip -TimeoutSec 30
+            Expand-Archive -Path $devZip -DestinationPath $phpDir -Force
+            $success = $true
+            Write-Host "Successfully downloaded and extracted PHP from: $devUrl"
+            break
+          } catch {
+            Write-Host "Failed to download from: $devUrl"
+            Write-Host "Error: $($_.Exception.Message)"
+          }
+        }
+        
+        if (-not $success) {
+          Write-Host "Failed to download PHP development package from all URLs"
+          Write-Host "Available files in PHP directory:"
+          Get-ChildItem $phpDir | Select-Object Name
+          exit 1
+        }
         
         # Add PHP to PATH
         $env:Path = "$phpDir;$env:Path"
