@@ -58,3 +58,4 @@ jobs:
       with:
         release: ${{ github.event.release.tag_name }}
         token: ${{ secrets.GITHUB_TOKEN }}
+# Test commit to trigger Windows build workflow
