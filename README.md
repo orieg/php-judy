@@ -3,6 +3,7 @@
 **PHP Judy** - Extension for creating and accessing dynamic arrays
 
 [![PECL](https://img.shields.io/badge/PECL-Judy-blue.svg)](https://pecl.php.net/package/Judy)
+[![Packagist](https://img.shields.io/badge/Packagist-orieg/judy-orange.svg)](https://packagist.org/packages/orieg/judy)
 [![PHP Version](https://img.shields.io/badge/PHP-8.0+-green.svg)](https://php.net)
 [![License](https://img.shields.io/badge/License-PHP-blue.svg)](LICENSE)
 
@@ -20,6 +21,7 @@
 **php-judy** is an extension by Nicolas Brousse for the Judy C library. It is compatible with PHP 8.0 and newer.
 
 - **PECL Package**: [http://pecl.php.net/package/Judy](http://pecl.php.net/package/Judy)
+- **Packagist Package**: [https://packagist.org/packages/orieg/judy](https://packagist.org/packages/orieg/judy)
 - **GitHub Repository**: [http://github.com/orieg/php-judy](http://github.com/orieg/php-judy)
 
 A Judy array is a complex but very fast associative array data structure for storing and looking up values using integer or string keys. Unlike normal arrays, Judy arrays may be sparse; that is, they may have large ranges of unassigned indices.
