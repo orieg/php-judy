@@ -76,6 +76,11 @@ typedef enum _judy_type {
     zval *object = getThis(); \
     judy_object *intern = php_judy_object(Z_OBJ_P(object));
 
+/* Performance optimization macros using cached type flags */
+#define JUDY_IS_INTEGER_KEYED(intern) ((intern)->is_integer_keyed)
+#define JUDY_IS_STRING_KEYED(intern) ((intern)->is_string_keyed)
+#define JUDY_IS_MIXED_VALUE(intern) ((intern)->is_mixed_value)
+
 typedef struct _judy_object {
 	long            type;
 	Pvoid_t         array;
@@ -86,6 +91,10 @@ typedef struct _judy_object {
 	zval            iterator_key;
 	zval            iterator_data;
 	zend_bool       iterator_initialized;
+	/* Cached type flags for performance optimization */
+	zend_bool       is_integer_keyed;
+	zend_bool       is_string_keyed;
+	zend_bool       is_mixed_value;
 	zend_object     std;
 } judy_object;
 
