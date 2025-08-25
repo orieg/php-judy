@@ -152,6 +152,7 @@ foreach ($scenarios as $scenario_name => $scenario_config) {
     $php_memory = [];
     $judy_write_times = [];
     $judy_read_times = [];
+    $judy_sequential_read_times = []; // Added for sequential read
     $judy_memory = [];
     
     for ($i = 1; $i <= $iterations; $i++) {
@@ -204,11 +205,21 @@ foreach ($scenarios as $scenario_name => $scenario_config) {
         }
         $judy_write_times[] = microtime(true) - $start_time;
         
+        // Test 1: Random access (current pattern)
         $start_time = microtime(true);
         foreach ($keys as $k) {
             $v = isset($judy[$k]) ? $judy[$k] : null;
         }
         $judy_read_times[] = microtime(true) - $start_time;
+        
+        // Test 2: Sequential access (Judy iterator)
+        $start_time = microtime(true);
+        $count = 0;
+        foreach ($judy as $k => $v) {
+            $count++;
+            if ($count >= $scenario_config['count']) break;
+        }
+        $judy_sequential_read_times[] = microtime(true) - $start_time;
         
         // Memory measurement for Judy
         $memory_usage = $judy->memoryUsage();
@@ -237,7 +248,8 @@ foreach ($scenarios as $scenario_name => $scenario_config) {
         ],
         'Judy' => [
             'Write Time' => calculate_statistics($judy_write_times),
-            'Read Time' => calculate_statistics($judy_read_times),
+            'Read Time (Random)' => calculate_statistics($judy_read_times),
+            'Read Time (Sequential)' => calculate_statistics($judy_sequential_read_times),
             'Memory' => calculate_statistics($judy_memory)
         ]
     ];
@@ -257,7 +269,10 @@ foreach ($scenarios as $scenario_name => $scenario_config) {
         ],
         'judy' => [
             'write_time' => $results[$scenario_name]['Judy']['Write Time'],
-            'read_time' => $results[$scenario_name]['Judy']['Read Time'],
+            'read_time' => [
+                'random' => $results[$scenario_name]['Judy']['Read Time (Random)'],
+                'sequential' => $results[$scenario_name]['Judy']['Read Time (Sequential)']
+            ],
             'memory' => $results[$scenario_name]['Judy']['Memory']
         ]
     ];
@@ -290,8 +305,16 @@ if ($output_format === 'text' || $output_format === 'both') {
             echo "Write Time Statistics:\n";
             print_statistics_table("Write Time", $metrics['Write Time']);
             
-            echo "Read Time Statistics:\n";
-            print_statistics_table("Read Time", $metrics['Read Time']);
+            if ($subject === 'Judy') {
+                echo "Read Time Statistics (Random Access):\n";
+                print_statistics_table("Read Time (Random)", $metrics['Read Time (Random)']);
+                
+                echo "Read Time Statistics (Sequential Access):\n";
+                print_statistics_table("Read Time (Sequential)", $metrics['Read Time (Sequential)']);
+            } else {
+                echo "Read Time Statistics:\n";
+                print_statistics_table("Read Time", $metrics['Read Time']);
+            }
             
             echo "Memory Usage Statistics:\n";
             $memory_stats = $metrics['Memory'];
@@ -319,14 +342,31 @@ if ($output_format === 'text' || $output_format === 'both') {
         
         foreach ($scenario_results as $subject => $metrics) {
             $write_median = format_time($metrics['Write Time']['median']);
-            $read_median = format_time($metrics['Read Time']['median']);
             $memory_median = convert_memory($metrics['Memory']['median']);
             
-            echo str_pad($scenario_display, 25) . 
-                 str_pad($subject, 12) . 
-                 str_pad($write_median, 12) . 
-                 str_pad($read_median, 12) . 
-                 str_pad($memory_median, 15) . "\n";
+            if ($subject === 'Judy') {
+                $read_random_median = format_time($metrics['Read Time (Random)']['median']);
+                $read_sequential_median = format_time($metrics['Read Time (Sequential)']['median']);
+                
+                echo str_pad($scenario_display, 25) . 
+                     str_pad($subject . " (Random)", 12) . 
+                     str_pad($write_median, 12) . 
+                     str_pad($read_random_median, 12) . 
+                     str_pad($memory_median, 15) . "\n";
+                     
+                echo str_pad("", 25) . 
+                     str_pad($subject . " (Seq)", 12) . 
+                     str_pad("", 12) . 
+                     str_pad($read_sequential_median, 12) . 
+                     str_pad("", 15) . "\n";
+            } else {
+                $read_median = format_time($metrics['Read Time']['median']);
+                echo str_pad($scenario_display, 25) . 
+                     str_pad($subject, 12) . 
+                     str_pad($write_median, 12) . 
+                     str_pad($read_median, 12) . 
+                     str_pad($memory_median, 15) . "\n";
+            }
         }
     }
 

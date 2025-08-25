@@ -70,9 +70,18 @@ The following tables summarize the results for datasets ranging from 100,000 to 
 - **PHP arrays** are more memory-intensive but offer better performance for most workloads
 
 ### Performance Characteristics
-- **PHP arrays** are generally faster for both read and write operations
+- **Access Pattern Sensitivity**: Judy arrays are extremely sensitive to access patterns:
+  - **Random Access**: Judy performs poorly due to cache locality issues (5x slower than PHP at 10M elements)
+  - **Sequential Access**: Judy excels and beats PHP arrays (3x faster at 10M elements)
+  - **Iterator Performance**: Judy's built-in iterators provide optimal performance
+- **PHP arrays** are generally faster for random access patterns
 - **Judy arrays** show improved performance with Phase 2.2 optimizations while maintaining memory benefits
-- **String-based Judy arrays** have higher performance overhead compared to integer-based ones, but recent optimizations have reduced this gap
+- **String-based Judy arrays** have higher performance overhead compared to integer-based ones
+
+### Use Case Recommendations
+- **Choose Judy for**: Sequential access, memory-constrained environments, range queries, iterator-based operations
+- **Choose PHP Arrays for**: Random access patterns, when memory is not a constraint
+- **Hybrid Approach**: Use Judy for storage, convert to PHP array for random access if needed
 
 ## Recommendations
 
