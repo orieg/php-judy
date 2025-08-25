@@ -55,10 +55,10 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 |----------------|------------------|-----------------|-------------|----------|
 | **Random Access** | 6.55ms | 0.87ms | 7.5x slower | ❌ Avoid Judy |
 | **Sequential Access** | 3.62ms | 0.87ms | 4.2x slower | ⚠️ Consider Judy |
-| **Judy Iterator** | 51.55ms | 0.93ms | 55x slower | ❌ Avoid Judy |
+| **Judy Iterator** | 16.77ms | 0.78ms | 21.6x slower | ⚠️ Consider Judy for large datasets |
 | **Range Queries** | ~3.2ms | ~2.8ms | 1.1x slower | ✅ Judy strength |
 
-**Key Insight**: Judy excels at range queries and sequential access, struggles with random access.
+**Key Insight**: Judy excels at range queries and sequential access. Iterators have overhead but become more efficient at larger scales.
 
 ### **Table 3: Real-world Data Patterns**
 
@@ -83,9 +83,9 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 ### **Performance Characteristics**
 - **Access Pattern Sensitivity**: Judy's performance heavily depends on access patterns
   - **Random Access**: 2-9x slower than PHP arrays (Judy's weakness)
-  - **Sequential Access**: 2x slower than PHP arrays (acceptable trade-off)
+  - **Sequential Access**: 2-4x slower than PHP arrays (acceptable trade-off)
   - **Range Queries**: Competitive with PHP arrays (Judy's strength)
-  - **Iterator Performance**: Optimized for large datasets
+  - **Iterator Performance**: Has overhead but becomes more efficient at larger scales
 - **Key Type Impact**: Integer keys consistently outperform string keys
 - **Scale Impact**: Performance gap increases with dataset size
 
