@@ -19,7 +19,7 @@
 #ifndef PHP_JUDY_H
 #define PHP_JUDY_H
 
-#define PHP_JUDY_VERSION "2.1.0"
+#define PHP_JUDY_VERSION "2.2.0"
 #define PHP_JUDY_EXTNAME "judy"
 
 #include <Judy.h>

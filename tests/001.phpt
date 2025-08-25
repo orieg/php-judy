@@ -16,6 +16,6 @@ var_dump(JUDY_VERSION);
 ?>
 --EXPECTF--
 judy extension is available
-string(5) "2.1.0"
-string(5) "2.1.0"
-string(5) "2.1.0"
+string(5) "2.2.0"
+string(5) "2.2.0"
+string(5) "2.2.0"
