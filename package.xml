@@ -112,6 +112,7 @@
    <file role="doc" name="README.md" />
    <file role="doc" name="CREDITS" />
    <file role="doc" name="BENCHMARK.md" />
+   <file role="doc" name="MIGRATION_2.2.0.md" />
    <file role="doc" name="Dockerfile" />
   </dir>
  </contents>
