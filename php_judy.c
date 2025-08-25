@@ -965,7 +965,7 @@ PHP_METHOD(judy, next)
 
 		if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_key)) {
 			index = 0;
-			JLF(*PValue, intern->array, index);
+			JLF(PValue, intern->array, index);
 		} else {
 			index = Z_LVAL_P(&intern->iterator_key);
 			JLN(PValue, intern->array, index);
