@@ -21,58 +21,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Download PHP Development Package
-      run: |
-        # Download PHP development package for Windows
-        $phpVersion = "${{ matrix.php-version }}"
-        $arch = "${{ matrix.arch }}"
-        $ts = "${{ matrix.ts }}"
-        
-        # Use the correct PHP development package URLs
-        # For PHP 8.x, we need to use the correct version format
-        $phpVersionFormatted = $phpVersion -replace '\.', ''
-        
-        # Try different URL patterns for PHP development packages
-        $devUrls = @(
-          "https://windows.php.net/downloads/releases/php-$phpVersion-Win32-vc15-$arch.zip",
-          "https://windows.php.net/downloads/releases/php-$phpVersion-Win32-vc16-$arch.zip",
-          "https://windows.php.net/downloads/releases/php-$phpVersion-Win32-vc17-$arch.zip"
-        )
-        
-        Write-Host "Trying to download PHP development package for version $phpVersion..."
-        
-        $phpDir = "C:\php"
-        New-Item -ItemType Directory -Path $phpDir -Force
-        
-        $success = $false
-        foreach ($devUrl in $devUrls) {
-          Write-Host "Trying URL: $devUrl"
-          try {
-            $devZip = "php-dev.zip"
-            Invoke-WebRequest -Uri $devUrl -OutFile $devZip -TimeoutSec 30
-            Expand-Archive -Path $devZip -DestinationPath $phpDir -Force
-            $success = $true
-            Write-Host "Successfully downloaded and extracted PHP from: $devUrl"
-            break
-          } catch {
-            Write-Host "Failed to download from: $devUrl"
-            Write-Host "Error: $($_.Exception.Message)"
-          }
-        }
-        
-        if (-not $success) {
-          Write-Host "Failed to download PHP development package from all URLs"
-          Write-Host "Available files in PHP directory:"
-          Get-ChildItem $phpDir | Select-Object Name
-          exit 1
-        }
-        
-        # Add PHP to PATH
-        $env:Path = "$phpDir;$env:Path"
-        
-        Write-Host "PHP development package installed to $phpDir"
-        Write-Host "Available files:"
-        Get-ChildItem $phpDir | Select-Object Name
+    - name: Setup PHP Development Environment
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php-version }}
+        architecture: ${{ matrix.arch }}
+        threadsafe: ${{ matrix.ts == 'ts' }}
+        tools: pecl, composer
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, sqlite3, pdo_pgsql, pgsql, curl, openssl, fileinfo, tokenizer, phar, filter, zip, pcntl, gd, exif, calendar, dom, xmlreader, xmlwriter, session, wddx, xmlrpc, ftp, odbc, odbc_pdo, pdo_odbc, soap, sockets, shmop, gettext, sysvmsg, sysvsem, sysvshm, tidy, snmp, pspell, recode, enchant, ffi, dba, gmp
 
     - name: Install Visual Studio Build Tools
       run: |
@@ -85,6 +41,48 @@ jobs:
         $env:Path = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\bin\Hostx64\x64;$env:Path"
         $env:INCLUDE = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include;$env:INCLUDE"
         $env:LIB = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\lib\x64;$env:LIB"
+
+    - name: Download PHP SDK
+      run: |
+        # Download PHP SDK which includes development tools
+        $phpVersion = "${{ matrix.php-version }}"
+        $arch = "${{ matrix.arch }}"
+        
+        # Try to download PHP SDK from different sources
+        $sdkUrls = @(
+          "https://github.com/microsoft/php-sdk-binary-tools/releases/latest/download/php-sdk-$arch.zip",
+          "https://github.com/microsoft/php-sdk-binary-tools/releases/download/8.1.0/php-sdk-$arch.zip"
+        )
+        
+        Write-Host "Trying to download PHP SDK for $arch..."
+        
+        $sdkDir = "C:\php-sdk"
+        New-Item -ItemType Directory -Path $sdkDir -Force
+        
+        $success = $false
+        foreach ($sdkUrl in $sdkUrls) {
+          Write-Host "Trying SDK URL: $sdkUrl"
+          try {
+            $sdkZip = "php-sdk.zip"
+            Invoke-WebRequest -Uri $sdkUrl -OutFile $sdkZip -TimeoutSec 30
+            Expand-Archive -Path $sdkZip -DestinationPath $sdkDir -Force
+            $success = $true
+            Write-Host "Successfully downloaded and extracted PHP SDK from: $sdkUrl"
+            break
+          } catch {
+            Write-Host "Failed to download from: $sdkUrl"
+            Write-Host "Error: $($_.Exception.Message)"
+          }
+        }
+        
+        if (-not $success) {
+          Write-Host "Failed to download PHP SDK, trying alternative approach..."
+          # Try to find phpize in the current PHP installation
+          $phpDir = (Get-Command php).Source | Split-Path -Parent
+          Write-Host "PHP installation directory: $phpDir"
+          Write-Host "Available files:"
+          Get-ChildItem $phpDir | Select-Object Name
+        }
 
     - name: Download Judy Library
       run: |
@@ -108,28 +106,46 @@ jobs:
         
         # Check if phpize is available
         Write-Host "Checking for phpize..."
-        $phpizePath = "C:\php\phpize.exe"
         
-        if (Test-Path $phpizePath) {
-          Write-Host "Found phpize at: $phpizePath"
-          
-          # Run phpize
-          & $phpizePath
-          
-          # Configure with Judy
-          ./configure --with-judy=shared
-          
-          # Build the extension
-          nmake
-          
-          # Run tests
-          nmake test
-          
-          Write-Host "Extension build completed"
-        } else {
-          Write-Host "phpize not found at expected location"
-          Write-Host "Available files in PHP directory:"
-          Get-ChildItem "C:\php" | Select-Object Name
+        # Try multiple locations for phpize
+        $phpizePaths = @(
+          "C:\php-sdk\phpize.exe",
+          "C:\php\phpize.exe",
+          (Join-Path (Get-Command php).Source | Split-Path -Parent) "phpize.exe"
+        )
+        
+        $phpizeFound = $false
+        foreach ($phpizePath in $phpizePaths) {
+          if (Test-Path $phpizePath) {
+            Write-Host "Found phpize at: $phpizePath"
+            
+            # Run phpize
+            & $phpizePath
+            
+            # Configure with Judy
+            ./configure --with-judy=shared
+            
+            # Build the extension
+            nmake
+            
+            # Run tests
+            nmake test
+            
+            Write-Host "Extension build completed"
+            $phpizeFound = $true
+            break
+          }
+        }
+        
+        if (-not $phpizeFound) {
+          Write-Host "phpize not found in any expected location"
+          Write-Host "Available files in PHP SDK directory:"
+          if (Test-Path "C:\php-sdk") {
+            Get-ChildItem "C:\php-sdk" -Recurse | Select-Object Name
+          }
+          Write-Host "Available files in PHP installation:"
+          $phpDir = (Get-Command php).Source | Split-Path -Parent
+          Get-ChildItem $phpDir | Select-Object Name
           exit 1
         }
 
