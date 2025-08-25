@@ -2,7 +2,7 @@ name: Windows Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, fix/windows-build-workflow ]
   pull_request:
     branches: [ main ]
   release:
