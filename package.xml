@@ -142,14 +142,13 @@
     <api>stable</api>
    </stability>
    <notes>
-- **BREAKING CHANGE**: Renamed Judy::next() to Judy::searchNext() to resolve naming conflicts with Iterator interface.
-- **NEW FEATURE**: Implemented proper Iterator interface support (Fixes GitHub issue #25).
-- **NEW FEATURE**: Added Iterator methods: rewind(), valid(), current(), key(), next().
-- **NEW FEATURE**: Judy objects now work with SPL iterators (LimitIterator, FilterIterator, etc.).
-- **IMPROVEMENT**: Enhanced benchmark examples with accurate memory measurements.
-- **IMPROVEMENT**: Updated BENCHMARK.md with current results and improved methodology.
-- **FIX**: All 51 tests now pass (100% success rate).
-- **FIX**: Improved memory measurement reliability across different environments.
+- **BREAKING CHANGE**: Renamed Judy::next() to Judy::searchNext() to resolve Iterator interface conflicts
+- **NEW FEATURE**: Implemented proper Iterator interface support (rewind, valid, current, key, next methods)
+- **NEW FEATURE**: Added support for SPL iterators (LimitIterator, FilterIterator, etc.)
+- **IMPROVEMENT**: Enhanced benchmark examples with accurate memory measurements
+- **IMPROVEMENT**: Updated BENCHMARK.md with current results and improved methodology
+- **FIX**: All 53 tests now pass (100% success rate)
+- **FIX**: Improved memory measurement reliability across different environments
    </notes>
   </release>
   <release>
