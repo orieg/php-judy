@@ -15,14 +15,26 @@ Because the keys are stored in a tree-like structure, iterating through them in 
 ### **Locality of Reference**
 For dense, sequential keys, Judy arrays have excellent cache performance (cache-friendly) because related keys are stored in a contiguous manner in memory.
 
-*Note: A visual diagram of Judy's radix tree structure would help illustrate these concepts. Consider adding an image showing how keys are stored in a tree-like structure with compressed branches.*
-
 ### **Modern Algorithms and Benchmarking**
 Modern data structures like Swiss tables (used in abseil and Folly) and Robin Hood hashing (used in C++ unordered_map) are highly optimized hash tables that are generally considered to be some of the fastest. They achieve their performance by minimizing cache misses and collisions.
 
 **Random Access**: For random key lookups and insertions (the most common use case for a map or dictionary), highly-optimized hash tables will typically outperform Judy arrays. This is because they can find a key in near-constant time (O(1)), while Judy's lookup time is logarithmic with the number of bits in the key (O(logn) for a balanced trie).
 
 **Benchmarks**: The most accurate performance metrics come from benchmarks that test specific real-world workloads, not just raw operations. Factors like key sparsity, key type (integer vs. string), and access patterns (random vs. sequential) can dramatically change the outcome. An algorithm that excels at one task might be slow at another.
+
+### **The Key Difference: O(log n) vs O(1)**
+
+**Native PHP Arrays (Hash Tables)**: PHP arrays are implemented as a highly-optimized hash table. A hash table is designed for constant-time average lookups, denoted as O(1). It works by calculating a hash value from the key, which directly points to the memory location of the value. This process is extremely fast and doesn't depend on the total number of elements in the array.
+
+**Judy Arrays (Tries)**: Judy arrays are a type of trie or radix tree. To find a key, the algorithm must traverse down the tree, inspecting parts of the key at each node. This makes Judy's lookup time logarithmic, denoted as O(logn), where n is the number of bits in the key. While this is very efficient, it's inherently slower than the single-step lookup of a hash table for random access.
+
+**Why this impacts performance**: Your benchmark results clearly show the impact of this difference in random access patterns:
+
+- **Random Lookups**: The benchmarks show Judy is 7.5x slower than PHP arrays for random access. This is because each lookup requires a traversal of the trie, which involves multiple pointer dereferences and memory jumps, while a hash table typically performs a single, fast lookup.
+
+- **Sequential Access**: Judy performs much better in sequential access and range queries because its sorted trie structure is designed for this. When traversing in order, Judy benefits from cache locality, as it can access adjacent keys with minimal overhead. The performance gap for sequential access is only 4.2x slower, and for range queries, it's nearly competitive (1.1x slower).
+
+**In short, the performance difference is not a flaw but a direct consequence of Judy's design trade-offs. It sacrifices some random access speed to achieve exceptional memory efficiency and fast ordered operations, which native PHP arrays do not provide.**
 
 ---
 
@@ -45,7 +57,7 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 - ✅ Range queries and ordered operations
 
 **Use PHP Arrays When:**
-- ❌ Random access patterns (2-9x faster than Judy)
+- ❌ Random access patterns (2-9x faster than Judy - see O(log n) vs O(1) explanation)
 - ❌ Small datasets (< 100k elements)
 - ❌ Performance-critical random operations
 - ❌ Memory is not a constraint
@@ -119,7 +131,7 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 - String-based Judy arrays show moderate memory savings with performance trade-offs
 
 ### **Performance Characteristics**
-- **Access Pattern Sensitivity**: Judy's performance heavily depends on access patterns
+- **Access Pattern Sensitivity**: Judy's performance heavily depends on access patterns (see "The Key Difference: O(log n) vs O(1)" section above)
   - **Random Access**: 2-9x slower than PHP arrays (Judy's weakness - O(logn) vs O(1))
   - **Sequential Access**: 2-4x slower than PHP arrays (acceptable trade-off - leverages cache locality)
   - **Range Queries**: Competitive with PHP arrays (Judy's strength - native sorted traversal)
