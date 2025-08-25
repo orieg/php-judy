@@ -33,3 +33,4 @@ Makefile.objects
 missing
 mkinstalldirs
 run-tests.php
+*.tgz
