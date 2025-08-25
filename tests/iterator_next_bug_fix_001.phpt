@@ -150,7 +150,7 @@ After next() - current(): NULL
 === Testing multiple next() calls beyond end ===
 After rewind - valid(): true
 After first next() - valid(): false
-After second next() - valid(): true
+After second next() - valid(): false
 After third next() - valid(): false
 
 === Testing mixed operations ===
