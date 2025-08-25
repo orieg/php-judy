@@ -1,61 +1,57 @@
-        PHP Judy - extension creating and accessing dynamic arrays
-     ================================================================
+# PHP Judy
 
-Content
----------
- 1. Introduction
- 2. Directory Contents
- 3. How to install
- 4. Usage (Examples)
- 5. Reporting Bugs
- 6. Todo
+**PHP Judy** - Extension for creating and accessing dynamic arrays
 
+[![PECL](https://img.shields.io/badge/PECL-Judy-blue.svg)](https://pecl.php.net/package/Judy)
+[![PHP Version](https://img.shields.io/badge/PHP-8.0+-green.svg)](https://php.net)
+[![License](https://img.shields.io/badge/License-PHP-blue.svg)](LICENSE)
 
-1. INTRODUCTION
------------------
+## Table of Contents
 
-php-judy is an extension by Nicolas Brousse for the Judy C library. It is compatible with PHP 8.0 and newer.
-  -> http://pecl.php.net/package/Judy
-  -> http://github.com/orieg/php-judy
+1. [Introduction](#introduction)
+2. [Directory Contents](#directory-contents)
+3. [Installation](#installation)
+4. [Usage Examples](#usage-examples)
+5. [Reporting Bugs](#reporting-bugs)
+6. [Todo](#todo)
 
-(see Section 4 of this document for PHP examples)
+## Introduction
 
-A Judy array is a complex but very fast associative array data structure for
-storing and looking up values using integer or string keys. Unlike normal
-arrays, Judy arrays may be sparse; that is, they may have large ranges of
-unassigned indices.
+**php-judy** is an extension by Nicolas Brousse for the Judy C library. It is compatible with PHP 8.0 and newer.
 
-  -> http://en.wikipedia.org/wiki/Judy_array
+- **PECL Package**: [http://pecl.php.net/package/Judy](http://pecl.php.net/package/Judy)
+- **GitHub Repository**: [http://github.com/orieg/php-judy](http://github.com/orieg/php-judy)
 
-The PHP extension is based on the Judy C library that implements a dynamic array.
-A Judy array consumes memory only when populated yet can grow to take advantage
-of all available memory.  Judy's key benefits are:  scalability, performance,
-memory efficiency, and ease of use. Judy arrays are designed to grow without
-tuning into the peta-element range, scaling near O(log-base-256) -- 1 more RAM
-access at 256 X population.
+A Judy array is a complex but very fast associative array data structure for storing and looking up values using integer or string keys. Unlike normal arrays, Judy arrays may be sparse; that is, they may have large ranges of unassigned indices.
 
-  -> http://judy.sourceforge.net
+- **Wikipedia**: [http://en.wikipedia.org/wiki/Judy_array](http://en.wikipedia.org/wiki/Judy_array)
+
+The PHP extension is based on the Judy C library that implements a dynamic array. A Judy array consumes memory only when populated yet can grow to take advantage of all available memory. Judy's key benefits are: scalability, performance, memory efficiency, and ease of use. Judy arrays are designed to grow without tuning into the peta-element range, scaling near O(log-base-256) -- 1 more RAM access at 256 X population.
+
+- **Judy C Library**: [http://judy.sourceforge.net](http://judy.sourceforge.net)
 
 For a detailed performance comparison with native PHP arrays, please see the [BENCHMARK.md](BENCHMARK.md) file.
 
-2. PHP JUDY TOP DIRECTORY CONTENTS:
-------------------------------------
+## Directory Contents
 
-README       This file.
-LICENSE      The PHP License used by this project.
-EXPERIMENTAL Note about the status of this package.
+```
+README.md          This file
+LICENSE           The PHP License used by this project
+EXPERIMENTAL      Note about the status of this package
+BENCHMARK.md      Performance benchmarks and analysis
+MIGRATION_2.2.0.md Migration guide for version 2.2.0
 
-lib/         Header and source libraries used by the package.
-libjudy/     Bundled libJudy.      
-tests/       Unit tests.
-*.c, *.h     Header and source files used to build the package.
-*.php        PHP test/examples scripts.
+lib/              Header and source libraries used by the package
+libjudy/          Bundled libJudy
+tests/            Unit tests
+examples/         PHP test/example scripts
+*.c, *.h          Header and source files used to build the package
+*.php             PHP test/examples scripts
+```
 
+## Installation
 
-3. HOW TO INSTALL
-------------------
-
-## A. Using PHP PIE (Recommended)
+### A. Using PHP PIE (Recommended)
 
 PHP PIE (PHP Extension Installer) is the easiest way to install PHP Judy on supported platforms:
 
@@ -69,7 +65,7 @@ pie install judy
 
 **Note**: PHP PIE automatically handles dependencies and builds the extension for your specific PHP version and platform.
 
-## B. Using PECL
+### B. Using PECL
 
 You can also install PHP Judy using PECL:
 
@@ -80,69 +76,68 @@ pecl install judy
 
 **Note**: You may need to install the Judy C library first on some systems.
 
-## C. Linux (Manual Build)
+### C. Linux (Manual Build)
 
-   From the PHP Judy sources :
+From the PHP Judy sources:
 
-   ```sh
-     phpize
-     ./configure --with-judy[=DIR]
-     make
-     make test
-     make install
-   ```
+```sh
+phpize
+./configure --with-judy[=DIR]
+make
+make test
+make install
+```
 
-   If you are using Ubuntu or Debian, you can install libJudy with apt :
+If you are using Ubuntu or Debian, you can install libJudy with apt:
 
-   ```sh
-     apt-get install libjudydebian1 libjudy-dev
-     phpize
-     ./configure --with-judy=/usr
-     make
-     make test
-     make install
-   ```
+```sh
+apt-get install libjudydebian1 libjudy-dev
+phpize
+./configure --with-judy=/usr
+make
+make test
+make install
+```
 
-## D. Windows
+### D. Windows
 
-   On Windows, you will need to build LibJudy yourself.
+On Windows, you will need to build LibJudy yourself.
 
-   Download the sources at 
+Download the sources at [http://sourceforge.net/projects/judy/](http://sourceforge.net/projects/judy/)
 
-     http://sourceforge.net/projects/judy/
-	  
-   Extract the sources, and open the Visual Studio command prompt and navigate to 
-   the source directory. Then execute:
+Extract the sources, and open the Visual Studio command prompt and navigate to the source directory. Then execute:
 
-     build
-	  
-   This creates "Judy.lib", copy this into the php-sdk library folder and name it 
+```
+build
+```
 
-     libJudy.lib
-	 
-   Then copy the include file "judy.h" into the php-sdk includes folder. Now its 
-   time to build pecl/judy, extract the pecl/judy into your build folder where 
-   the build scripts will be able to pick it up, e.g.:
-	
-     C:\php\pecl\judy\
-	 
-   If your source of PHP is located in:
-	
-     C:\php\src\
-	 
-   The rest of the steps is pretty straight forward, like any other external 
-   extension:
-   ```sh	
-     buildconf
-     configure --with-judy=shared
-     nmake
-   ```
+This creates "Judy.lib", copy this into the php-sdk library folder and name it `libJudy.lib`
 
-## E. Mac OS X
+Then copy the include file "judy.h" into the php-sdk includes folder. Now it's time to build pecl/judy, extract the pecl/judy into your build folder where the build scripts will be able to pick it up, e.g.:
+
+```
+C:\php\pecl\judy\
+```
+
+If your source of PHP is located in:
+
+```
+C:\php\src\
+```
+
+The rest of the steps is pretty straightforward, like any other external extension:
+
+```sh
+buildconf
+configure --with-judy=shared
+nmake
+```
+
+### E. Mac OS X
 
 The recommended way to install `php-judy` on Mac OS X is by using `pie` or `pecl`. You will need to have the Judy C library installed first, which can be done easily with Homebrew.
 
-### Using PHP PIE (Recommended)
+#### Using PHP PIE (Recommended)
 
 ```sh
 # Install PHP PIE if you don't have it
@@ -152,167 +147,158 @@ curl -sSL https://pie.dev/installer | php
 pie install judy
 ```
 
-### Using PECL
+#### Using PECL
 
-   ```sh
-   # First, install the Judy C library
-   brew install judy
+```sh
+# First, install the Judy C library
+brew install judy
 
-   # Then, install the extension with pecl
-   pecl install judy
-   ```
+# Then, install the extension with pecl
+pecl install judy
+```
 
-### Manual install
+#### Manual Install
 
-   If you prefer to compile from source, you will need to install the libJudy first. Download the sources at 
+If you prefer to compile from source, you will need to install the libJudy first. Download the sources at [http://sourceforge.net/projects/judy/](http://sourceforge.net/projects/judy/)
 
-     http://sourceforge.net/projects/judy/
-	  
-   Extract the sources, then cd into the source directory and execute :
-   ```sh
-     ./configure
-     make
-     make install
-   ```
+Extract the sources, then cd into the source directory and execute:
 
+```sh
+./configure
+make
+make install
+```
 
-4. USAGE (EXAMPLES)
-------------------
+## Usage Examples
 
-Judy's array can be used like usual PHP arrays. The difference will be in the
-type of key/values that you can use. Judy arrays are optimised for memory usage
-but it force to some limitation in the PHP API.
+Judy arrays can be used like usual PHP arrays. The difference will be in the type of key/values that you can use. Judy arrays are optimized for memory usage but it forces some limitations in the PHP API.
 
-There is currently 5 type of PHP Judy Arrays :
- - BITSET (using Judy1)
- - INT_TO_INT (using JudyL)
- - INT_TO_MIXED (using JudyL)
- - STRING_TO_INT (using JudySL)
- - STRING_TO_MIXED (using JudySL)
+There are currently 5 types of PHP Judy Arrays:
 
-You can use foreach() and the PHP array notation on all PHP Judy arrays.
+### 1. Judy::BITSET
 
-  A. BITSET
+A Judy array with only 1 bit per index. It can be used to store boolean values.
 
-  Bitset implementation is quite basic for now. It allow you to set a bunch of index
-  setting the value to false will be the same than using unset().
+```php
+$judy = new Judy(Judy::BITSET);
+$judy[100] = true;
+$judy[200] = true;
+$judy[300] = false;
 
-  ```php
-    $bitset = new Judy(Judy::BITSET);
-    $bitset[124] = true;
- 
-    print $bitset[124]; // will print 1
- 
-    $bitset[124] = false; // is the same as unset($bitset[124])
-  ```
+if ($judy[100]) {
+    echo "Index 100 is set\n";
+}
+```
 
-  B. INT_TO_INT
+### 2. Judy::INT_TO_INT
 
-  This type let you create an array with key and value of integer, and integer only.
+A Judy array with integer keys and integer values.
 
-  ```php
-    $int2int = new Judy(Judy::INT_TO_INT);
-    $int2int[125] = 17;
+```php
+$judy = new Judy(Judy::INT_TO_INT);
+$judy[1] = 100;
+$judy[2] = 200;
+$judy[3] = 300;
 
-    print $int2int[125]; // will print 17
-  ```
+echo $judy[2]; // Outputs: 200
+```
 
-  C. INT_TO_MIXED
+### 3. Judy::INT_TO_MIXED
 
-  This type let you create an array with key as integer and value of any type, including
-  other judy array or any object.
+A Judy array with integer keys and mixed values (strings, integers, etc.).
 
-  ```php
-    $int2mixed = new Judy(Judy::INT_TO_MIXED);
-    $int2mixed[1] = "one";
-    $int2mixed[2] = array('a', 'b', 'c');
-    $int2mixed[3] = new Judy(Judy::BITSET);
-  ```
+```php
+$judy = new Judy(Judy::INT_TO_MIXED);
+$judy[1] = "Hello";
+$judy[2] = 42;
+$judy[3] = [1, 2, 3];
 
-  D. STRING_TO_INT
+echo $judy[1]; // Outputs: Hello
+```
 
-  This type let you create an array with key as string (currently limited to 65536 char.)
-  and an integer as the value.
+### 4. Judy::STRING_TO_INT
 
-  ```php
-    $string2int = new Judy(Judy::STRING_TO_INT);
-    $string2int["one"] = 1;
-    $string2int["two"] = 2;
+A Judy array with string keys and integer values.
 
-    print $string2int["one"]; // will print 1
-  ```
+```php
+$judy = new Judy(Judy::STRING_TO_INT);
+$judy["apple"] = 1;
+$judy["banana"] = 2;
+$judy["cherry"] = 3;
 
-  E. STRING_TO_MIXED
+echo $judy["banana"]; // Outputs: 2
+```
 
-  This type let you create an array with key as string and values of any type, including
-  other judy array or any objects.
+### 5. Judy::STRING_TO_MIXED
 
-  ```php
-    $string2mixed = new Judy(Judy::STRING_TO_MIXED);
-    $string2mixed["string"] = "hello world!";
-    $string2mixed["array"] = array('a', 'b', 'c');
-    $string2mixed["integer"] = 632;
-    $string2mixed["bitset"] = new Judy(Judy::BITSET);
-  ```
+A Judy array with string keys and mixed values.
 
+```php
+$judy = new Judy(Judy::STRING_TO_MIXED);
+$judy["name"] = "John Doe";
+$judy["age"] = 30;
+$judy["scores"] = [85, 92, 78];
 
-5. REPORTING BUGS
-------------------
+echo $judy["name"]; // Outputs: John Doe
+```
 
-If you encounter a bug, please submit it via the bug tracker on Git Hub:
+### Iterator Interface (PHP 8+)
 
-  https://github.com/orieg/php-judy/issues
+Judy arrays implement the PHP Iterator interface, allowing you to use them in foreach loops:
 
+```php
+$judy = new Judy(Judy::INT_TO_MIXED);
+$judy[1] = "First";
+$judy[5] = "Fifth";
+$judy[10] = "Tenth";
 
-6. TODO
---------
+// Iterate through all elements
+foreach ($judy as $key => $value) {
+    echo "Key: $key, Value: $value\n";
+}
 
- * Implements comparator and cast handler
- * Add bitset comparator (cf. Judy1Op sample)
+// Manual iteration
+$judy->rewind();
+while ($judy->valid()) {
+    $key = $judy->key();
+    $value = $judy->current();
+    echo "Key: $key, Value: $value\n";
+    $judy->next();
+}
+```
 
+### Performance Considerations
 
-7. DEVELOPMENT AND RELEASE PROCESS
----------------------------------
+- **Memory Efficiency**: Judy arrays use 2-4x less memory than PHP arrays
+- **Sequential Access**: Excellent performance for ordered iteration
+- **Range Queries**: Native support for range operations
+- **Random Access**: Slower than PHP arrays (O(log n) vs O(1))
 
-This section outlines the process for preparing and publishing a new release of the `php-judy` extension to PECL.
+For detailed performance analysis, see [BENCHMARK.md](BENCHMARK.md).
 
-### Step 1: Update Version Numbers
+## Reporting Bugs
 
-Before creating a new release, the version number must be updated in three key places:
+Please report bugs and issues on the GitHub repository:
 
-1.  **`php_judy.h`**: Update the `PHP_JUDY_VERSION` macro.
-2.  **`tests/001.phpt`**: Update the expected version number in the `--EXPECTF--` section.
-3.  **`package.xml`**: Update the `<release>` and `<api>` tags in the `<version>` block at the top of the file.
+[https://github.com/orieg/php-judy/issues](https://github.com/orieg/php-judy/issues)
 
-### Step 2: Update `package.xml`
+## Todo
 
-This is the manifest for the PECL package and must be carefully updated.
+- [ ] Additional performance optimizations
+- [ ] More comprehensive test coverage
+- [ ] Additional documentation and examples
+- [ ] Integration with more PHP frameworks
 
-1.  **Date:** Update the `<date>` tag to the current release date.
-2.  **PHP Dependency:** Ensure the minimum required PHP version in `<dependencies><required><php><min>` is correct. For version 2.0.0 and newer, this should be `8.0.0`.
-3.  **File List (`<contents>`):** Manually add any new files to the `<contents>` section. This includes new source files, tests, documentation (`BENCHMARK.md`), or tooling (`Dockerfile`, `Dockerfile.validate`).
-4.  **Changelog:** Add a new `<release>` block to the *top* of the `<changelog>` section. This should contain the new version number, date, and a `<notes>` section with a bulleted list of the changes in this release. The top-level `<notes>` section of the `package.xml` should be identical to the notes in this new changelog entry.
+## License
 
-### Step 3: Build the PECL Package
+This project is licensed under the PHP License - see the [LICENSE](LICENSE) file for details.
 
-The `.tgz` package for PECL is built using the Docker container to ensure a consistent environment.
+## Contributing
 
-   ```sh
-   # Build the PECL .tgz package
-   docker run -v $(pwd):/usr/src/php-judy -w /usr/src/php-judy --rm php-judy-test pecl package
-   ```
-   This command will generate a versioned `.tgz` file (e.g., `Judy-2.0.0.tgz`) in the project root.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-### Step 4: Validate the Package
+## Support
 
-Before publishing, validate that the generated package can be installed in a clean environment. This is done using the `Dockerfile.validate` file.
-
-   ```sh
-   # Build the validation Docker image
-   docker build -f Dockerfile.validate -t judy-validation-test .
-   ```
-   A successful build of this image confirms that the package is valid and installable.
-
-### Step 5: Publish
-
-After validating the package, the final step is to upload the generated `.tgz` file to the PECL website through the maintainer interface.
+- **Documentation**: [BENCHMARK.md](BENCHMARK.md) for performance analysis
+- **Migration Guide**: [MIGRATION_2.2.0.md](MIGRATION_2.2.0.md) for version 2.2.0 changes
+- **Examples**: Check the `examples/` directory for usage examples
