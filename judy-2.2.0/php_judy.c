@@ -942,17 +942,17 @@ PHP_METHOD(judy, next)
 	zval_ptr_dtor(&intern->iterator_data);
 	ZVAL_UNDEF(&intern->iterator_data);
 
+	/* Only advance the iterator if it is currently valid */
+	if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_key)) {
+		/* Iterator is invalid, do nothing */
+		return;
+	}
+
 	if (intern->type == TYPE_BITSET) {
-		Word_t          index;
+		Word_t          index = Z_LVAL_P(&intern->iterator_key);
 		int             Rc_int;
 
-		if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_key)) {
-			index = 0;
-			J1F(Rc_int, intern->array, index);
-		} else {
-			index = Z_LVAL_P(&intern->iterator_key);
-			J1N(Rc_int, intern->array, index);
-		}
+		J1N(Rc_int, intern->array, index);
 
 		if (Rc_int) {
 			zval_dtor(&intern->iterator_key);
@@ -965,16 +965,10 @@ PHP_METHOD(judy, next)
 		}
 
 	} else if (JUDY_IS_INTEGER_KEYED(intern)) {
-		Word_t          index;
+		Word_t          index = Z_LVAL_P(&intern->iterator_key);
 		Pvoid_t          *PValue = NULL;
 
-		if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_key)) {
-			index = 0;
-			JLF(PValue, intern->array, index);
-		} else {
-			index = Z_LVAL_P(&intern->iterator_key);
-			JLN(PValue, intern->array, index);
-		}
+		JLN(PValue, intern->array, index);
 
 		if (PValue != NULL && PValue != PJERR) {
 			zval_dtor(&intern->iterator_key);
@@ -997,20 +991,17 @@ PHP_METHOD(judy, next)
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		Pvoid_t      *PValue;
 
-		if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_key)) {
-			key[0] = '\0';
-			JSLF(PValue, intern->array, key);
+		if (Z_TYPE_P(&intern->iterator_key) == IS_STRING) {
+			int key_len;
+			key_len = Z_STRLEN_P(&intern->iterator_key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&intern->iterator_key);
+			memcpy(key, Z_STRVAL_P(&intern->iterator_key), key_len);
+			key[key_len] = '\0';
+			JSLN(PValue, intern->array, key);
 		} else {
-			if (Z_TYPE_P(&intern->iterator_key) == IS_STRING) {
-				int key_len;
-				key_len = Z_STRLEN_P(&intern->iterator_key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&intern->iterator_key);
-				memcpy(key, Z_STRVAL_P(&intern->iterator_key), key_len);
-				key[key_len] = '\0';
-				JSLN(PValue, intern->array, key);
-			} else {
-				key[0] = '\0';
-				JSLF(PValue, intern->array, key);
-			}
+			/* Invalid key type, mark iterator as invalid */
+			ZVAL_UNDEF(&intern->iterator_key);
+			intern->iterator_initialized = 0;
+			return;
 		}
 
 		if (PValue != NULL && PValue != PJERR) {
@@ -1046,10 +1037,17 @@ PHP_METHOD(judy, rewind)
 		int             Rc_int;
 
 		J1F(Rc_int, intern->array, index);
-		zval_dtor(&intern->iterator_key);
-		ZVAL_LONG(&intern->iterator_key, index);
-		ZVAL_BOOL(&intern->iterator_data, 1);
-		intern->iterator_initialized = 1;
+		if (Rc_int) {
+			zval_dtor(&intern->iterator_key);
+			ZVAL_LONG(&intern->iterator_key, index);
+			ZVAL_BOOL(&intern->iterator_data, 1);
+			intern->iterator_initialized = 1;
+		} else {
+			/* Array is empty, mark iterator as invalid */
+			ZVAL_UNDEF(&intern->iterator_key);
+			ZVAL_UNDEF(&intern->iterator_data);
+			intern->iterator_initialized = 0;
+		}
 
 	} else if (JUDY_IS_INTEGER_KEYED(intern)) {
 		Word_t          index = 0;
@@ -1100,46 +1098,13 @@ PHP_METHOD(judy, valid)
 {
 	JUDY_METHOD_GET_OBJECT
 	
-	if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_key) || Z_ISUNDEF_P(&intern->iterator_data)) {
-		RETURN_FALSE;
-	}
-
-	if (intern->type == TYPE_BITSET) {
-		int     Rc_int;
-
-		J1T(Rc_int, intern->array, (Word_t) Z_LVAL_P(&intern->iterator_key));
-		if (Rc_int == 1) {
-			RETURN_TRUE;
-		}
-	} else if (JUDY_IS_INTEGER_KEYED(intern)) {
-		Word_t    *PValue;
-
-		JLG(PValue, intern->array, (Word_t) Z_LVAL_P(&intern->iterator_key));
-		if (PValue != NULL && PValue != PJERR) {
-			RETURN_TRUE;
-		}
-	} else if (JUDY_IS_STRING_KEYED(intern)) {
-		uint8_t     key[PHP_JUDY_MAX_LENGTH];
-		Word_t      *PValue;
-
-		if (Z_TYPE_P(&intern->iterator_key) == IS_STRING) {
-			int key_len;
-			key_len = Z_STRLEN_P(&intern->iterator_key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&intern->iterator_key);
-			memcpy(key, Z_STRVAL_P(&intern->iterator_key), key_len);
-			key[key_len] = '\0';
-		} else if (Z_TYPE_P(&intern->iterator_key) == IS_NULL) {
-			key[0] = '\0';
-		} else {
-			RETURN_FALSE;
-		}
-
-		JSLG(PValue, intern->array, key);
-		if (PValue != NULL && PValue != PJERR) {
-			RETURN_TRUE;
-		}
-	}
-
-	RETURN_FALSE;
+	/*
+	 * The iterator is valid if it has been initialized by rewind() or next()
+	 * and has not reached the end of the array. The iterator_initialized flag
+	 * tracks this state. This avoids performing a slow lookup on every
+	 * iteration of a foreach loop.
+	 */
+	RETURN_BOOL(intern->iterator_initialized);
 }
 /* }}} */
 

@@ -72,12 +72,12 @@ Testing Iterator next() method for segfault prevention:
 === Testing INT_TO_INT next() without rewind() ===
 Calling next() without rewind() first...
 next() completed successfully
-Current state - valid(): true
+Current state - valid(): false
 
 === Testing INT_TO_MIXED next() without rewind() ===
 Calling next() without rewind() first...
 next() completed successfully
-Current state - valid(): true
+Current state - valid(): false
 
 === Testing empty INT_TO_INT next() without rewind() ===
 Calling next() on empty Judy without rewind()...
