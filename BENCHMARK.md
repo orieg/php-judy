@@ -36,7 +36,7 @@ This document provides a detailed performance and memory usage comparison betwee
 
 ## Benchmark Methodology
 
-The benchmarks were executed using a script that tests two realistic, large-scale scenarios. Our methodology is informed by the authoritative [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which provides concrete performance data and insights into Judy's strengths and weaknesses.
+The benchmarks were executed using a script that tests two realistic, large-scale scenarios. Our methodology is informed by [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which provides concrete performance data and insights into Judy's strengths and weaknesses.
 
 1.  **Sparse Integer Keys:** Simulates use cases like storing data by non-sequential IDs (e.g., database primary keys). This is the ideal use case for Judy arrays.
 2.  **Random String Keys:** Simulates common use cases like associative arrays, caches, or dictionaries where keys are strings.
