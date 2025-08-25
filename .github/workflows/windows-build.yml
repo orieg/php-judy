@@ -21,14 +21,35 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup PHP Development Environment
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: ${{ matrix.php-version }}
-        architecture: ${{ matrix.arch }}
-        threadsafe: ${{ matrix.ts == 'ts' }}
-        tools: pecl, composer
-        extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, sqlite3, pdo_pgsql, pgsql, curl, openssl, fileinfo, tokenizer, phar, filter, zip, pcntl, gd, exif, calendar, dom, xmlreader, xmlwriter, session, wddx, xmlrpc, ftp, odbc, odbc_pdo, pdo_odbc, soap, sockets, shmop, gettext, sysvmsg, sysvsem, sysvshm, tidy, snmp, pspell, recode, enchant, ffi, dba, gmp, exif, calendar, dom, xmlreader, xmlwriter, session, wddx, xmlrpc, ftp, odbc, odbc_pdo, pdo_odbc, soap, sockets, shmop, gettext, sysvmsg, sysvsem, sysvshm, tidy, snmp, pspell, recode, enchant, ffi, dba, gmp
+    - name: Download PHP Development Package
+      run: |
+        # Download PHP development package for Windows
+        $phpVersion = "${{ matrix.php-version }}"
+        $arch = "${{ matrix.arch }}"
+        $ts = "${{ matrix.ts }}"
+        
+        # Construct download URL for PHP development package
+        $downloadUrl = "https://windows.php.net/downloads/releases/php-$phpVersion-Win32-vc15-$arch.zip"
+        $devUrl = "https://windows.php.net/downloads/releases/devel/php-$phpVersion-devel-Win32-vc15-$arch.zip"
+        
+        Write-Host "Downloading PHP development package for version $phpVersion..."
+        Write-Host "Download URL: $devUrl"
+        
+        # Create PHP directory
+        $phpDir = "C:\php"
+        New-Item -ItemType Directory -Path $phpDir -Force
+        
+        # Download and extract PHP development package
+        $devZip = "php-dev.zip"
+        Invoke-WebRequest -Uri $devUrl -OutFile $devZip
+        Expand-Archive -Path $devZip -DestinationPath $phpDir -Force
+        
+        # Add PHP to PATH
+        $env:Path = "$phpDir;$env:Path"
+        
+        Write-Host "PHP development package installed to $phpDir"
+        Write-Host "Available files:"
+        Get-ChildItem $phpDir | Select-Object Name
 
     - name: Install Visual Studio Build Tools
       run: |
@@ -42,10 +63,20 @@ jobs:
         $env:INCLUDE = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include;$env:INCLUDE"
         $env:LIB = "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\lib\x64;$env:LIB"
 
-    - name: Install PHP Development Tools
+    - name: Download Judy Library
       run: |
-        # Install PHP development tools using PECL
-        pecl install --force --nodeps --ignore-errors judy
+        # Download pre-built Judy library for Windows
+        $judyUrl = "https://github.com/orieg/php-judy/releases/download/v2.2.0/judy-windows-lib.zip"
+        $judyZip = "judy-lib.zip"
+        
+        Write-Host "Downloading Judy library..."
+        try {
+          Invoke-WebRequest -Uri $judyUrl -OutFile $judyZip
+          Expand-Archive -Path $judyZip -DestinationPath "C:\judy" -Force
+          Write-Host "Judy library installed to C:\judy"
+        } catch {
+          Write-Host "Judy library not found, will need to build from source"
+        }
 
     - name: Build PHP Extension
       run: |
@@ -54,11 +85,13 @@ jobs:
         
         # Check if phpize is available
         Write-Host "Checking for phpize..."
-        if (Get-Command phpize -ErrorAction SilentlyContinue) {
-          Write-Host "phpize found, proceeding with build..."
+        $phpizePath = "C:\php\phpize.exe"
+        
+        if (Test-Path $phpizePath) {
+          Write-Host "Found phpize at: $phpizePath"
           
           # Run phpize
-          phpize
+          & $phpizePath
           
           # Configure with Judy
           ./configure --with-judy=shared
@@ -71,24 +104,10 @@ jobs:
           
           Write-Host "Extension build completed"
         } else {
-          Write-Host "phpize not found, trying alternative approach..."
-          
-          # Try to find phpize in PHP installation
-          $phpDir = (Get-Command php).Source | Split-Path -Parent
-          $phpizePath = Join-Path $phpDir "phpize"
-          
-          if (Test-Path $phpizePath) {
-            Write-Host "Found phpize at: $phpizePath"
-            & $phpizePath
-            ./configure --with-judy=shared
-            nmake
-            nmake test
-          } else {
-            Write-Host "phpize not found in PHP installation"
-            Write-Host "Available files in PHP directory:"
-            Get-ChildItem $phpDir | Select-Object Name
-            exit 1
-          }
+          Write-Host "phpize not found at expected location"
+          Write-Host "Available files in PHP directory:"
+          Get-ChildItem "C:\php" | Select-Object Name
+          exit 1
         }
 
     - name: Upload build artifacts
