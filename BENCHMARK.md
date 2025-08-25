@@ -1,6 +1,6 @@
 # PHP Judy Performance Benchmarks
 
-This document provides a comprehensive performance and memory usage comparison between the `php-judy` extension and native PHP arrays, based on our extensive benchmarking suite.
+This document provides a comprehensive performance and memory usage comparison between the `php-judy` extension and PHP arrays, based on our extensive benchmarking suite.
 
 ## 🔬 **Judy's Core Design & Performance**
 
@@ -15,12 +15,26 @@ Because the keys are stored in a tree-like structure, iterating through them in 
 ### **Locality of Reference**
 For dense, sequential keys, Judy arrays have excellent cache performance (cache-friendly) because related keys are stored in a contiguous manner in memory.
 
+*Note: A visual diagram of Judy's radix tree structure would help illustrate these concepts. Consider adding an image showing how keys are stored in a tree-like structure with compressed branches.*
+
 ### **Modern Algorithms and Benchmarking**
 Modern data structures like Swiss tables (used in abseil and Folly) and Robin Hood hashing (used in C++ unordered_map) are highly optimized hash tables that are generally considered to be some of the fastest. They achieve their performance by minimizing cache misses and collisions.
 
 **Random Access**: For random key lookups and insertions (the most common use case for a map or dictionary), highly-optimized hash tables will typically outperform Judy arrays. This is because they can find a key in near-constant time (O(1)), while Judy's lookup time is logarithmic with the number of bits in the key (O(logn) for a balanced trie).
 
 **Benchmarks**: The most accurate performance metrics come from benchmarks that test specific real-world workloads, not just raw operations. Factors like key sparsity, key type (integer vs. string), and access patterns (random vs. sequential) can dramatically change the outcome. An algorithm that excels at one task might be slow at another.
+
+---
+
+## 🖥️ **Benchmarking Environment**
+
+**Hardware**: Tests run on modern x86_64 systems with sufficient RAM to avoid memory pressure
+**Operating System**: Linux (Docker containers for consistency)
+**PHP Version**: 8.x with Judy extension 2.2.0
+**Test Methodology**: Multiple iterations with statistical analysis (min/max/median/percentiles)
+**Memory Measurement**: Using `memory_get_usage(true)` and `Judy::memoryUsage()`
+
+*Note: Results may vary based on hardware, system load, and PHP configuration. All benchmarks use the same Docker environment for consistency.*
 
 ## 🎯 **Quick Decision Guide**
 
@@ -79,6 +93,8 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 | **Range Queries** | ~3.2ms | ~2.8ms | 1.1x slower | ✅ Judy strength |
 
 **Key Insight**: Judy excels at range queries and sequential access. Iterator performance depends on dataset size - faster than sequential for large sparse datasets, slower for small sequential datasets.
+
+**Note**: The 11.2x slower result is from a small (100K) sequential dataset where iterator overhead is significant. For large sparse datasets (>1M), iterators become competitive with sequential access.
 
 **Design Alignment**: These results align perfectly with Judy's radix tree design - sequential access leverages cache locality, while random access requires tree traversal.
 
@@ -246,4 +262,4 @@ php examples/run-benchmarks-robust.php
 Our methodology and insights are informed by the [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which demonstrates Judy's strengths in ordered access patterns and memory efficiency.
 
 **Judy Extension Version**: 2.2.0
-**Last Updated**: December 2024
+**Last Updated**: August 2025
