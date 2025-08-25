@@ -31,12 +31,10 @@ The following tables summarize the results for datasets ranging from 100,000 to 
 |              | Judy      | 0.0854s    | 0.0741s   | **2.13 mb**       |
 | **500k**     | PHP Array | 0.1012s    | 0.0401s   | 20.00 mb          |
 |              | Judy      | 0.5362s    | 0.1536s   | **5.00 mb**       |
-| **1M**       | PHP Array | 0.1193s    | 0.1155s   | 40.00 mb          |
-|              | Judy      | 0.2426s    | 0.1415s   | **~10 mb***       |
-| **10M**      | PHP Array | 3.3881s    | 1.0481s   | 434.00 mb         |
-|              | Judy      | 3.9460s    | 2.2611s   | **142.25 mb**     |
-
-*\* Note: The 1M element test for sparse integer keys consistently reported an anomalous memory reading of 0 bytes. The value shown is an estimate based on the clear scaling trend from the other tests.*
+| **1M**       | Judy      | 0.2154s    | 0.2374s   | **14.00 MB**      |
+|              | PHP Array | 0.1111s    | 0.0913s   | 40.00 MB          |
+| **10M**      | Judy      | 4.3964s    | 7.5833s   | **142.38 MB**     |
+|              | PHP Array | 6.7544s    | 1.6017s   | 434.01 MB         |
 
 ---
 
@@ -44,14 +42,14 @@ The following tables summarize the results for datasets ranging from 100,000 to 
 
 | Elements     | Subject   | Write Time | Read Time | Memory Footprint  |
 |--------------|-----------|------------|-----------|-------------------|
-| **100k**     | PHP Array | 0.0048s    | 0.0042s   | 4.00 mb           |
-|              | Judy      | 0.1054s    | 0.0726s   | **2.88 mb**       |
-| **500k**     | PHP Array | 0.1372s    | 0.1010s   | 20.00 mb          |
-|              | Judy      | 0.2543s    | 0.1097s   | **18.38 mb**      |
-| **1M**       | PHP Array | 0.2753s    | 0.0962s   | 40.00 mb          |
-|              | Judy      | 0.5849s    | 0.3586s   | **31.50 mb**      |
-| **10M**      | PHP Array | 4.1559s    | 1.1335s   | 434.00 mb         |
-|              | Judy      | 5.2070s    | 5.3208s   | **347.48 mb**     |
+| **100k**     | PHP Array | 0.0067s    | 0.0039s   | 4.00 MB           |
+|              | Judy      | 0.0183s    | 0.0159s   | **2.88 MB**       |
+| **500k**     | PHP Array | 0.0561s    | 0.0391s   | 20.00 MB          |
+|              | Judy      | 0.1830s    | 0.1995s   | **18.38 MB**      |
+| **1M**       | PHP Array | 0.1161s    | 0.1014s   | 40.00 MB          |
+|              | Judy      | 0.4350s    | 0.4270s   | **29.50 MB**      |
+| **10M**      | PHP Array | 11.7977s   | 3.2145s   | 434.00 MB         |
+|              | Judy      | 7.2322s    | 17.2336s  | **347.42 MB**     |
 
 ---
 

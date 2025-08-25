@@ -20,9 +20,14 @@ foreach($count as $v) {
     $array = array();
     for ($i=0; $i<$v; $i++)
         $array["$i"] = rand();
-    unset($array["102"]);
-    var_dump($array["100"]);
-    var_dump($array["102"]);
+
+	/* Del some index */
+	unset($array["101"]);
+	$a = isset($array["100"]) ? $array["100"] : null;
+	$b = isset($array["102"]) ? $array["102"] : null;
+	var_dump($a);
+	var_dump($b);
+
     $e=microtime(true);
     echo "Count: ".count($array)."\n";
     echo "Elapsed time: ".($e - $s)." sec.\n";
@@ -39,9 +44,14 @@ foreach($count as $v) {
     $judy = new Judy(Judy::STRING_TO_INT);
     for ($i=0; $i<$v; $i++)
         $judy["$i"] = rand();
-    var_dump($judy[100]);
-    unset($judy["102"]);
-    var_dump($judy["102"]);
+
+	/* Del some index */
+	unset($judy["101"]);
+	$a = isset($judy["100"]) ? $judy["100"] : null;
+	$b = isset($judy["102"]) ? $judy["102"] : null;
+	var_dump($a);
+	var_dump($b);
+
     echo "Size: ".$judy->size()."\n";
     $e=microtime(true);
     echo "Elapsed time: ".($e - $s)." sec.\n";

@@ -91,23 +91,21 @@ PHP_INI_BEGIN()
 PHP_INI_END()
 /* }}} */
 
-#define CHECK_ARRAY_AND_ARG_TYPE(_index_, _string_key_, _return_)	\
+#define CHECK_ARRAY_AND_ARG_TYPE(_index_, _string_key_, _error_flag_, _return_)	\
 	switch (intern->type) {					\
 		case TYPE_BITSET:					\
 		case TYPE_INT_TO_INT:				\
 		case TYPE_INT_TO_MIXED:				\
 			_index_ = zval_get_long(offset);\
-			_string_key_ = offset;			\
 			break;							\
 		case TYPE_STRING_TO_INT:			\
 		case TYPE_STRING_TO_MIXED:			\
-			if (Z_TYPE_P(offset) != IS_STRING) {	\
-				ZVAL_COPY_VALUE(_string_key_, offset); \
-				zval_copy_ctor(_string_key_);		\
-				convert_to_string(_string_key_);	\
+			if (UNEXPECTED(Z_TYPE_P(offset) != IS_STRING)) {	\
+				zend_throw_error(zend_ce_type_error, "Judy offset must be of type string for string-based arrays"); \
+				_error_flag_ = 1; \
 			} else {								\
 				_string_key_ = offset;	\
-			}								\
+			} \
 			break;							\
 		default:							\
 			php_error_docref(NULL, E_WARNING, "invalid Judy Array type, please report");	\
@@ -119,14 +117,18 @@ zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv) /*
 	long index = 0;
 	Word_t j_index;
 	Pvoid_t *PValue = NULL;
-	zval string_key, *pstring_key = &string_key;
+	zval *pstring_key = NULL;
 	judy_object *intern = php_judy_object(Z_OBJ_P(object));
+	int error_flag = 0;
 
 	if (intern->array == NULL) {
 		return NULL;
 	}
 
-	CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, return NULL);
+	CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, error_flag, return NULL);
+	if (error_flag) {
+		return NULL;
+	}
 
 	j_index = index;
 
@@ -153,16 +155,9 @@ zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv) /*
 		if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_STRING_TO_INT) {
 			ZVAL_LONG(rv, (long)*PValue);
 		} else if (intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_STRING_TO_MIXED) {
-			ZVAL_COPY_VALUE(rv, (zval *)*PValue);
-			zval_copy_ctor(rv);
-		}
-		if (pstring_key != offset) {
-			zval_dtor(pstring_key);
+			ZVAL_COPY(rv, (zval *)*PValue);
 		}
 		return rv;
-	}
-	if (pstring_key != offset) {
-		zval_dtor(pstring_key);
 	}
 	return NULL;
 }
@@ -178,11 +173,15 @@ static zval *judy_object_read_dimension(zend_object *obj, zval *offset, int type
 int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) /* {{{ */
 {
 	long index;
-	zval string_key, *pstring_key = &string_key;
+	zval *pstring_key = NULL;
 	judy_object *intern = php_judy_object(Z_OBJ_P(object));
+	int error_flag = 0;
 
 	if (offset) {
-		CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, return FAILURE);
+		CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, error_flag, return FAILURE);
+		if (error_flag) {
+			return FAILURE;
+		}
 	} else {
 		if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
 			php_error_docref(NULL, E_ERROR, "Judy STRING_TO_INT and STRING_TO_MIXED values cannot be set without key specifying");
@@ -325,9 +324,6 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		} else {
 			res = FAILURE;
 		}
-		if (pstring_key != offset) {
-			zval_dtor(pstring_key);
-		}
 		return res;
 	} else if (intern->type == TYPE_STRING_TO_MIXED) {
 		Pvoid_t *PValue;
@@ -350,9 +346,6 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		} else {
 			res = FAILURE;
 		}
-		if (pstring_key != offset) {
-			zval_dtor(pstring_key);
-		}
 		return res;
 	}
 	return FAILURE;
@@ -371,14 +364,18 @@ int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty
 	long index = 0;
 	Word_t j_index;
 	Pvoid_t *PValue = NULL;
-	zval string_key, *pstring_key = &string_key;
+	zval *pstring_key = NULL;
 	judy_object *intern = php_judy_object(Z_OBJ_P(object));
+	int error_flag = 0;
 
 	if (intern->array == NULL) {
 		return 0;
 	}
 
-	CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, return 0);
+	CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, error_flag, return 0);
+	if (error_flag) {
+		return 0;
+	}
 
 	j_index = index;
 
@@ -397,9 +394,6 @@ int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty
 		case TYPE_STRING_TO_INT:
 		case TYPE_STRING_TO_MIXED:
 			JSLG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
-			if (pstring_key != offset) {
-				zval_dtor(pstring_key);
-			}
 			break;
 	}
 
@@ -434,14 +428,18 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 	int Rc_int = 0;
 	long index = 0;
 	Word_t j_index;
-	zval string_key, *pstring_key = &string_key;
+	zval *pstring_key = NULL;
 	judy_object *intern = php_judy_object(Z_OBJ_P(object));
+	int error_flag = 0;
 
 	if (intern->array == NULL) {
 		return FAILURE;
 	}
 
-	CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, return FAILURE);
+	CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, error_flag, return FAILURE);
+	if (error_flag) {
+		return FAILURE;
+	}
 
 	j_index = index;
 
@@ -479,9 +477,6 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 		}
 		if (Rc_int == 1) {
 			intern->counter--;
-		}
-		if (pstring_key != offset) {
-			zval_dtor(pstring_key);
 		}
 	}
 	return Rc_int ? SUCCESS : FAILURE;
@@ -529,6 +524,8 @@ PHP_MINIT_FUNCTION(judy)
 	zend_class_implements(judy_ce, 2, zend_ce_arrayaccess, zend_ce_countable);
 
 	judy_ce->get_iterator = judy_get_iterator;
+
+	REGISTER_STRING_CONSTANT("JUDY_VERSION", PHP_JUDY_VERSION, CONST_CS | CONST_PERSISTENT);
 
 	REGISTER_JUDY_CLASS_CONST_LONG("BITSET", TYPE_BITSET);
 	REGISTER_JUDY_CLASS_CONST_LONG("INT_TO_INT", TYPE_INT_TO_INT);

@@ -9,9 +9,11 @@ function convert_memory($size_in_bytes) {
 }
 function get_process_memory() {
     $pid = getmypid();
-    $output = shell_exec("ps -o rss -p {$pid}");
-    $parts = explode("\n", trim($output));
-    return (int)end($parts) * 1024;
+    $output = shell_exec("ps -p {$pid} -o rss=");
+    if (empty($output)) {
+        return 0; // Or handle error appropriately
+    }
+    return (int)trim($output) * 1024;
 }
 function generate_random_string($length = 16) {
     return substr(str_shuffle(str_repeat('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', ceil($length/62))), 1, $length);
@@ -26,30 +28,38 @@ foreach ($element_counts as $element_count) {
     $keys = []; for ($i = 0; $i < $element_count; $i++) $keys[] = $i * mt_rand(500, 1500);
     shuffle($keys);
     gc_collect_cycles();
-    $mem_before = get_process_memory();
+    $mem_with_keys = get_process_memory();
+
     $start_time = microtime(true);
     $array = []; foreach ($keys as $k) $array[$k] = 1;
     $results[$scenario]['PHP Array']['Write Time'] = microtime(true) - $start_time;
-    $results[$scenario]['PHP Array']['Memory'] = get_process_memory() - $mem_before;
+    $mem_final = get_process_memory();
+    $results[$scenario]['PHP Array']['Memory'] = $mem_final - $mem_with_keys;
+
     $start_time = microtime(true);
-    foreach ($keys as $k) { $v = $array[$k]; }
+    foreach ($keys as $k) { $v = isset($array[$k]) ? $array[$k] : null; }
     $results[$scenario]['PHP Array']['Read Time'] = microtime(true) - $start_time;
     unset($array);
+    unset($keys);
 
     // Random Strings
     $scenario = "Random String Keys (" . number_format($element_count) . ")";
     $keys = []; for ($i = 0; $i < $element_count; $i++) $keys[] = generate_random_string(16);
     shuffle($keys);
     gc_collect_cycles();
-    $mem_before = get_process_memory();
+    $mem_with_keys = get_process_memory();
+
     $start_time = microtime(true);
     $array = []; foreach ($keys as $k) $array[$k] = 1;
     $results[$scenario]['PHP Array']['Write Time'] = microtime(true) - $start_time;
-    $results[$scenario]['PHP Array']['Memory'] = get_process_memory() - $mem_before;
+    $mem_final = get_process_memory();
+    $results[$scenario]['PHP Array']['Memory'] = $mem_final - $mem_with_keys;
+    
     $start_time = microtime(true);
-    foreach ($keys as $k) { $v = $array[$k]; }
+    foreach ($keys as $k) { $v = isset($array[$k]) ? $array[$k] : null; }
     $results[$scenario]['PHP Array']['Read Time'] = microtime(true) - $start_time;
     unset($array);
+    unset($keys);
 }
 
 echo serialize($results);

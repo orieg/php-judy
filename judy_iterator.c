@@ -200,8 +200,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 			} else {
 				zval *value = *(zval **)PValue;
 
-				ZVAL_COPY_VALUE(&it->data, value);
-				zval_copy_ctor(&it->data);
+				ZVAL_COPY(&it->data, value);
 			}
 		} else {
 			judy_iterator_data_dtor(it);
@@ -235,8 +234,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 			} else {
 				zval *value = *(zval **)PValue;
 
-				ZVAL_COPY_VALUE(&it->data, value);
-				zval_copy_ctor(&it->data);
+				ZVAL_COPY(&it->data, value);
 			}
 		} else {
 			judy_iterator_data_dtor(it);
@@ -279,8 +277,7 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			} else {
 				zval *value = *(zval **)PValue;
 
-				ZVAL_COPY_VALUE(&it->data, value);
-				zval_copy_ctor(&it->data);
+				ZVAL_COPY(&it->data, value);
 			}
 		}
 
@@ -301,8 +298,7 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			} else {
 				zval *value = *(zval **)PValue;
 
-				ZVAL_COPY_VALUE(&it->data, value);
-				zval_copy_ctor(&it->data);
+				ZVAL_COPY(&it->data, value);
 			}
 		}
 	}
