@@ -77,12 +77,13 @@ typedef enum _judy_type {
     judy_object *intern = php_judy_object(Z_OBJ_P(object));
 
 typedef struct _judy_object {
-	long            type;
-	Pvoid_t         array;
-	unsigned long   counter;
-	Word_t			next_empty;
-	zend_bool		next_empty_is_valid;
-	zend_object     std;
+	Pvoid_t array;
+	judy_type type;
+	long counter;
+	zend_object std;
+	long next_empty;
+	int next_empty_is_valid;
+	zend_object_iterator *iterator;
 } judy_object;
 
 static inline judy_object *php_judy_object(zend_object *obj) {
