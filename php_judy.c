@@ -964,7 +964,7 @@ PHP_METHOD(judy, next)
 			intern->iterator_initialized = 0;
 		}
 
-	} else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_INT_TO_MIXED) {
+	} else if (JUDY_IS_INTEGER_KEYED(intern)) {
 		Word_t          index;
 		Pvoid_t          *PValue = NULL;
 
@@ -993,7 +993,7 @@ PHP_METHOD(judy, next)
 			intern->iterator_initialized = 0;
 		}
 
-	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+	} else if (JUDY_IS_STRING_KEYED(intern)) {
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		Pvoid_t      *PValue;
 
@@ -1017,11 +1017,11 @@ PHP_METHOD(judy, next)
 			zval_dtor(&intern->iterator_key);
 			ZVAL_STRING(&intern->iterator_key, (char *)key);
 
-			if (intern->type == TYPE_STRING_TO_INT) {
-				ZVAL_LONG(&intern->iterator_data, (long)*PValue);
-			} else {
+			if (JUDY_IS_MIXED_VALUE(intern)) {
 				zval *value = *(zval **)PValue;
 				ZVAL_COPY(&intern->iterator_data, value);
+			} else {
+				ZVAL_LONG(&intern->iterator_data, (long)*PValue);
 			}
 			intern->iterator_initialized = 1;
 		} else {
@@ -1051,7 +1051,7 @@ PHP_METHOD(judy, rewind)
 		ZVAL_BOOL(&intern->iterator_data, 1);
 		intern->iterator_initialized = 1;
 
-	} else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_INT_TO_MIXED) {
+	} else if (JUDY_IS_INTEGER_KEYED(intern)) {
 		Word_t          index = 0;
 		Pvoid_t          *PValue = NULL;
 
@@ -1060,11 +1060,11 @@ PHP_METHOD(judy, rewind)
 			zval_dtor(&intern->iterator_key);
 			ZVAL_LONG(&intern->iterator_key, index);
 
-			if (intern->type == TYPE_INT_TO_INT) {
-				ZVAL_LONG(&intern->iterator_data, (long)*PValue);
-			} else {
+			if (JUDY_IS_MIXED_VALUE(intern)) {
 				zval *value = *(zval **)PValue;
 				ZVAL_COPY(&intern->iterator_data, value);
+			} else {
+				ZVAL_LONG(&intern->iterator_data, (long)*PValue);
 			}
 			intern->iterator_initialized = 1;
 		} else {
@@ -1073,7 +1073,7 @@ PHP_METHOD(judy, rewind)
 			intern->iterator_initialized = 0;
 		}
 
-	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+	} else if (JUDY_IS_STRING_KEYED(intern)) {
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		Pvoid_t      *PValue;
 
@@ -1083,11 +1083,11 @@ PHP_METHOD(judy, rewind)
 		if (PValue != NULL && PValue != PJERR) {
 			zval_dtor(&intern->iterator_key);
 			ZVAL_STRING(&intern->iterator_key, (const char *) key);
-			if (intern->type == TYPE_STRING_TO_INT) {
-				ZVAL_LONG(&intern->iterator_data, (long)*PValue);
-			} else {
+			if (JUDY_IS_MIXED_VALUE(intern)) {
 				zval *value = *(zval **)PValue;
 				ZVAL_COPY(&intern->iterator_data, value);
+			} else {
+				ZVAL_LONG(&intern->iterator_data, (long)*PValue);
 			}
 			intern->iterator_initialized = 1;
 		}
@@ -1111,14 +1111,14 @@ PHP_METHOD(judy, valid)
 		if (Rc_int == 1) {
 			RETURN_TRUE;
 		}
-	} else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_INT_TO_MIXED) {
+	} else if (JUDY_IS_INTEGER_KEYED(intern)) {
 		Word_t    *PValue;
 
 		JLG(PValue, intern->array, (Word_t) Z_LVAL_P(&intern->iterator_key));
 		if (PValue != NULL && PValue != PJERR) {
 			RETURN_TRUE;
 		}
-	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+	} else if (JUDY_IS_STRING_KEYED(intern)) {
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		Word_t      *PValue;
 
