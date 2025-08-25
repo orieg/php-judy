@@ -55,7 +55,32 @@ tests/       Unit tests.
 3. HOW TO INSTALL
 ------------------
 
-## A. Linux
+## A. Using PHP PIE (Recommended)
+
+PHP PIE (PHP Extension Installer) is the easiest way to install PHP Judy on supported platforms:
+
+```sh
+# Install PHP PIE if you don't have it
+curl -sSL https://pie.dev/installer | php
+
+# Install PHP Judy using PIE
+pie install judy
+```
+
+**Note**: PHP PIE automatically handles dependencies and builds the extension for your specific PHP version and platform.
+
+## B. Using PECL
+
+You can also install PHP Judy using PECL:
+
+```sh
+# Install the extension with pecl
+pecl install judy
+```
+
+**Note**: You may need to install the Judy C library first on some systems.
+
+## C. Linux (Manual Build)
 
    From the PHP Judy sources :
 
@@ -78,7 +103,7 @@ tests/       Unit tests.
      make install
    ```
 
-## B. Windows
+## D. Windows
 
    On Windows, you will need to build LibJudy yourself.
 
@@ -113,9 +138,21 @@ tests/       Unit tests.
      nmake
    ```
 
-## C. Mac OS X
+## E. Mac OS X
 
-The recommended way to install `php-judy` on Mac OS X is by using `pecl`. You will need to have the Judy C library installed first, which can be done easily with Homebrew.
+The recommended way to install `php-judy` on Mac OS X is by using `pie` or `pecl`. You will need to have the Judy C library installed first, which can be done easily with Homebrew.
+
+### Using PHP PIE (Recommended)
+
+```sh
+# Install PHP PIE if you don't have it
+curl -sSL https://pie.dev/installer | php
+
+# Install PHP Judy using PIE
+pie install judy
+```
+
+### Using PECL
 
    ```sh
    # First, install the Judy C library
