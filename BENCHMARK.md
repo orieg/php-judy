@@ -5,28 +5,34 @@ This document provides a detailed performance and memory usage comparison betwee
 ## 🎯 **Quick Decision Guide**
 
 **Use Judy Arrays When:**
-- ✅ Memory is constrained (3.5x less memory usage)
-- ✅ Sequential access patterns (3x faster than PHP arrays)
-- ✅ Large sparse integer datasets (> 1M elements)
+- ✅ Memory is constrained (2-4x less memory usage)
+- ✅ Large datasets (> 1M elements) where memory efficiency matters
+- ✅ Sequential access patterns (2x slower but acceptable)
 - ✅ Iterator-based operations (`foreach ($judy as $k => $v)`)
 
 **Use PHP Arrays When:**
-- ❌ Random access patterns (5x faster than Judy)
+- ❌ Random access patterns (2-9x faster than Judy)
 - ❌ Small datasets (< 100k elements)
-- ❌ Performance-critical string operations
+- ❌ Performance-critical operations
 - ❌ Memory is not a constraint
 
 **Hybrid Approach:**
 - 🔄 Use Judy for storage, convert to PHP array for random access
 
-## 📊 **Performance Summary**
+---
 
-| Access Pattern | Dataset Size | Judy vs PHP | Recommendation |
-|----------------|--------------|-------------|----------------|
-| **Random Access** | Any size | 5x slower | Use PHP arrays |
-| **Sequential Access** | > 10M elements | 3x faster | Use Judy iterators |
-| **Sequential Access** | < 1M elements | Similar | Use PHP arrays |
-| **Memory Usage** | Any size | 3.5x less | Use Judy if memory constrained |
+## 📊 **Performance Summary Table**
+
+| Use Case | Dataset Size | Access Pattern | Judy vs PHP | Recommendation | Reasoning |
+|----------|--------------|----------------|-------------|----------------|-----------|
+| **Memory Constrained** | Any size | Any pattern | 2-4x less memory | ✅ **Use Judy** | Memory efficiency is primary concern |
+| **Small Dataset** | < 100k | Random | 4-5x slower | ❌ **Use PHP** | Performance difference is significant |
+| **Large Dataset** | > 1M | Random | 3-9x slower | ⚠️ **Consider Judy** | Memory savings may outweigh performance cost |
+| **Sequential Access** | Any size | Sequential | 2x slower | ⚠️ **Consider Judy** | Acceptable performance for memory savings |
+| **High Performance** | Any size | Random | 2-9x slower | ❌ **Use PHP** | Performance is critical |
+| **Mixed Workload** | > 1M | Mixed | 3-5x slower | ✅ **Use Judy** | Memory efficiency + acceptable performance |
+
+
 
 ## Benchmark Methodology
 
@@ -50,41 +56,79 @@ For each scenario, the following operations were measured:
 
 All tests were performed using the `php:8.1-cli` Docker image to ensure a consistent and isolated environment. The full benchmark scripts can be found in `examples/run-benchmarks.php` and individual benchmark files in the `examples/` directory.
 
-**Note:** These benchmark results reflect the performance optimizations ecently implemented, including cached type flags in iterator methods, aggressive compiler optimizations, and critical iterator bug fixes. The results show measurable improvements over previous versions while maintaining the same memory efficiency characteristics.
+**Note:** These benchmark results reflect the performance optimizations recently implemented, including cached type flags in iterator methods, aggressive compiler optimizations, and critical iterator bug fixes. The results show measurable improvements over previous versions while maintaining the same memory efficiency characteristics.
 
 ## Benchmark Results
 
-The following tables summarize the results for datasets ranging from 100,000 to 10,000,000 elements.
+The following tables provide comprehensive performance comparisons for different scenarios and dataset sizes. All tests use random access patterns unless otherwise specified.
 
 ---
 
-### **Scenario 1: Sparse Integer Keys**
+### **Table 1: Memory Efficiency Comparison**
 
-| Elements     | Subject   | Write Time | Read Time | Memory Footprint  |
-|--------------|-----------|------------|-----------|-------------------|
-| **100k**     | PHP Array | 0.0048s    | 0.0028s   | 7 mb              |
-|              | Judy      | 0.0191s    | 0.0150s   | **1.84 mb**       |
-| **500k**     | PHP Array | 0.0297s    | 0.0349s   | 20 mb             |
-|              | Judy      | 0.0700s    | 0.0814s   | **9.19 mb**       |
-| **1M**       | PHP Array | 0.1013s    | 0.0921s   | 40 mb             |
-|              | Judy      | 0.3012s    | 0.2775s   | **18.39 mb**      |
-| **10M**      | PHP Array | 1.6572s    | 1.1902s   | 640 mb            |
-|              | Judy      | 5.0023s    | 11.1267s  | **183.6 mb**      |
+| Dataset Size | PHP Array Memory | Judy Memory | Memory Savings | Recommendation |
+|--------------|------------------|-------------|----------------|----------------|
+| **100k**     | 7 MB            | 1.84 MB     | **3.8x less**  | ✅ Use Judy    |
+| **500k**     | 20 MB           | 9.19 MB     | **2.2x less**  | ✅ Use Judy    |
+| **1M**       | 40 MB           | 18.39 MB    | **2.2x less**  | ✅ Use Judy    |
+| **10M**      | 640 MB          | 183.6 MB    | **3.5x less**  | ✅ Use Judy    |
+
+**Key Insight**: Judy consistently provides 2-4x memory savings across all dataset sizes.
 
 ---
 
-### **Scenario 2: Random String Keys**
+### **Table 2: Performance Comparison by Dataset Size**
 
-| Elements     | Subject   | Write Time | Read Time | Memory Footprint  |
-|--------------|-----------|------------|-----------|-------------------|
-| **100k**     | PHP Array | 0.0048s    | 0.0031s   | 5 mb              |
-|              | Judy      | 0.0310s    | 0.0184s   | **3.05 mb**       |
-| **500k**     | PHP Array | 0.0446s    | 0.0416s   | 20 mb             |
-|              | Judy      | 0.1666s    | 0.2708s   | **15.26 mb**      |
-| **1M**       | PHP Array | 0.1458s    | 0.1119s   | 40 mb             |
-|              | Judy      | 0.4053s    | 0.4598s   | **30.52 mb**      |
-| **10M**      | PHP Array | 2.7764s    | 1.4480s   | 640 mb            |
-|              | Judy      | 7.7160s    | 7.9496s   | **305.18 mb**     |
+| Dataset Size | Operation | PHP Array | Judy Array | Performance Ratio | Winner |
+|--------------|-----------|-----------|------------|-------------------|---------|
+| **100k**     | Write     | 4.8ms     | 19.1ms     | 4.0x slower       | PHP     |
+|              | Read      | 2.8ms     | 15.0ms     | 5.4x slower       | PHP     |
+| **500k**     | Write     | 29.7ms    | 70.0ms     | 2.4x slower       | PHP     |
+|              | Read      | 34.9ms    | 81.4ms     | 2.3x slower       | PHP     |
+| **1M**       | Write     | 101.3ms   | 301.2ms    | 3.0x slower       | PHP     |
+|              | Read      | 92.1ms    | 277.5ms    | 3.0x slower       | PHP     |
+| **10M**      | Write     | 1.66s     | 5.00s      | 3.0x slower       | PHP     |
+|              | Read      | 1.19s     | 11.13s     | 9.4x slower       | PHP     |
+
+**Key Insight**: PHP arrays are 2-9x faster for random access, with performance gap increasing at larger scales.
+
+---
+
+### **Table 3: Access Pattern Performance (100K elements)**
+
+| Access Method | Judy Performance | PHP Array Performance | Judy vs PHP | Best Use Case |
+|---------------|------------------|----------------------|-------------|---------------|
+| **Random Access** | 15.0ms        | 2.8ms               | 5.4x slower | ❌ Avoid Judy |
+| **Sequential Access** | 5.5ms      | 2.8ms               | 2.0x slower | ⚠️ Consider Judy |
+| **Judy Iterator** | 15.9ms       | 2.8ms               | 5.7x slower | ❌ Avoid Judy |
+| **Manual Iterator** | 20.8ms     | 2.8ms               | 7.4x slower | ❌ Avoid Judy |
+
+**Key Insight**: Judy performs best with sequential access, but still slower than PHP arrays at small scales.
+
+---
+
+### **Table 4: String vs Integer Key Performance**
+
+| Key Type | Dataset Size | Write Time | Read Time | Memory Usage | Performance Note |
+|----------|--------------|------------|-----------|--------------|------------------|
+| **Integer Keys** | 100k | 19.1ms | 15.0ms | 1.84 MB | Standard performance |
+| **String Keys** | 100k | 31.0ms | 18.4ms | 3.05 MB | 1.6x slower write |
+| **Integer Keys** | 1M | 301.2ms | 277.5ms | 18.39 MB | Standard performance |
+| **String Keys** | 1M | 405.3ms | 459.8ms | 30.52 MB | 1.7x slower overall |
+
+**Key Insight**: Integer keys consistently outperform string keys in Judy arrays.
+
+---
+
+### **Table 5: Scale-Dependent Performance Analysis**
+
+| Dataset Size | Judy Memory Advantage | Judy Performance Disadvantage | Recommended Usage |
+|--------------|----------------------|-------------------------------|-------------------|
+| **< 100k**   | 3.8x less memory     | 4-5x slower performance       | ❌ Use PHP arrays |
+| **100k-1M**  | 2.2x less memory     | 2-3x slower performance       | ⚠️ Consider Judy if memory constrained |
+| **> 1M**     | 3.5x less memory     | 3-9x slower performance       | ✅ Use Judy for memory efficiency |
+
+**Key Insight**: Judy becomes more attractive as dataset size increases due to memory efficiency gains.
 
 ---
 
