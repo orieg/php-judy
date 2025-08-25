@@ -28,35 +28,11 @@ jobs:
         architecture: ${{ matrix.arch }}
         threadsafe: ${{ matrix.ts == 'ts' }}
 
-    - name: Create package structure
+    - name: Debug directory structure
       run: |
-        # Create the expected directory structure for PHP Windows Builder
-        $packageDir = "test-package\judy-2.2.0"
-        New-Item -ItemType Directory -Path $packageDir -Force
-        
-        # Copy source files
-        Copy-Item -Path "*.c" -Destination $packageDir -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path "*.h" -Destination $packageDir -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path "*.m4" -Destination $packageDir -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path "*.xml" -Destination $packageDir -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path "*.md" -Destination $packageDir -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path "LICENSE" -Destination $packageDir -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path "CREDITS" -Destination $packageDir -Force -ErrorAction SilentlyContinue
-        Copy-Item -Path "Dockerfile" -Destination $packageDir -Force -ErrorAction SilentlyContinue
-        
-        # Copy directories
-        if (Test-Path "examples") {
-          Copy-Item -Path "examples" -Destination $packageDir -Recurse -Force
-        }
-        if (Test-Path "tests") {
-          Copy-Item -Path "tests" -Destination $packageDir -Recurse -Force
-        }
-        if (Test-Path "lib") {
-          Copy-Item -Path "lib" -Destination $packageDir -Recurse -Force
-        }
-        
-        Write-Host "Package directory created: $packageDir"
-        Get-ChildItem -Path $packageDir -Recurse | Select-Object Name, FullName
+        echo "Current directory: $PWD"
+        echo "Directory contents:"
+        Get-ChildItem -Recurse | Select-Object Name, FullName
 
     - name: Build the extension
       uses: php/php-windows-builder/extension@v1
@@ -71,7 +47,7 @@ jobs:
         name: judy-windows-${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
         path: |
           modules/judy.dll
-          test-package/
+          build/
         retention-days: 30
 
     - name: Upload to release
