@@ -1,5 +1,5 @@
 --TEST--
-Check for Judy count() method when using INT_TO_INT in a loop
+Test count() method with INT_TO_INT in loops
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--

@@ -1,5 +1,5 @@
 --TEST--
-Check for Judy infinite loop when using foreach() and INT_TO_INT with index 0 and -1
+Test foreach() with negative indices in INT_TO_INT Judy array
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--

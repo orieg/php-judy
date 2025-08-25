@@ -1,5 +1,5 @@
 --TEST--
-Check for Judy ITERATOR using foreach() and INT_TO_MIXED
+Test foreach() iterator with INT_TO_MIXED Judy array
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --INI--

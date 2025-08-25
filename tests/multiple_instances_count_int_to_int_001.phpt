@@ -1,5 +1,5 @@
 --TEST--
-Check for Judy count() method when two instances INT_TO_INT are declared
+Test count() method with multiple INT_TO_INT instances
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--

@@ -1,5 +1,5 @@
 --TEST--
-Check for Judy with foreach() and vardump() method with one instance INT_TO_INT
+Test foreach() with var_dump() on INT_TO_INT Judy array
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
