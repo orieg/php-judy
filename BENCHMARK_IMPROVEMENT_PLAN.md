@@ -4,6 +4,8 @@
 
 Based on libjudy research and analysis, our current benchmarks don't fully demonstrate Judy's true strengths. This plan outlines how to create more comprehensive benchmarks that align with Judy's actual value propositions and performance characteristics.
 
+**Reference**: This plan is informed by the authoritative [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which provides concrete performance data and insights into Judy's strengths and weaknesses.
+
 ## Current Benchmark Limitations
 
 ### What We're Missing
@@ -275,17 +277,51 @@ for ($i = 0; $i < $count; $i++) {
 
 ## Expected Results and Insights
 
+### Reference Benchmark Data
+Based on [Rusty Russell's comprehensive benchmark](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) with 50 million objects:
+
+**Ordered, Dense Keys (Judy's Strength):**
+| Measure             | Judy | Dense Hash | Sparse Hash |
+| ------------------- | ---- | ---------- | ----------- |
+| Memory              | 420M | 640M       | 895M        |
+| Initial insert (ns) | 137  | 332        | 471         |
+| Linear hit (ns)     | 19   | 174        | 176         |
+| Linear miss (ns)    | 14   | 234        | 184         |
+| Random hit (ns)     | 361  | 330        | 357         |
+
+**Unordered Sparse Keys (Judy's Weakness):**
+| Measure         | Judy | Dense Hash | Sparse Hash |
+| --------------- | ---- | ---------- | ----------- |
+| Memory          | 607M | 640M       | 895M        |
+| Linear Hit (ns) | 61   | 215        | 202         |
+| Random Hit      | 736  | 405        | 386         |
+
+**Key Findings:**
+- **Linear access**: Judy is 9x faster than hashtables (19ns vs 174ns)
+- **Memory efficiency**: Judy uses 34% less memory than dense hashtables
+- **Random access on sparse data**: Judy is 82% slower than hashtables
+- **Cache locality**: "If every second lookup is near the previous one, time drops from 736 to 410 nanoseconds"
+
 ### Judy's Strengths (Should Excel)
+Based on [Rusty Russell's benchmark](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html), Judy excels at:
+
 1. **Ordered data access**: 2-5x faster than PHP arrays
 2. **Range queries**: 3-10x faster than PHP array alternatives
 3. **Memory efficiency**: 2-4x less memory usage
 4. **Predictable performance**: No degradation with "bad" data
 5. **Cache locality**: Better performance on clustered data
+6. **Linear access patterns**: 19ns vs 174ns for hashtables (9x faster!)
+7. **Dense key patterns**: Competitive with optimized hashtables
+8. **No rehashing latency spikes**: Predictable performance under load
 
 ### Judy's Weaknesses (Should Be Honest About)
+According to [Rusty Russell's analysis](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html):
+
 1. **Random access**: 2-5x slower than PHP arrays
 2. **Small datasets**: Overhead not justified
 3. **String operations**: Higher overhead than integers
+4. **Sparse unordered keys**: 736ns vs 405ns for hashtables (82% slower)
+5. **Random access on sparse data**: Can be twice as slow as optimized hashtables
 
 ### Key Insights to Demonstrate
 1. **Judy is not a general-purpose replacement** for PHP arrays

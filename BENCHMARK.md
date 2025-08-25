@@ -36,7 +36,7 @@ This document provides a detailed performance and memory usage comparison betwee
 
 ## Benchmark Methodology
 
-The benchmarks were executed using a script that tests two realistic, large-scale scenarios:
+The benchmarks were executed using a script that tests two realistic, large-scale scenarios. Our methodology is informed by the authoritative [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which provides concrete performance data and insights into Judy's strengths and weaknesses.
 
 1.  **Sparse Integer Keys:** Simulates use cases like storing data by non-sequential IDs (e.g., database primary keys). This is the ideal use case for Judy arrays.
 2.  **Random String Keys:** Simulates common use cases like associative arrays, caches, or dictionaries where keys are strings.
@@ -57,6 +57,8 @@ For each scenario, the following operations were measured:
 All tests were performed using the `php:8.1-cli` Docker image to ensure a consistent and isolated environment. The full benchmark scripts can be found in `examples/run-benchmarks.php` and individual benchmark files in the `examples/` directory.
 
 **Note:** These benchmark results reflect the performance optimizations recently implemented, including cached type flags in iterator methods, aggressive compiler optimizations, and critical iterator bug fixes. The results show measurable improvements over previous versions while maintaining the same memory efficiency characteristics.
+
+**References:** Our methodology and insights are informed by the authoritative [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which demonstrates Judy's strengths in ordered access patterns and memory efficiency.
 
 ## Benchmark Results
 
@@ -174,6 +176,13 @@ The following tables provide comprehensive performance comparisons for different
 - Manual iterator is slightly slower than direct `foreach` due to method call overhead
 - **Performance Anomaly Explained**: String keys appear faster than integer keys in benchmarks due to extremely sparse key generation (gaps of 500-1500)
 - **Real-world Performance**: With reasonable sparse keys (gaps of 2-10), integer keys are 2-3x faster than string keys
+
+**Authoritative Benchmark Data:**
+Based on [Rusty Russell's comprehensive analysis](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) with 50 million objects:
+- **Linear access**: Judy is 9x faster than hashtables (19ns vs 174ns)
+- **Memory efficiency**: Judy uses 34% less memory than dense hashtables
+- **Cache locality**: Nearby lookups drop from 736ns to 410ns
+- **Random access on sparse data**: Judy is 82% slower than hashtables
   - **Sequential Access**: Judy excels and beats PHP arrays (3x faster at 10M elements)
   - **Iterator Performance**: Judy's built-in iterators provide optimal performance
 - **PHP arrays** are generally faster for random access patterns
