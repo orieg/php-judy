@@ -1,0 +1,16 @@
+FROM php:8.1-cli
+
+# Install dependencies for judy extension
+RUN apt-get update && apt-get install -y libjudy-dev
+
+# Copy the new package into the container
+COPY Judy-*.tgz /tmp/judy.tgz
+
+# Install the extension from the package
+RUN pecl install /tmp/judy.tgz
+
+# Enable the extension
+RUN docker-php-ext-enable judy
+
+# Verify the extension is loaded
+RUN php -m | grep judy
