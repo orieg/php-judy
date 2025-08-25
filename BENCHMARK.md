@@ -63,7 +63,7 @@ The following tables summarize the results for datasets ranging from 100,000 to 
 ## Key Findings
 
 ### Memory Efficiency
-- **Judy arrays excel at memory efficiency** for sparse integer data, offering **2-3x memory savings** compared to PHP arrays
+- **Judy arrays excel at memory efficiency** for sparse integer data, offering **over 2x memory savings (up to 3.8x in tests)** compared to PHP arrays
 - **String-based Judy arrays** show moderate memory savings but with performance trade-offs
 - **PHP arrays** are more memory-intensive but offer better performance for most workloads
 
