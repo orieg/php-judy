@@ -375,7 +375,7 @@ typedef struct _judy_string_cache {
 ### **Completed Optimizations:**
 
 #### **1.1 Compiler Optimizations** ✅ **COMPLETED**
-- **Implementation:** Added aggressive optimization flags (-O3, -march=native, -mtune=native, -flto, -fomit-frame-pointer, -fno-stack-protector, -fno-common)
+- **Implementation:** Added aggressive optimization flags (-O3, -march=native, -mtune=native, -flto, -fomit-frame-pointer, -fno-common)
 - **Status:** Successfully implemented and tested
 - **Impact:** Measurable performance improvements observed
 

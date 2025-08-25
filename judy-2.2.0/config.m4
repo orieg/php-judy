@@ -56,7 +56,6 @@ if test "$PHP_JUDY" != "no"; then
     CFLAGS="$CFLAGS -flto -fomit-frame-pointer"
     CFLAGS="$CFLAGS -DNDEBUG"
     dnl # Additional performance flags
-    CFLAGS="$CFLAGS -fno-stack-protector"
     CFLAGS="$CFLAGS -fno-common"
     dnl # Link-time optimization
     LDFLAGS="$LDFLAGS -flto"
