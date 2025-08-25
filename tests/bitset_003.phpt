@@ -37,7 +37,7 @@ echo "Testing next()\n";
 $index = $firstIndexDefault;
 while ($index < $lastIndexDefault) {
     $parent_index = $index;
-    $index = $judy->next($parent_index);
+    $index = $judy->searchNext($parent_index);
     if (empty($index) || $index < $firstIndexDefault) {
         echo "Failed to get next index from parent index ($parent_index)\n";
         break;

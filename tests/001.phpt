@@ -4,7 +4,7 @@ Check for Judy presence
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php 
-echo "judy extension is available";
+echo "judy extension is available\n";
 $version = judy_version();
 var_dump($version);
 
