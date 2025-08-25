@@ -37,6 +37,8 @@ jobs:
       - name: Build the extension
         uses: php/php-windows-builder/extension@v1
         with:
+          extension-url: https://github.com/orieg/php-judy
+          extension-ref: ${{ github.sha }}
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
