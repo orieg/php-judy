@@ -108,7 +108,7 @@ jobs:
         Get-ChildItem -Path $packageDir -Recurse | Select-Object Name, FullName
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: judy-windows-${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
         path: |
