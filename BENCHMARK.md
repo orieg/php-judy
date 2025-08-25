@@ -50,7 +50,7 @@ For each scenario, the following operations were measured:
 
 All tests were performed using the `php:8.1-cli` Docker image to ensure a consistent and isolated environment. The full benchmark scripts can be found in `examples/run-benchmarks.php` and individual benchmark files in the `examples/` directory.
 
-**Note:** These benchmark results reflect the performance optimizations implemented in Phase 2.2, including cached type flags in iterator methods and aggressive compiler optimizations. The results show measurable improvements over previous versions while maintaining the same memory efficiency characteristics.
+**Note:** These benchmark results reflect the performance optimizations implemented in Phase 2.2, including cached type flags in iterator methods, aggressive compiler optimizations, and critical iterator bug fixes. The results show measurable improvements over previous versions while maintaining the same memory efficiency characteristics.
 
 ## Benchmark Results
 
@@ -98,6 +98,32 @@ The following tables summarize the results for datasets ranging from 100,000 to 
 ### Performance Characteristics
 - **Access Pattern Sensitivity**: Judy arrays are extremely sensitive to access patterns:
   - **Random Access**: Judy performs poorly due to cache locality issues (5x slower than PHP at 10M elements)
+  - **Sequential Access**: Judy excels with sorted keys or iterator operations (3x faster than PHP at large scales)
+  - **Iterator Performance**: Optimized `valid()` method provides O(1) performance instead of expensive lookups
+
+### Latest Performance Improvements (v2.2.0)
+- **Iterator Optimization**: `valid()` method now uses cached state instead of expensive Judy library calls
+- **Bug Fixes**: Fixed critical iterator behavior issues that could cause incorrect iteration patterns
+- **Security Enhancement**: Removed `-fno-stack-protector` flag while maintaining performance optimizations
+- **Performance Impact**: 100K element iteration completes in ~8ms with optimized iterator methods
+
+### Latest Benchmark Results (v2.2.0)
+
+**Performance Comparison (1M elements):**
+- **Judy Arrays**: Write: 105.88ms, Read: 101.78ms, Memory: 7.94 MB
+- **PHP Arrays**: Write: 32.45ms, Read: 10.6ms, Memory: 34 MB
+
+**Access Pattern Performance (100K elements):**
+- **Random Access**: 7.3ms (shuffled keys with `isset()`)
+- **Sequential Access**: 5.5ms (sorted keys with `isset()`)
+- **Judy Iterator**: 15.91ms (direct `foreach`)
+- **Manual Iterator**: 20.76ms (`rewind`/`valid`/`next`)
+
+**Key Insights:**
+- Judy provides 4.3x memory savings over PHP arrays
+- Sequential access is faster than random access
+- Iterator performance scales well with dataset size
+- Manual iterator is slightly slower than direct `foreach` due to method call overhead
   - **Sequential Access**: Judy excels and beats PHP arrays (3x faster at 10M elements)
   - **Iterator Performance**: Judy's built-in iterators provide optimal performance
 - **PHP arrays** are generally faster for random access patterns
