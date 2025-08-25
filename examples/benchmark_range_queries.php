@@ -139,13 +139,13 @@ foreach ($element_counts as $element_count) {
         $last_key = $judy->last();
         $nav_time = (microtime(true) - $start) * 1000;
         
-        // Test next/prev operations
+        // Test next/prev operations using Iterator interface
         $start = microtime(true);
         $count = 0;
-        $key = $judy->first();
-        while ($key !== false) {
+        $judy->rewind();
+        while ($judy->valid()) {
             $count++;
-            $key = $judy->searchNext($key);
+            $judy->next();
         }
         $next_time = (microtime(true) - $start) * 1000;
         
@@ -166,7 +166,7 @@ foreach ($element_counts as $element_count) {
     $avg_count = array_sum(array_column($navigation_results, 'count')) / count($navigation_results);
     
     echo "   First/Last operations: " . round($avg_nav_time, 2) . "ms\n";
-    echo "   Next iteration: " . round($avg_next_time, 2) . "ms for {$avg_count} elements\n";
+    echo "   Iterator iteration: " . round($avg_next_time, 2) . "ms for {$avg_count} elements\n";
     echo "   First key: " . $navigation_results[0]['first_key'] . ", Last key: " . $navigation_results[0]['last_key'] . "\n\n";
     
     // Test 4: PHP Array Range Query Comparison

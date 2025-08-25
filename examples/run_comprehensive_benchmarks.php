@@ -77,7 +77,7 @@ echo "📈 PERFORMANCE CHARACTERISTICS:\n";
 echo "• Linear access: Judy's sweet spot for sequential data\n";
 echo "• Cache locality: Nearby lookups show performance benefits\n";
 echo "• Memory scaling: Logarithmic memory growth\n";
-echo "• Predictable performance: No degradation with "bad" data\n\n";
+echo "• Predictable performance: No degradation with bad data\n\n";
 
 echo "Judy extension version: " . phpversion('judy') . "\n";
 echo "Benchmark completed at: " . date('Y-m-d H:i:s') . "\n";
