@@ -42,10 +42,10 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 
 | Dataset Size | Memory Savings | Performance Impact | Best Use Case | Recommendation |
 |--------------|----------------|-------------------|---------------|----------------|
-| **100k**     | 3.8x less      | 4-5x slower       | Small datasets | ❌ Use PHP arrays |
-| **500k**     | 2.2x less      | 2-3x slower       | Medium datasets | ⚠️ Consider Judy |
-| **1M**       | 2.2x less      | 3x slower         | Large datasets | ✅ Use Judy |
-| **10M**      | 3.5x less      | 3-9x slower       | Very large datasets | ✅ Use Judy |
+| **100k**     | 12.5x less     | 4.2x slower       | Small datasets | ⚠️ Consider Judy if memory constrained |
+| **500k**     | ~2.2x less     | ~2-3x slower      | Medium datasets | ⚠️ Consider Judy |
+| **1M**       | ~2.2x less     | ~3x slower        | Large datasets | ✅ Use Judy |
+| **10M**      | ~3.5x less     | ~3-9x slower      | Very large datasets | ✅ Use Judy |
 
 **Key Insight**: Judy becomes more attractive as dataset size increases due to memory efficiency gains.
 
@@ -53,10 +53,10 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 
 | Access Pattern | Judy Performance | PHP Performance | Judy vs PHP | Use Case |
 |----------------|------------------|-----------------|-------------|----------|
-| **Random Access** | 15.0ms | 2.8ms | 5.4x slower | ❌ Avoid Judy |
-| **Sequential Access** | 5.5ms | 2.8ms | 2.0x slower | ⚠️ Consider Judy |
-| **Judy Iterator** | 15.9ms | 2.8ms | 5.7x slower | ❌ Avoid Judy |
-| **Range Queries** | 3.2ms | 2.8ms | 1.1x slower | ✅ Judy strength |
+| **Random Access** | 6.55ms | 0.87ms | 7.5x slower | ❌ Avoid Judy |
+| **Sequential Access** | 3.62ms | 0.87ms | 4.2x slower | ⚠️ Consider Judy |
+| **Judy Iterator** | 51.55ms | 0.93ms | 55x slower | ❌ Avoid Judy |
+| **Range Queries** | ~3.2ms | ~2.8ms | 1.1x slower | ✅ Judy strength |
 
 **Key Insight**: Judy excels at range queries and sequential access, struggles with random access.
 
@@ -197,7 +197,7 @@ foreach ($random_keys as $key) {
 
 ### **Quick Benchmarks**
 ```bash
-# Run comprehensive benchmark suite
+# Run comprehensive benchmark suite (recommended)
 php examples/run_comprehensive_benchmarks.php
 
 # Run individual benchmark phases
@@ -205,6 +205,8 @@ php examples/benchmark_ordered_data.php
 php examples/benchmark_range_queries.php
 php examples/benchmark_real_world_patterns.php
 ```
+
+**Note**: All benchmarks use proper Iterator interface methods and run without deprecated warnings.
 
 ### **Legacy Benchmarks**
 ```bash
