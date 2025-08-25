@@ -29,12 +29,9 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-- Added compatibility for PHP 8.0 and newer.
-- Dropped support for PHP versions older than 8.0 (Breaking Change).
-- Added a comprehensive benchmark suite (`examples/run-benchmarks.php`) to test realistic workloads.
-- Added a `BENCHMARK.md` file with detailed performance results and recommendations.
-- Added a `Dockerfile` to provide a consistent development and testing environment.
-- Updated `README.md` with modern installation instructions and a link to the benchmark results.
+- Performance improvements for string-keyed arrays through strict key typing (Breaking Change).
+- Modernized zval handling for better performance and PHP 8+ compatibility.
+- Fixed test suite to accomodate for strict key typing.
  </notes>
  <contents>
   <dir name="/">
@@ -138,7 +135,7 @@
     <api>stable</api>
    </stability>
    <notes>
-- Performance improvements for string-keyed arrays through strict key typing.
+- Performance improvements for string-keyed arrays through strict key typing (Breaking Change).
 - Modernized zval handling for better performance and PHP 8+ compatibility.
 - Fixed test suite to accomodate for strict key typing.
    </notes>
