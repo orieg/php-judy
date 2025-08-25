@@ -3,7 +3,7 @@
     "type": "php-ext",
     "description": "PHP Judy implements sparse dynamic arrays (aka Judy Arrays).",
     "license": "PHP-3.01",
-    "homepage": "https://github.com/orieg/judy",
+    "homepage": "https://github.com/orieg/php-judy",
     "authors": [
         {
             "name": "Nicolas Brousse",
