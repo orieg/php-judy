@@ -2,6 +2,26 @@
 
 This document provides a comprehensive performance and memory usage comparison between the `php-judy` extension and native PHP arrays, based on our extensive benchmarking suite.
 
+## 🔬 **Judy's Core Design & Performance**
+
+The Judy algorithm is a form of a trie or a radix tree, optimized for in-memory integer and string key-value storage. Unlike simple hash tables, Judy arrays are designed to be memory-efficient and to maintain sorted order. This is what gives them unique performance characteristics.
+
+### **Memory Efficiency**
+Judy's design uses a series of nodes that compress branches of the tree, which can lead to very low memory overhead, especially with dense key sets.
+
+### **Sorted Traversal**
+Because the keys are stored in a tree-like structure, iterating through them in sorted order is a native and highly performant operation. A hash table, by contrast, must first sort all keys before it can be traversed in order.
+
+### **Locality of Reference**
+For dense, sequential keys, Judy arrays have excellent cache performance (cache-friendly) because related keys are stored in a contiguous manner in memory.
+
+### **Modern Algorithms and Benchmarking**
+Modern data structures like Swiss tables (used in abseil and Folly) and Robin Hood hashing (used in C++ unordered_map) are highly optimized hash tables that are generally considered to be some of the fastest. They achieve their performance by minimizing cache misses and collisions.
+
+**Random Access**: For random key lookups and insertions (the most common use case for a map or dictionary), highly-optimized hash tables will typically outperform Judy arrays. This is because they can find a key in near-constant time (O(1)), while Judy's lookup time is logarithmic with the number of bits in the key (O(logn) for a balanced trie).
+
+**Benchmarks**: The most accurate performance metrics come from benchmarks that test specific real-world workloads, not just raw operations. Factors like key sparsity, key type (integer vs. string), and access patterns (random vs. sequential) can dramatically change the outcome. An algorithm that excels at one task might be slow at another.
+
 ## 🎯 **Quick Decision Guide**
 
 **Use Judy Arrays When:**
@@ -55,10 +75,12 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 |----------------|------------------|-----------------|-------------|----------|
 | **Random Access** | 6.55ms | 0.87ms | 7.5x slower | ❌ Avoid Judy |
 | **Sequential Access** | 3.62ms | 0.87ms | 4.2x slower | ⚠️ Consider Judy |
-| **Judy Iterator** | 16.77ms | 0.78ms | 21.6x slower | ⚠️ Consider Judy for large datasets |
+| **Judy Iterator** | 20.13ms | 1.79ms | 11.2x slower | ⚠️ Consider Judy for large datasets |
 | **Range Queries** | ~3.2ms | ~2.8ms | 1.1x slower | ✅ Judy strength |
 
-**Key Insight**: Judy excels at range queries and sequential access. Iterators have overhead but become more efficient at larger scales.
+**Key Insight**: Judy excels at range queries and sequential access. Iterator performance depends on dataset size - faster than sequential for large sparse datasets, slower for small sequential datasets.
+
+**Design Alignment**: These results align perfectly with Judy's radix tree design - sequential access leverages cache locality, while random access requires tree traversal.
 
 ### **Table 3: Real-world Data Patterns**
 
@@ -82,12 +104,12 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 
 ### **Performance Characteristics**
 - **Access Pattern Sensitivity**: Judy's performance heavily depends on access patterns
-  - **Random Access**: 2-9x slower than PHP arrays (Judy's weakness)
-  - **Sequential Access**: 2-4x slower than PHP arrays (acceptable trade-off)
-  - **Range Queries**: Competitive with PHP arrays (Judy's strength)
+  - **Random Access**: 2-9x slower than PHP arrays (Judy's weakness - O(logn) vs O(1))
+  - **Sequential Access**: 2-4x slower than PHP arrays (acceptable trade-off - leverages cache locality)
+  - **Range Queries**: Competitive with PHP arrays (Judy's strength - native sorted traversal)
   - **Iterator Performance**: Has overhead but becomes more efficient at larger scales
-- **Key Type Impact**: Integer keys consistently outperform string keys
-- **Scale Impact**: Performance gap increases with dataset size
+- **Key Type Impact**: Integer keys consistently outperform string keys (radix tree optimization)
+- **Scale Impact**: Performance gap increases with dataset size (memory efficiency becomes more valuable)
 
 ### **Real-world Performance**
 - **Database Patterns**: Judy performs well with sequential primary keys
