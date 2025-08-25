@@ -8,12 +8,9 @@ function convert_memory($size_in_bytes) {
     return $val . ' ' . $unit[$i];
 }
 function get_process_memory() {
-    $pid = getmypid();
-    $output = shell_exec("ps -p {$pid} -o rss=");
-    if (empty($output)) {
-        return 0; // Or handle error appropriately
-    }
-    return (int)trim($output) * 1024;
+    // Use PHP's built-in memory functions instead of ps command
+    // This works reliably across different environments including Docker
+    return memory_get_usage(true); // true for real memory usage
 }
 function generate_random_string($length = 16) {
     return substr(str_shuffle(str_repeat('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', ceil($length/62))), 1, $length);
