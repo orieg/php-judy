@@ -21,9 +21,14 @@ foreach($count as $v) {
     $judy = new Judy(Judy::BITSET);
     for ($i=0; $i<$v; $i++)
         $judy[$i] = true;
-    var_dump($judy[100]);
-    unset($judy[102]);
-    var_dump($judy[102]);
+
+	/* Del some index */
+	unset($judy[101]);
+	$a = isset($judy[100]) ? $judy[100] : null;
+	$b = isset($judy[102]) ? $judy[102] : null;
+	var_dump($a);
+	var_dump($b);
+
     echo "Count: ".count($judy)."\n";
     echo "MU: ".__convert($judy->memoryUsage())."\n";
     $e=microtime(true);
@@ -41,9 +46,14 @@ foreach($count as $v) {
     $array = array();
     for ($i=0; $i<$v; $i++)
         $array[$i] = true;
-    unset($array[102]);
-    var_dump($array[100]);
-    var_dump($array[102]);
+
+	/* Del some index */
+	unset($array[101]);
+	$a = isset($array[100]) ? $array[100] : null;
+	$b = isset($array[102]) ? $array[102] : null;
+	var_dump($a);
+	var_dump($b);
+
     $e=microtime(true);
     echo "Count: ".count($array)."\n";
     echo "Elapsed time: ".($e - $s)." sec.\n";
@@ -61,11 +71,13 @@ foreach($count as $v) {
     for ($i=0; $i<$v; $i++)
         $spl->push($i);
     try {
-        $spl->offsetUnset(102);
-        var_dump($spl->offsetGet(100));
-        var_dump($spl->offsetGet(102));
+        unset($spl[101]);
+        $a = isset($spl[100]) ? $spl[100] : null;
+        $b = isset($spl[102]) ? $spl[102] : null;
+        var_dump($a);
+        var_dump($b);
     } catch (OutOfRangeException $e) {
-        echo $e;
+        echo $e->getMessage();
     }
     $e=microtime(true);
     echo "Count: ".$spl->count()."\n";

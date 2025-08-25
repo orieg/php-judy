@@ -9,9 +9,11 @@ function convert_memory($size_in_bytes) {
 }
 function get_process_memory() {
     $pid = getmypid();
-    $output = shell_exec("ps -o rss -p {$pid}");
-    $parts = explode("\n", trim($output));
-    return (int)end($parts) * 1024;
+    $output = shell_exec("ps -p {$pid} -o rss=");
+    if (empty($output)) {
+        return 0; // Or handle error appropriately
+    }
+    return (int)trim($output) * 1024;
 }
 function generate_random_string($length = 16) {
     return substr(str_shuffle(str_repeat('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', ceil($length/62))), 1, $length);

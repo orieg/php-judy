@@ -62,3 +62,5 @@ Based on these results, the guidance is clear:
 1.  **Use `Judy` for Large-Scale, Sparse Integer Data:** If an application's primary bottleneck is **memory consumption**, and it uses **large arrays of non-sequential (sparse) integers**, the Judy extension offers significant advantages. The extension's primary benefit is its memory efficiency, offering over 3x savings at scale. This can be critical in preventing memory exhaustion and may help reduce server costs.
 
 2.  **Use Native PHP Arrays for Most Other Use Cases:** For most other scenarios, especially those involving **string-based keys** or performance-critical workloads where memory is less of a concern, native PHP arrays are often the more performant choice. PHP's native hash table is highly optimized for these workloads and delivers excellent performance.
+
+-   **As of version 2.1.0, string-keyed Judy arrays enforce strict key typing.** Attempting to use a non-string key (e.g., an integer) will result in a `TypeError`. This breaking change was introduced to significantly improve performance by removing type conversion overhead.

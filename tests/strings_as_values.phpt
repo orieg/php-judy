@@ -41,11 +41,11 @@ foreach($a as $key=>$val) {
 
 echo "STRING_TO_MIXED\n";
 $a = new Judy(Judy::STRING_TO_MIXED);
-$a[0] = "1";
-$a[1] = "0"; 
-$a[2] = "012"; 
-$a[3] = "789"; 
-$a[4] = "-5"; 
+$a["0"] = "1";
+$a["1"] = "0"; 
+$a["2"] = "012"; 
+$a["3"] = "789"; 
+$a["4"] = "-5"; 
 
 foreach($a as $key=>$val) {
 	var_dump($key, $val);

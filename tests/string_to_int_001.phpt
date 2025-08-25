@@ -29,7 +29,7 @@ for ($i=0; $i<100; $i++) {
 echo "Remove 100 index\n";
 for ($i=0; $i<100; $i++) {
         unset($judy["$i"]);
-        if($judy[$i])
+        if($judy["$i"])
             echo "Failed to remove index $i\n";
 }
 
