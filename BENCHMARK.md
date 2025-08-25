@@ -2,6 +2,32 @@
 
 This document provides a detailed performance and memory usage comparison between the `php-judy` extension and native PHP arrays. The goal is to provide clear, data-driven guidance on when to use each data structure.
 
+## 🎯 **Quick Decision Guide**
+
+**Use Judy Arrays When:**
+- ✅ Memory is constrained (3.5x less memory usage)
+- ✅ Sequential access patterns (3x faster than PHP arrays)
+- ✅ Large sparse integer datasets (> 1M elements)
+- ✅ Iterator-based operations (`foreach ($judy as $k => $v)`)
+
+**Use PHP Arrays When:**
+- ❌ Random access patterns (5x faster than Judy)
+- ❌ Small datasets (< 100k elements)
+- ❌ Performance-critical string operations
+- ❌ Memory is not a constraint
+
+**Hybrid Approach:**
+- 🔄 Use Judy for storage, convert to PHP array for random access
+
+## 📊 **Performance Summary**
+
+| Access Pattern | Dataset Size | Judy vs PHP | Recommendation |
+|----------------|--------------|-------------|----------------|
+| **Random Access** | Any size | 5x slower | Use PHP arrays |
+| **Sequential Access** | > 10M elements | 3x faster | Use Judy iterators |
+| **Sequential Access** | < 1M elements | Similar | Use PHP arrays |
+| **Memory Usage** | Any size | 3.5x less | Use Judy if memory constrained |
+
 ## Benchmark Methodology
 
 The benchmarks were executed using a script that tests two realistic, large-scale scenarios:
@@ -78,20 +104,184 @@ The following tables summarize the results for datasets ranging from 100,000 to 
 - **Judy arrays** show improved performance with Phase 2.2 optimizations while maintaining memory benefits
 - **String-based Judy arrays** have higher performance overhead compared to integer-based ones
 
-### Use Case Recommendations
-- **Choose Judy for**: Sequential access, memory-constrained environments, range queries, iterator-based operations
-- **Choose PHP Arrays for**: Random access patterns, when memory is not a constraint
-- **Hybrid Approach**: Use Judy for storage, convert to PHP array for random access if needed
+### Scale-Dependent Performance
+- **Small Datasets (< 1M elements)**: Sequential access with sorted keys may be faster than Judy iterators
+- **Large Datasets (> 10M elements)**: Judy iterators become significantly faster than sequential access
+- **Crossover Point**: Iterator performance becomes optimal around 1-10M elements
+
+## When to Use Judy Arrays
+
+### ✅ **Use Judy Arrays When:**
+
+**1. Memory-Constrained Environments**
+- Shared hosting with limited memory
+- Docker containers with memory limits
+- Applications where memory usage is critical
+- **Benefit**: 3.5x less memory usage than PHP arrays
+
+**2. Sequential Access Patterns**
+- Iterating through all keys/values
+- Range queries (finding keys in a specific range)
+- Ordered traversal of data
+- **Benefit**: 3x faster than PHP arrays for sequential access
+
+**3. Large Sparse Integer Datasets**
+- Sparse integer keys (gaps between keys)
+- Large datasets (> 1M elements)
+- When memory efficiency outweighs random access performance
+- **Benefit**: Excellent memory efficiency and sequential performance
+
+**4. Iterator-Based Operations**
+- Using `foreach ($judy as $key => $value)`
+- Manual iteration with `rewind()`, `valid()`, `current()`, `key()`, `next()`
+- **Benefit**: Optimal performance for large datasets
+
+### ❌ **Avoid Judy Arrays When:**
+
+**1. Random Access Patterns**
+- Frequent lookups of specific keys
+- Accessing keys in unpredictable order
+- When random access performance is critical
+- **Reason**: 5x slower than PHP arrays for random access
+
+**2. Small Datasets**
+- Datasets with < 100k elements
+- When memory is not a constraint
+- **Reason**: Overhead doesn't justify benefits
+
+**3. String-Based Keys (Performance Critical)**
+- When performance is more important than memory
+- High-frequency string key operations
+- **Reason**: Slower than PHP arrays for string keys
+
+## How to Use Judy Arrays Effectively
+
+### **Optimal Usage Patterns:**
+
+**✅ DO: Use Judy's Iterator (Best Performance)**
+```php
+$judy = new Judy(Judy::INT_TO_INT);
+// ... populate data ...
+
+// Optimal: Use Judy's iterator
+foreach ($judy as $key => $value) {
+    // Process each key-value pair
+    echo "$key => $value\n";
+}
+```
+
+**✅ DO: Sequential Access with Sorted Keys**
+```php
+$judy = new Judy(Judy::INT_TO_INT);
+// ... populate data ...
+
+// Good: Sort keys first, then access sequentially
+$keys = array_keys($judy->toArray());
+sort($keys);
+foreach ($keys as $key) {
+    $value = $judy[$key];
+    // Process value
+}
+```
+
+**❌ DON'T: Random Access Patterns**
+```php
+$judy = new Judy(Judy::INT_TO_INT);
+// ... populate data ...
+
+// Avoid: Random access is very slow
+$random_keys = [1000, 50000, 2000, 75000, 3000];
+foreach ($random_keys as $key) {
+    $value = $judy[$key]; // Very slow!
+}
+```
+
+### **Hybrid Approach (Best of Both Worlds):**
+```php
+// Use Judy for storage and sequential access
+$judy = new Judy(Judy::INT_TO_INT);
+// ... populate data ...
+
+// Convert to PHP array for random access when needed
+$php_array = $judy->toArray();
+
+// Now you can do fast random access
+$value = $php_array[50000]; // Fast random access
+```
+
+### **Performance Guidelines:**
+
+**For Large Datasets (> 10M elements):**
+- Use Judy iterators for best performance
+- Avoid random access patterns
+- Consider hybrid approach for mixed access patterns
+
+**For Small Datasets (< 1M elements):**
+- Sequential access with sorted keys may be faster than iterators
+- Consider PHP arrays if memory isn't a constraint
+
+**For Memory-Constrained Environments:**
+- Judy arrays are always beneficial
+- Use iterators for optimal performance
+- Avoid converting to PHP arrays unless necessary
 
 ## Recommendations
 
-Based on these results, the guidance is clear:
+Based on comprehensive benchmarking and performance analysis, here are our recommendations:
 
-1.  **Use `Judy` for Large-Scale, Sparse Integer Data:** If an application's primary bottleneck is **memory consumption**, and it uses **large arrays of non-sequential (sparse) integers**, the Judy extension offers significant advantages. The extension's primary benefit is its memory efficiency, offering up to 3.8x savings at scale. This can be critical in preventing memory exhaustion and may help reduce server costs.
+### **Primary Use Cases for Judy Arrays:**
 
-2.  **Use Native PHP Arrays for Most Other Use Cases:** For most other scenarios, especially those involving **string-based keys** or performance-critical workloads where memory is less of a concern, native PHP arrays are often the more performant choice. PHP's native hash table is highly optimized for these workloads and delivers excellent performance.
+1. **Memory-Constrained Applications**
+   - **When**: Memory usage is critical (shared hosting, containers, embedded systems)
+   - **Why**: 3.5x memory savings over PHP arrays
+   - **How**: Use Judy for storage, iterators for access
 
-3.  **Consider Judy for Memory-Constrained Environments:** In environments where memory is limited (e.g., shared hosting, containers with memory limits), Judy arrays can help stay within memory constraints while maintaining functionality.
+2. **Large Sparse Integer Datasets**
+   - **When**: Datasets > 1M elements with sparse integer keys
+   - **Why**: Excellent memory efficiency and sequential performance
+   - **How**: Use Judy iterators for optimal performance
+
+3. **Sequential Data Processing**
+   - **When**: Processing data in order (analytics, reporting, batch operations)
+   - **Why**: 3x faster than PHP arrays for sequential access
+   - **How**: Use `foreach ($judy as $key => $value)` pattern
+
+### **When to Stick with PHP Arrays:**
+
+1. **Random Access Patterns**
+   - **When**: Frequent lookups of specific keys in unpredictable order
+   - **Why**: 5x faster than Judy for random access
+   - **Alternative**: Consider hybrid approach if memory is constrained
+
+2. **Small Datasets**
+   - **When**: < 100k elements and memory isn't a constraint
+   - **Why**: Judy overhead doesn't justify benefits
+   - **Alternative**: Use PHP arrays for simplicity
+
+3. **Performance-Critical String Operations**
+   - **When**: High-frequency string key operations
+   - **Why**: PHP arrays are faster for string keys
+   - **Alternative**: Use Judy only if memory savings are critical
+
+### **Implementation Strategy:**
+
+**For New Projects:**
+1. Start with PHP arrays for simplicity
+2. Profile memory usage and access patterns
+3. Migrate to Judy if memory becomes a bottleneck
+4. Use iterators for optimal performance
+
+**For Existing Projects:**
+1. Identify memory-constrained components
+2. Profile access patterns (random vs sequential)
+3. Migrate appropriate components to Judy
+4. Use hybrid approach for mixed patterns
+
+**For Production Systems:**
+1. Benchmark with realistic data sizes
+2. Test both random and sequential access patterns
+3. Monitor memory usage and performance
+4. Use robust benchmarks for decision-making
 
 ## Running the Benchmarks
 
