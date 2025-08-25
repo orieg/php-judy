@@ -82,6 +82,10 @@ typedef struct _judy_object {
 	unsigned long   counter;
 	Word_t			next_empty;
 	zend_bool		next_empty_is_valid;
+	/* Iterator state for Iterator interface methods */
+	zval            iterator_key;
+	zval            iterator_data;
+	zend_bool       iterator_initialized;
 	zend_object     std;
 } judy_object;
 

@@ -63,6 +63,11 @@ zend_object *judy_object_new_ex(zend_class_entry *ce, judy_object **ptr)
 	intern->next_empty_is_valid = 1;
 	intern->next_empty = 0;
 
+	/* Initialize iterator state */
+	ZVAL_UNDEF(&intern->iterator_key);
+	ZVAL_UNDEF(&intern->iterator_data);
+	intern->iterator_initialized = 0;
+
 	zend_object_std_init(&(intern->std), ce);
 	object_properties_init(&intern->std, ce);
 
@@ -596,6 +601,11 @@ PHP_METHOD(judy, __construct)
 PHP_METHOD(judy, __destruct)
 {
 	zval *object = getThis();
+	judy_object *intern = php_judy_object(Z_OBJ_P(object));
+
+	/* Clean up iterator state */
+	zval_ptr_dtor(&intern->iterator_key);
+	zval_ptr_dtor(&intern->iterator_data);
 
 	/* calling the object's free() method */
 	zend_call_method_with_0_params(Z_OBJ_P(object), NULL, NULL, "free", NULL);
@@ -911,11 +921,11 @@ PHP_METHOD(judy, searchNext)
 /* }}} */
 
 /* {{{ Iterator interface next() method - Fixes GitHub issue #25
- * 
+ *
  * This method was separated from the original Judy::next() search function
  * to resolve naming conflicts with the Iterator interface. The original
  * search functionality has been moved to searchNext() method.
- * 
+ *
  * This zero-argument method is required by the Iterator interface and
  * is called by foreach loops to advance the iterator position.
  */
@@ -923,9 +933,97 @@ PHP_METHOD(judy, next)
 {
 	JUDY_METHOD_GET_OBJECT
 	
-	// For Iterator interface, we need to advance the internal iterator state
-	// This is handled by the internal iterator system, not by a stored iterator
-	// The actual iteration is managed by judy_get_iterator() and related functions
+	/* Clear current data */
+	zval_ptr_dtor(&intern->iterator_data);
+	ZVAL_UNDEF(&intern->iterator_data);
+
+	if (intern->type == TYPE_BITSET) {
+		Word_t          index;
+		int             Rc_int;
+
+		if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_key)) {
+			index = 0;
+			J1F(Rc_int, intern->array, index);
+		} else {
+			index = Z_LVAL_P(&intern->iterator_key);
+			J1N(Rc_int, intern->array, index);
+		}
+
+		if (Rc_int) {
+			zval_dtor(&intern->iterator_key);
+			ZVAL_LONG(&intern->iterator_key, index);
+			ZVAL_BOOL(&intern->iterator_data, 1);
+			intern->iterator_initialized = 1;
+		} else {
+			ZVAL_UNDEF(&intern->iterator_key);
+			intern->iterator_initialized = 0;
+		}
+
+	} else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_INT_TO_MIXED) {
+		Word_t          index;
+		Pvoid_t          *PValue = NULL;
+
+		if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_key)) {
+			index = 0;
+			JLF(*PValue, intern->array, index);
+		} else {
+			index = Z_LVAL_P(&intern->iterator_key);
+			JLN(PValue, intern->array, index);
+		}
+
+		zval_dtor(&intern->iterator_key);
+		ZVAL_LONG(&intern->iterator_key, index);
+
+		JLG(PValue, intern->array, index);
+		if (PValue != NULL && PValue != PJERR) {
+			if (intern->type == TYPE_INT_TO_INT) {
+				ZVAL_LONG(&intern->iterator_data, (long)*PValue);
+			} else {
+				zval *value = *(zval **)PValue;
+				ZVAL_COPY(&intern->iterator_data, value);
+			}
+			intern->iterator_initialized = 1;
+		} else {
+			ZVAL_UNDEF(&intern->iterator_key);
+			intern->iterator_initialized = 0;
+		}
+
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		Pvoid_t      *PValue;
+
+		if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_key)) {
+			key[0] = '\0';
+			JSLF(PValue, intern->array, key);
+		} else {
+			if (Z_TYPE_P(&intern->iterator_key) == IS_STRING) {
+				int key_len;
+				key_len = Z_STRLEN_P(&intern->iterator_key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&intern->iterator_key);
+				memcpy(key, Z_STRVAL_P(&intern->iterator_key), key_len);
+				key[key_len] = '\0';
+				JSLN(PValue, intern->array, key);
+			} else {
+				key[0] = '\0';
+				JSLF(PValue, intern->array, key);
+			}
+		}
+
+		if (PValue != NULL && PValue != PJERR) {
+			zval_dtor(&intern->iterator_key);
+			ZVAL_STRING(&intern->iterator_key, (char *)key);
+
+			if (intern->type == TYPE_STRING_TO_INT) {
+				ZVAL_LONG(&intern->iterator_data, (long)*PValue);
+			} else {
+				zval *value = *(zval **)PValue;
+				ZVAL_COPY(&intern->iterator_data, value);
+			}
+			intern->iterator_initialized = 1;
+		} else {
+			ZVAL_UNDEF(&intern->iterator_key);
+			intern->iterator_initialized = 0;
+		}
+	}
 }
 /* }}} */
 
@@ -933,8 +1031,59 @@ PHP_METHOD(judy, next)
 PHP_METHOD(judy, rewind)
 {
 	JUDY_METHOD_GET_OBJECT
-	// For Iterator interface, we need to reset the internal iterator state
-	// This is handled by the internal iterator system
+	
+	/* Clear current data */
+	zval_ptr_dtor(&intern->iterator_data);
+	ZVAL_UNDEF(&intern->iterator_data);
+
+	if (intern->type == TYPE_BITSET) {
+		Word_t          index = 0;
+		int             Rc_int;
+
+		J1F(Rc_int, intern->array, index);
+		zval_dtor(&intern->iterator_key);
+		ZVAL_LONG(&intern->iterator_key, index);
+		ZVAL_BOOL(&intern->iterator_data, 1);
+		intern->iterator_initialized = 1;
+
+	} else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_INT_TO_MIXED) {
+		Word_t          index = 0;
+		Pvoid_t          *PValue = NULL;
+
+		JLF(PValue, intern->array, index);
+		zval_dtor(&intern->iterator_key);
+		ZVAL_LONG(&intern->iterator_key, index);
+
+		JLG(PValue, intern->array, index);
+		if (PValue != NULL && PValue != PJERR) {
+			if (intern->type == TYPE_INT_TO_INT) {
+				ZVAL_LONG(&intern->iterator_data, (long)*PValue);
+			} else {
+				zval *value = *(zval **)PValue;
+				ZVAL_COPY(&intern->iterator_data, value);
+			}
+			intern->iterator_initialized = 1;
+		}
+
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		Pvoid_t      *PValue;
+
+		key[0] = '\0';
+		JSLF(PValue, intern->array, key);
+
+		if (PValue != NULL && PValue != PJERR) {
+			zval_dtor(&intern->iterator_key);
+			ZVAL_STRING(&intern->iterator_key, (const char *) key);
+			if (intern->type == TYPE_STRING_TO_INT) {
+				ZVAL_LONG(&intern->iterator_data, (long)*PValue);
+			} else {
+				zval *value = *(zval **)PValue;
+				ZVAL_COPY(&intern->iterator_data, value);
+			}
+			intern->iterator_initialized = 1;
+		}
+	}
 }
 /* }}} */
 
@@ -942,9 +1091,47 @@ PHP_METHOD(judy, rewind)
 PHP_METHOD(judy, valid)
 {
 	JUDY_METHOD_GET_OBJECT
-	// For Iterator interface, we need to check if the current position is valid
-	// This is handled by the internal iterator system
-	RETURN_TRUE; // Placeholder - will be implemented properly
+	
+	if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_key) || Z_ISUNDEF_P(&intern->iterator_data)) {
+		RETURN_FALSE;
+	}
+
+	if (intern->type == TYPE_BITSET) {
+		int     Rc_int;
+
+		J1T(Rc_int, intern->array, (Word_t) Z_LVAL_P(&intern->iterator_key));
+		if (Rc_int == 1) {
+			RETURN_TRUE;
+		}
+	} else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_INT_TO_MIXED) {
+		Word_t    *PValue;
+
+		JLG(PValue, intern->array, (Word_t) Z_LVAL_P(&intern->iterator_key));
+		if (PValue != NULL && PValue != PJERR) {
+			RETURN_TRUE;
+		}
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		Word_t      *PValue;
+
+		if (Z_TYPE_P(&intern->iterator_key) == IS_STRING) {
+			int key_len;
+			key_len = Z_STRLEN_P(&intern->iterator_key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&intern->iterator_key);
+			memcpy(key, Z_STRVAL_P(&intern->iterator_key), key_len);
+			key[key_len] = '\0';
+		} else if (Z_TYPE_P(&intern->iterator_key) == IS_NULL) {
+			key[0] = '\0';
+		} else {
+			RETURN_FALSE;
+		}
+
+		JSLG(PValue, intern->array, key);
+		if (PValue != NULL && PValue != PJERR) {
+			RETURN_TRUE;
+		}
+	}
+
+	RETURN_FALSE;
 }
 /* }}} */
 
@@ -952,9 +1139,12 @@ PHP_METHOD(judy, valid)
 PHP_METHOD(judy, current)
 {
 	JUDY_METHOD_GET_OBJECT
-	// For Iterator interface, we need to get the current value
-	// This is handled by the internal iterator system
-	RETURN_NULL(); // Placeholder - will be implemented properly
+	
+	if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_data)) {
+		RETURN_NULL();
+	}
+
+	ZVAL_COPY(return_value, &intern->iterator_data);
 }
 /* }}} */
 
@@ -962,9 +1152,12 @@ PHP_METHOD(judy, current)
 PHP_METHOD(judy, key)
 {
 	JUDY_METHOD_GET_OBJECT
-	// For Iterator interface, we need to get the current key
-	// This is handled by the internal iterator system
-	RETURN_NULL(); // Placeholder - will be implemented properly
+	
+	if (!intern->iterator_initialized || Z_ISUNDEF_P(&intern->iterator_key)) {
+		RETURN_NULL();
+	}
+
+	ZVAL_COPY(return_value, &intern->iterator_key);
 }
 /* }}} */
 
