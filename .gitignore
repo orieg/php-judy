@@ -34,3 +34,6 @@ missing
 mkinstalldirs
 run-tests.php
 *.tgz
+
+# Backup files
+*~
