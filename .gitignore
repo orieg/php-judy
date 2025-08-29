@@ -1,6 +1,7 @@
 .deps
 .libs
 *.lo
+*.dep
 tests/*.diff
 tests/*.exp
 tests/*.log
@@ -22,6 +23,7 @@ config.status
 config.sub
 configure
 configure.in
+configure.ac
 install-sh
 judy.la
 ltmain.sh
