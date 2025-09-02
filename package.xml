@@ -13,7 +13,8 @@
   <email>nicolas@brousse.info</email>
   <active>yes</active>
  </lead>
- <date>2025-08-25</date>
+ <date>2025-09-02</date>
+ <time>07:48:48</time>
  <version>
   <release>2.2.0</release>
   <api>2.2.0</api>
@@ -39,99 +40,95 @@
  </notes>
  <contents>
   <dir name="/">
-   <dir name="examples">
-    <file role="doc" name="judy-bench-bitset.php"/>
-    <file role="doc" name="judy-bench-int_to_int.php"/>
-    <file role="doc" name="judy-bench-string_to_int.php"/>
-    <file role="doc" name="judy.php"/>
-    <file role="doc" name="run-benchmarks.php"/>
-    <file role="doc" name="judy-bench-realistic-php-array.php"/>
-    <file role="doc" name="judy-bench-realistic-judy.php"/>
-    <file role="doc" name="benchmark_ordered_data.php"/>
-    <file role="doc" name="benchmark_range_queries.php"/>
-    <file role="doc" name="benchmark_real_world_patterns.php"/>
-    <file role="doc" name="run_comprehensive_benchmarks.php"/>
-    <file role="doc" name="debug_iterator_performance.php"/>
-    <file role="doc" name="iterator-vs-sequential-test.php"/>
-    <file role="doc" name="judy-read-performance-test.php"/>
-    <file role="doc" name="run-benchmarks-robust.php"/>
-    <file role="doc" name="iterator_performance_analysis.md"/>
-   </dir>
-   <dir name="tests">
-    <file role="test" name="001.phpt"/>
-    <file role="test" name="bitset_001.phpt"/>
-    <file role="test" name="bitset_002.phpt"/>
-    <file role="test" name="bitset_003.phpt"/>
-    <file role="test" name="bitset_004.phpt"/>
-    <file role="test" name="bitset_005.phpt"/>
-    <file role="test" name="bitset_006.phpt"/>
-    <file role="test" name="bitset_007.phpt"/>
-    <file role="test" name="int_to_int_001.phpt"/>
-    <file role="test" name="int_to_int_002.phpt"/>
-    <file role="test" name="int_to_int_003.phpt"/>
-    <file role="test" name="int_to_int_004.phpt"/>
-    <file role="test" name="int_to_int_005.phpt"/>
-    <file role="test" name="int_to_int_006.phpt"/>
-    <file role="test" name="int_to_int_007.phpt"/>
-    <file role="test" name="int_to_int_008.phpt"/>
-    <file role="test" name="int_to_mixed_001.phpt"/>
-    <file role="test" name="int_to_mixed_002.phpt"/>
-    <file role="test" name="int_to_mixed_003.phpt"/>
-    <file role="test" name="int_to_mixed_004.phpt"/>
-    <file role="test" name="int_to_mixed_005.phpt"/>
-    <file role="test" name="int_to_mixed_006.phpt"/>
-    <file role="test" name="int_to_mixed_007.phpt"/>
-    <file role="test" name="judy_error.phpt"/>
-    <file role="test" name="judy_foreach_bitset.phpt"/>
-    <file role="test" name="judy_foreach_int_to_int.phpt"/>
-    <file role="test" name="judy_foreach_int_to_mixed.phpt"/>
-    <file role="test" name="judy_foreach_string_to_int.phpt"/>
-    <file role="test" name="judy_foreach_string_to_mixed.phpt"/>
-    <file role="test" name="judy_type.phpt"/>
-    <file role="test" name="string_to_int_001.phpt"/>
-    <file role="test" name="string_to_int_002.phpt"/>
-    <file role="test" name="string_to_int_003.phpt"/>
-    <file role="test" name="string_to_int_004.phpt"/>
-    <file role="test" name="string_to_mixed_001.phpt"/>
-    <file role="test" name="string_to_mixed_002.phpt"/>
-    <file role="test" name="string_to_mixed_003.phpt"/>
-    <file role="test" name="string_to_mixed_004.phpt"/>
-    <file role="test" name="iterator_interface_001.phpt"/>
-    <file role="test" name="iterator_methods_simple_001.phpt"/>
-    <file role="test" name="iterator_methods_individual_001.phpt"/>
-    <file role="test" name="iterator_next_bug_fix_001.phpt"/>
-    <file role="test" name="iterator_segfault_fix_001.phpt"/>
-    <file role="test" name="iterator_rewind_bug_fix_001.phpt"/>
-    <file role="test" name="iterator_next_invalid_behavior_001.phpt"/>
-    <file role="test" name="iterator_rewind_empty_bitset_001.phpt"/>
-    <file role="test" name="iterator_valid_performance_001.phpt"/>
-    <file role="test" name="foreach_iterator_int_to_int_001.phpt"/>
-    <file role="test" name="foreach_iterator_int_to_mixed_001.phpt"/>
-    <file role="test" name="multiple_instances_count_int_to_int_001.phpt"/>
-    <file role="test" name="multiple_instances_count_string_to_mixed_001.phpt"/>
-    <file role="test" name="count_method_loop_int_to_int_001.phpt"/>
-    <file role="test" name="count_method_loop_string_to_mixed_001.phpt"/>
-    <file role="test" name="foreach_negative_indices_int_to_int_001.phpt"/>
-    <file role="test" name="foreach_with_vardump_int_to_int_001.phpt"/>
-    <file role="test" name="strings_as_keys.phpt"/>
-    <file role="test" name="strings_as_values.phpt"/>
-   </dir>
-   <file role="src" name="config.m4"/>
-   <file role="src" name="config.w32"/>
-   <file role="src" name="judy_arrayaccess.c"/>
-   <file role="src" name="judy_arrayaccess.h"/>
-   <file role="src" name="judy_handlers.c"/>
-   <file role="src" name="judy_handlers.h"/>
-   <file role="src" name="judy_iterator.c"/>
-   <file role="src" name="judy_iterator.h"/>
-   <file role="src" name="php_judy.c"/>
-   <file role="src" name="php_judy.h"/>
-   <file role="doc" name="LICENSE" />
-   <file role="doc" name="README.md" />
-   <file role="doc" name="CREDITS" />
-   <file role="doc" name="BENCHMARK.md" />
-   <file role="doc" name="MIGRATION_2.2.0.md" />
-   <file role="doc" name="Dockerfile" />
+   <file md5sum="690c7ced5ee7cc15b4b65848a7923559" name="examples/judy-bench-bitset.php" role="doc" />
+   <file md5sum="a776ae79a1c693820703aeae6d06f03a" name="examples/judy-bench-int_to_int.php" role="doc" />
+   <file md5sum="2f00c9172ede879378efc2a2cdd666fc" name="examples/judy-bench-string_to_int.php" role="doc" />
+   <file md5sum="750f7d90e353b4b6c90f6f6f9583fc6d" name="examples/judy.php" role="doc" />
+   <file md5sum="6c4c579f24ef6956826e9c173e355558" name="examples/run-benchmarks.php" role="doc" />
+   <file md5sum="2a5a48b2f897a6efbe8d02c33752a634" name="examples/judy-bench-realistic-php-array.php" role="doc" />
+   <file md5sum="08a3d9cf6e52783164deef825d4c9442" name="examples/judy-bench-realistic-judy.php" role="doc" />
+   <file md5sum="893674b8c8c37036d57e1a675b2d4966" name="examples/benchmark_ordered_data.php" role="doc" />
+   <file md5sum="74b6a36aa4a9882e9ea70f7a37787c15" name="examples/benchmark_range_queries.php" role="doc" />
+   <file md5sum="6116bd190781742fdcc37e833a090348" name="examples/benchmark_real_world_patterns.php" role="doc" />
+   <file md5sum="2b4c82262b50a9a496558feaa0b5eb11" name="examples/run_comprehensive_benchmarks.php" role="doc" />
+   <file md5sum="47967fd47f778d3385cc36b0640ec4b9" name="examples/debug_iterator_performance.php" role="doc" />
+   <file md5sum="4e68cc38b6ea44b75024a7563ea5d56f" name="examples/iterator-vs-sequential-test.php" role="doc" />
+   <file md5sum="89438abbecf3617c9b077527e59ec102" name="examples/judy-read-performance-test.php" role="doc" />
+   <file md5sum="9531f74e337528d75dd9b5ff66437351" name="examples/run-benchmarks-robust.php" role="doc" />
+   <file md5sum="163369b8ada5a8bf7bc9853ae7cc4522" name="examples/iterator_performance_analysis.md" role="doc" />
+   <file md5sum="8205e275217a65301282cbd5945c0944" name="tests/001.phpt" role="test" />
+   <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />
+   <file md5sum="9f3363cc4c6d15cb52184351cf710fd7" name="tests/bitset_002.phpt" role="test" />
+   <file md5sum="e859b3b92086bc165b3ec98800920f03" name="tests/bitset_003.phpt" role="test" />
+   <file md5sum="64c6e4bdb179e6026e03290223edab24" name="tests/bitset_004.phpt" role="test" />
+   <file md5sum="a24fe01daca1f0b7f6de90cf54d0bd4c" name="tests/bitset_005.phpt" role="test" />
+   <file md5sum="a401657315fae5182d412cbc0b02e312" name="tests/bitset_006.phpt" role="test" />
+   <file md5sum="be3498c9fa543d91672b839ca190b3b4" name="tests/bitset_007.phpt" role="test" />
+   <file md5sum="ebf5a62bedc4d0100256bc6db614cac0" name="tests/int_to_int_001.phpt" role="test" />
+   <file md5sum="293c4e8f37490390abeaac289e8d4ee7" name="tests/int_to_int_002.phpt" role="test" />
+   <file md5sum="c49567c32b701e8d1a0c9f6caaf38863" name="tests/int_to_int_003.phpt" role="test" />
+   <file md5sum="5a0395aa3b2c7fa6eccb88c7663f3f00" name="tests/int_to_int_004.phpt" role="test" />
+   <file md5sum="2ae7774ca6bde199d8c83d0a75473e02" name="tests/int_to_int_005.phpt" role="test" />
+   <file md5sum="19d0dac1e4a78c0d123f28ab28d5d5a0" name="tests/int_to_int_006.phpt" role="test" />
+   <file md5sum="bd4db4f7abf599a8190786fbcdb8a5ec" name="tests/int_to_int_007.phpt" role="test" />
+   <file md5sum="ccaa4a72301eca4a142866a2c7373e42" name="tests/int_to_int_008.phpt" role="test" />
+   <file md5sum="e3c8985f9faffcfc8a53f77d4665af6d" name="tests/int_to_mixed_001.phpt" role="test" />
+   <file md5sum="d44991c66c5f94ad0d3e9f84318e2411" name="tests/int_to_mixed_002.phpt" role="test" />
+   <file md5sum="e14002b8bd0cd9733070b27112227c12" name="tests/int_to_mixed_003.phpt" role="test" />
+   <file md5sum="5a0395aa3b2c7fa6eccb88c7663f3f00" name="tests/int_to_mixed_004.phpt" role="test" />
+   <file md5sum="aca9d41d8d47647dd20f11b2404739d2" name="tests/int_to_mixed_005.phpt" role="test" />
+   <file md5sum="b5e8d1351cb637532c4d07230a2e3cf6" name="tests/int_to_mixed_006.phpt" role="test" />
+   <file md5sum="a40ba69d3d1f91f121a47784c0165111" name="tests/int_to_mixed_007.phpt" role="test" />
+   <file md5sum="b8b657f713499d2d22a9956a1402aa49" name="tests/judy_error.phpt" role="test" />
+   <file md5sum="429b9dcc5bea2a5b9be3707e05b253e5" name="tests/judy_foreach_bitset.phpt" role="test" />
+   <file md5sum="a0f0fc5ba8c283700d4e770bb46a1c83" name="tests/judy_foreach_int_to_int.phpt" role="test" />
+   <file md5sum="5da8e93dd0c1871c899ffe8d99738df2" name="tests/judy_foreach_int_to_mixed.phpt" role="test" />
+   <file md5sum="9ec43571440b4e3d6bba2480a33c33ab" name="tests/judy_foreach_string_to_int.phpt" role="test" />
+   <file md5sum="85dd0e567e5333706787bc29c2d0c4c5" name="tests/judy_foreach_string_to_mixed.phpt" role="test" />
+   <file md5sum="0528774ce53b70abb9719014fc3aa390" name="tests/judy_type.phpt" role="test" />
+   <file md5sum="70072c5b8bce28ef95d72c1c7bd49f0d" name="tests/string_to_int_001.phpt" role="test" />
+   <file md5sum="1aec6300f3bfbda719e00aa9d36869e2" name="tests/string_to_int_002.phpt" role="test" />
+   <file md5sum="842928b9f75b54649ccdf30226ce98bb" name="tests/string_to_int_003.phpt" role="test" />
+   <file md5sum="c12fb2958e56862ea9ece7ae60be7cee" name="tests/string_to_int_004.phpt" role="test" />
+   <file md5sum="4e82c79a4070352220757692ac74dcc2" name="tests/string_to_mixed_001.phpt" role="test" />
+   <file md5sum="7624634397605225b8117725852c7e20" name="tests/string_to_mixed_002.phpt" role="test" />
+   <file md5sum="0d1857bb8a2833e8bda2a60781590b14" name="tests/string_to_mixed_003.phpt" role="test" />
+   <file md5sum="54f0986d39c75ae066b48a09490e938c" name="tests/string_to_mixed_004.phpt" role="test" />
+   <file md5sum="e5bf869700c5c640235a0a07eeed21ad" name="tests/iterator_interface_001.phpt" role="test" />
+   <file md5sum="aa6f6cae5ed042dba86fa5062ed544ea" name="tests/iterator_methods_simple_001.phpt" role="test" />
+   <file md5sum="bdc7b4b17d7deb684155296f0f3a6022" name="tests/iterator_methods_individual_001.phpt" role="test" />
+   <file md5sum="ad61f5c0dcdc6404a98ed50ba8a88313" name="tests/iterator_next_bug_fix_001.phpt" role="test" />
+   <file md5sum="bdd50063907706a7537d744ef93f1aff" name="tests/iterator_segfault_fix_001.phpt" role="test" />
+   <file md5sum="d0910712f2220c908e4558348d204025" name="tests/iterator_rewind_bug_fix_001.phpt" role="test" />
+   <file md5sum="5efbda4fce38124279dedc80aeac1250" name="tests/iterator_next_invalid_behavior_001.phpt" role="test" />
+   <file md5sum="f3c6513841873ef7cd51399593740d79" name="tests/iterator_rewind_empty_bitset_001.phpt" role="test" />
+   <file md5sum="d57126165e2a2153df47d08221f2ed90" name="tests/iterator_valid_performance_001.phpt" role="test" />
+   <file md5sum="95b9e9d9d4c6d74e023f2548e7e0de42" name="tests/foreach_iterator_int_to_int_001.phpt" role="test" />
+   <file md5sum="ea0f1a773e70d2fbd55d2d3117a050c9" name="tests/foreach_iterator_int_to_mixed_001.phpt" role="test" />
+   <file md5sum="3d999733ee9fbcaf452ae136131cce30" name="tests/multiple_instances_count_int_to_int_001.phpt" role="test" />
+   <file md5sum="0aa77b0663ac082b9ef017b767bc4765" name="tests/multiple_instances_count_string_to_mixed_001.phpt" role="test" />
+   <file md5sum="b0cc6ab42f008869e910866de849b69d" name="tests/count_method_loop_int_to_int_001.phpt" role="test" />
+   <file md5sum="ceb609cd70095e9bb4599412b0bf5865" name="tests/count_method_loop_string_to_mixed_001.phpt" role="test" />
+   <file md5sum="5b661d339be8f777c72c752df9266a18" name="tests/foreach_negative_indices_int_to_int_001.phpt" role="test" />
+   <file md5sum="fc98800804890cf1e121d123107267fd" name="tests/foreach_with_vardump_int_to_int_001.phpt" role="test" />
+   <file md5sum="a309976e1dd30e3330c6904c062e46cc" name="tests/strings_as_keys.phpt" role="test" />
+   <file md5sum="510489ef9d3b8f87b14866bed270c7f5" name="tests/strings_as_values.phpt" role="test" />
+   <file md5sum="892b076c5f69627ef01f4120a2028890" name="config.m4" role="src" />
+   <file md5sum="70239c1c7fa437a923ca24892e78baba" name="config.w32" role="src" />
+   <file md5sum="27b93d365b2b7cde97ac4bb819e445b3" name="judy_arrayaccess.c" role="src" />
+   <file md5sum="f2e35cd52cb1ed5cb00eae5431680d33" name="judy_arrayaccess.h" role="src" />
+   <file md5sum="09fb8aacf7255739887b16469dc6955f" name="judy_handlers.c" role="src" />
+   <file md5sum="1379842978d355e87b6cdbcaec243ce2" name="judy_handlers.h" role="src" />
+   <file md5sum="ed95ff4931109811769f31ad29473435" name="judy_iterator.c" role="src" />
+   <file md5sum="f8df1590b3cbd5af6c0429d9a335142e" name="judy_iterator.h" role="src" />
+   <file md5sum="58dfd81bbee1d3e3a78e641df59a333b" name="php_judy.c" role="src" />
+   <file md5sum="248afe9b62331eca502a92a88828c0fa" name="php_judy.h" role="src" />
+   <file md5sum="cb564efdf78cce8ea6e4b5a4f7c05d97" name="LICENSE" role="doc" />
+   <file md5sum="ce78496bc990b2d72cbbf427df52a495" name="README.md" role="doc" />
+   <file md5sum="730470b2aca686ddbea82a2b2af03a1a" name="CREDITS" role="doc" />
+   <file md5sum="55d570c350ac9ac2a368e98476e9d4f8" name="BENCHMARK.md" role="doc" />
+   <file md5sum="513b0c0813de66e8cba534d4fa1b0eb2" name="MIGRATION_2.2.0.md" role="doc" />
+   <file md5sum="28a6dc45e4b4964008700bcac20fb850" name="Dockerfile" role="doc" />
   </dir>
  </contents>
  <dependencies>
@@ -243,32 +240,32 @@
   </release>
   <release>
    <date>2013-05-28</date>
-    <version>
-     <release>1.0.0</release>
-     <api>1.0.0</api>
-    </version>
-    <stability>
-     <release>stable</release>
-     <api>stable</api>
-    </stability>
-    <notes>
+   <version>
+    <release>1.0.0</release>
+    <api>1.0.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <notes>
 - First stable release based on 0.1.6 beta
-    </notes>
+   </notes>
   </release>
   <release>
    <date>2013-03-31</date>
-    <version>
-     <release>0.1.6</release>
-     <api>0.1.1</api>
-    </version>
-    <stability>
-     <release>beta</release>
-     <api>beta</api>
-    </stability>
-    <notes>
+   <version>
+    <release>0.1.6</release>
+    <api>0.1.1</api>
+   </version>
+   <stability>
+    <release>beta</release>
+    <api>beta</api>
+   </stability>
+   <notes>
 - Performance improvement from GitHub pull request #10
 - Add countable spl interface from GitHub pull request #9
-    </notes>
+   </notes>
   </release>
   <release>
    <date>2013-03-20</date>
