@@ -71,14 +71,6 @@
     <file role="test" name="bitset_005.phpt"/>
     <file role="test" name="bitset_006.phpt"/>
     <file role="test" name="bitset_007.phpt"/>
-    <file role="test" name="github_issue1_001.phpt"/>
-    <file role="test" name="github_issue1_002.phpt"/>
-    <file role="test" name="github_issue2_001.phpt"/>
-    <file role="test" name="github_issue2_002.phpt"/>
-    <file role="test" name="github_issue2_003.phpt"/>
-    <file role="test" name="github_issue3_001.phpt"/>
-    <file role="test" name="github_issue15_001.phpt"/>
-    <file role="test" name="github_issue15_002.phpt"/>
     <file role="test" name="int_to_int_001.phpt"/>
     <file role="test" name="int_to_int_002.phpt"/>
     <file role="test" name="int_to_int_003.phpt"/>
@@ -120,6 +112,14 @@
     <file role="test" name="iterator_valid_performance_001.phpt"/>
     <file role="test" name="foreach_iterator_int_to_int_001.phpt"/>
     <file role="test" name="foreach_iterator_int_to_mixed_001.phpt"/>
+    <file role="test" name="multiple_instances_count_int_to_int_001.phpt"/>
+    <file role="test" name="multiple_instances_count_string_to_mixed_001.phpt"/>
+    <file role="test" name="count_method_loop_int_to_int_001.phpt"/>
+    <file role="test" name="count_method_loop_string_to_mixed_001.phpt"/>
+    <file role="test" name="foreach_negative_indices_int_to_int_001.phpt"/>
+    <file role="test" name="foreach_with_vardump_int_to_int_001.phpt"/>
+    <file role="test" name="strings_as_keys.phpt"/>
+    <file role="test" name="strings_as_values.phpt"/>
    </dir>
    <file role="src" name="config.m4"/>
    <file role="src" name="config.w32"/>
