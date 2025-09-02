@@ -40,11 +40,11 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 
 ## 🖥️ **Benchmarking Environment**
 
-**Hardware**: Tests run on modern x86_64 systems with sufficient RAM to avoid memory pressure
-**Operating System**: Linux (Docker containers for consistency)
-**PHP Version**: 8.x with Judy extension 2.2.0
-**Test Methodology**: Multiple iterations with statistical analysis (min/max/median/percentiles)
-**Memory Measurement**: Using `memory_get_usage(true)` and `Judy::memoryUsage()`
+- **Hardware**: Tests run on modern x86_64 systems with sufficient RAM to avoid memory pressure
+- **Operating System**: Linux (Docker containers for consistency)
+- **PHP Version**: 8.x with Judy extension 2.2.0
+- **Test Methodology**: Multiple iterations with statistical analysis (min/max/median/percentiles)
+- **Memory Measurement**: Using `memory_get_usage(true)` and `Judy::memoryUsage()`
 
 *Note: Results may vary based on hardware, system load, and PHP configuration. All benchmarks use the same Docker environment for consistency.*
 
