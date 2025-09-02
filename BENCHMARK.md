@@ -28,7 +28,7 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 
 **Judy Arrays (Tries)**: Judy arrays are a type of trie or radix tree. To find a key, the algorithm must traverse down the tree, inspecting parts of the key at each node. This makes Judy's lookup time logarithmic, denoted as O(logn), where n is the number of bits in the key. While this is very efficient, it's inherently slower than the single-step lookup of a hash table for random access.
 
-**Why this impacts performance**: Your benchmark results clearly show the impact of this difference in random access patterns:
+**Why this impacts performance**: The benchmark results clearly show the impact of this difference in random access patterns:
 
 - **Random Lookups**: The benchmarks show Judy is 7.5x slower than PHP arrays for random access. This is because each lookup requires a traversal of the trie, which involves multiple pointer dereferences and memory jumps, while a hash table typically performs a single, fast lookup.
 
