@@ -659,7 +659,14 @@ PHP_METHOD(judy, __construct)
 
 	if (intern->type) {
 		zend_throw_exception(NULL, "Judy Array already instantiated", 0);
-	} else if (zend_parse_parameters(ZEND_NUM_ARGS(), "l", &type) == SUCCESS) {
+	} else if (ZEND_NUM_ARGS() > 0) {
+		ZEND_PARSE_PARAMETERS_START(1, 1)
+			Z_PARAM_LONG(type)
+		ZEND_PARSE_PARAMETERS_END_EX(
+			zend_restore_error_handling(&error_handling);
+			return;
+		);
+
 		JTYPE(jtype, type);
 		if (jtype == 0) {
 			zend_restore_error_handling(&error_handling);
@@ -752,9 +759,11 @@ PHP_METHOD(judy, size)
 			Word_t   idx1, idx2;
 			Word_t   Rc_word;
 
-			if (zend_parse_parameters(ZEND_NUM_ARGS(), "|ll", &zl_idx1, &zl_idx2) == FAILURE) {
-				RETURN_FALSE;
-			}
+			ZEND_PARSE_PARAMETERS_START(0, 2)
+				Z_PARAM_OPTIONAL
+				Z_PARAM_LONG(zl_idx1)
+				Z_PARAM_LONG(zl_idx2)
+			ZEND_PARSE_PARAMETERS_END();
 			idx1 = (Word_t)zl_idx1;
 			idx2 = (Word_t)zl_idx2;
 
@@ -809,9 +818,9 @@ PHP_METHOD(judy, byCount)
 			zend_long       nth_index;
 			Word_t            index;
 
-			if (zend_parse_parameters(ZEND_NUM_ARGS(), "l", &nth_index) == FAILURE) {
-				RETURN_FALSE;
-			}
+			ZEND_PARSE_PARAMETERS_START(1, 1)
+				Z_PARAM_LONG(nth_index)
+			ZEND_PARSE_PARAMETERS_END();
 
 			if (intern->type == TYPE_BITSET) {
 				int Rc_int;
@@ -842,9 +851,10 @@ PHP_METHOD(judy, first)
 		Word_t          index;
 		int             Rc_int;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &zl_index) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(0, 1)
+			Z_PARAM_OPTIONAL
+			Z_PARAM_LONG(zl_index)
+		ZEND_PARSE_PARAMETERS_END();
 		index = (Word_t)zl_index;
 
 		J1F(Rc_int, intern->array, index);
@@ -855,9 +865,10 @@ PHP_METHOD(judy, first)
 		Word_t          index;
 		PWord_t         PValue;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &zl_index) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(0, 1)
+			Z_PARAM_OPTIONAL
+			Z_PARAM_LONG(zl_index)
+		ZEND_PARSE_PARAMETERS_END();
 		index = (Word_t)zl_index;
 
 		JLF(PValue, intern->array, index);
@@ -870,9 +881,10 @@ PHP_METHOD(judy, first)
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		PWord_t     PValue;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "|s", &str, &str_length) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(0, 1)
+			Z_PARAM_OPTIONAL
+			Z_PARAM_STRING(str, str_length)
+		ZEND_PARSE_PARAMETERS_END();
 
 		/* JudySL require null terminated strings */
 		if (str_length == 0) {
@@ -910,9 +922,9 @@ PHP_METHOD(judy, searchNext)
 		Word_t          index;
 		int             Rc_int;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "l", &zl_index) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(1, 1)
+			Z_PARAM_LONG(zl_index)
+		ZEND_PARSE_PARAMETERS_END();
 		index = (Word_t)zl_index;
 
 		J1N(Rc_int, intern->array, index);
@@ -923,9 +935,9 @@ PHP_METHOD(judy, searchNext)
 		Word_t          index;
 		PWord_t         PValue;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "l", &zl_index) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(1, 1)
+			Z_PARAM_LONG(zl_index)
+		ZEND_PARSE_PARAMETERS_END();
 		index = (Word_t)zl_index;
 
 		JLN(PValue, intern->array, index);
@@ -938,9 +950,9 @@ PHP_METHOD(judy, searchNext)
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		PWord_t     PValue;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &str, &str_length) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(1, 1)
+			Z_PARAM_STRING(str, str_length)
+		ZEND_PARSE_PARAMETERS_END();
 
 		/* JudySL require null terminated strings */
 		if (str_length == 0) {
@@ -1185,9 +1197,10 @@ PHP_METHOD(judy, last)
 		Word_t       index;
 		int          Rc_int;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &zl_index) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(0, 1)
+			Z_PARAM_OPTIONAL
+			Z_PARAM_LONG(zl_index)
+		ZEND_PARSE_PARAMETERS_END();
 		index = (Word_t)zl_index;
 
 		J1L(Rc_int, intern->array, index);
@@ -1198,24 +1211,26 @@ PHP_METHOD(judy, last)
 		Word_t          index;
 		PWord_t         PValue;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &zl_index) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(0, 1)
+			Z_PARAM_OPTIONAL
+			Z_PARAM_LONG(zl_index)
+		ZEND_PARSE_PARAMETERS_END();
 		index = (Word_t)zl_index;
 
 		JLL(PValue, intern->array, index);
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_LONG(index);
 	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
-		uint8_t     *str;
+		char        *str;
 		size_t       str_length = 0;
 
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		PWord_t     PValue;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "|s", &str, &str_length) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(0, 1)
+			Z_PARAM_OPTIONAL
+			Z_PARAM_STRING(str, str_length)
+		ZEND_PARSE_PARAMETERS_END();
 
 		/* JudySL require null terminated strings */
 		if (str_length == 0) {
@@ -1248,9 +1263,9 @@ PHP_METHOD(judy, prev)
 		Word_t       index;
 		int          Rc_int;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "l", &zl_index) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(1, 1)
+			Z_PARAM_LONG(zl_index)
+		ZEND_PARSE_PARAMETERS_END();
 		index = (Word_t)zl_index;
 
 		J1P(Rc_int, intern->array, index);
@@ -1261,9 +1276,9 @@ PHP_METHOD(judy, prev)
 		Word_t          index;
 		PWord_t         PValue;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "l", &zl_index) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(1, 1)
+			Z_PARAM_LONG(zl_index)
+		ZEND_PARSE_PARAMETERS_END();
 		index = (Word_t)zl_index;
 
 		JLP(PValue, intern->array, index);
@@ -1276,9 +1291,9 @@ PHP_METHOD(judy, prev)
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		PWord_t     PValue;
 
-		if (zend_parse_parameters(ZEND_NUM_ARGS(), "s", &str, &str_length) == FAILURE) {
-			RETURN_FALSE;
-		}
+		ZEND_PARSE_PARAMETERS_START(1, 1)
+			Z_PARAM_STRING(str, str_length)
+		ZEND_PARSE_PARAMETERS_END();
 
 		/* JudySL require null terminated strings */
 		if (str_length == 0) {
@@ -1308,9 +1323,10 @@ PHP_METHOD(judy, firstEmpty)
 
 	JUDY_METHOD_GET_OBJECT
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &zl_index) == FAILURE) {
-		RETURN_FALSE;
-	}
+	ZEND_PARSE_PARAMETERS_START(0, 1)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(zl_index)
+	ZEND_PARSE_PARAMETERS_END();
 	index = (Word_t)zl_index;
 
 	switch (intern->type)
@@ -1342,9 +1358,10 @@ PHP_METHOD(judy, lastEmpty)
 
 	JUDY_METHOD_GET_OBJECT
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "|l", &zl_index) == FAILURE) {
-		RETURN_FALSE;
-	}
+	ZEND_PARSE_PARAMETERS_START(0, 1)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(zl_index)
+	ZEND_PARSE_PARAMETERS_END();
 	index = (Word_t)zl_index;
 
 	switch (intern->type)
@@ -1376,9 +1393,9 @@ PHP_METHOD(judy, nextEmpty)
 
 	JUDY_METHOD_GET_OBJECT
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "l", &zl_index) == FAILURE) {
-		RETURN_FALSE;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_LONG(zl_index)
+	ZEND_PARSE_PARAMETERS_END();
 	index = (Word_t)zl_index;
 
 	switch (intern->type)
@@ -1410,9 +1427,9 @@ PHP_METHOD(judy, prevEmpty)
 
 	JUDY_METHOD_GET_OBJECT
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "l", &zl_index) == FAILURE) {
-		RETURN_FALSE;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_LONG(zl_index)
+	ZEND_PARSE_PARAMETERS_END();
 	index = (Word_t)zl_index;
 
 	switch (intern->type)
@@ -1458,9 +1475,9 @@ PHP_FUNCTION(judy_type)
 	zval *object;
 	judy_object *array;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "O", &object, judy_ce) == FAILURE) {
-		RETURN_FALSE;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_OBJECT_OF_CLASS(object, judy_ce)
+	ZEND_PARSE_PARAMETERS_END();
 
 	array = php_judy_object(Z_OBJ_P(object));
 	RETURN_LONG(array->type);
