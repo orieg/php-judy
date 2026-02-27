@@ -76,10 +76,11 @@ jobs:
           Write-Host "Patched Judy.h"
 
           # Patch build.bat: Add -DJU_64BIT for proper 64-bit internal data structures
+          # and /MD to use the dynamic C runtime (matching PHP's CRT linkage)
           Write-Host "Patching build.bat..."
           $buildBat = Join-Path $srcDir "build.bat"
           $batContent = Get-Content $buildBat -Raw
-          $batContent = $batContent.Replace('-DJU_WIN', '-DJU_WIN -DJU_64BIT')
+          $batContent = $batContent.Replace('-DJU_WIN', '-DJU_WIN -DJU_64BIT /MD')
           if ($batContent -notmatch 'JU_64BIT') { throw "Failed to patch build.bat" }
           Set-Content $buildBat -Value $batContent -NoNewline
           Write-Host "Patched build.bat"
