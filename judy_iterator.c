@@ -258,9 +258,13 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 		int             Rc_int;
 
 		J1F(Rc_int, object->array, index);
-		zval_ptr_dtor(&it->key);
-		ZVAL_LONG(&it->key, index);
-		ZVAL_BOOL(&it->data, 1);
+		if (Rc_int) {
+			zval_ptr_dtor(&it->key);
+			ZVAL_LONG(&it->key, index);
+			ZVAL_BOOL(&it->data, 1);
+		} else {
+			judy_iterator_data_dtor(it);
+		}
 
 	} else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED) {
 

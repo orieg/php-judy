@@ -8,8 +8,31 @@ permissions:
   contents: write
 
 jobs:
+  # Ensure the Git release tag matches the version declared in package.xml
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate tag matches package.xml version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          PKG_VERSION=$(php -r "
+            \$xml = simplexml_load_file('package.xml');
+            echo (string)\$xml->version->release;
+          ")
+          TAG_VERSION="${TAG#v}"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "ERROR: Release tag '$TAG' (version '$TAG_VERSION') does not match package.xml version '$PKG_VERSION'"
+            echo "Update package.xml <release> to '$TAG_VERSION' before publishing."
+            exit 1
+          fi
+          echo "OK: tag '$TAG' matches package.xml version '$PKG_VERSION'"
+
   # Dynamically generate the Windows build matrix from package.xml / PHP defaults
   get-extension-matrix:
+    needs: validate
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.extension-matrix.outputs.matrix }}
@@ -140,6 +163,7 @@ jobs:
 
   # Build the PECL source package (.tgz) for Linux / manual installs
   pecl-package:
+    needs: validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

@@ -42,6 +42,53 @@ static void php_judy_init_globals(zend_judy_globals *judy_globals)
 
 /* {{{ judy_free_storage
    close all resources and the memory allocated for the object */
+static Word_t judy_free_array_internal(judy_object *intern)
+{
+	Word_t Rc_word = 0;
+
+	if (intern->array == NULL) {
+		return 0;
+	}
+
+	if (intern->type == TYPE_INT_TO_MIXED) {
+		Word_t index = 0;
+		Word_t *PValue;
+
+		JLF(PValue, intern->array, index);
+		while (PValue != NULL && PValue != PJERR) {
+			zval *value = JUDY_MVAL_READ(PValue);
+			zval_ptr_dtor(value);
+			efree(value);
+			JLN(PValue, intern->array, index);
+		}
+		JLFA(Rc_word, intern->array);
+	} else if (intern->type == TYPE_STRING_TO_MIXED) {
+		uint8_t kindex[PHP_JUDY_MAX_LENGTH];
+		Word_t *PValue;
+
+		kindex[0] = '\0';
+		JSLF(PValue, intern->array, kindex);
+		while (PValue != NULL && PValue != PJERR) {
+			zval *value = JUDY_MVAL_READ(PValue);
+			zval_ptr_dtor(value);
+			efree(value);
+			JSLN(PValue, intern->array, kindex);
+		}
+		JSLFA(Rc_word, intern->array);
+	} else if (intern->type == TYPE_BITSET) {
+		J1FA(Rc_word, intern->array);
+	} else if (intern->type == TYPE_INT_TO_INT) {
+		JLFA(Rc_word, intern->array);
+	} else if (intern->type == TYPE_STRING_TO_INT) {
+		JSLFA(Rc_word, intern->array);
+	}
+
+	intern->array = NULL;
+	intern->counter = 0;
+
+	return Rc_word;
+}
+
 static void judy_object_free_storage(zend_object *object)
 {
 	judy_object *intern = php_judy_object(object);
@@ -51,43 +98,7 @@ static void judy_object_free_storage(zend_object *object)
 	zval_ptr_dtor(&intern->iterator_data);
 
 	/* Free the Judy array if __destruct didn't already */
-	if (intern->array != NULL) {
-		Word_t Rc_word;
-
-		if (intern->type == TYPE_INT_TO_MIXED) {
-			Word_t index = 0;
-			Word_t *PValue;
-
-			JLF(PValue, intern->array, index);
-			while (PValue != NULL && PValue != PJERR) {
-				zval *value = JUDY_MVAL_READ(PValue);
-				zval_ptr_dtor(value);
-				efree(value);
-				JLN(PValue, intern->array, index);
-			}
-			JLFA(Rc_word, intern->array);
-		} else if (intern->type == TYPE_STRING_TO_MIXED) {
-			uint8_t kindex[PHP_JUDY_MAX_LENGTH];
-			Word_t *PValue;
-
-			kindex[0] = '\0';
-			JSLF(PValue, intern->array, kindex);
-			while (PValue != NULL && PValue != PJERR) {
-				zval *value = JUDY_MVAL_READ(PValue);
-				zval_ptr_dtor(value);
-				efree(value);
-				JSLN(PValue, intern->array, kindex);
-			}
-			JSLFA(Rc_word, intern->array);
-		} else if (intern->type == TYPE_BITSET) {
-			J1FA(Rc_word, intern->array);
-		} else if (intern->type == TYPE_INT_TO_INT) {
-			JLFA(Rc_word, intern->array);
-		} else if (intern->type == TYPE_STRING_TO_INT) {
-			JSLFA(Rc_word, intern->array);
-		}
-		intern->array = NULL;
-	}
+	judy_free_array_internal(intern);
 
 	zend_object_std_dtor(&intern->std);
 }
@@ -229,6 +240,12 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 	if (offset) {
 		CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, error_flag, return FAILURE);
 		if (error_flag) {
+			return FAILURE;
+		}
+		if (pstring_key && Z_STRLEN_P(pstring_key) >= PHP_JUDY_MAX_LENGTH) {
+			zend_throw_exception_ex(NULL, 0,
+				"Judy string key length (%zu) exceeds maximum of %d bytes",
+				(size_t)Z_STRLEN_P(pstring_key), PHP_JUDY_MAX_LENGTH - 1);
 			return FAILURE;
 		}
 	} else {
@@ -693,72 +710,7 @@ PHP_METHOD(judy, free)
 {
 	JUDY_METHOD_GET_OBJECT
 
-		Word_t    Rc_word = 0;
-	Word_t    index;
-	uint8_t   kindex[PHP_JUDY_MAX_LENGTH];
-	Word_t    *PValue;
-
-	switch (intern->type)
-	{
-		case TYPE_BITSET:
-			/* Free Judy1 Array */
-			J1FA(Rc_word, intern->array);
-			break;
-
-		case TYPE_INT_TO_INT:
-			/* Free JudyL Array */
-			JLFA(Rc_word, intern->array);
-			break;
-
-		case TYPE_INT_TO_MIXED:
-			index = 0;
-
-			/* Del ref to zval objects */
-			JLF(PValue, intern->array, index);
-			while(PValue != NULL && PValue != PJERR)
-			{
-				zval *value = JUDY_MVAL_READ(PValue);
-				zval_ptr_dtor(value);
-				efree(value);
-				JLN(PValue, intern->array, index);
-			}
-
-			/* Free JudyL Array */
-			JLFA(Rc_word, intern->array);
-			break;
-
-		case TYPE_STRING_TO_INT:
-			/* Free JudySL Array */
-			JSLFA(Rc_word, intern->array);
-
-			/* Reset counter */
-			intern->counter = 0;
-			break;
-
-		case TYPE_STRING_TO_MIXED:
-			kindex[0] = '\0';
-
-			/* Del ref to zval objects */
-			JSLF(PValue, intern->array, kindex);
-			while(PValue != NULL && PValue != PJERR)
-			{
-				zval *value = JUDY_MVAL_READ(PValue);
-				zval_ptr_dtor(value);
-				efree(value);
-				JSLN(PValue, intern->array, kindex);
-			}
-
-			/* Free JudySL Array */
-			JSLFA(Rc_word, intern->array);
-
-			/* Reset counter */
-			intern->counter = 0;
-			break;
-	}
-
-	intern->array = NULL;
-
-	RETURN_LONG(Rc_word);
+	RETURN_LONG(judy_free_array_internal(intern));
 }
 /* }}} */
 
