@@ -85,22 +85,38 @@ jobs:
           Set-Content $buildBat -Value $batContent -NoNewline
           Write-Host "Patched build.bat"
 
-          # Fix ~0UL across ALL Judy source files.
-          # On MSVC x64 (LLP64), unsigned long is 4 bytes, so ~0UL = 0xFFFFFFFF
-          # instead of the expected 0xFFFFFFFFFFFFFFFF. This breaks cJU_ALLONES
-          # and other bitmask constants in JudyPrivate.h and throughout the code.
-          # Replace with ~(Word_t)0 to get correct all-ones for the Word_t width.
-          Write-Host "Fixing ~0UL in Judy source files..."
+          # Fix all unsigned-long constants that break on MSVC x64 (LLP64 model).
+          # On MSVC x64, `unsigned long` is 4 bytes, so any UL constant used in a
+          # 64-bit context silently truncates:
+          #
+          #   ~0UL       -> 0xFFFFFFFF  (breaks cJU_ALLONES, memory ceiling, etc.)
+          #   (-1UL)     -> 0xFFFFFFFF  (breaks max-pop sentinels in JudyPrivateBranch.h)
+          #   1UL << N   -> 0 when N>=32 (breaks JudyInsArray.c, JudyPrevNextEmpty.c)
+          #   1L  << N   -> sign-extends to 0xFFFFFFFF80000000 when N=31; 0 when N>=32
+          #                 (breaks JU_BITPOSMASKB/L in JudyPrivate.h)
+          #   0x100UL    -> 0x100 as 32-bit; JU_LEASTBYTESMASK wrong for BYTES>4
+          #
+          # The root cause of the 17-min hang in PrevNextEmpty: bitposmaskL was
+          # initialised to `1UL << 63` = 0 on MSVC x64, creating an infinite loop.
+          Write-Host "Fixing UL constants in Judy source files..."
           $fixCount = 0
           Get-ChildItem -Path $judyDir.FullName -Recurse -Include "*.c","*.h" | ForEach-Object {
-            $text = Get-Content $_.FullName -Raw
-            if ($text -match '~0UL') {
-              $text = $text.Replace('~0UL', '~(Word_t)0')
+            $orig = Get-Content $_.FullName -Raw
+            $text = $orig
+            # All-ones patterns
+            $text = $text.Replace('~0UL',    '~(Word_t)0')
+            $text = $text.Replace('(-1UL)',  '(~(Word_t)0)')
+            # Shift-base patterns (order matters: 1UL before 1L to avoid double-replace)
+            $text = [regex]::Replace($text, '\b1UL\s*<<', '(Word_t)1 <<')
+            $text = [regex]::Replace($text, '\b1L\s*<<',  '(Word_t)1 <<')
+            # Least-bytes mask base constant
+            $text = $text.Replace('0x100UL', '(Word_t)0x100')
+            if ($text -ne $orig) {
               Set-Content $_.FullName -Value $text -NoNewline
               $fixCount++
             }
           }
-          Write-Host "Fixed ~0UL in $fixCount files"
+          Write-Host "Fixed UL constants in $fixCount files"
 
           # Build
           Write-Host "Building libjudy..."
