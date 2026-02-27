@@ -90,7 +90,10 @@ jobs:
         run: |
           JUDY_SO="$(php -r 'echo PHP_EXTENSION_DIR . DIRECTORY_SEPARATOR;')judy.so"
           RUN_TESTS=$(find "$(php-config --prefix)" -name run-tests.php 2>/dev/null | head -1)
-          NO_INTERACTION=1 php "$RUN_TESTS" \
+          # run-tests.php writes temp files next to itself; copy to /tmp to avoid
+          # "Permission denied" on the system-installed (root-owned) build directory.
+          cp "$RUN_TESTS" /tmp/run-tests.php
+          NO_INTERACTION=1 php /tmp/run-tests.php \
             -d "extension=$JUDY_SO" \
             -q --show-diff \
             tests/*.phpt
