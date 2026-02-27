@@ -85,6 +85,23 @@ jobs:
           Set-Content $buildBat -Value $batContent -NoNewline
           Write-Host "Patched build.bat"
 
+          # Fix ~0UL across ALL Judy source files.
+          # On MSVC x64 (LLP64), unsigned long is 4 bytes, so ~0UL = 0xFFFFFFFF
+          # instead of the expected 0xFFFFFFFFFFFFFFFF. This breaks cJU_ALLONES
+          # and other bitmask constants in JudyPrivate.h and throughout the code.
+          # Replace with ~(Word_t)0 to get correct all-ones for the Word_t width.
+          Write-Host "Fixing ~0UL in Judy source files..."
+          $fixCount = 0
+          Get-ChildItem -Path $judyDir.FullName -Recurse -Include "*.c","*.h" | ForEach-Object {
+            $text = Get-Content $_.FullName -Raw
+            if ($text -match '~0UL') {
+              $text = $text.Replace('~0UL', '~(Word_t)0')
+              Set-Content $_.FullName -Value $text -NoNewline
+              $fixCount++
+            }
+          }
+          Write-Host "Fixed ~0UL in $fixCount files"
+
           # Build
           Write-Host "Building libjudy..."
           Push-Location $srcDir
