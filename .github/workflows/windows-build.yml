@@ -101,8 +101,10 @@ jobs:
           }
           Write-Host "Built: $($judyLib.FullName) ($($judyLib.Length) bytes)"
 
-          # Install to libjudy/{include,lib,bin}
-          $installDir = Join-Path $env:GITHUB_WORKSPACE "libjudy"
+          # Install to libjudy/{include,lib,bin} outside workspace.
+          # php-windows-builder runs git clean -ffdx which removes untracked
+          # files from the workspace, so we install to RUNNER_TEMP instead.
+          $installDir = Join-Path $env:RUNNER_TEMP "libjudy"
           foreach ($sub in @("include", "lib", "bin")) {
             New-Item -ItemType Directory -Force (Join-Path $installDir $sub) | Out-Null
           }
@@ -128,7 +130,7 @@ jobs:
       - name: Add libjudy to PATH
         shell: pwsh
         run: |
-          Add-Content $env:GITHUB_PATH "${{ github.workspace }}\libjudy\bin"
+          Add-Content $env:GITHUB_PATH "${{ runner.temp }}\libjudy\bin"
 
       - name: Build the extension
         uses: php/php-windows-builder/extension@v1
@@ -136,7 +138,7 @@ jobs:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
-          args: --with-judy=${{ github.workspace }}\libjudy
+          args: --with-judy=${{ runner.temp }}\libjudy
 
       - name: Debug on failure
         if: failure()
@@ -145,7 +147,7 @@ jobs:
           $ErrorActionPreference = "Continue"
 
           Write-Host "=== libjudy install ==="
-          $dir = Join-Path $env:GITHUB_WORKSPACE "libjudy"
+          $dir = Join-Path $env:RUNNER_TEMP "libjudy"
           if (Test-Path $dir) {
             Get-ChildItem -Path $dir -Recurse -File | ForEach-Object {
               Write-Host "  $($_.FullName.Substring($dir.Length)) ($($_.Length) bytes)"
