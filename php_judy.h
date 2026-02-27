@@ -64,8 +64,10 @@ typedef enum _judy_type {
                            && type != TYPE_STRING_TO_INT \
                            && type != TYPE_STRING_TO_MIXED) { \
         php_error_docref(NULL, E_WARNING, "Not a valid Judy type. Please check the documentation for valid Judy type constant."); \
+        jtype = 0; \
+    } else { \
+        jtype = type; \
     } \
-    jtype = type; \
 }
 
 #define JUDY_METHOD_ERROR_HANDLING \
@@ -82,7 +84,7 @@ typedef enum _judy_type {
 #define JUDY_IS_MIXED_VALUE(intern) ((intern)->is_mixed_value)
 
 typedef struct _judy_object {
-	long            type;
+	zend_long       type;
 	Pvoid_t         array;
 	unsigned long   counter;
 	Word_t			next_empty;
@@ -120,7 +122,7 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset);
 
 /* {{{ REGISTER_JUDY_CLASS_CONST_LONG */
 #define REGISTER_JUDY_CLASS_CONST_LONG(const_name, value) \
-    zend_declare_class_constant_long(judy_ce, const_name, sizeof(const_name)-1, (long) value);
+    zend_declare_class_constant_long(judy_ce, const_name, sizeof(const_name)-1, (zend_long) value);
 /* }}} */
 
 ZEND_BEGIN_MODULE_GLOBALS(judy)

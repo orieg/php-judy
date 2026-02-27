@@ -1,0 +1,36 @@
+name: Linux Build & Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ["8.1", "8.2", "8.3", "8.4"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Judy library
+        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+
+      - name: Build the extension
+        run: |
+          phpize
+          ./configure --with-judy=/usr
+          make
+
+      - name: Run tests
+        run: make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1

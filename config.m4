@@ -51,14 +51,12 @@ if test "$PHP_JUDY" != "no"; then
   
   dnl # Performance optimizations for production builds
   if test "$PHP_DEBUG" != "yes"; then
-    dnl # Add aggressive optimization flags for production
-    CFLAGS="$CFLAGS -O3 -march=native -mtune=native"
-    CFLAGS="$CFLAGS -flto -fomit-frame-pointer"
+    dnl # Add optimization flags for production
+    CFLAGS="$CFLAGS -O3"
+    CFLAGS="$CFLAGS -fomit-frame-pointer"
     CFLAGS="$CFLAGS -DNDEBUG"
     dnl # Additional performance flags
     CFLAGS="$CFLAGS -fno-common"
-    dnl # Link-time optimization
-    LDFLAGS="$LDFLAGS -flto"
   fi
   
   PHP_NEW_EXTENSION(judy, php_judy.c $judy_sources, $ext_shared)

@@ -46,7 +46,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 		while (Rc_int == 1)
 		{
 			J1S(Rc_int, newJArray, kindex);
-			J1N(Rc_int, newJArray, kindex);
+			J1N(Rc_int, old_obj->array, kindex);
 		}
 	} else if (old_obj->type == TYPE_INT_TO_INT || old_obj->type == TYPE_INT_TO_MIXED) {
 		/* Cloning JudyL Array */
@@ -68,7 +68,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 				*newPValue = *PValue;
 				if (old_obj->type == TYPE_INT_TO_MIXED) {
 					zval *value = ecalloc(1, sizeof(zval));
-					ZVAL_DUP(value, *(zval **)PValue);
+					ZVAL_COPY(value, *(zval **)PValue);
 					*newPValue = value;
 				}
 			}
@@ -97,7 +97,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 				*newPValue = *PValue;
 				if (old_obj->type == TYPE_STRING_TO_MIXED) {
 					zval *value = ecalloc(1, sizeof(zval));
-					ZVAL_DUP(value, *(zval **)PValue);
+					ZVAL_COPY(value, *(zval **)PValue);
 					*newPValue = value;
 				}
 			}
@@ -107,6 +107,10 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 
 	new_obj->array = newJArray;
 	new_obj->type = old_obj->type;
+	new_obj->counter = old_obj->counter;
+	new_obj->is_integer_keyed = old_obj->is_integer_keyed;
+	new_obj->is_string_keyed = old_obj->is_string_keyed;
+	new_obj->is_mixed_value = old_obj->is_mixed_value;
 
 	return &new_obj->std;
 }

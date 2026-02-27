@@ -27,13 +27,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: Debug directory structure
-        run: |
-          echo "Current directory: $PWD"
-          echo "Directory contents:"
-          Get-ChildItem -Recurse | Select-Object Name, FullName
-          
+
       - name: Build the extension
         uses: php/php-windows-builder/extension@v1
         with:
