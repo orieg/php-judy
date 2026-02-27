@@ -58,7 +58,7 @@
          <file md5sum="89438abbecf3617c9b077527e59ec102" name="examples/judy-read-performance-test.php" role="doc" />
          <file md5sum="9531f74e337528d75dd9b5ff66437351" name="examples/run-benchmarks-robust.php" role="doc" />
          <file md5sum="163369b8ada5a8bf7bc9853ae7cc4522" name="examples/iterator_performance_analysis.md" role="doc" />
-         <file md5sum="8205e275217a65301282cbd5945c0944" name="tests/001.phpt" role="test" />
+         <file md5sum="abc7eb31bb88857463ec941514e5f019" name="tests/001.phpt" role="test" />
          <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />
          <file md5sum="9f3363cc4c6d15cb52184351cf710fd7" name="tests/bitset_002.phpt" role="test" />
          <file md5sum="e859b3b92086bc165b3ec98800920f03" name="tests/bitset_003.phpt" role="test" />
