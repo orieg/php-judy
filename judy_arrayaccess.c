@@ -25,9 +25,10 @@ PHP_METHOD(judy, offsetSet)
 {
 	zval *offset, *value;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "zz", &offset, &value) == FAILURE) {
-		RETURN_FALSE;
-	}
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_ZVAL(offset)
+		Z_PARAM_ZVAL(value)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (judy_object_write_dimension_helper(getThis(), offset, value) == SUCCESS) {
 		RETURN_TRUE;
@@ -42,9 +43,9 @@ PHP_METHOD(judy, offsetUnset)
 {
 	zval *offset;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &offset) == FAILURE) {
-		RETURN_FALSE;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_ZVAL(offset)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (judy_object_unset_dimension_helper(getThis(), offset) == SUCCESS) {
 		RETURN_TRUE;
@@ -59,9 +60,9 @@ PHP_METHOD(judy, offsetGet)
 {
 	zval *offset, result, *result_ptr;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &offset) == FAILURE) {
-		RETURN_FALSE;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_ZVAL(offset)
+	ZEND_PARSE_PARAMETERS_END();
 
 	result_ptr = judy_object_read_dimension_helper(getThis(), offset, &result);
 	if (!result_ptr) {
@@ -77,9 +78,9 @@ PHP_METHOD(judy, offsetExists)
 {
 	zval *offset;
 
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &offset) == FAILURE) {
-		RETURN_FALSE;
-	}
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_ZVAL(offset)
+	ZEND_PARSE_PARAMETERS_END();
 
 	if (judy_object_has_dimension_helper(getThis(), offset, 0)) {
 		RETURN_TRUE;
