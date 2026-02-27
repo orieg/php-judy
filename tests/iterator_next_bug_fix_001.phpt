@@ -1,7 +1,10 @@
 --TEST--
 Test Iterator next() method to catch potential bugs on edge cases
 --SKIPIF--
-<?php if (!extension_loaded("judy")) print "skip"; ?>
+<?php
+if (!extension_loaded("judy")) print "skip";
+try { new Judy(Judy::INT_TO_MIXED); } catch (Exception $e) { print "skip MIXED types not supported"; }
+?>
 --FILE--
 <?php
 echo "Testing Iterator next() method for bug prevention:\n\n";

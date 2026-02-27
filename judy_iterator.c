@@ -36,11 +36,14 @@ zend_object_iterator_funcs judy_iterator_funcs = {
 */
 zend_object_iterator *judy_get_iterator(zend_class_entry *ce, zval *object, int by_ref)
 {
-	judy_iterator *it = emalloc(sizeof(judy_iterator));
+	judy_iterator *it;
 
 	if (by_ref) {
-		zend_error(E_ERROR, "An iterator cannot be used with foreach by reference");
+		zend_throw_error(NULL, "An iterator cannot be used with foreach by reference");
+		return NULL;
 	}
+
+	it = emalloc(sizeof(judy_iterator));
 
 	Z_ADDREF_P(object);
 
@@ -71,7 +74,6 @@ void judy_iterator_data_dtor(judy_iterator *it)
 void judy_iterator_dtor(zend_object_iterator *iterator)
 {
 	judy_iterator   *it = (judy_iterator*) iterator;
-	zval            *intern = (zval*) &it->intern.data;
 
 	judy_iterator_data_dtor(it);
 
@@ -170,7 +172,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 		}
 
 		if (Rc_int) {
-			zval_dtor(&it->key);
+			zval_ptr_dtor(&it->key);
 			ZVAL_LONG(&it->key, index);
 			ZVAL_BOOL(&it->data, 1);
 		} else {
@@ -184,21 +186,20 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 
 		if (Z_ISUNDEF_P(&it->key)) {
 			index = 0;
-			JLF(*PValue, object->array, index);
+			JLF(PValue, object->array, index);
 		} else {
 			index = Z_LVAL_P(&it->key);
 			JLN(PValue, object->array, index);
 		}
 
-		zval_dtor(&it->key);
-		ZVAL_LONG(&it->key, index);
-
-		JLG(PValue, object->array, index);
 		if (PValue != NULL && PValue != PJERR) {
+			zval_ptr_dtor(&it->key);
+			ZVAL_LONG(&it->key, index);
+
 			if (object->type == TYPE_INT_TO_INT) {
-				ZVAL_LONG(&it->data, (long)*PValue);
+				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
 			} else {
-				zval *value = *(zval **)PValue;
+				zval *value = JUDY_MVAL_READ(PValue);
 
 				ZVAL_COPY(&it->data, value);
 			}
@@ -211,7 +212,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		Pvoid_t      *PValue;
 
-		/* JudySL require null temrinated strings */
+		/* JudySL require null terminated strings */
 		if (Z_TYPE_P(&it->key) == IS_STRING) {
 			int key_len;
 			key_len = Z_STRLEN_P(&it->key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&it->key);
@@ -226,13 +227,13 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 
 		if ((PValue != NULL && PValue != PJERR)) {
 
-			zval_dtor(&it->key);
+			zval_ptr_dtor(&it->key);
 			ZVAL_STRING(&it->key, (char *)key);
 
 			if (object->type == TYPE_STRING_TO_INT) {
-				ZVAL_LONG(&it->data, (long)*PValue);
+				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
 			} else {
-				zval *value = *(zval **)PValue;
+				zval *value = JUDY_MVAL_READ(PValue);
 
 				ZVAL_COPY(&it->data, value);
 			}
@@ -257,9 +258,13 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 		int             Rc_int;
 
 		J1F(Rc_int, object->array, index);
-		zval_dtor(&it->key);
-		ZVAL_LONG(&it->key, index);
-		ZVAL_BOOL(&it->data, 1);
+		if (Rc_int) {
+			zval_ptr_dtor(&it->key);
+			ZVAL_LONG(&it->key, index);
+			ZVAL_BOOL(&it->data, 1);
+		} else {
+			judy_iterator_data_dtor(it);
+		}
 
 	} else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED) {
 
@@ -267,15 +272,14 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 		Pvoid_t          *PValue = NULL;
 
 		JLF(PValue, object->array, index);
-		zval_dtor(&it->key);
-		ZVAL_LONG(&it->key, index);
-
-		JLG(PValue, object->array, index);
 		if (PValue != NULL && PValue != PJERR) {
+			zval_ptr_dtor(&it->key);
+			ZVAL_LONG(&it->key, index);
+
 			if (object->type == TYPE_INT_TO_INT) {
-				ZVAL_LONG(&it->data, (long)*PValue);
+				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
 			} else {
-				zval *value = *(zval **)PValue;
+				zval *value = JUDY_MVAL_READ(PValue);
 
 				ZVAL_COPY(&it->data, value);
 			}
@@ -286,17 +290,17 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		Pvoid_t      *PValue;
 
-		/* JudySL require null temrinated strings */
+		/* JudySL require null terminated strings */
 		key[0] = '\0';
 		JSLF(PValue, object->array, key);
 
 		if (PValue != NULL && PValue != PJERR) {
-			zval_dtor(&it->key);
+			zval_ptr_dtor(&it->key);
 			ZVAL_STRING(&it->key, (const char *) key);
 			if (object->type == TYPE_STRING_TO_INT) {
-				ZVAL_LONG(&it->data, (long)*PValue);
+				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
 			} else {
-				zval *value = *(zval **)PValue;
+				zval *value = JUDY_MVAL_READ(PValue);
 
 				ZVAL_COPY(&it->data, value);
 			}

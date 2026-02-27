@@ -1,0 +1,677 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  checks: write
+  pull-requests: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Judy library
+        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+
+      - name: Build the extension
+        run: |
+          phpize
+          ./configure --with-judy=/usr
+          make
+
+      - name: Run tests
+        run: make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1 TEST_PHP_JUNIT=junit.xml
+
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-linux-${{ matrix.php-version }}
+          path: junit.xml
+          if-no-files-found: ignore
+
+      - name: Run benchmarks
+        run: |
+          # Create a temporary PHP INI so the judy extension is auto-loaded
+          # in the main process AND in sub-processes spawned by shell_exec()
+          JUDY_SO="$(pwd)/modules/judy.so"
+          mkdir -p /tmp/php-judy-ini
+          echo "extension=$JUDY_SO" > /tmp/php-judy-ini/judy.ini
+
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/run-benchmarks.php | tee benchmark-results.txt
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-linux-php${{ matrix.php-version }}
+          path: benchmark-results.txt
+          if-no-files-found: ignore
+
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+        arch: ["x64"]
+        ts: ["nts"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Build libjudy from source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ProgressPreference = "SilentlyContinue"
+
+          # Download Judy-1.0.5 source from SourceForge
+          Write-Host "Downloading Judy-1.0.5 source..."
+          & curl.exe -fsSL -o judy.tar.gz --retry 5 --retry-delay 5 -L `
+            "https://downloads.sourceforge.net/project/judy/judy/Judy-1.0.5/Judy-1.0.5.tar.gz"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to download Judy source" }
+
+          # Extract
+          tar -xzf judy.tar.gz
+          $judyDir = Get-ChildItem -Directory | Where-Object { $_.Name -match '^[Jj]udy-' } | Select-Object -First 1
+          if (-not $judyDir) { throw "Could not find extracted Judy directory" }
+          $srcDir = Join-Path $judyDir.FullName "src"
+          if (-not (Test-Path (Join-Path $srcDir "build.bat"))) {
+            throw "build.bat not found in $srcDir"
+          }
+          Write-Host "Source: $srcDir"
+
+          # Patch Judy.h: Fix Word_t for 64-bit Windows and PJERR sentinel
+          Write-Host "Patching Judy.h..."
+          $judyH = Join-Path $srcDir "Judy.h"
+          $content = Get-Content $judyH -Raw
+
+          # Fix Word_t: unsigned long is only 4 bytes on MSVC x64 (LLP64),
+          # use unsigned __int64 for proper 64-bit Word_t
+          $wordTPatch = @'
+          #if defined(_WIN64)
+          typedef unsigned __int64    Word_t, * PWord_t;
+          #else
+          typedef unsigned long       Word_t, * PWord_t;
+          #endif
+          '@
+          # Trim indentation added by YAML here-string
+          $wordTPatch = ($wordTPatch.Trim() -split "`n" | ForEach-Object { $_.Trim() }) -join "`n"
+          $content = $content -replace 'typedef\s+unsigned\s+long\s+Word_t\s*,\s*\*\s*PWord_t\s*;', $wordTPatch
+
+          # Fix PJERR/PPJERR: ~0UL is 32-bit on MSVC x64, use ~(size_t)0
+          # to get the correct 64-bit error sentinel
+          $content = $content.Replace('(~0UL)', '(~(size_t)0)')
+
+          # Validate patches applied
+          if ($content -notmatch 'unsigned __int64\s+Word_t') { throw "Failed to patch Word_t in Judy.h" }
+          if ($content -notmatch '~\(size_t\)0') { throw "Failed to patch PJERR in Judy.h" }
+          Set-Content $judyH -Value $content -NoNewline
+          Write-Host "Patched Judy.h"
+
+          # Patch build.bat: Add -DJU_64BIT for proper 64-bit internal data structures
+          # and /MD to use the dynamic C runtime (matching PHP's CRT linkage)
+          Write-Host "Patching build.bat..."
+          $buildBat = Join-Path $srcDir "build.bat"
+          $batContent = Get-Content $buildBat -Raw
+          $batContent = $batContent.Replace('-DJU_WIN', '-DJU_WIN -DJU_64BIT /MD')
+          if ($batContent -notmatch 'JU_64BIT') { throw "Failed to patch build.bat" }
+          Set-Content $buildBat -Value $batContent -NoNewline
+          Write-Host "Patched build.bat"
+
+          # Fix all unsigned-long constants that break on MSVC x64 (LLP64 model).
+          # On MSVC x64, `unsigned long` is 4 bytes, so any UL constant used in a
+          # 64-bit context silently truncates:
+          #
+          #   ~0UL       -> 0xFFFFFFFF  (breaks cJU_ALLONES, memory ceiling, etc.)
+          #   (-1UL)     -> 0xFFFFFFFF  (breaks max-pop sentinels in JudyPrivateBranch.h)
+          #   1UL << N   -> 0 when N>=32 (breaks JudyInsArray.c, JudyPrevNextEmpty.c)
+          #   1L  << N   -> sign-extends to 0xFFFFFFFF80000000 when N=31; 0 when N>=32
+          #                 (breaks JU_BITPOSMASKB/L in JudyPrivate.h)
+          #   0x100UL    -> 0x100 as 32-bit; JU_LEASTBYTESMASK wrong for BYTES>4
+          #
+          # The root cause of the 17-min hang in PrevNextEmpty: bitposmaskL was
+          # initialised to `1UL << 63` = 0 on MSVC x64, creating an infinite loop.
+          Write-Host "Fixing UL constants in Judy source files..."
+          $fixCount = 0
+          Get-ChildItem -Path $judyDir.FullName -Recurse -Include "*.c","*.h" | ForEach-Object {
+            $orig = Get-Content $_.FullName -Raw
+            $text = $orig
+            # All-ones patterns
+            $text = $text.Replace('~0UL',    '~(Word_t)0')
+            $text = $text.Replace('(-1UL)',  '(~(Word_t)0)')
+            # Shift-base patterns (order matters: 1UL before 1L to avoid double-replace)
+            $text = [regex]::Replace($text, '\b1UL\s*<<', '(Word_t)1 <<')
+            $text = [regex]::Replace($text, '\b1L\s*<<',  '(Word_t)1 <<')
+            # Least-bytes mask base constant
+            $text = $text.Replace('0x100UL', '(Word_t)0x100')
+            if ($text -ne $orig) {
+              Set-Content $_.FullName -Value $text -NoNewline
+              $fixCount++
+            }
+          }
+          Write-Host "Fixed UL constants in $fixCount files"
+
+          # Build
+          Write-Host "Building libjudy..."
+          Push-Location $srcDir
+          & cmd.exe /c "build.bat 2>&1"
+          Pop-Location
+
+          # Verify build output
+          $judyLib = Get-ChildItem -Path $srcDir -Recurse -Filter "Judy.lib" -ErrorAction SilentlyContinue |
+            Sort-Object Length -Descending | Select-Object -First 1
+          if (-not $judyLib) {
+            Write-Host "Build artifacts found:"
+            Get-ChildItem -Path $srcDir -Recurse -Include "*.lib","*.dll","*.obj" -ErrorAction SilentlyContinue |
+              ForEach-Object { Write-Host "  $($_.FullName) ($($_.Length) bytes)" }
+            throw "Judy.lib not found after build"
+          }
+          Write-Host "Built: $($judyLib.FullName) ($($judyLib.Length) bytes)"
+
+          # Install to libjudy/{include,lib,bin} outside workspace.
+          # php-windows-builder runs git clean -ffdx which removes untracked
+          # files from the workspace, so we install to RUNNER_TEMP instead.
+          $installDir = Join-Path $env:RUNNER_TEMP "libjudy"
+          foreach ($sub in @("include", "lib", "bin")) {
+            New-Item -ItemType Directory -Force (Join-Path $installDir $sub) | Out-Null
+          }
+
+          Copy-Item $judyH "$installDir\include\"
+          Copy-Item $judyLib.FullName "$installDir\lib\libJudy.lib"
+          Copy-Item $judyLib.FullName "$installDir\lib\libJudy_a.lib"
+
+          # Copy DLL if produced (for dynamic linking)
+          $judyDll = Get-ChildItem -Path $srcDir -Recurse -Filter "Judy.dll" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if ($judyDll) {
+            Copy-Item $judyDll.FullName "$installDir\bin\"
+            Write-Host "Installed DLL: $($judyDll.Length) bytes"
+          }
+
+          Write-Host "=== libjudy installed ==="
+          Get-ChildItem -Path $installDir -Recurse -File | ForEach-Object {
+            $rel = $_.FullName.Substring($installDir.Length)
+            Write-Host "  $rel ($($_.Length) bytes)"
+          }
+
+      - name: Add libjudy to PATH
+        shell: pwsh
+        run: |
+          Add-Content $env:GITHUB_PATH "${{ runner.temp }}\libjudy\bin"
+
+      - name: Disable Windows Error Reporting
+        shell: pwsh
+        run: |
+          # Prevent WER from intercepting crashed test processes and stalling
+          # run-tests.php for minutes per crash (STATUS_ACCESS_VIOLATION).
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting" /v Disabled /t REG_DWORD /d 1 /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpType /t REG_DWORD /d 0 /f
+
+      - name: Build the extension
+        uses: php/php-windows-builder/extension@v1
+        with:
+          php-version: ${{ matrix.php-version }}
+          arch: ${{ matrix.arch }}
+          ts: ${{ matrix.ts }}
+          args: --with-judy=${{ runner.temp }}\libjudy
+          test-workers: "2"
+          test-runner-args: "--set-timeout 30"
+        env:
+          TEST_PHP_JUNIT: ${{ runner.temp }}\junit.xml
+
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-windows-${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
+          path: ${{ runner.temp }}\junit.xml
+          if-no-files-found: ignore
+
+      - name: Run benchmarks
+        if: success()
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          $ErrorActionPreference = "Continue"
+
+          # Locate php.exe from the build (php-windows-builder downloads PHP here)
+          $phpExe = Get-ChildItem -Path ".\build" -Recurse -Filter "php.exe" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $phpExe) {
+            Write-Host "WARNING: php.exe not found in .\build, skipping benchmarks"
+            exit 0
+          }
+          $phpDir = $phpExe.DirectoryName
+          Write-Host "Found PHP at: $phpDir"
+
+          # Locate the built extension DLL
+          $extDll = Get-ChildItem -Path ".\build" -Recurse -Filter "php_judy.dll" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $extDll) {
+            Write-Host "WARNING: php_judy.dll not found, skipping benchmarks"
+            exit 0
+          }
+          Write-Host "Found extension at: $($extDll.FullName)"
+
+          # Put php.exe directory on PATH so shell_exec('php ...') sub-processes work
+          $env:PATH = "$phpDir;$env:PATH"
+
+          # Create/append php.ini next to php.exe so both main and sub-processes load the extension
+          $iniPath = Join-Path $phpDir "php.ini"
+          @"
+          extension=$($extDll.FullName)
+          memory_limit=4G
+          "@ | Add-Content $iniPath
+
+          # Verify extension loads
+          $mods = & $phpExe.FullName -m 2>&1 | Out-String
+          if ($mods -notmatch 'judy') {
+            Write-Host "WARNING: judy extension not loading, skipping benchmarks"
+            Write-Host $mods
+            exit 0
+          }
+          Write-Host "Extension verified"
+
+          # Run benchmarks (same script as Linux)
+          & $phpExe.FullName examples/run-benchmarks.php 2>&1 | Tee-Object -FilePath benchmark-results.txt
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-windows-php${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
+          path: benchmark-results.txt
+          if-no-files-found: ignore
+
+      - name: Debug on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+
+          Write-Host "=== libjudy install ==="
+          $dir = Join-Path $env:RUNNER_TEMP "libjudy"
+          if (Test-Path $dir) {
+            Get-ChildItem -Path $dir -Recurse -File | ForEach-Object {
+              Write-Host "  $($_.FullName.Substring($dir.Length)) ($($_.Length) bytes)"
+            }
+          }
+
+          Write-Host "`n=== Configure log (tail) ==="
+          Get-ChildItem -Path ".\build" -Recurse -Filter "config*.log" -ErrorAction SilentlyContinue |
+            Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Tail 50 }
+
+          Write-Host "`n=== Build log (tail) ==="
+          Get-ChildItem -Path ".\build" -Recurse -Filter "build*.log" -ErrorAction SilentlyContinue |
+            Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Tail 30 }
+
+  report-results:
+    needs: [build-linux, build-windows]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: junit-*
+          path: artifacts
+
+      - name: Download benchmark artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: benchmark-*
+          path: benchmarks
+        continue-on-error: true
+
+      - name: Publish test check
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: "artifacts/**/*.xml"
+          check_name: "Test Results"
+          comment_mode: "off"
+          job_summary: false
+
+      - name: Build consolidated report
+        run: |
+          python3 << 'PYEOF'
+          import xml.etree.ElementTree as ET
+          import os, glob, re
+          from collections import defaultdict
+
+          # ── Test Results ──────────────────────────────────────────
+          rows = []
+          for xml_file in sorted(glob.glob("artifacts/junit-*/*.xml")):
+              dir_name = os.path.basename(os.path.dirname(xml_file))
+              parts = dir_name.replace("junit-", "").split("-")
+
+              if parts[0] == "linux":
+                  platform, php, arch, ts = "Linux", parts[1], "x64", "-"
+              else:
+                  platform = "Windows"
+                  php = parts[1]
+                  arch = parts[2] if len(parts) > 2 else "x64"
+                  ts = parts[3] if len(parts) > 3 else "nts"
+
+              try:
+                  tree = ET.parse(xml_file)
+                  root = tree.getroot()
+                  ts_elem = root.find("testsuite") if root.tag == "testsuites" else root
+                  if ts_elem is None:
+                      continue
+                  tests = int(ts_elem.get("tests", 0))
+                  failures = int(ts_elem.get("failures", 0))
+                  errors = int(ts_elem.get("errors", 0))
+                  skipped = int(ts_elem.get("skipped", 0))
+                  time_val = float(ts_elem.get("time", 0))
+                  passed = tests - failures - errors - skipped
+                  status = "\u2705" if failures == 0 and errors == 0 else "\u274c"
+              except Exception:
+                  tests = failures = errors = skipped = passed = 0
+                  time_val = 0.0
+                  status = "\u26a0\ufe0f"
+
+              rows.append({
+                  "php": php, "platform": platform, "arch": arch, "ts": ts,
+                  "tests": tests, "passed": passed, "failures": failures,
+                  "skipped": skipped, "errors": errors,
+                  "duration": f"{time_val:.1f}s", "status": status
+              })
+
+          rows.sort(key=lambda r: (r["platform"], [int(x) for x in r["php"].split(".")]))
+
+          lines = []
+          lines.append("## Test Results\n")
+          lines.append("| | PHP | Platform | Arch | TS | Tests | Pass | Fail | Skip | Duration |")
+          lines.append("|---|-----|----------|------|----|-------|------|------|------|----------|")
+          for r in rows:
+              lines.append(
+                  f'| {r["status"]} | {r["php"]} | {r["platform"]} '
+                  f'| {r["arch"]} | {r["ts"]} | {r["tests"]} | {r["passed"]} '
+                  f'| {r["failures"]} | {r["skipped"]} | {r["duration"]} |'
+              )
+
+          total_tests = sum(r["tests"] for r in rows)
+          total_pass = sum(r["passed"] for r in rows)
+          total_fail = sum(r["failures"] for r in rows)
+          total_skip = sum(r["skipped"] for r in rows)
+          all_pass = total_fail == 0 and all(r["errors"] == 0 for r in rows)
+          icon = "\u2705" if all_pass else "\u274c"
+          lines.append(
+              f"| {icon} | **Total** | | | "
+              f"| **{total_tests}** | **{total_pass}** | **{total_fail}** "
+              f"| **{total_skip}** | |"
+          )
+
+          # ── Benchmark Results ─────────────────────────────────────
+          def parse_benchmark(text):
+              """Parse benchmark text into {scenario: {subject: {write, read, memory}}}."""
+              data = {}
+              current = None
+              for line in text.splitlines():
+                  m = re.match(r'^## (.+)$', line)
+                  if m:
+                      current = m.group(1).strip()
+                      data[current] = {}
+                      continue
+                  if current and re.match(r'^-{4,}', line):
+                      continue
+                  if current and line.strip() and not line.strip().startswith("Subject"):
+                      m = re.match(
+                          r'^\s*(.+?)\s{2,}([\d.]+)s\s{2,}([\d.]+)s\s{2,}(.+?)\s*$',
+                          line
+                      )
+                      if m:
+                          subject = m.group(1).strip()
+                          data[current][subject] = {
+                              "write": float(m.group(2)),
+                              "read": float(m.group(3)),
+                              "memory_str": m.group(4).strip(),
+                          }
+              return data
+
+          def scenario_sort_key(name):
+              """Sort by type (Sparse Int first, then String), then by numeric size."""
+              m = re.search(r'([\d,]+)\)', name)
+              size = int(m.group(1).replace(",", "")) if m else 0
+              prefix = 0 if "Integer" in name else 1
+              return (prefix, size)
+
+          def short_scenario(name):
+              """Shorten 'Sparse Integer Keys (1,000,000)' → 'Sparse Int 1M'."""
+              m = re.search(r'([\d,]+)\)', name)
+              if not m:
+                  return name
+              n = int(m.group(1).replace(",", ""))
+              if n >= 1_000_000:
+                  size = f"{n // 1_000_000}M"
+              elif n >= 1_000:
+                  size = f"{n // 1_000}K"
+              else:
+                  size = str(n)
+              if "Integer" in name:
+                  return f"Sparse Int {size}"
+              return f"String {size}"
+
+          def parse_memory(mem_str):
+              """Convert '9.3 mb' to bytes (float). Returns None on failure."""
+              m = re.match(r'^([\d.]+)\s*(b|kb|mb|gb|tb)$', mem_str.strip().lower())
+              if not m:
+                  return None
+              val = float(m.group(1))
+              mult = {'b': 1, 'kb': 1024, 'mb': 1024**2, 'gb': 1024**3, 'tb': 1024**4}
+              return val * mult.get(m.group(2), 1)
+
+          def format_ratio(judy_val, array_val):
+              """Ratio = Judy / Array. Bold when Judy wins (ratio <= 0.95)."""
+              if judy_val is None or array_val is None or array_val == 0:
+                  return "-"
+              ratio = judy_val / array_val
+              if ratio < 0.01:
+                  text = f"{ratio:.3f}x"
+              elif ratio < 1:
+                  text = f"{ratio:.2f}x"
+              else:
+                  text = f"{ratio:.1f}x"
+              return f"**{text}**" if ratio <= 0.95 else text
+
+          # Collect benchmarks grouped by platform
+          # bench[platform][php_ver][scenario][subject] = {write, read, memory_str}
+          bench = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+
+          for bench_dir in sorted(glob.glob("benchmarks/benchmark-*")):
+              bench_file = os.path.join(bench_dir, "benchmark-results.txt")
+              if not os.path.isfile(bench_file):
+                  continue
+              dir_name = os.path.basename(bench_dir)
+              m = re.match(r'^benchmark-(linux|windows)-php([\d.]+)', dir_name)
+              if not m:
+                  continue
+              platform = m.group(1).capitalize()
+              php_ver = m.group(2)
+              with open(bench_file) as f:
+                  data = parse_benchmark(f.read())
+              for scenario, subjects in data.items():
+                  for subject, metrics in subjects.items():
+                      bench[platform][php_ver][scenario][subject] = metrics
+
+          if bench:
+              lines.append("")
+              lines.append("## Benchmark Summary (Judy vs PHP Array)\n")
+              lines.append(
+                  "Ratio = Judy / Array. "
+                  "**Bold** = Judy wins (\u22640.95x). "
+                  "Plain = Array is faster/smaller.\n"
+              )
+
+              for platform in sorted(bench.keys()):
+                  versions = sorted(
+                      bench[platform].keys(),
+                      key=lambda v: [int(x) for x in v.split(".")]
+                  )
+                  all_scenarios = set()
+                  for v in versions:
+                      all_scenarios.update(bench[platform][v].keys())
+                  scenarios = sorted(all_scenarios, key=scenario_sort_key)
+                  if not scenarios:
+                      continue
+
+                  hdr = " | ".join(f"PHP {v}" for v in versions)
+
+                  # Time summary: Write / Read ratios
+                  lines.append(f"### Time (Write / Read) \u2014 {platform}\n")
+                  lines.append(f"| Scenario | {hdr} |")
+                  lines.append("|---|" + "|".join("---" for _ in versions) + "|")
+
+                  for scenario in scenarios:
+                      short = short_scenario(scenario)
+                      cells = []
+                      for v in versions:
+                          sd = bench[platform][v].get(scenario, {})
+                          j = sd.get("Judy")
+                          a = sd.get("PHP Array")
+                          if j and a:
+                              wr = format_ratio(j["write"], a["write"])
+                              rr = format_ratio(j["read"], a["read"])
+                              cells.append(f"{wr} / {rr}")
+                          else:
+                              cells.append("-")
+                      lines.append(f"| {short} | " + " | ".join(cells) + " |")
+
+                  lines.append("")
+
+                  # Memory summary
+                  lines.append(f"### Memory \u2014 {platform}\n")
+                  lines.append(f"| Scenario | {hdr} |")
+                  lines.append("|---|" + "|".join("---" for _ in versions) + "|")
+
+                  for scenario in scenarios:
+                      short = short_scenario(scenario)
+                      cells = []
+                      for v in versions:
+                          sd = bench[platform][v].get(scenario, {})
+                          j = sd.get("Judy")
+                          a = sd.get("PHP Array")
+                          if j and a:
+                              jm = parse_memory(j["memory_str"])
+                              am = parse_memory(a["memory_str"])
+                              cells.append(format_ratio(jm, am))
+                          else:
+                              cells.append("-")
+                      lines.append(f"| {short} | " + " | ".join(cells) + " |")
+
+                  lines.append("")
+
+              # Collapsible raw data
+              lines.append("<details><summary>Raw benchmark data</summary>\n")
+
+              for platform in sorted(bench.keys()):
+                  versions = sorted(
+                      bench[platform].keys(),
+                      key=lambda v: [int(x) for x in v.split(".")]
+                  )
+                  all_scenarios = set()
+                  for v in versions:
+                      all_scenarios.update(bench[platform][v].keys())
+                  scenarios = sorted(all_scenarios, key=scenario_sort_key)
+                  hdr = " | ".join(f"PHP {v}" for v in versions)
+
+                  for metric, label, fmt in [
+                      ("write", "Write Time", lambda x: f"{x:.4f}s"),
+                      ("read", "Read Time", lambda x: f"{x:.4f}s"),
+                      ("memory_str", "Memory", str),
+                  ]:
+                      lines.append(f"#### {label} \u2014 {platform}\n")
+                      lines.append(f"| Scenario | Subject | {hdr} |")
+                      lines.append("|---|---|" + "|".join("---" for _ in versions) + "|")
+
+                      for scenario in scenarios:
+                          short = short_scenario(scenario)
+                          for subject in ["Judy", "PHP Array"]:
+                              cells = []
+                              for v in versions:
+                                  sd = bench[platform][v].get(scenario, {})
+                                  subj = sd.get(subject)
+                                  if subj and metric in subj:
+                                      cells.append(fmt(subj[metric]))
+                                  else:
+                                      cells.append("-")
+                              lines.append(
+                                  f"| {short} | {subject} | "
+                                  + " | ".join(cells) + " |"
+                              )
+
+                      lines.append("")
+
+              lines.append("</details>\n")
+
+          report = "\n".join(lines) + "\n"
+
+          with open("report.md", "w") as f:
+              f.write(report)
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(report)
+          PYEOF
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('report.md', 'utf8');
+            const marker = '<!-- ci-consolidated-results -->';
+            const fullBody = marker + '\n' + body;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: fullBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: fullBody,
+              });
+            }

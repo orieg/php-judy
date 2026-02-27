@@ -39,3 +39,9 @@ run-tests.php
 
 # Backup files
 *~
+
+# Build artifacts
+go-pear.phar
+judy-*/
+test-package/
+temp_update/

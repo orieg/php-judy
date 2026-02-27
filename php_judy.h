@@ -22,7 +22,56 @@
 #define PHP_JUDY_VERSION "2.2.0"
 #define PHP_JUDY_EXTNAME "judy"
 
+/* Windows x64 (LLP64): Force 64-bit Word_t to match libjudy ABI.
+ *
+ * MSVC x64 defines 'unsigned long' as 4 bytes (LLP64 model). Our CI
+ * builds libjudy from source with Word_t = unsigned __int64 = 8 bytes.
+ * This override ensures our extension uses the same 8-byte Word_t,
+ * matching the library's ABI on x64 Windows.
+ *
+ * Defining _WORD_T before including Judy.h tells it to skip its own
+ * Word_t typedef, using ours instead. */
+#ifdef _WIN64
+#define _WORD_T
+typedef unsigned __int64 Word_t, * PWord_t;
+#endif
+
+/* Disable default Judy error handler which calls exit(1).
+ * With JUDYERROR_NOTEST, Judy macros pass NULL for PJError_t,
+ * avoiding JError_t stack allocations (whose size depends on Word_t)
+ * and letting us handle errors via return value checks instead. */
+#define JUDYERROR_NOTEST 1
+
 #include <Judy.h>
+
+/* Fix PJERR/PPJERR for Windows x64.
+ *
+ * Judy.h defines PJERR as ((Pvoid_t)(~0UL)). On MSVC x64, unsigned long
+ * is 4 bytes (LLP64), so ~0UL = 0xFFFFFFFF, making PJERR a 32-bit sentinel
+ * (0x00000000FFFFFFFF) instead of the correct all-ones pointer. This causes
+ * error return comparisons to fail. Redefine with ~(size_t)0 to get the
+ * correct 64-bit sentinel (0xFFFFFFFFFFFFFFFF). */
+#ifdef _WIN64
+#undef PJERR
+#undef PPJERR
+#define PJERR  ((Pvoid_t)(~(size_t)0))
+#define PPJERR ((PPvoid_t)(~(size_t)0))
+#endif
+
+/* Safe JudyL/JudySL value access macros.
+ *
+ * JudyL and JudySL store values in Word_t-sized slots internally, but the
+ * C API returns PPvoid_t (void**) pointers to these slots. These macros
+ * always read/write exactly sizeof(Word_t) bytes, which is correct on all
+ * platforms. On Unix LP64 and Windows x64 (with our Word_t override),
+ * sizeof(Word_t) == sizeof(void*) == 8, so MIXED types (which store zval*
+ * pointers in value slots) work correctly everywhere. */
+#define JUDY_LVAL_READ(PV)       ((zend_long)(*(Word_t *)(PV)))
+#define JUDY_LVAL_WRITE(PV, v)   (*(Word_t *)(PV) = (Word_t)(v))
+
+#define JUDY_MIXED_SUPPORTED 1
+#define JUDY_MVAL_READ(PV)       ((zval *)(*(PV)))
+#define JUDY_MVAL_WRITE(PV, p)   (*(PV) = (Pvoid_t)(p))
 
 #include "php.h"
 #include "php_ini.h"
@@ -64,8 +113,10 @@ typedef enum _judy_type {
                            && type != TYPE_STRING_TO_INT \
                            && type != TYPE_STRING_TO_MIXED) { \
         php_error_docref(NULL, E_WARNING, "Not a valid Judy type. Please check the documentation for valid Judy type constant."); \
+        jtype = 0; \
+    } else { \
+        jtype = type; \
     } \
-    jtype = type; \
 }
 
 #define JUDY_METHOD_ERROR_HANDLING \
@@ -82,9 +133,9 @@ typedef enum _judy_type {
 #define JUDY_IS_MIXED_VALUE(intern) ((intern)->is_mixed_value)
 
 typedef struct _judy_object {
-	long            type;
+	zend_long       type;
 	Pvoid_t         array;
-	unsigned long   counter;
+	zend_long       counter;
 	Word_t			next_empty;
 	zend_bool		next_empty_is_valid;
 	/* Iterator state for Iterator interface methods */
@@ -120,7 +171,7 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset);
 
 /* {{{ REGISTER_JUDY_CLASS_CONST_LONG */
 #define REGISTER_JUDY_CLASS_CONST_LONG(const_name, value) \
-    zend_declare_class_constant_long(judy_ce, const_name, sizeof(const_name)-1, (long) value);
+    zend_declare_class_constant_long(judy_ce, const_name, sizeof(const_name)-1, (zend_long) value);
 /* }}} */
 
 ZEND_BEGIN_MODULE_GLOBALS(judy)

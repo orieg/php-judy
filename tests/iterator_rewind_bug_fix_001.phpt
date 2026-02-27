@@ -1,7 +1,10 @@
 --TEST--
 Test Iterator rewind() method to catch potential bugs on empty arrays
 --SKIPIF--
-<?php if (!extension_loaded("judy")) print "skip"; ?>
+<?php
+if (!extension_loaded("judy")) print "skip";
+try { new Judy(Judy::INT_TO_MIXED); } catch (Exception $e) { print "skip MIXED types not supported"; }
+?>
 --FILE--
 <?php
 echo "Testing Iterator rewind() method for bug prevention:\n\n";
