@@ -25,12 +25,4 @@ jobs:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: judy-windows-${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
-          path: |
-            modules/judy.dll
-            build/
-          retention-days: 30
+          libs: libjudy
