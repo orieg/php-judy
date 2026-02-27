@@ -22,7 +22,27 @@
 #define PHP_JUDY_VERSION "2.2.0"
 #define PHP_JUDY_EXTNAME "judy"
 
+/* Fix Word_t for 64-bit Windows where unsigned long is only 32-bit.
+ * The Judy library's default Judy.h defines Word_t as unsigned long,
+ * which is 64-bit on Unix x64 but only 32-bit on Windows x64.
+ * The pre-built libjudy x64 library uses 64-bit words internally,
+ * so we must match that in the header. */
+#ifdef _WIN64
+#define _WORD_T
+typedef unsigned __int64 Word_t, * PWord_t;
+#endif
+
 #include <Judy.h>
+
+/* Fix PJERR/PPJERR macros for 64-bit Windows.
+ * The default definitions use ~0UL which is 32-bit on Windows,
+ * producing incorrect error sentinel values for 64-bit pointers. */
+#ifdef _WIN64
+#undef PJERR
+#undef PPJERR
+#define PJERR  ((Pvoid_t)(~(size_t)0))
+#define PPJERR ((PPvoid_t)(~(size_t)0))
+#endif
 
 #include "php.h"
 #include "php_ini.h"
@@ -86,7 +106,7 @@ typedef enum _judy_type {
 typedef struct _judy_object {
 	zend_long       type;
 	Pvoid_t         array;
-	unsigned long   counter;
+	zend_long       counter;
 	Word_t			next_empty;
 	zend_bool		next_empty_is_valid;
 	/* Iterator state for Iterator interface methods */
