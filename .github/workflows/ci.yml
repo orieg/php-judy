@@ -252,6 +252,63 @@ jobs:
           path: ${{ runner.temp }}\junit.xml
           if-no-files-found: ignore
 
+      - name: Run benchmarks
+        if: success()
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 15
+        run: |
+          $ErrorActionPreference = "Continue"
+
+          # Locate php.exe from the build (php-windows-builder downloads PHP here)
+          $phpExe = Get-ChildItem -Path ".\build" -Recurse -Filter "php.exe" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $phpExe) {
+            Write-Host "WARNING: php.exe not found in .\build, skipping benchmarks"
+            exit 0
+          }
+          $phpDir = $phpExe.DirectoryName
+          Write-Host "Found PHP at: $phpDir"
+
+          # Locate the built extension DLL
+          $extDll = Get-ChildItem -Path ".\build" -Recurse -Filter "php_judy.dll" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $extDll) {
+            Write-Host "WARNING: php_judy.dll not found, skipping benchmarks"
+            exit 0
+          }
+          Write-Host "Found extension at: $($extDll.FullName)"
+
+          # Put php.exe directory on PATH so shell_exec('php ...') sub-processes work
+          $env:PATH = "$phpDir;$env:PATH"
+
+          # Create/append php.ini next to php.exe so both main and sub-processes load the extension
+          $iniPath = Join-Path $phpDir "php.ini"
+          @"
+          extension=$($extDll.FullName)
+          memory_limit=4G
+          "@ | Add-Content $iniPath
+
+          # Verify extension loads
+          $mods = & $phpExe.FullName -m 2>&1 | Out-String
+          if ($mods -notmatch 'judy') {
+            Write-Host "WARNING: judy extension not loading, skipping benchmarks"
+            Write-Host $mods
+            exit 0
+          }
+          Write-Host "Extension verified"
+
+          # Run benchmarks (same script as Linux)
+          & $phpExe.FullName examples/run-benchmarks.php 2>&1 | Tee-Object -FilePath benchmark-results.txt
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-windows-php${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
+          path: benchmark-results.txt
+          if-no-files-found: ignore
+
       - name: Debug on failure
         if: failure()
         shell: pwsh
@@ -396,9 +453,9 @@ jobs:
                       if m:
                           subject = m.group(1).strip()
                           data[current][subject] = {
-                              "write": m.group(2),
-                              "read": m.group(3),
-                              "memory": m.group(4).strip(),
+                              "write": float(m.group(2)),
+                              "read": float(m.group(3)),
+                              "memory_str": m.group(4).strip(),
                           }
               return data
 
@@ -425,60 +482,157 @@ jobs:
                   return f"Sparse Int {size}"
               return f"String {size}"
 
-          # Collect benchmarks from all PHP versions
-          # Structure: all_bench[scenario][subject][php_version] = {write, read, memory}
-          all_bench = defaultdict(lambda: defaultdict(dict))
-          php_versions = []
+          def parse_memory(mem_str):
+              """Convert '9.3 mb' to bytes (float). Returns None on failure."""
+              m = re.match(r'^([\d.]+)\s*(b|kb|mb|gb|tb)$', mem_str.strip().lower())
+              if not m:
+                  return None
+              val = float(m.group(1))
+              mult = {'b': 1, 'kb': 1024, 'mb': 1024**2, 'gb': 1024**3, 'tb': 1024**4}
+              return val * mult.get(m.group(2), 1)
 
-          for bench_dir in sorted(glob.glob("benchmarks/benchmark-linux-php*")):
+          def format_ratio(judy_val, array_val):
+              """Ratio = Judy / Array. Bold when Judy wins (ratio <= 0.95)."""
+              if judy_val is None or array_val is None or array_val == 0:
+                  return "-"
+              ratio = judy_val / array_val
+              if ratio < 0.01:
+                  text = f"{ratio:.3f}x"
+              elif ratio < 1:
+                  text = f"{ratio:.2f}x"
+              else:
+                  text = f"{ratio:.1f}x"
+              return f"**{text}**" if ratio <= 0.95 else text
+
+          # Collect benchmarks grouped by platform
+          # bench[platform][php_ver][scenario][subject] = {write, read, memory_str}
+          bench = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+
+          for bench_dir in sorted(glob.glob("benchmarks/benchmark-*")):
               bench_file = os.path.join(bench_dir, "benchmark-results.txt")
               if not os.path.isfile(bench_file):
                   continue
               dir_name = os.path.basename(bench_dir)
-              php_ver = dir_name.replace("benchmark-linux-php", "")
-              php_versions.append(php_ver)
+              m = re.match(r'^benchmark-(linux|windows)-php([\d.]+)', dir_name)
+              if not m:
+                  continue
+              platform = m.group(1).capitalize()
+              php_ver = m.group(2)
               with open(bench_file) as f:
                   data = parse_benchmark(f.read())
               for scenario, subjects in data.items():
                   for subject, metrics in subjects.items():
-                      all_bench[scenario][subject][php_ver] = metrics
+                      bench[platform][php_ver][scenario][subject] = metrics
 
-          if all_bench and php_versions:
-              php_versions.sort(key=lambda v: [int(x) for x in v.split(".")])
-              scenarios = sorted(all_bench.keys(), key=scenario_sort_key)
-              subjects_order = ["Judy", "PHP Array"]
-
+          if bench:
               lines.append("")
-              lines.append("## Benchmark Results (Linux x64)\n")
+              lines.append("## Benchmark Summary (Judy vs PHP Array)\n")
+              lines.append(
+                  "Ratio = Judy / Array. "
+                  "**Bold** = Judy wins (\u22640.95x). "
+                  "Plain = Array is faster/smaller.\n"
+              )
 
-              for metric, label, unit in [
-                  ("write", "Write Time", "s"),
-                  ("read", "Read Time", "s"),
-                  ("memory", "Memory Usage", ""),
-              ]:
-                  hdr_cols = " | ".join(f"PHP {v}" for v in php_versions)
-                  lines.append(f"### {label}\n")
-                  lines.append(f"| Scenario | Subject | {hdr_cols} |")
-                  lines.append(
-                      f"|----------|---------|" + "|".join("---------" for _ in php_versions) + "|"
+              for platform in sorted(bench.keys()):
+                  versions = sorted(
+                      bench[platform].keys(),
+                      key=lambda v: [int(x) for x in v.split(".")]
                   )
+                  all_scenarios = set()
+                  for v in versions:
+                      all_scenarios.update(bench[platform][v].keys())
+                  scenarios = sorted(all_scenarios, key=scenario_sort_key)
+                  if not scenarios:
+                      continue
+
+                  hdr = " | ".join(f"PHP {v}" for v in versions)
+
+                  # Time summary: Write / Read ratios
+                  lines.append(f"### Time (Write / Read) \u2014 {platform}\n")
+                  lines.append(f"| Scenario | {hdr} |")
+                  lines.append("|---|" + "|".join("---" for _ in versions) + "|")
 
                   for scenario in scenarios:
                       short = short_scenario(scenario)
-                      for subject in subjects_order:
-                          if subject not in all_bench[scenario]:
-                              continue
-                          cells = []
-                          for v in php_versions:
-                              m = all_bench[scenario][subject].get(v, {})
-                              val = m.get(metric, "-")
-                              if val != "-" and unit:
-                                  val = f"{val}{unit}"
-                              cells.append(val)
-                          col_str = " | ".join(cells)
-                          lines.append(f"| {short} | {subject} | {col_str} |")
+                      cells = []
+                      for v in versions:
+                          sd = bench[platform][v].get(scenario, {})
+                          j = sd.get("Judy")
+                          a = sd.get("PHP Array")
+                          if j and a:
+                              wr = format_ratio(j["write"], a["write"])
+                              rr = format_ratio(j["read"], a["read"])
+                              cells.append(f"{wr} / {rr}")
+                          else:
+                              cells.append("-")
+                      lines.append(f"| {short} | " + " | ".join(cells) + " |")
 
                   lines.append("")
+
+                  # Memory summary
+                  lines.append(f"### Memory \u2014 {platform}\n")
+                  lines.append(f"| Scenario | {hdr} |")
+                  lines.append("|---|" + "|".join("---" for _ in versions) + "|")
+
+                  for scenario in scenarios:
+                      short = short_scenario(scenario)
+                      cells = []
+                      for v in versions:
+                          sd = bench[platform][v].get(scenario, {})
+                          j = sd.get("Judy")
+                          a = sd.get("PHP Array")
+                          if j and a:
+                              jm = parse_memory(j["memory_str"])
+                              am = parse_memory(a["memory_str"])
+                              cells.append(format_ratio(jm, am))
+                          else:
+                              cells.append("-")
+                      lines.append(f"| {short} | " + " | ".join(cells) + " |")
+
+                  lines.append("")
+
+              # Collapsible raw data
+              lines.append("<details><summary>Raw benchmark data</summary>\n")
+
+              for platform in sorted(bench.keys()):
+                  versions = sorted(
+                      bench[platform].keys(),
+                      key=lambda v: [int(x) for x in v.split(".")]
+                  )
+                  all_scenarios = set()
+                  for v in versions:
+                      all_scenarios.update(bench[platform][v].keys())
+                  scenarios = sorted(all_scenarios, key=scenario_sort_key)
+                  hdr = " | ".join(f"PHP {v}" for v in versions)
+
+                  for metric, label, fmt in [
+                      ("write", "Write Time", lambda x: f"{x:.4f}s"),
+                      ("read", "Read Time", lambda x: f"{x:.4f}s"),
+                      ("memory_str", "Memory", str),
+                  ]:
+                      lines.append(f"#### {label} \u2014 {platform}\n")
+                      lines.append(f"| Scenario | Subject | {hdr} |")
+                      lines.append("|---|---|" + "|".join("---" for _ in versions) + "|")
+
+                      for scenario in scenarios:
+                          short = short_scenario(scenario)
+                          for subject in ["Judy", "PHP Array"]:
+                              cells = []
+                              for v in versions:
+                                  sd = bench[platform][v].get(scenario, {})
+                                  subj = sd.get(subject)
+                                  if subj and metric in subj:
+                                      cells.append(fmt(subj[metric]))
+                                  else:
+                                      cells.append("-")
+                              lines.append(
+                                  f"| {short} | {subject} | "
+                                  + " | ".join(cells) + " |"
+                              )
+
+                      lines.append("")
+
+              lines.append("</details>\n")
 
           report = "\n".join(lines) + "\n"
 
