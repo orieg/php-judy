@@ -157,6 +157,7 @@ jobs:
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
           args: --with-judy=${{ runner.temp }}\libjudy
+          test-workers: '2'
 
       - name: Debug on failure
         if: failure()
