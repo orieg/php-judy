@@ -32,26 +32,24 @@ jobs:
         if: failure()
         shell: pwsh
         run: |
-          Write-Host "=== DLL dependency analysis ==="
+          $ErrorActionPreference = "Continue"
+
+          Write-Host "=== File sizes ==="
           $phpJudy = Get-ChildItem -Path ".\build" -Recurse -Filter "php_judy.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($phpJudy) {
-            Write-Host "php_judy.dll found at: $($phpJudy.FullName) ($($phpJudy.Length) bytes)"
-            Write-Host "`n--- php_judy.dll dependents ---"
-            & dumpbin /dependents $phpJudy.FullName 2>&1
-            Write-Host "`n--- php_judy.dll imports matching Judy ---"
-            & dumpbin /imports $phpJudy.FullName 2>&1 | Select-String -Pattern "Judy|judy" -Context 0,2
+            Write-Host "php_judy.dll: $($phpJudy.FullName) ($($phpJudy.Length) bytes)"
           } else {
             Write-Host "php_judy.dll NOT FOUND"
           }
-
-          Write-Host "`n=== Judy DLL analysis ==="
           $judyDll = Get-ChildItem -Path ".\build" -Recurse -Filter "Judy.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($judyDll) {
-            Write-Host "Judy.dll found at: $($judyDll.FullName) ($($judyDll.Length) bytes)"
-            Write-Host "`n--- Judy.dll exports (first 30 lines) ---"
-            & dumpbin /exports $judyDll.FullName 2>&1 | Select-Object -First 30
+            Write-Host "Judy.dll: $($judyDll.FullName) ($($judyDll.Length) bytes)"
           } else {
             Write-Host "Judy.dll NOT FOUND in build tree"
+          }
+          $judyLib = Get-ChildItem -Path ".\build" -Recurse -Filter "libJudy.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($judyLib) {
+            Write-Host "libJudy.lib: $($judyLib.FullName) ($($judyLib.Length) bytes)"
           }
 
           Write-Host "`n=== Deps directory contents ==="
@@ -59,64 +57,66 @@ jobs:
             Write-Host "  $($_.FullName.Replace((Resolve-Path '.\build\deps').Path, ''))  ($($_.Length) bytes)"
           }
 
-          Write-Host "`n=== libJudy.lib file info ==="
-          $judyLib = Get-ChildItem -Path ".\build" -Recurse -Filter "libJudy.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($judyLib) {
-            Write-Host "libJudy.lib found at: $($judyLib.FullName) ($($judyLib.Length) bytes)"
-            Write-Host "`n--- libJudy.lib headers (first 30 lines) ---"
-            & dumpbin /headers $judyLib.FullName 2>&1 | Select-Object -First 30
-          }
-
-          Write-Host "`n=== PHP + extension minimal tests ==="
+          Write-Host "`n=== PHP + extension diagnostics ==="
           $php = Get-ChildItem -Path ".\build" -Recurse -Filter "php.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           $ext = Get-ChildItem -Path ".\build" -Recurse -Filter "php_judy.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($php -and $ext) {
-            $depsbin = Join-Path (Split-Path $ext.FullName) "..\deps\bin"
+            # Add deps\bin to PATH so Judy.dll is findable (if dynamically linked)
+            $depsbin = ".\build\deps\bin"
             if (Test-Path $depsbin) {
               $env:PATH = (Resolve-Path $depsbin).Path + ";" + $env:PATH
               Write-Host "Added to PATH: $(Resolve-Path $depsbin)"
             }
-            $depsbinAlt = ".\build\deps\bin"
-            if (Test-Path $depsbinAlt) {
-              $env:PATH = (Resolve-Path $depsbinAlt).Path + ";" + $env:PATH
-              Write-Host "Added to PATH: $(Resolve-Path $depsbinAlt)"
-            }
+
+            Write-Host "`n--- Test 0: phpinfo (judy section) ---"
+            & $php.FullName -n -d "extension=$($ext.FullName)" --ri judy 2>&1
+            Write-Host "Exit code: $LASTEXITCODE"
 
             Write-Host "`n--- Test 1: Extension loading ---"
             & $php.FullName -n -d "extension=$($ext.FullName)" -r "echo 'loaded: ' . (extension_loaded('judy') ? 'yes' : 'no') . PHP_EOL;" 2>&1
+            Write-Host "Exit code: $LASTEXITCODE"
 
             Write-Host "`n--- Test 2: Object creation ---"
             & $php.FullName -n -d "extension=$($ext.FullName)" -r "echo 'BITSET=' . Judy::BITSET . PHP_EOL; `$j = new Judy(Judy::BITSET); echo 'created' . PHP_EOL;" 2>&1
+            Write-Host "Exit code: $LASTEXITCODE"
 
-            Write-Host "`n--- Test 3: Judy BITSET set operation ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "try { `$j = new Judy(Judy::BITSET); `$j[0] = true; echo 'BITSET set OK' . PHP_EOL; } catch (Throwable `$e) { echo 'Error: ' . `$e->getMessage() . PHP_EOL; }" 2>&1
+            Write-Host "`n--- Test 3: Judy BITSET set single ---"
+            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::BITSET); `$j[0] = true; echo 'BITSET[0]=true OK' . PHP_EOL;" 2>&1
+            Write-Host "Exit code: $LASTEXITCODE"
 
-            Write-Host "`n--- Test 4: Judy INT_TO_INT set operation ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "try { `$j = new Judy(Judy::INT_TO_INT); `$j[0] = 42; echo 'INT_TO_INT set OK' . PHP_EOL; } catch (Throwable `$e) { echo 'Error: ' . `$e->getMessage() . PHP_EOL; }" 2>&1
+            Write-Host "`n--- Test 4: Judy BITSET set + test ---"
+            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::BITSET); `$j[0] = true; echo 'set OK' . PHP_EOL; var_dump(isset(`$j[0])); echo 'test OK' . PHP_EOL;" 2>&1
+            Write-Host "Exit code: $LASTEXITCODE"
 
-            Write-Host "`n--- Test 5: Judy STRING_TO_INT set operation ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "try { `$j = new Judy(Judy::STRING_TO_INT); `$j['a'] = 1; echo 'STRING_TO_INT set OK' . PHP_EOL; } catch (Throwable `$e) { echo 'Error: ' . `$e->getMessage() . PHP_EOL; }" 2>&1
+            Write-Host "`n--- Test 5: Judy BITSET count ---"
+            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::BITSET); `$j[0] = true; echo 'count=' . `$j->count() . PHP_EOL;" 2>&1
+            Write-Host "Exit code: $LASTEXITCODE"
+
+            Write-Host "`n--- Test 6: Judy INT_TO_INT set ---"
+            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::INT_TO_INT); `$j[0] = 42; echo 'INT_TO_INT set OK' . PHP_EOL;" 2>&1
+            Write-Host "Exit code: $LASTEXITCODE"
+
+            Write-Host "`n--- Test 7: Judy STRING_TO_INT set ---"
+            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::STRING_TO_INT); `$j['a'] = 1; echo 'STRING_TO_INT set OK' . PHP_EOL;" 2>&1
+            Write-Host "Exit code: $LASTEXITCODE"
+
+            Write-Host "`n--- Test 8: Judy BITSET set 10 + iterate ---"
+            & $php.FullName -n -d "extension=$($ext.FullName)" -r "
+              `$j = new Judy(Judy::BITSET);
+              for (`$i = 0; `$i < 10; `$i++) { `$j[`$i] = true; }
+              echo 'set 10 OK' . PHP_EOL;
+              echo 'count=' . `$j->count() . PHP_EOL;
+              echo 'size=' . `$j->size() . PHP_EOL;
+              foreach (`$j as `$k => `$v) { echo `$k . ' '; }
+              echo PHP_EOL . 'iterate OK' . PHP_EOL;
+            " 2>&1
+            Write-Host "Exit code: $LASTEXITCODE"
           } else {
             Write-Host "php.exe or php_judy.dll not found"
           }
 
-          Write-Host "`n=== Build log (last 50 lines) ==="
+          Write-Host "`n=== Build log (last 30 lines) ==="
           $buildLog = Get-ChildItem -Path ".\build" -Recurse -Filter "build.log" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($buildLog) {
-            Get-Content $buildLog.FullName -Tail 50
-          }
-
-          Write-Host "`n=== Test diff files ==="
-          Get-ChildItem -Path ".\build" -Recurse -Filter "*.diff" -ErrorAction SilentlyContinue | ForEach-Object {
-            Write-Host "`n=== $($_.Name) ==="
-            Get-Content $_.FullName
-          }
-          Write-Host "`n=== Test out files (first 5) ==="
-          $count = 0
-          Get-ChildItem -Path ".\build" -Recurse -Filter "*.out" -ErrorAction SilentlyContinue | ForEach-Object {
-            if ($count -lt 5) {
-              Write-Host "`n=== $($_.Name) ==="
-              Get-Content $_.FullName
-              $count++
-            }
+            Get-Content $buildLog.FullName -Tail 30
           }

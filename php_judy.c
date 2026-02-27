@@ -614,9 +614,15 @@ PHP_MSHUTDOWN_FUNCTION(judy)
 */
 PHP_MINFO_FUNCTION(judy)
 {
+	char buf[64];
+
 	php_info_print_table_start();
 	php_info_print_table_header(2, "Judy support", "enabled");
 	php_info_print_table_row(2, "PHP Judy version", PHP_JUDY_VERSION);
+	snprintf(buf, sizeof(buf), "%zu", sizeof(Word_t));
+	php_info_print_table_row(2, "sizeof(Word_t)", buf);
+	snprintf(buf, sizeof(buf), "%zu", sizeof(Pvoid_t));
+	php_info_print_table_row(2, "sizeof(Pvoid_t)", buf);
 	php_info_print_table_end();
 
 	DISPLAY_INI_ENTRIES();
