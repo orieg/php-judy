@@ -1,4 +1,4 @@
-name: Publish Windows Releases
+name: Publish Release
 
 on:
   release:
@@ -8,6 +8,7 @@ permissions:
   contents: write
 
 jobs:
+  # Dynamically generate the Windows build matrix from package.xml / PHP defaults
   get-extension-matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -19,7 +20,8 @@ jobs:
         id: extension-matrix
         uses: php/php-windows-builder/extension-matrix@v1
 
-  build:
+  # Build Windows DLLs for every PHP version / arch / thread-safety combination
+  build-windows:
     needs: get-extension-matrix
     runs-on: ${{ matrix.os }}
     strategy:
@@ -28,20 +30,154 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Build libjudy from source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ProgressPreference = "SilentlyContinue"
+
+          Write-Host "Downloading Judy-1.0.5 source..."
+          & curl.exe -fsSL -o judy.tar.gz --retry 5 --retry-delay 5 -L `
+            "https://downloads.sourceforge.net/project/judy/judy/Judy-1.0.5/Judy-1.0.5.tar.gz"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to download Judy source" }
+
+          tar -xzf judy.tar.gz
+          $judyDir = Get-ChildItem -Directory | Where-Object { $_.Name -match '^[Jj]udy-' } | Select-Object -First 1
+          if (-not $judyDir) { throw "Could not find extracted Judy directory" }
+          $srcDir = Join-Path $judyDir.FullName "src"
+          Write-Host "Source: $srcDir"
+
+          # Patch Judy.h: fix Word_t typedef for 64-bit Windows (LLP64: unsigned long = 4 bytes)
+          Write-Host "Patching Judy.h..."
+          $judyH = Join-Path $srcDir "Judy.h"
+          $content = Get-Content $judyH -Raw
+          $wordTPatch = @'
+          #if defined(_WIN64)
+          typedef unsigned __int64    Word_t, * PWord_t;
+          #else
+          typedef unsigned long       Word_t, * PWord_t;
+          #endif
+          '@
+          $wordTPatch = ($wordTPatch.Trim() -split "`n" | ForEach-Object { $_.Trim() }) -join "`n"
+          $content = $content -replace 'typedef\s+unsigned\s+long\s+Word_t\s*,\s*\*\s*PWord_t\s*;', $wordTPatch
+          $content = $content.Replace('(~0UL)', '(~(size_t)0)')
+          if ($content -notmatch 'unsigned __int64\s+Word_t') { throw "Failed to patch Word_t in Judy.h" }
+          Set-Content $judyH -Value $content -NoNewline
+          Write-Host "Patched Judy.h"
+
+          # Patch build.bat: /MD to match PHP's CRT; -DJU_64BIT only for 64-bit builds
+          Write-Host "Patching build.bat..."
+          $buildBat = Join-Path $srcDir "build.bat"
+          $batContent = Get-Content $buildBat -Raw
+          if ("${{ matrix.arch }}" -eq "x64") {
+            $batContent = $batContent.Replace('-DJU_WIN', '-DJU_WIN -DJU_64BIT /MD')
+          } else {
+            $batContent = $batContent.Replace('-DJU_WIN', '-DJU_WIN /MD')
+          }
+          Set-Content $buildBat -Value $batContent -NoNewline
+          Write-Host "Patched build.bat"
+
+          # Fix all unsigned-long constants that produce wrong values on MSVC x64 (LLP64).
+          # Safe to apply on x86 too: (Word_t)1 is still 32-bit there.
+          Write-Host "Fixing UL constants in Judy source files..."
+          $fixCount = 0
+          Get-ChildItem -Path $judyDir.FullName -Recurse -Include "*.c","*.h" | ForEach-Object {
+            $orig = Get-Content $_.FullName -Raw
+            $text = $orig
+            $text = $text.Replace('~0UL',    '~(Word_t)0')
+            $text = $text.Replace('(-1UL)',  '(~(Word_t)0)')
+            $text = [regex]::Replace($text, '\b1UL\s*<<', '(Word_t)1 <<')
+            $text = [regex]::Replace($text, '\b1L\s*<<',  '(Word_t)1 <<')
+            $text = $text.Replace('0x100UL', '(Word_t)0x100')
+            if ($text -ne $orig) {
+              Set-Content $_.FullName -Value $text -NoNewline
+              $fixCount++
+            }
+          }
+          Write-Host "Fixed UL constants in $fixCount files"
+
+          Write-Host "Building libjudy..."
+          Push-Location $srcDir
+          & cmd.exe /c "build.bat 2>&1"
+          Pop-Location
+
+          $judyLib = Get-ChildItem -Path $srcDir -Recurse -Filter "Judy.lib" -ErrorAction SilentlyContinue |
+            Sort-Object Length -Descending | Select-Object -First 1
+          if (-not $judyLib) { throw "Judy.lib not found after build" }
+          Write-Host "Built: $($judyLib.FullName) ($($judyLib.Length) bytes)"
+
+          $installDir = Join-Path $env:RUNNER_TEMP "libjudy"
+          foreach ($sub in @("include", "lib", "bin")) {
+            New-Item -ItemType Directory -Force (Join-Path $installDir $sub) | Out-Null
+          }
+          Copy-Item $judyH "$installDir\include\"
+          Copy-Item $judyLib.FullName "$installDir\lib\libJudy.lib"
+          Copy-Item $judyLib.FullName "$installDir\lib\libJudy_a.lib"
+          $judyDll = Get-ChildItem -Path $srcDir -Recurse -Filter "Judy.dll" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if ($judyDll) { Copy-Item $judyDll.FullName "$installDir\bin\" }
+          Write-Host "=== libjudy installed to $installDir ==="
+
+      - name: Add libjudy to PATH
+        shell: pwsh
+        run: |
+          Add-Content $env:GITHUB_PATH "${{ runner.temp }}\libjudy\bin"
+
       - name: Build the extension
         uses: php/php-windows-builder/extension@v1
         with:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
+          args: --with-judy=${{ runner.temp }}\libjudy
+          # Skip tests during release — they are already gated by the CI workflow
+          run-tests: 'false'
 
+  # Build the PECL source package (.tgz) for Linux / manual installs
+  pecl-package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Create PECL package
+        run: pecl package package.xml
+
+      - name: Upload PECL package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pecl-package
+          path: "*.tgz"
+
+  # Attach all built artifacts to the GitHub Release
   release:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build-windows, pecl-package]
     if: ${{ github.event_name == 'release' }}
     steps:
-      - name: Upload artifact to the release
+      - name: Upload Windows DLLs to the release
         uses: php/php-windows-builder/release@v1
         with:
           release: ${{ github.event.release.tag_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download PECL package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: pecl-package
+
+      - name: Upload PECL package to the release
+        run: gh release upload "${{ github.event.release.tag_name }}" Judy-*.tgz --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

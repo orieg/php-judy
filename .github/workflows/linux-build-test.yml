@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  checks: write
+  pull-requests: write
+
 jobs:
   build-test:
     runs-on: ubuntu-latest
@@ -33,4 +37,62 @@ jobs:
           make
 
       - name: Run tests
-        run: make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
+        run: make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1 TEST_PHP_JUNIT=junit.xml
+
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-linux-${{ matrix.php-version }}
+          path: junit.xml
+          if-no-files-found: ignore
+
+      - name: Run benchmarks
+        if: matrix.php-version == '8.4' && github.event_name == 'push'
+        run: |
+          # Create a temporary PHP INI so the judy extension is auto-loaded
+          # in the main process AND in sub-processes spawned by shell_exec()
+          JUDY_SO="$(pwd)/modules/judy.so"
+          mkdir -p /tmp/php-judy-ini
+          echo "extension=$JUDY_SO" > /tmp/php-judy-ini/judy.ini
+
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/run-benchmarks.php | tee benchmark-results.txt
+
+          # Post results to the workflow summary
+          {
+            echo "## Benchmark Results (PHP ${{ matrix.php-version }}, Linux)"
+            echo ""
+            echo '```'
+            cat benchmark-results.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload benchmark results
+        if: matrix.php-version == '8.4' && github.event_name == 'push' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-linux-php${{ matrix.php-version }}
+          path: benchmark-results.txt
+          if-no-files-found: ignore
+
+  report-test-results:
+    runs-on: ubuntu-latest
+    needs: build-test
+    if: always()
+    permissions:
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: Download JUnit artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: junit-linux-*
+          merge-multiple: true
+
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: "*.xml"
+          check_name: "Linux Test Results"
+          comment_title: "Linux Test Results"

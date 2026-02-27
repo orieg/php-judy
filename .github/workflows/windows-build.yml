@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  checks: write
+  pull-requests: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -183,6 +187,16 @@ jobs:
           args: --with-judy=${{ runner.temp }}\libjudy
           test-workers: '2'
           test-runner-args: '--set-timeout 30'
+        env:
+          TEST_PHP_JUNIT: ${{ runner.temp }}\junit.xml
+
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-windows-${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
+          path: ${{ runner.temp }}\junit.xml
+          if-no-files-found: ignore
 
       - name: Debug on failure
         if: failure()
@@ -227,3 +241,25 @@ jobs:
           Write-Host "`n=== Build log (tail) ==="
           Get-ChildItem -Path ".\build" -Recurse -Filter "build*.log" -ErrorAction SilentlyContinue |
             Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Tail 30 }
+
+  report-test-results:
+    runs-on: ubuntu-latest
+    needs: build-windows
+    if: always()
+    permissions:
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: Download JUnit artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: junit-windows-*
+          merge-multiple: true
+
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: "*.xml"
+          check_name: "Windows Test Results"
+          comment_title: "Windows Test Results"
