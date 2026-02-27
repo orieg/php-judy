@@ -1,7 +1,10 @@
 --TEST--
 Check for Judy count() method when using STRING_TO_MIXED in a loop
 --SKIPIF--
-<?php if (!extension_loaded("judy")) print "skip"; ?>
+<?php
+if (!extension_loaded("judy")) print "skip";
+try { new Judy(Judy::INT_TO_MIXED); } catch (Exception $e) { print "skip MIXED types not supported"; }
+?>
 --FILE--
 <?php 
 /*

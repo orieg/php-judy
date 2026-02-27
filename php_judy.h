@@ -22,16 +22,6 @@
 #define PHP_JUDY_VERSION "2.2.0"
 #define PHP_JUDY_EXTNAME "judy"
 
-/* Fix Word_t for 64-bit Windows where unsigned long is only 32-bit.
- * The Judy library's default Judy.h defines Word_t as unsigned long,
- * which is 64-bit on Unix x64 but only 32-bit on Windows x64.
- * The pre-built libjudy x64 library uses 64-bit words internally,
- * so we must match that in the header. */
-#ifdef _WIN64
-#define _WORD_T
-typedef unsigned __int64 Word_t, * PWord_t;
-#endif
-
 /* Disable default Judy error handler which calls exit(1).
  * With JUDYERROR_NOTEST, Judy macros pass NULL for PJError_t,
  * avoiding JError_t stack allocations (whose size depends on Word_t)
@@ -40,14 +30,34 @@ typedef unsigned __int64 Word_t, * PWord_t;
 
 #include <Judy.h>
 
-/* Fix PJERR/PPJERR macros for 64-bit Windows.
- * The default definitions use ~0UL which is 32-bit on Windows,
- * producing incorrect error sentinel values for 64-bit pointers. */
-#ifdef _WIN64
-#undef PJERR
-#undef PPJERR
-#define PJERR  ((Pvoid_t)(~(size_t)0))
-#define PPJERR ((PPvoid_t)(~(size_t)0))
+/* Safe JudyL/JudySL value access macros.
+ *
+ * JudyL and JudySL store values in Word_t-sized slots internally, but the
+ * C API returns PPvoid_t (void**) pointers to these slots. On platforms where
+ * sizeof(Word_t) == sizeof(void*) (Unix LP64), direct PPvoid_t dereference
+ * works. On Windows x64 (LLP64), Word_t = unsigned long = 4 bytes while
+ * void* = 8 bytes; dereferencing PPvoid_t would read/write 8 bytes from a
+ * 4-byte slot, corrupting memory. These macros always read/write exactly
+ * sizeof(Word_t) bytes, which is correct on all platforms.
+ *
+ * MIXED types (INT_TO_MIXED, STRING_TO_MIXED) store zval* pointers in value
+ * slots. This requires sizeof(Word_t) >= sizeof(void*), which is only true
+ * on LP64 systems. On Windows x64 with 32-bit Word_t, MIXED types are
+ * disabled at construction time.
+ */
+#define JUDY_LVAL_READ(PV)       ((zend_long)(*(Word_t *)(PV)))
+#define JUDY_LVAL_WRITE(PV, v)   (*(Word_t *)(PV) = (Word_t)(v))
+
+#if defined(_WIN64)
+#define JUDY_MIXED_SUPPORTED 0
+/* On Windows x64, MIXED types are rejected at construction time.
+ * These macros exist only so the code compiles; they are never called. */
+#define JUDY_MVAL_READ(PV)       ((zval *)(uintptr_t)(*(Word_t *)(PV)))
+#define JUDY_MVAL_WRITE(PV, p)   (*(Word_t *)(PV) = (Word_t)(uintptr_t)(p))
+#else
+#define JUDY_MIXED_SUPPORTED 1
+#define JUDY_MVAL_READ(PV)       ((zval *)(*(PV)))
+#define JUDY_MVAL_WRITE(PV, p)   (*(PV) = (Pvoid_t)(p))
 #endif
 
 #include "php.h"

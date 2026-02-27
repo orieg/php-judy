@@ -197,9 +197,9 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 			ZVAL_LONG(&it->key, index);
 
 			if (object->type == TYPE_INT_TO_INT) {
-				ZVAL_LONG(&it->data, (zend_long)*PValue);
+				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
 			} else {
-				zval *value = *(zval **)PValue;
+				zval *value = JUDY_MVAL_READ(PValue);
 
 				ZVAL_COPY(&it->data, value);
 			}
@@ -231,9 +231,9 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 			ZVAL_STRING(&it->key, (char *)key);
 
 			if (object->type == TYPE_STRING_TO_INT) {
-				ZVAL_LONG(&it->data, (zend_long)*PValue);
+				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
 			} else {
-				zval *value = *(zval **)PValue;
+				zval *value = JUDY_MVAL_READ(PValue);
 
 				ZVAL_COPY(&it->data, value);
 			}
@@ -273,9 +273,9 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			ZVAL_LONG(&it->key, index);
 
 			if (object->type == TYPE_INT_TO_INT) {
-				ZVAL_LONG(&it->data, (zend_long)*PValue);
+				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
 			} else {
-				zval *value = *(zval **)PValue;
+				zval *value = JUDY_MVAL_READ(PValue);
 
 				ZVAL_COPY(&it->data, value);
 			}
@@ -294,9 +294,9 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			zval_ptr_dtor(&it->key);
 			ZVAL_STRING(&it->key, (const char *) key);
 			if (object->type == TYPE_STRING_TO_INT) {
-				ZVAL_LONG(&it->data, (zend_long)*PValue);
+				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
 			} else {
-				zval *value = *(zval **)PValue;
+				zval *value = JUDY_MVAL_READ(PValue);
 
 				ZVAL_COPY(&it->data, value);
 			}

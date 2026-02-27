@@ -5,7 +5,10 @@ This test verifies that the valid() method is efficient by using cached state
 instead of performing expensive lookups. It also ensures the method works correctly
 for all Judy array types.
 --SKIPIF--
-<?php if (!extension_loaded("judy")) print "skip"; ?>
+<?php
+if (!extension_loaded("judy")) print "skip";
+try { new Judy(Judy::INT_TO_MIXED); } catch (Exception $e) { print "skip MIXED types not supported"; }
+?>
 --FILE--
 <?php
 

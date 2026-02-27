@@ -1,7 +1,10 @@
 --TEST--
 Check for Judy STRING_TO_MIXED set/unset/get methods
 --SKIPIF--
-<?php if (!extension_loaded("judy")) print "skip"; ?>
+<?php
+if (!extension_loaded("judy")) print "skip";
+try { new Judy(Judy::INT_TO_MIXED); } catch (Exception $e) { print "skip MIXED types not supported"; }
+?>
 --FILE--
 <?php 
 $judy = new Judy(Judy::STRING_TO_MIXED);

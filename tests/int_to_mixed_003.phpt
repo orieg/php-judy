@@ -1,7 +1,10 @@
 --TEST--
 Check for Judy INT_TO_MIXED first/next/last/prev methods
 --SKIPIF--
-<?php if (!extension_loaded("judy")) print "skip"; ?>
+<?php
+if (!extension_loaded("judy")) print "skip";
+try { new Judy(Judy::INT_TO_MIXED); } catch (Exception $e) { print "skip MIXED types not supported"; }
+?>
 --FILE--
 <?php 
 $judy = new Judy(Judy::INT_TO_MIXED);

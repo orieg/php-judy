@@ -1,7 +1,10 @@
 --TEST--
 Test foreach() iterator with INT_TO_MIXED Judy array
 --SKIPIF--
-<?php if (!extension_loaded("judy")) print "skip"; ?>
+<?php
+if (!extension_loaded("judy")) print "skip";
+try { new Judy(Judy::INT_TO_MIXED); } catch (Exception $e) { print "skip MIXED types not supported"; }
+?>
 --INI--
 date.timezone=UTC
 --FILE--

@@ -65,11 +65,12 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 		{
 			JLI(newPValue, newJArray, kindex);
 			if (newPValue != NULL && newPValue != PJERR) {
-				*newPValue = *PValue;
 				if (old_obj->type == TYPE_INT_TO_MIXED) {
 					zval *value = ecalloc(1, sizeof(zval));
-					ZVAL_COPY(value, *(zval **)PValue);
-					*newPValue = value;
+					ZVAL_COPY(value, JUDY_MVAL_READ(PValue));
+					JUDY_MVAL_WRITE(newPValue, value);
+				} else {
+					JUDY_LVAL_WRITE(newPValue, JUDY_LVAL_READ(PValue));
 				}
 			}
 			JLN(PValue, old_obj->array, kindex)
@@ -94,11 +95,12 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 		{
 			JSLI(newPValue, newJArray, kindex);
 			if (newPValue != NULL && newPValue != PJERR) {
-				*newPValue = *PValue;
 				if (old_obj->type == TYPE_STRING_TO_MIXED) {
 					zval *value = ecalloc(1, sizeof(zval));
-					ZVAL_COPY(value, *(zval **)PValue);
-					*newPValue = value;
+					ZVAL_COPY(value, JUDY_MVAL_READ(PValue));
+					JUDY_MVAL_WRITE(newPValue, value);
+				} else {
+					JUDY_LVAL_WRITE(newPValue, JUDY_LVAL_READ(PValue));
 				}
 			}
 			JSLN(PValue, old_obj->array, kindex)
