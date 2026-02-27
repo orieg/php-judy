@@ -10,6 +10,7 @@ jobs:
   build-windows:
     runs-on: windows-latest
     strategy:
+      fail-fast: false
       matrix:
         php-version: ["8.1", "8.2", "8.3", "8.4"]
         arch: ["x64"]
@@ -20,9 +21,90 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build the extension
+        id: build
         uses: php/php-windows-builder/extension@v1
+        continue-on-error: true
         with:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
           libs: libjudy
+
+      - name: Debug build failure
+        if: steps.build.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Write-Host "=== Searching for build artifacts ==="
+          Write-Host ""
+
+          Write-Host "=== config.w32 files ==="
+          Get-ChildItem -Path . -Recurse -Filter "config.w32" -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "Found: $($_.FullName)"
+            Get-Content $_.FullName
+            Write-Host ""
+          }
+
+          Write-Host "=== configure.js files ==="
+          Get-ChildItem -Path . -Recurse -Filter "configure.js" -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "Found: $($_.FullName) (size: $($_.Length) bytes)"
+            $content = Get-Content $_.FullName -Raw
+            if ($content -match '(?i)judy') {
+              Write-Host "configure.js CONTAINS 'judy' references"
+              $lines = Get-Content $_.FullName
+              $lineNum = 0
+              foreach ($line in $lines) {
+                $lineNum++
+                if ($line -match '(?i)judy') {
+                  Write-Host "  Line ${lineNum}: $line"
+                }
+              }
+            } else {
+              Write-Host "configure.js does NOT contain 'judy'!"
+            }
+            Write-Host ""
+          }
+
+          Write-Host "=== Build directory contents ==="
+          Get-ChildItem -Path ".\build" -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "  $($_.Name) ($($_.GetType().Name))"
+          }
+          $buildDirs = Get-ChildItem -Path ".\build" -Directory -ErrorAction SilentlyContinue
+          foreach ($dir in $buildDirs) {
+            Write-Host ""
+            Write-Host "=== Contents of build\$($dir.Name) ==="
+            Get-ChildItem -Path $dir.FullName -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "  $($_.Name) ($($_.GetType().Name))"
+            }
+          }
+
+          Write-Host ""
+          Write-Host "=== Deps directory ==="
+          $buildDirs = Get-ChildItem -Path ".\build" -Directory -ErrorAction SilentlyContinue
+          foreach ($dir in $buildDirs) {
+            $deps = Join-Path $dir.FullName "..\deps"
+            if (Test-Path $deps) {
+              Write-Host "Found deps at: $(Resolve-Path $deps)"
+              Get-ChildItem -Path $deps -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                Write-Host "  $($_.FullName.Replace((Resolve-Path $deps).Path, ''))"
+              }
+            } else {
+              Write-Host "No deps directory found at: $deps"
+            }
+          }
+
+          Write-Host ""
+          Write-Host "=== Build log files ==="
+          Get-ChildItem -Path . -Recurse -Filter "*.log" -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($_.Length -lt 100000) {
+              Write-Host "=== $($_.FullName) ==="
+              Get-Content $_.FullName
+            } else {
+              Write-Host "=== $($_.FullName) (large, showing last 100 lines) ==="
+              Get-Content $_.FullName -Tail 100
+            }
+          }
+
+      - name: Fail if build failed
+        if: steps.build.outcome == 'failure'
+        shell: pwsh
+        run: exit 1

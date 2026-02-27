@@ -4,17 +4,10 @@
 ARG_WITH("judy", "Judy support", "no");
 
 if (PHP_JUDY != "no") {
-	// Debug: show search context
-	WARNING("judy: PHP_JUDY=" + PHP_JUDY);
-	WARNING("judy: PHP_PHP_BUILD=" + (typeof PHP_PHP_BUILD != 'undefined' ? PHP_PHP_BUILD : 'undefined'));
-	WARNING("judy: deps exists=" + FSO.FolderExists("..\\deps"));
-	WARNING("judy: deps\\lib exists=" + FSO.FolderExists("..\\deps\\lib"));
-	WARNING("judy: deps\\lib\\libJudy.lib exists=" + FSO.FileExists("..\\deps\\lib\\libJudy.lib"));
-	WARNING("judy: deps\\include\\Judy.h exists=" + FSO.FileExists("..\\deps\\include\\Judy.h"));
-	WARNING("judy: php_usual_lib_suspects=" + (typeof php_usual_lib_suspects != 'undefined' ? php_usual_lib_suspects : 'undefined'));
+	STDOUT.WriteLine("judy: checking for judy support, PHP_JUDY=" + PHP_JUDY);
+	STDOUT.WriteLine("judy: PHP_PHP_BUILD=" + PHP_PHP_BUILD);
 
-	var judy_lib_search = PHP_JUDY + ";..\\deps";
-	if (CHECK_LIB("libJudy_a.lib;libJudy.lib", "judy", judy_lib_search) && CHECK_HEADER_ADD_INCLUDE("Judy.h", "CFLAGS_JUDY", judy_lib_search)) {
+	if (CHECK_LIB("libJudy_a.lib;libJudy.lib", "judy", PHP_JUDY) && CHECK_HEADER_ADD_INCLUDE("Judy.h", "CFLAGS_JUDY", PHP_JUDY)) {
 		EXTENSION("judy", "php_judy.c judy_arrayaccess.c judy_handlers.c judy_iterator.c");
 		AC_DEFINE('HAVE_JUDY', 1, 'Have Judy library');
 
