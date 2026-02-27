@@ -32,6 +32,12 @@
 typedef unsigned __int64 Word_t, * PWord_t;
 #endif
 
+/* Disable default Judy error handler which calls exit(1).
+ * With JUDYERROR_NOTEST, Judy macros pass NULL for PJError_t,
+ * avoiding JError_t stack allocations (whose size depends on Word_t)
+ * and letting us handle errors via return value checks instead. */
+#define JUDYERROR_NOTEST 1
+
 #include <Judy.h>
 
 /* Fix PJERR/PPJERR macros for 64-bit Windows.
