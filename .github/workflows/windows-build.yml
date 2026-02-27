@@ -27,3 +27,22 @@ jobs:
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
           libs: libjudy
+
+      - name: Debug test failures
+        if: failure()
+        shell: pwsh
+        run: |
+          Write-Host "=== Test diff files ==="
+          Get-ChildItem -Path ".\build" -Recurse -Filter "*.diff" -ErrorAction SilentlyContinue | ForEach-Object {
+            Write-Host "`n=== $($_.Name) ==="
+            Get-Content $_.FullName
+          }
+          Write-Host "`n=== Test out files (first 3) ==="
+          $count = 0
+          Get-ChildItem -Path ".\build" -Recurse -Filter "*.out" -ErrorAction SilentlyContinue | ForEach-Object {
+            if ($count -lt 3) {
+              Write-Host "`n=== $($_.Name) ==="
+              Get-Content $_.FullName
+              $count++
+            }
+          }
