@@ -1,4 +1,4 @@
-name: Windows Build
+name: CI
 
 on:
   push:
@@ -11,6 +11,61 @@ permissions:
   pull-requests: write
 
 jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ["8.1", "8.2", "8.3", "8.4"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Judy library
+        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+
+      - name: Build the extension
+        run: |
+          phpize
+          ./configure --with-judy=/usr
+          make
+
+      - name: Run tests
+        run: make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1 TEST_PHP_JUNIT=junit.xml
+
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-linux-${{ matrix.php-version }}
+          path: junit.xml
+          if-no-files-found: ignore
+
+      - name: Run benchmarks
+        if: matrix.php-version == '8.4'
+        run: |
+          # Create a temporary PHP INI so the judy extension is auto-loaded
+          # in the main process AND in sub-processes spawned by shell_exec()
+          JUDY_SO="$(pwd)/modules/judy.so"
+          mkdir -p /tmp/php-judy-ini
+          echo "extension=$JUDY_SO" > /tmp/php-judy-ini/judy.ini
+
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/run-benchmarks.php | tee benchmark-results.txt
+
+      - name: Upload benchmark results
+        if: matrix.php-version == '8.4' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-linux-php${{ matrix.php-version }}
+          path: benchmark-results.txt
+          if-no-files-found: ignore
+
   build-windows:
     runs-on: windows-latest
     strategy:
@@ -185,8 +240,8 @@ jobs:
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
           args: --with-judy=${{ runner.temp }}\libjudy
-          test-workers: '2'
-          test-runner-args: '--set-timeout 30'
+          test-workers: "2"
+          test-runner-args: "--set-timeout 30"
         env:
           TEST_PHP_JUNIT: ${{ runner.temp }}\junit.xml
 
@@ -212,28 +267,6 @@ jobs:
             }
           }
 
-          Write-Host "`n=== Extension test ==="
-          $php = Get-ChildItem -Path ".\build" -Recurse -Filter "php.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          $ext = Get-ChildItem -Path ".\build" -Recurse -Filter "php_judy.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($php -and $ext) {
-            # Ensure Judy.dll is findable
-            $depsbin = ".\build\deps\bin"
-            if (Test-Path $depsbin) { $env:PATH = (Resolve-Path $depsbin).Path + ";" + $env:PATH }
-
-            Write-Host "--- phpinfo (judy) ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" --ri judy 2>&1
-
-            Write-Host "`n--- Quick test ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "echo 'loaded: ' . (extension_loaded('judy') ? 'yes' : 'no') . PHP_EOL;" 2>&1
-            Write-Host "Exit code: $LASTEXITCODE"
-
-            Write-Host "`n--- Judy BITSET test ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::BITSET); `$j[0] = true; echo 'OK' . PHP_EOL;" 2>&1
-            Write-Host "Exit code: $LASTEXITCODE"
-          } else {
-            Write-Host "php.exe or php_judy.dll not found in build/"
-          }
-
           Write-Host "`n=== Configure log (tail) ==="
           Get-ChildItem -Path ".\build" -Recurse -Filter "config*.log" -ErrorAction SilentlyContinue |
             Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Tail 50 }
@@ -242,24 +275,160 @@ jobs:
           Get-ChildItem -Path ".\build" -Recurse -Filter "build*.log" -ErrorAction SilentlyContinue |
             Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Tail 30 }
 
-  report-test-results:
+  report-results:
+    needs: [build-linux, build-windows]
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    needs: build-windows
-    if: always()
     permissions:
       checks: write
       pull-requests: write
 
     steps:
-      - name: Download JUnit artifacts
+      - name: Download all test artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: junit-windows-*
-          merge-multiple: true
+          pattern: junit-*
+          path: artifacts
 
-      - name: Publish test results
+      - name: Download benchmark artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: benchmark-*
+          path: benchmarks
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Publish test check
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: "*.xml"
-          check_name: "Windows Test Results"
-          comment_title: "Windows Test Results"
+          files: "artifacts/**/*.xml"
+          check_name: "Test Results"
+          comment_mode: "off"
+          job_summary: false
+
+      - name: Build consolidated report
+        run: |
+          python3 << 'PYEOF'
+          import xml.etree.ElementTree as ET
+          import os, glob, re
+
+          rows = []
+          for xml_file in sorted(glob.glob("artifacts/junit-*/*.xml")):
+              dir_name = os.path.basename(os.path.dirname(xml_file))
+              parts = dir_name.replace("junit-", "").split("-")
+
+              if parts[0] == "linux":
+                  platform, php, arch, ts = "Linux", parts[1], "x64", "-"
+              else:
+                  platform = "Windows"
+                  php = parts[1]
+                  arch = parts[2] if len(parts) > 2 else "x64"
+                  ts = parts[3] if len(parts) > 3 else "nts"
+
+              try:
+                  tree = ET.parse(xml_file)
+                  root = tree.getroot()
+                  ts_elem = root.find("testsuite") if root.tag == "testsuites" else root
+                  if ts_elem is None:
+                      continue
+                  tests = int(ts_elem.get("tests", 0))
+                  failures = int(ts_elem.get("failures", 0))
+                  errors = int(ts_elem.get("errors", 0))
+                  skipped = int(ts_elem.get("skipped", 0))
+                  time_val = float(ts_elem.get("time", 0))
+                  passed = tests - failures - errors - skipped
+                  status = "\u2705" if failures == 0 and errors == 0 else "\u274c"
+              except Exception as e:
+                  tests = failures = errors = skipped = passed = 0
+                  time_val = 0.0
+                  status = "\u26a0\ufe0f"
+
+              rows.append({
+                  "php": php, "platform": platform, "arch": arch, "ts": ts,
+                  "tests": tests, "passed": passed, "failures": failures,
+                  "skipped": skipped, "errors": errors,
+                  "duration": f"{time_val:.1f}s", "status": status
+              })
+
+          rows.sort(key=lambda r: (r["platform"], [int(x) for x in r["php"].split(".")]))
+
+          lines = []
+          lines.append("## Test Results\n")
+          lines.append("| | PHP | Platform | Arch | TS | Tests | Pass | Fail | Skip | Duration |")
+          lines.append("|---|-----|----------|------|----|-------|------|------|------|----------|")
+          for r in rows:
+              lines.append(
+                  f'| {r["status"]} | {r["php"]} | {r["platform"]} '
+                  f'| {r["arch"]} | {r["ts"]} | {r["tests"]} | {r["passed"]} '
+                  f'| {r["failures"]} | {r["skipped"]} | {r["duration"]} |'
+              )
+
+          total_tests = sum(r["tests"] for r in rows)
+          total_pass = sum(r["passed"] for r in rows)
+          total_fail = sum(r["failures"] for r in rows)
+          total_skip = sum(r["skipped"] for r in rows)
+          all_pass = total_fail == 0 and all(r["errors"] == 0 for r in rows)
+          icon = "\u2705" if all_pass else "\u274c"
+          lines.append(
+              f"| {icon} | **Total** | | | "
+              f"| **{total_tests}** | **{total_pass}** | **{total_fail}** "
+              f"| **{total_skip}** | |"
+          )
+
+          # Benchmark results
+          bench_file = "benchmarks/benchmark-results.txt"
+          if os.path.isfile(bench_file):
+              with open(bench_file) as f:
+                  bench_text = f.read().strip()
+              lines.append("")
+              lines.append("## Benchmark Results (PHP 8.4, Linux)\n")
+              lines.append("<details>")
+              lines.append("<summary>Click to expand benchmark data</summary>")
+              lines.append("")
+              lines.append("```")
+              lines.append(bench_text)
+              lines.append("```")
+              lines.append("")
+              lines.append("</details>")
+
+          report = "\n".join(lines) + "\n"
+
+          with open("report.md", "w") as f:
+              f.write(report)
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(report)
+          PYEOF
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('report.md', 'utf8');
+            const marker = '<!-- ci-consolidated-results -->';
+            const fullBody = marker + '\n' + body;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: fullBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: fullBody,
+              });
+            }
