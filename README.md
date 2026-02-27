@@ -294,7 +294,7 @@ Please report bugs and issues on the GitHub repository:
 - [x] **Performance**: Upgrade to Fast ZPP (Zend Parameter Parsing) macros.
 - [x] **Performance**: Optimize `get_iterator` to use native C iterators.
 - [ ] **Core Features**: Implement `slice($start, $end)` for efficient range queries.
-- [ ] **Set Operations**: Add native methods for Union, Intersection, and Difference (especially for BITSET).
+- [x] **Set Operations**: Add native methods for Union, Intersection, and Difference (especially for BITSET).
 - [ ] **Serialization**: Implement `__serialize`/`__unserialize` for optimized binary persistence.
 - [ ] **Interoperability**: Implement `JsonSerializable` interface.
 - [ ] **Testing**: More comprehensive test coverage.

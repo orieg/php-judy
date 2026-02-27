@@ -58,6 +58,7 @@
          <file md5sum="89438abbecf3617c9b077527e59ec102" name="examples/judy-read-performance-test.php" role="doc" />
          <file md5sum="9531f74e337528d75dd9b5ff66437351" name="examples/run-benchmarks-robust.php" role="doc" />
          <file md5sum="163369b8ada5a8bf7bc9853ae7cc4522" name="examples/iterator_performance_analysis.md" role="doc" />
+         <file name="examples/judy-bench-set-operations.php" role="doc" />
          <file md5sum="abc7eb31bb88857463ec941514e5f019" name="tests/001.phpt" role="test" />
          <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />
          <file md5sum="9f3363cc4c6d15cb52184351cf710fd7" name="tests/bitset_002.phpt" role="test" />
@@ -66,6 +67,12 @@
          <file md5sum="a24fe01daca1f0b7f6de90cf54d0bd4c" name="tests/bitset_005.phpt" role="test" />
          <file md5sum="a401657315fae5182d412cbc0b02e312" name="tests/bitset_006.phpt" role="test" />
          <file md5sum="be3498c9fa543d91672b839ca190b3b4" name="tests/bitset_007.phpt" role="test" />
+         <file name="tests/bitset_diff_001.phpt" role="test" />
+         <file name="tests/bitset_intersect_001.phpt" role="test" />
+         <file name="tests/bitset_setops_independence_001.phpt" role="test" />
+         <file name="tests/bitset_setops_type_error_001.phpt" role="test" />
+         <file name="tests/bitset_union_001.phpt" role="test" />
+         <file name="tests/bitset_xor_001.phpt" role="test" />
          <file md5sum="3022d615e01248b9aedcc07d53f9d298" name="tests/clone_bitset_001.phpt" role="test" />
          <file md5sum="ebf5a62bedc4d0100256bc6db614cac0" name="tests/int_to_int_001.phpt" role="test" />
          <file md5sum="293c4e8f37490390abeaac289e8d4ee7" name="tests/int_to_int_002.phpt" role="test" />
