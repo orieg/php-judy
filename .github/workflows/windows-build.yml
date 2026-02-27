@@ -20,103 +20,164 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Build libjudy from source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ProgressPreference = "SilentlyContinue"
+
+          # Download Judy-1.0.5 source from SourceForge
+          Write-Host "Downloading Judy-1.0.5 source..."
+          & curl.exe -fsSL -o judy.tar.gz --retry 5 --retry-delay 5 -L `
+            "https://downloads.sourceforge.net/project/judy/judy/Judy-1.0.5/Judy-1.0.5.tar.gz"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to download Judy source" }
+
+          # Extract
+          tar -xzf judy.tar.gz
+          $judyDir = Get-ChildItem -Directory | Where-Object { $_.Name -match '^[Jj]udy-' } | Select-Object -First 1
+          if (-not $judyDir) { throw "Could not find extracted Judy directory" }
+          $srcDir = Join-Path $judyDir.FullName "src"
+          if (-not (Test-Path (Join-Path $srcDir "build.bat"))) {
+            throw "build.bat not found in $srcDir"
+          }
+          Write-Host "Source: $srcDir"
+
+          # Patch Judy.h: Fix Word_t for 64-bit Windows and PJERR sentinel
+          Write-Host "Patching Judy.h..."
+          $judyH = Join-Path $srcDir "Judy.h"
+          $content = Get-Content $judyH -Raw
+
+          # Fix Word_t: unsigned long is only 4 bytes on MSVC x64 (LLP64),
+          # use unsigned __int64 for proper 64-bit Word_t
+          $wordTPatch = @'
+          #if defined(_WIN64)
+          typedef unsigned __int64    Word_t, * PWord_t;
+          #else
+          typedef unsigned long       Word_t, * PWord_t;
+          #endif
+          '@
+          # Trim indentation added by YAML here-string
+          $wordTPatch = ($wordTPatch.Trim() -split "`n" | ForEach-Object { $_.Trim() }) -join "`n"
+          $content = $content -replace 'typedef\s+unsigned\s+long\s+Word_t\s*,\s*\*\s*PWord_t\s*;', $wordTPatch
+
+          # Fix PJERR/PPJERR: ~0UL is 32-bit on MSVC x64, use ~(size_t)0
+          # to get the correct 64-bit error sentinel
+          $content = $content.Replace('(~0UL)', '(~(size_t)0)')
+
+          # Validate patches applied
+          if ($content -notmatch 'unsigned __int64\s+Word_t') { throw "Failed to patch Word_t in Judy.h" }
+          if ($content -notmatch '~\(size_t\)0') { throw "Failed to patch PJERR in Judy.h" }
+          Set-Content $judyH -Value $content -NoNewline
+          Write-Host "Patched Judy.h"
+
+          # Patch build.bat: Add -DJU_64BIT for proper 64-bit internal data structures
+          Write-Host "Patching build.bat..."
+          $buildBat = Join-Path $srcDir "build.bat"
+          $batContent = Get-Content $buildBat -Raw
+          $batContent = $batContent.Replace('-DJU_WIN', '-DJU_WIN -DJU_64BIT')
+          if ($batContent -notmatch 'JU_64BIT') { throw "Failed to patch build.bat" }
+          Set-Content $buildBat -Value $batContent -NoNewline
+          Write-Host "Patched build.bat"
+
+          # Build
+          Write-Host "Building libjudy..."
+          Push-Location $srcDir
+          & cmd.exe /c "build.bat 2>&1"
+          Pop-Location
+
+          # Verify build output
+          $judyLib = Get-ChildItem -Path $srcDir -Recurse -Filter "Judy.lib" -ErrorAction SilentlyContinue |
+            Sort-Object Length -Descending | Select-Object -First 1
+          if (-not $judyLib) {
+            Write-Host "Build artifacts found:"
+            Get-ChildItem -Path $srcDir -Recurse -Include "*.lib","*.dll","*.obj" -ErrorAction SilentlyContinue |
+              ForEach-Object { Write-Host "  $($_.FullName) ($($_.Length) bytes)" }
+            throw "Judy.lib not found after build"
+          }
+          Write-Host "Built: $($judyLib.FullName) ($($judyLib.Length) bytes)"
+
+          # Install to libjudy/{include,lib,bin}
+          $installDir = Join-Path $env:GITHUB_WORKSPACE "libjudy"
+          foreach ($sub in @("include", "lib", "bin")) {
+            New-Item -ItemType Directory -Force (Join-Path $installDir $sub) | Out-Null
+          }
+
+          Copy-Item $judyH "$installDir\include\"
+          Copy-Item $judyLib.FullName "$installDir\lib\libJudy.lib"
+          Copy-Item $judyLib.FullName "$installDir\lib\libJudy_a.lib"
+
+          # Copy DLL if produced (for dynamic linking)
+          $judyDll = Get-ChildItem -Path $srcDir -Recurse -Filter "Judy.dll" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if ($judyDll) {
+            Copy-Item $judyDll.FullName "$installDir\bin\"
+            Write-Host "Installed DLL: $($judyDll.Length) bytes"
+          }
+
+          Write-Host "=== libjudy installed ==="
+          Get-ChildItem -Path $installDir -Recurse -File | ForEach-Object {
+            $rel = $_.FullName.Substring($installDir.Length)
+            Write-Host "  $rel ($($_.Length) bytes)"
+          }
+
+      - name: Add libjudy to PATH
+        shell: pwsh
+        run: |
+          Add-Content $env:GITHUB_PATH "${{ github.workspace }}\libjudy\bin"
+
       - name: Build the extension
         uses: php/php-windows-builder/extension@v1
         with:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
-          libs: libjudy
+          args: --with-judy=${{ github.workspace }}\libjudy
 
-      - name: Debug build and test failures
+      - name: Debug on failure
         if: failure()
         shell: pwsh
         run: |
           $ErrorActionPreference = "Continue"
 
-          Write-Host "=== File sizes ==="
-          $phpJudy = Get-ChildItem -Path ".\build" -Recurse -Filter "php_judy.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($phpJudy) {
-            Write-Host "php_judy.dll: $($phpJudy.FullName) ($($phpJudy.Length) bytes)"
-          } else {
-            Write-Host "php_judy.dll NOT FOUND"
-          }
-          $judyDll = Get-ChildItem -Path ".\build" -Recurse -Filter "Judy.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($judyDll) {
-            Write-Host "Judy.dll: $($judyDll.FullName) ($($judyDll.Length) bytes)"
-          } else {
-            Write-Host "Judy.dll NOT FOUND in build tree"
-          }
-          $judyLib = Get-ChildItem -Path ".\build" -Recurse -Filter "libJudy.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($judyLib) {
-            Write-Host "libJudy.lib: $($judyLib.FullName) ($($judyLib.Length) bytes)"
+          Write-Host "=== libjudy install ==="
+          $dir = Join-Path $env:GITHUB_WORKSPACE "libjudy"
+          if (Test-Path $dir) {
+            Get-ChildItem -Path $dir -Recurse -File | ForEach-Object {
+              Write-Host "  $($_.FullName.Substring($dir.Length)) ($($_.Length) bytes)"
+            }
           }
 
-          Write-Host "`n=== Deps directory contents ==="
-          Get-ChildItem -Path ".\build\deps" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
-            Write-Host "  $($_.FullName.Replace((Resolve-Path '.\build\deps').Path, ''))  ($($_.Length) bytes)"
-          }
-
-          Write-Host "`n=== PHP + extension diagnostics ==="
+          Write-Host "`n=== Extension test ==="
           $php = Get-ChildItem -Path ".\build" -Recurse -Filter "php.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           $ext = Get-ChildItem -Path ".\build" -Recurse -Filter "php_judy.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($php -and $ext) {
-            # Add deps\bin to PATH so Judy.dll is findable (if dynamically linked)
+            # Ensure Judy.dll is findable
             $depsbin = ".\build\deps\bin"
-            if (Test-Path $depsbin) {
-              $env:PATH = (Resolve-Path $depsbin).Path + ";" + $env:PATH
-              Write-Host "Added to PATH: $(Resolve-Path $depsbin)"
-            }
+            if (Test-Path $depsbin) { $env:PATH = (Resolve-Path $depsbin).Path + ";" + $env:PATH }
 
-            Write-Host "`n--- Test 0: phpinfo (judy section) ---"
+            Write-Host "--- phpinfo (judy) ---"
             & $php.FullName -n -d "extension=$($ext.FullName)" --ri judy 2>&1
-            Write-Host "Exit code: $LASTEXITCODE"
 
-            Write-Host "`n--- Test 1: Extension loading ---"
+            Write-Host "`n--- Quick test ---"
             & $php.FullName -n -d "extension=$($ext.FullName)" -r "echo 'loaded: ' . (extension_loaded('judy') ? 'yes' : 'no') . PHP_EOL;" 2>&1
             Write-Host "Exit code: $LASTEXITCODE"
 
-            Write-Host "`n--- Test 2: Object creation ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "echo 'BITSET=' . Judy::BITSET . PHP_EOL; `$j = new Judy(Judy::BITSET); echo 'created' . PHP_EOL;" 2>&1
-            Write-Host "Exit code: $LASTEXITCODE"
-
-            Write-Host "`n--- Test 3: Judy BITSET set single ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::BITSET); `$j[0] = true; echo 'BITSET[0]=true OK' . PHP_EOL;" 2>&1
-            Write-Host "Exit code: $LASTEXITCODE"
-
-            Write-Host "`n--- Test 4: Judy BITSET set + test ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::BITSET); `$j[0] = true; echo 'set OK' . PHP_EOL; var_dump(isset(`$j[0])); echo 'test OK' . PHP_EOL;" 2>&1
-            Write-Host "Exit code: $LASTEXITCODE"
-
-            Write-Host "`n--- Test 5: Judy BITSET count ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::BITSET); `$j[0] = true; echo 'count=' . `$j->count() . PHP_EOL;" 2>&1
-            Write-Host "Exit code: $LASTEXITCODE"
-
-            Write-Host "`n--- Test 6: Judy INT_TO_INT set ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::INT_TO_INT); `$j[0] = 42; echo 'INT_TO_INT set OK' . PHP_EOL;" 2>&1
-            Write-Host "Exit code: $LASTEXITCODE"
-
-            Write-Host "`n--- Test 7: Judy STRING_TO_INT set ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::STRING_TO_INT); `$j['a'] = 1; echo 'STRING_TO_INT set OK' . PHP_EOL;" 2>&1
-            Write-Host "Exit code: $LASTEXITCODE"
-
-            Write-Host "`n--- Test 8: Judy BITSET set 10 + iterate ---"
-            & $php.FullName -n -d "extension=$($ext.FullName)" -r "
-              `$j = new Judy(Judy::BITSET);
-              for (`$i = 0; `$i < 10; `$i++) { `$j[`$i] = true; }
-              echo 'set 10 OK' . PHP_EOL;
-              echo 'count=' . `$j->count() . PHP_EOL;
-              echo 'size=' . `$j->size() . PHP_EOL;
-              foreach (`$j as `$k => `$v) { echo `$k . ' '; }
-              echo PHP_EOL . 'iterate OK' . PHP_EOL;
-            " 2>&1
+            Write-Host "`n--- Judy BITSET test ---"
+            & $php.FullName -n -d "extension=$($ext.FullName)" -r "`$j = new Judy(Judy::BITSET); `$j[0] = true; echo 'OK' . PHP_EOL;" 2>&1
             Write-Host "Exit code: $LASTEXITCODE"
           } else {
-            Write-Host "php.exe or php_judy.dll not found"
+            Write-Host "php.exe or php_judy.dll not found in build/"
           }
 
-          Write-Host "`n=== Build log (last 30 lines) ==="
-          $buildLog = Get-ChildItem -Path ".\build" -Recurse -Filter "build.log" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($buildLog) {
-            Get-Content $buildLog.FullName -Tail 30
-          }
+          Write-Host "`n=== Configure log (tail) ==="
+          Get-ChildItem -Path ".\build" -Recurse -Filter "config*.log" -ErrorAction SilentlyContinue |
+            Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Tail 50 }
+
+          Write-Host "`n=== Build log (tail) ==="
+          Get-ChildItem -Path ".\build" -Recurse -Filter "build*.log" -ErrorAction SilentlyContinue |
+            Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Tail 30 }

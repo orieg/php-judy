@@ -22,12 +22,12 @@
 #define PHP_JUDY_VERSION "2.2.0"
 #define PHP_JUDY_EXTNAME "judy"
 
-/* Windows x64 (LLP64): Force 64-bit Word_t to match libjudy DLL ABI.
+/* Windows x64 (LLP64): Force 64-bit Word_t to match libjudy ABI.
  *
- * MSVC x64 defines 'unsigned long' as 4 bytes (LLP64 model), but the
- * pre-built libjudy x64 DLL was compiled with 64-bit Word_t. Without
- * this override, Judy.h would define Word_t = unsigned long = 4 bytes,
- * causing ABI mismatches and crashes on every Judy API call.
+ * MSVC x64 defines 'unsigned long' as 4 bytes (LLP64 model). Our CI
+ * builds libjudy from source with Word_t = unsigned __int64 = 8 bytes.
+ * This override ensures our extension uses the same 8-byte Word_t,
+ * matching the library's ABI on x64 Windows.
  *
  * Defining _WORD_T before including Judy.h tells it to skip its own
  * Word_t typedef, using ours instead. */
@@ -43,6 +43,20 @@ typedef unsigned __int64 Word_t, * PWord_t;
 #define JUDYERROR_NOTEST 1
 
 #include <Judy.h>
+
+/* Fix PJERR/PPJERR for Windows x64.
+ *
+ * Judy.h defines PJERR as ((Pvoid_t)(~0UL)). On MSVC x64, unsigned long
+ * is 4 bytes (LLP64), so ~0UL = 0xFFFFFFFF, making PJERR a 32-bit sentinel
+ * (0x00000000FFFFFFFF) instead of the correct all-ones pointer. This causes
+ * error return comparisons to fail. Redefine with ~(size_t)0 to get the
+ * correct 64-bit sentinel (0xFFFFFFFFFFFFFFFF). */
+#ifdef _WIN64
+#undef PJERR
+#undef PPJERR
+#define PJERR  ((Pvoid_t)(~(size_t)0))
+#define PPJERR ((PPvoid_t)(~(size_t)0))
+#endif
 
 /* Safe JudyL/JudySL value access macros.
  *
