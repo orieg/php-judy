@@ -128,7 +128,7 @@
          <file md5sum="21f7aeaa85d97a73e318a35f0cf38fc6" name="judy_iterator.c" role="src" />
          <file md5sum="f8df1590b3cbd5af6c0429d9a335142e" name="judy_iterator.h" role="src" />
          <file md5sum="7c9788275842cc11d056367d8e96f0ba" name="php_judy.c" role="src" />
-         <file md5sum="71d4050f01cfd6ef0c92131366e35681" name="php_judy.h" role="src" />
+         <file md5sum="0ba187e2db7a35df61e299ff48a38d9b" name="php_judy.h" role="src" />
          <file md5sum="cb564efdf78cce8ea6e4b5a4f7c05d97" name="LICENSE" role="doc" />
          <file md5sum="ce78496bc990b2d72cbbf427df52a495" name="README.md" role="doc" />
          <file md5sum="730470b2aca686ddbea82a2b2af03a1a" name="CREDITS" role="doc" />
