@@ -65,6 +65,39 @@ jobs:
           path: benchmark-results.txt
           if-no-files-found: ignore
 
+  validate-pecl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Judy library
+        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Build PECL package
+        run: pecl package package.xml
+
+      - name: Install from PECL package
+        run: sudo pecl install --force ./Judy-*.tgz
+
+      - name: Run tests against installed extension
+        run: |
+          JUDY_SO="$(php -r 'echo PHP_EXTENSION_DIR . DIRECTORY_SEPARATOR;')judy.so"
+          RUN_TESTS=$(find "$(php-config --prefix)" -name run-tests.php 2>/dev/null | head -1)
+          # run-tests.php writes temp files next to itself; copy to /tmp to avoid
+          # "Permission denied" on the system-installed (root-owned) build directory.
+          cp "$RUN_TESTS" /tmp/run-tests.php
+          NO_INTERACTION=1 php /tmp/run-tests.php \
+            -d "extension=$JUDY_SO" \
+            -q --show-diff \
+            tests/*.phpt
+
   build-windows:
     runs-on: windows-latest
     strategy:
