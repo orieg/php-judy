@@ -48,7 +48,6 @@ jobs:
           if-no-files-found: ignore
 
       - name: Run benchmarks
-        if: matrix.php-version == '8.4'
         run: |
           # Create a temporary PHP INI so the judy extension is auto-loaded
           # in the main process AND in sub-processes spawned by shell_exec()
@@ -59,7 +58,7 @@ jobs:
           PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/run-benchmarks.php | tee benchmark-results.txt
 
       - name: Upload benchmark results
-        if: matrix.php-version == '8.4' && always()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-linux-php${{ matrix.php-version }}
@@ -295,7 +294,6 @@ jobs:
         with:
           pattern: benchmark-*
           path: benchmarks
-          merge-multiple: true
         continue-on-error: true
 
       - name: Publish test check
@@ -311,7 +309,9 @@ jobs:
           python3 << 'PYEOF'
           import xml.etree.ElementTree as ET
           import os, glob, re
+          from collections import defaultdict
 
+          # ── Test Results ──────────────────────────────────────────
           rows = []
           for xml_file in sorted(glob.glob("artifacts/junit-*/*.xml")):
               dir_name = os.path.basename(os.path.dirname(xml_file))
@@ -338,7 +338,7 @@ jobs:
                   time_val = float(ts_elem.get("time", 0))
                   passed = tests - failures - errors - skipped
                   status = "\u2705" if failures == 0 and errors == 0 else "\u274c"
-              except Exception as e:
+              except Exception:
                   tests = failures = errors = skipped = passed = 0
                   time_val = 0.0
                   status = "\u26a0\ufe0f"
@@ -375,21 +375,110 @@ jobs:
               f"| **{total_skip}** | |"
           )
 
-          # Benchmark results
-          bench_file = "benchmarks/benchmark-results.txt"
-          if os.path.isfile(bench_file):
+          # ── Benchmark Results ─────────────────────────────────────
+          def parse_benchmark(text):
+              """Parse benchmark text into {scenario: {subject: {write, read, memory}}}."""
+              data = {}
+              current = None
+              for line in text.splitlines():
+                  m = re.match(r'^## (.+)$', line)
+                  if m:
+                      current = m.group(1).strip()
+                      data[current] = {}
+                      continue
+                  if current and re.match(r'^-{4,}', line):
+                      continue
+                  if current and line.strip() and not line.strip().startswith("Subject"):
+                      m = re.match(
+                          r'^\s*(.+?)\s{2,}([\d.]+)s\s{2,}([\d.]+)s\s{2,}(.+?)\s*$',
+                          line
+                      )
+                      if m:
+                          subject = m.group(1).strip()
+                          data[current][subject] = {
+                              "write": m.group(2),
+                              "read": m.group(3),
+                              "memory": m.group(4).strip(),
+                          }
+              return data
+
+          def scenario_sort_key(name):
+              """Sort by type (Sparse Int first, then String), then by numeric size."""
+              m = re.search(r'([\d,]+)\)', name)
+              size = int(m.group(1).replace(",", "")) if m else 0
+              prefix = 0 if "Integer" in name else 1
+              return (prefix, size)
+
+          def short_scenario(name):
+              """Shorten 'Sparse Integer Keys (1,000,000)' → 'Sparse Int 1M'."""
+              m = re.search(r'([\d,]+)\)', name)
+              if not m:
+                  return name
+              n = int(m.group(1).replace(",", ""))
+              if n >= 1_000_000:
+                  size = f"{n // 1_000_000}M"
+              elif n >= 1_000:
+                  size = f"{n // 1_000}K"
+              else:
+                  size = str(n)
+              if "Integer" in name:
+                  return f"Sparse Int {size}"
+              return f"String {size}"
+
+          # Collect benchmarks from all PHP versions
+          # Structure: all_bench[scenario][subject][php_version] = {write, read, memory}
+          all_bench = defaultdict(lambda: defaultdict(dict))
+          php_versions = []
+
+          for bench_dir in sorted(glob.glob("benchmarks/benchmark-linux-php*")):
+              bench_file = os.path.join(bench_dir, "benchmark-results.txt")
+              if not os.path.isfile(bench_file):
+                  continue
+              dir_name = os.path.basename(bench_dir)
+              php_ver = dir_name.replace("benchmark-linux-php", "")
+              php_versions.append(php_ver)
               with open(bench_file) as f:
-                  bench_text = f.read().strip()
+                  data = parse_benchmark(f.read())
+              for scenario, subjects in data.items():
+                  for subject, metrics in subjects.items():
+                      all_bench[scenario][subject][php_ver] = metrics
+
+          if all_bench and php_versions:
+              php_versions.sort(key=lambda v: [int(x) for x in v.split(".")])
+              scenarios = sorted(all_bench.keys(), key=scenario_sort_key)
+              subjects_order = ["Judy", "PHP Array"]
+
               lines.append("")
-              lines.append("## Benchmark Results (PHP 8.4, Linux)\n")
-              lines.append("<details>")
-              lines.append("<summary>Click to expand benchmark data</summary>")
-              lines.append("")
-              lines.append("```")
-              lines.append(bench_text)
-              lines.append("```")
-              lines.append("")
-              lines.append("</details>")
+              lines.append("## Benchmark Results (Linux x64)\n")
+
+              for metric, label, unit in [
+                  ("write", "Write Time", "s"),
+                  ("read", "Read Time", "s"),
+                  ("memory", "Memory Usage", ""),
+              ]:
+                  hdr_cols = " | ".join(f"PHP {v}" for v in php_versions)
+                  lines.append(f"### {label}\n")
+                  lines.append(f"| Scenario | Subject | {hdr_cols} |")
+                  lines.append(
+                      f"|----------|---------|" + "|".join("---------" for _ in php_versions) + "|"
+                  )
+
+                  for scenario in scenarios:
+                      short = short_scenario(scenario)
+                      for subject in subjects_order:
+                          if subject not in all_bench[scenario]:
+                              continue
+                          cells = []
+                          for v in php_versions:
+                              m = all_bench[scenario][subject].get(v, {})
+                              val = m.get(metric, "-")
+                              if val != "-" and unit:
+                                  val = f"{val}{unit}"
+                              cells.append(val)
+                          col_str = " | ".join(cells)
+                          lines.append(f"| {short} | {subject} | {col_str} |")
+
+                  lines.append("")
 
           report = "\n".join(lines) + "\n"
 
