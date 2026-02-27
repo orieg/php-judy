@@ -13,11 +13,11 @@
   <email>nicolas@brousse.info</email>
   <active>yes</active>
  </lead>
- <date>2025-09-02</date>
- <time>07:48:48</time>
+ <date>2026-02-27</date>
+ <time>00:00:00</time>
  <version>
-  <release>2.2.0</release>
-  <api>2.2.0</api>
+  <release>2.3.0</release>
+  <api>2.3.0</api>
  </version>
  <stability>
   <release>stable</release>
@@ -25,18 +25,17 @@
  </stability>
  <license uri="http://www.php.net/license">PHP</license>
  <notes>
-- **BREAKING CHANGE**: Renamed Judy::next() to Judy::searchNext() to resolve Iterator interface conflicts
-- **NEW FEATURE**: Implemented proper Iterator interface support (rewind, valid, current, key, next methods)
-- **NEW FEATURE**: Added support for SPL iterators (LimitIterator, FilterIterator, etc.)
-- **IMPROVEMENT**: Enhanced benchmark examples with accurate memory measurements
-- **IMPROVEMENT**: Updated BENCHMARK.md with comprehensive design explanations and performance analysis
-- **IMPROVEMENT**: Added comprehensive benchmark suite with statistical analysis
-- **IMPROVEMENT**: Fixed iterator performance analysis and methodology
-- **FIX**: All tests now pass (100% success rate)
-- **FIX**: Improved memory measurement reliability across different environments
-- **FIX**: Fixed critical iterator bugs (next, rewind, valid methods)
-- **DOCUMENTATION**: Added O(log n) vs O(1) complexity explanations
-- **DOCUMENTATION**: Enhanced benchmark methodology with environment details
+- **NEW FEATURE**: Windows PECL DLL builds now published with each release (PHP 8.1–8.5, x86/x64, TS/NTS)
+- **NEW FEATURE**: PHP 8.5 support added to CI matrix
+- **FIX**: PHP 8.1+ compile fix — ZVAL_DUP replaced with ZVAL_COPY throughout
+- **FIX**: free_obj memory leak resolved (Judy array, zvals, and iterator state now properly freed)
+- **FIX**: BITSET clone bug fixed (was iterating new array instead of source)
+- **FIX**: STRING_TO_INT counter no longer overcounts on value overwrite
+- **FIX**: E_ERROR replaced with exceptions in constructor and write_dimension
+- **FIX**: foreach-by-ref now throws a proper error instead of E_ERROR; fixed emalloc leak
+- **FIX**: long→zend_long throughout; JLF() iterator bug fixed; redundant JLG lookups removed
+- **FIX**: Removed -march=native and -flto from config.m4 for portability
+- **IMPROVEMENT**: CI workflow consolidated; Windows benchmarks added to CI reporting
  </notes>
  <contents>
   <dir name="/">
@@ -72,57 +71,61 @@
    <file md5sum="19d0dac1e4a78c0d123f28ab28d5d5a0" name="tests/int_to_int_006.phpt" role="test" />
    <file md5sum="bd4db4f7abf599a8190786fbcdb8a5ec" name="tests/int_to_int_007.phpt" role="test" />
    <file md5sum="ccaa4a72301eca4a142866a2c7373e42" name="tests/int_to_int_008.phpt" role="test" />
-   <file md5sum="e3c8985f9faffcfc8a53f77d4665af6d" name="tests/int_to_mixed_001.phpt" role="test" />
-   <file md5sum="d44991c66c5f94ad0d3e9f84318e2411" name="tests/int_to_mixed_002.phpt" role="test" />
-   <file md5sum="e14002b8bd0cd9733070b27112227c12" name="tests/int_to_mixed_003.phpt" role="test" />
+   <file md5sum="9a2082ee0bcf243aa3f7b2d433d94494" name="tests/int_to_mixed_001.phpt" role="test" />
+   <file md5sum="963d0926d072605700d3ab90ba768d1f" name="tests/int_to_mixed_002.phpt" role="test" />
+   <file md5sum="fce2796f903e6ac7c7db664ef09f1dff" name="tests/int_to_mixed_003.phpt" role="test" />
    <file md5sum="5a0395aa3b2c7fa6eccb88c7663f3f00" name="tests/int_to_mixed_004.phpt" role="test" />
-   <file md5sum="aca9d41d8d47647dd20f11b2404739d2" name="tests/int_to_mixed_005.phpt" role="test" />
-   <file md5sum="b5e8d1351cb637532c4d07230a2e3cf6" name="tests/int_to_mixed_006.phpt" role="test" />
-   <file md5sum="a40ba69d3d1f91f121a47784c0165111" name="tests/int_to_mixed_007.phpt" role="test" />
-   <file md5sum="b8b657f713499d2d22a9956a1402aa49" name="tests/judy_error.phpt" role="test" />
+   <file md5sum="b26cd8992eef0d104c58fd45f9ffd623" name="tests/int_to_mixed_005.phpt" role="test" />
+   <file md5sum="a79aeaae014734055b3a98d1ce758f79" name="tests/int_to_mixed_006.phpt" role="test" />
+   <file md5sum="f76564e8adf5bc903dd43c969cd92f4a" name="tests/int_to_mixed_007.phpt" role="test" />
+   <file md5sum="8a7b51211a85714e2e2493d1e780211c" name="tests/judy_error.phpt" role="test" />
    <file md5sum="429b9dcc5bea2a5b9be3707e05b253e5" name="tests/judy_foreach_bitset.phpt" role="test" />
    <file md5sum="a0f0fc5ba8c283700d4e770bb46a1c83" name="tests/judy_foreach_int_to_int.phpt" role="test" />
-   <file md5sum="5da8e93dd0c1871c899ffe8d99738df2" name="tests/judy_foreach_int_to_mixed.phpt" role="test" />
+   <file md5sum="2cfa3b17f68d024d7bfce348335cf366" name="tests/judy_foreach_int_to_mixed.phpt" role="test" />
    <file md5sum="9ec43571440b4e3d6bba2480a33c33ab" name="tests/judy_foreach_string_to_int.phpt" role="test" />
-   <file md5sum="85dd0e567e5333706787bc29c2d0c4c5" name="tests/judy_foreach_string_to_mixed.phpt" role="test" />
-   <file md5sum="0528774ce53b70abb9719014fc3aa390" name="tests/judy_type.phpt" role="test" />
+   <file md5sum="a0fc4eee63d8a8fccb775da2cb31a87b" name="tests/judy_foreach_string_to_mixed.phpt" role="test" />
+   <file md5sum="c7f673fc62aa161b9c057dff9f9a7183" name="tests/judy_type.phpt" role="test" />
    <file md5sum="70072c5b8bce28ef95d72c1c7bd49f0d" name="tests/string_to_int_001.phpt" role="test" />
    <file md5sum="1aec6300f3bfbda719e00aa9d36869e2" name="tests/string_to_int_002.phpt" role="test" />
    <file md5sum="842928b9f75b54649ccdf30226ce98bb" name="tests/string_to_int_003.phpt" role="test" />
    <file md5sum="c12fb2958e56862ea9ece7ae60be7cee" name="tests/string_to_int_004.phpt" role="test" />
-   <file md5sum="4e82c79a4070352220757692ac74dcc2" name="tests/string_to_mixed_001.phpt" role="test" />
-   <file md5sum="7624634397605225b8117725852c7e20" name="tests/string_to_mixed_002.phpt" role="test" />
-   <file md5sum="0d1857bb8a2833e8bda2a60781590b14" name="tests/string_to_mixed_003.phpt" role="test" />
-   <file md5sum="54f0986d39c75ae066b48a09490e938c" name="tests/string_to_mixed_004.phpt" role="test" />
+   <file md5sum="6cf51d441a79ef8844d6c366a8367795" name="tests/string_to_int_005.phpt" role="test" />
+   <file md5sum="729c24e2626ed70c1b9a3fea09c78e8b" name="tests/string_to_mixed_001.phpt" role="test" />
+   <file md5sum="2ab4a09ad00ac67c2f793fdce7d43276" name="tests/string_to_mixed_002.phpt" role="test" />
+   <file md5sum="79994e140460359a833462f83b3e17c8" name="tests/string_to_mixed_003.phpt" role="test" />
+   <file md5sum="4ca22565e1851f289fad18923c7f95b1" name="tests/string_to_mixed_004.phpt" role="test" />
+   <file md5sum="6c1c72b52db25d54eb9dabf3fb9d5563" name="tests/string_to_mixed_005.phpt" role="test" />
    <file md5sum="e5bf869700c5c640235a0a07eeed21ad" name="tests/iterator_interface_001.phpt" role="test" />
    <file md5sum="aa6f6cae5ed042dba86fa5062ed544ea" name="tests/iterator_methods_simple_001.phpt" role="test" />
    <file md5sum="bdc7b4b17d7deb684155296f0f3a6022" name="tests/iterator_methods_individual_001.phpt" role="test" />
-   <file md5sum="ad61f5c0dcdc6404a98ed50ba8a88313" name="tests/iterator_next_bug_fix_001.phpt" role="test" />
-   <file md5sum="bdd50063907706a7537d744ef93f1aff" name="tests/iterator_segfault_fix_001.phpt" role="test" />
-   <file md5sum="d0910712f2220c908e4558348d204025" name="tests/iterator_rewind_bug_fix_001.phpt" role="test" />
+   <file md5sum="bacdc2710825481758aede84c5881135" name="tests/iterator_next_bug_fix_001.phpt" role="test" />
+   <file md5sum="fd558e3e834f3a0f9b4eb414f3cfd5e5" name="tests/iterator_segfault_fix_001.phpt" role="test" />
+   <file md5sum="18fd99988f9be8a40eaf888624dc2364" name="tests/iterator_rewind_bug_fix_001.phpt" role="test" />
    <file md5sum="5efbda4fce38124279dedc80aeac1250" name="tests/iterator_next_invalid_behavior_001.phpt" role="test" />
    <file md5sum="f3c6513841873ef7cd51399593740d79" name="tests/iterator_rewind_empty_bitset_001.phpt" role="test" />
-   <file md5sum="d57126165e2a2153df47d08221f2ed90" name="tests/iterator_valid_performance_001.phpt" role="test" />
+   <file md5sum="c22186bd7e0504f66781ce2464faf15a" name="tests/iterator_valid_performance_001.phpt" role="test" />
    <file md5sum="95b9e9d9d4c6d74e023f2548e7e0de42" name="tests/foreach_iterator_int_to_int_001.phpt" role="test" />
-   <file md5sum="ea0f1a773e70d2fbd55d2d3117a050c9" name="tests/foreach_iterator_int_to_mixed_001.phpt" role="test" />
+   <file md5sum="a74064d16cd96e10df60e5221a98e892" name="tests/foreach_iterator_int_to_mixed_001.phpt" role="test" />
    <file md5sum="3d999733ee9fbcaf452ae136131cce30" name="tests/multiple_instances_count_int_to_int_001.phpt" role="test" />
-   <file md5sum="0aa77b0663ac082b9ef017b767bc4765" name="tests/multiple_instances_count_string_to_mixed_001.phpt" role="test" />
+   <file md5sum="7916c29ad2562ccf29b59c922a9ac6e5" name="tests/multiple_instances_count_string_to_mixed_001.phpt" role="test" />
    <file md5sum="b0cc6ab42f008869e910866de849b69d" name="tests/count_method_loop_int_to_int_001.phpt" role="test" />
-   <file md5sum="ceb609cd70095e9bb4599412b0bf5865" name="tests/count_method_loop_string_to_mixed_001.phpt" role="test" />
+   <file md5sum="8f9c1801c661a32ef99b82a580f371a6" name="tests/count_method_loop_string_to_mixed_001.phpt" role="test" />
    <file md5sum="5b661d339be8f777c72c752df9266a18" name="tests/foreach_negative_indices_int_to_int_001.phpt" role="test" />
    <file md5sum="fc98800804890cf1e121d123107267fd" name="tests/foreach_with_vardump_int_to_int_001.phpt" role="test" />
-   <file md5sum="a309976e1dd30e3330c6904c062e46cc" name="tests/strings_as_keys.phpt" role="test" />
-   <file md5sum="510489ef9d3b8f87b14866bed270c7f5" name="tests/strings_as_values.phpt" role="test" />
-   <file md5sum="892b076c5f69627ef01f4120a2028890" name="config.m4" role="src" />
-   <file md5sum="70239c1c7fa437a923ca24892e78baba" name="config.w32" role="src" />
+   <file md5sum="cc7b8b87898284e32df206f2d13b0992" name="tests/strings_as_keys.phpt" role="test" />
+   <file md5sum="8b18c913476fa203cf3d6d23bb3a1272" name="tests/strings_as_values.phpt" role="test" />
+   <file md5sum="3022d615e01248b9aedcc07d53f9d298" name="tests/clone_bitset_001.phpt" role="test" />
+   <file md5sum="14c7968f45bc8a025905ab3b0b7d1815" name="tests/string_to_int_counter_overwrite_001.phpt" role="test" />
+   <file md5sum="4b423ec936b0274bb518529660501c8b" name="config.m4" role="src" />
+   <file md5sum="d78e29903e6fc36c24051fcc7b698147" name="config.w32" role="src" />
    <file md5sum="27b93d365b2b7cde97ac4bb819e445b3" name="judy_arrayaccess.c" role="src" />
    <file md5sum="f2e35cd52cb1ed5cb00eae5431680d33" name="judy_arrayaccess.h" role="src" />
-   <file md5sum="09fb8aacf7255739887b16469dc6955f" name="judy_handlers.c" role="src" />
+   <file md5sum="75d1e492e98c9121bd8689447e41a93e" name="judy_handlers.c" role="src" />
    <file md5sum="1379842978d355e87b6cdbcaec243ce2" name="judy_handlers.h" role="src" />
-   <file md5sum="ed95ff4931109811769f31ad29473435" name="judy_iterator.c" role="src" />
+   <file md5sum="21f7aeaa85d97a73e318a35f0cf38fc6" name="judy_iterator.c" role="src" />
    <file md5sum="f8df1590b3cbd5af6c0429d9a335142e" name="judy_iterator.h" role="src" />
-   <file md5sum="58dfd81bbee1d3e3a78e641df59a333b" name="php_judy.c" role="src" />
-   <file md5sum="248afe9b62331eca502a92a88828c0fa" name="php_judy.h" role="src" />
+   <file md5sum="7c9788275842cc11d056367d8e96f0ba" name="php_judy.c" role="src" />
+   <file md5sum="71d4050f01cfd6ef0c92131366e35681" name="php_judy.h" role="src" />
    <file md5sum="cb564efdf78cce8ea6e4b5a4f7c05d97" name="LICENSE" role="doc" />
    <file md5sum="ce78496bc990b2d72cbbf427df52a495" name="README.md" role="doc" />
    <file md5sum="730470b2aca686ddbea82a2b2af03a1a" name="CREDITS" role="doc" />
@@ -146,6 +149,30 @@
   <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
  </extsrcrelease>
  <changelog>
+  <release>
+   <date>2026-02-27</date>
+   <version>
+    <release>2.3.0</release>
+    <api>2.3.0</api>
+   </version>
+   <stability>
+    <release>stable</release>
+    <api>stable</api>
+   </stability>
+   <notes>
+- **NEW FEATURE**: Windows PECL DLL builds now published with each release (PHP 8.1–8.5, x86/x64, TS/NTS)
+- **NEW FEATURE**: PHP 8.5 support added to CI matrix
+- **FIX**: PHP 8.1+ compile fix — ZVAL_DUP replaced with ZVAL_COPY throughout
+- **FIX**: free_obj memory leak resolved (Judy array, zvals, and iterator state now properly freed)
+- **FIX**: BITSET clone bug fixed (was iterating new array instead of source)
+- **FIX**: STRING_TO_INT counter no longer overcounts on value overwrite
+- **FIX**: E_ERROR replaced with exceptions in constructor and write_dimension
+- **FIX**: foreach-by-ref now throws a proper error instead of E_ERROR; fixed emalloc leak
+- **FIX**: long→zend_long throughout; JLF() iterator bug fixed; redundant JLG lookups removed
+- **FIX**: Removed -march=native and -flto from config.m4 for portability
+- **IMPROVEMENT**: CI workflow consolidated; Windows benchmarks added to CI reporting
+   </notes>
+  </release>
   <release>
    <date>2025-08-25</date>
    <version>
