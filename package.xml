@@ -28,17 +28,17 @@
    </stability>
    <license uri="http://www.php.net/license">PHP</license>
    <notes>
-- **NEW FEATURE**: Windows PECL DLL builds now published with each release (PHP 8.1–8.5, x86/x64, TS/NTS)
-- **NEW FEATURE**: PHP 8.5 support added to CI matrix
-- **FIX**: PHP 8.1+ compile fix — ZVAL_DUP replaced with ZVAL_COPY throughout
-- **FIX**: free_obj memory leak resolved (Judy array, zvals, and iterator state now properly freed)
-- **FIX**: BITSET clone bug fixed (was iterating new array instead of source)
-- **FIX**: STRING_TO_INT counter no longer overcounts on value overwrite
-- **FIX**: E_ERROR replaced with exceptions in constructor and write_dimension
-- **FIX**: foreach-by-ref now throws a proper error instead of E_ERROR; fixed emalloc leak
-- **FIX**: long→zend_long throughout; JLF() iterator bug fixed; redundant JLG lookups removed
-- **FIX**: Removed -march=native and -flto from config.m4 for portability
-- **IMPROVEMENT**: CI workflow consolidated; Windows benchmarks added to CI reporting
+- NEW FEATURE: Windows PECL DLL builds now published with each release (PHP 8.1-8.5, x86/x64, TS/NTS)
+- NEW FEATURE: PHP 8.5 support added to CI matrix
+- FIX: PHP 8.1+ compile fix - ZVAL_DUP replaced with ZVAL_COPY throughout
+- FIX: free_obj memory leak resolved (Judy array, zvals, and iterator state now properly freed)
+- FIX: BITSET clone bug fixed (was iterating new array instead of source)
+- FIX: STRING_TO_INT counter no longer overcounts on value overwrite
+- FIX: E_ERROR replaced with exceptions in constructor and write_dimension
+- FIX: foreach-by-ref now throws a proper error instead of E_ERROR; fixed emalloc leak
+- FIX: long->zend_long throughout; JLF() iterator bug fixed; redundant JLG lookups removed
+- FIX: Removed -march=native and -flto from config.m4 for portability
+- IMPROVEMENT: CI workflow consolidated; Windows benchmarks added to CI reporting
    </notes>
    <contents>
       <dir name="/">
@@ -163,17 +163,17 @@
             <api>stable</api>
          </stability>
          <notes>
-- **NEW FEATURE**: Windows PECL DLL builds now published with each release (PHP 8.1–8.5, x86/x64, TS/NTS)
-- **NEW FEATURE**: PHP 8.5 support added to CI matrix
-- **FIX**: PHP 8.1+ compile fix — ZVAL_DUP replaced with ZVAL_COPY throughout
-- **FIX**: free_obj memory leak resolved (Judy array, zvals, and iterator state now properly freed)
-- **FIX**: BITSET clone bug fixed (was iterating new array instead of source)
-- **FIX**: STRING_TO_INT counter no longer overcounts on value overwrite
-- **FIX**: E_ERROR replaced with exceptions in constructor and write_dimension
-- **FIX**: foreach-by-ref now throws a proper error instead of E_ERROR; fixed emalloc leak
-- **FIX**: long→zend_long throughout; JLF() iterator bug fixed; redundant JLG lookups removed
-- **FIX**: Removed -march=native and -flto from config.m4 for portability
-- **IMPROVEMENT**: CI workflow consolidated; Windows benchmarks added to CI reporting
+- NEW FEATURE: Windows PECL DLL builds now published with each release (PHP 8.1-8.5, x86/x64, TS/NTS)
+- NEW FEATURE: PHP 8.5 support added to CI matrix
+- FIX: PHP 8.1+ compile fix - ZVAL_DUP replaced with ZVAL_COPY throughout
+- FIX: free_obj memory leak resolved (Judy array, zvals, and iterator state now properly freed)
+- FIX: BITSET clone bug fixed (was iterating new array instead of source)
+- FIX: STRING_TO_INT counter no longer overcounts on value overwrite
+- FIX: E_ERROR replaced with exceptions in constructor and write_dimension
+- FIX: foreach-by-ref now throws a proper error instead of E_ERROR; fixed emalloc leak
+- FIX: long->zend_long throughout; JLF() iterator bug fixed; redundant JLG lookups removed
+- FIX: Removed -march=native and -flto from config.m4 for portability
+- IMPROVEMENT: CI workflow consolidated; Windows benchmarks added to CI reporting
          </notes>
       </release>
       <release>
