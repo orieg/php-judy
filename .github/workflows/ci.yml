@@ -71,6 +71,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Verify PHP_JUDY_VERSION matches package.xml
+        run: |
+          SRC_VER=$(grep -oP '(?<=#define PHP_JUDY_VERSION ")[^"]+' php_judy.h)
+          PKG_VER=$(grep -oP '(?<=<release>)[^<]+' package.xml | head -1)
+          echo "php_judy.h:  PHP_JUDY_VERSION = $SRC_VER"
+          echo "package.xml: <release>         = $PKG_VER"
+          if [ "$SRC_VER" != "$PKG_VER" ]; then
+            echo "ERROR: version mismatch — update PHP_JUDY_VERSION in php_judy.h to $PKG_VER"
+            exit 1
+          fi
+
       - name: Install Judy library
         run: sudo apt-get update && sudo apt-get install -y libjudy-dev
 
