@@ -2,7 +2,7 @@
 /**
  * Benchmark: All Judy Types vs Native PHP Array
  *
- * Produces a unified comparison table across all seven Judy array types plus
+ * Produces a unified comparison table across all eight Judy array types plus
  * a native PHP array baseline, measuring:
  *
  *   1. Write throughput  — individual element insertion
@@ -14,7 +14,7 @@
  *
  * Grouping:
  *   Integer-keyed: PHP int array, BITSET, INT_TO_INT, INT_TO_MIXED, INT_TO_PACKED
- *   String-keyed:  PHP string array, STRING_TO_INT, STRING_TO_MIXED, STRING_TO_MIXED_HASH
+ *   String-keyed:  PHP string array, STRING_TO_INT, STRING_TO_MIXED, STRING_TO_MIXED_HASH, STRING_TO_INT_HASH
  *
  * Notes on memory reporting:
  *   PHP array        — memory_get_usage() delta (includes zval + bucket overhead)
@@ -670,6 +670,40 @@ $results['STRING_TO_MIXED_HASH'] = [
     'note'   => 'memoryUsage()=null (JudyHS)',
 ];
 
+// STRING_TO_INT_HASH
+$results['STRING_TO_INT_HASH'] = [
+    'keys'   => 'string',
+    'values' => 'int',
+    'write'  => bench_median(function() use ($str_int_data) {
+        $j = new Judy(Judy::STRING_TO_INT_HASH);
+        foreach ($str_int_data as $k => $v) { $j[$k] = $v; }
+    }, $iterations),
+    'read'   => (function() use ($str_int_data, $str_keys, $iterations) {
+        $j = Judy::fromArray(Judy::STRING_TO_INT_HASH, $str_int_data);
+        return bench_median(function() use ($j, $str_keys) {
+            foreach ($str_keys as $k) { $v = $j[$k]; }
+        }, $iterations);
+    })(),
+    'iter'   => (function() use ($str_int_data, $iterations) {
+        $j = Judy::fromArray(Judy::STRING_TO_INT_HASH, $str_int_data);
+        return bench_median(function() use ($j) {
+            foreach ($j as $k => $v) {}
+        }, $iterations);
+    })(),
+    'heap'   => measure_heap(function() use ($str_int_data) {
+        $j = new Judy(Judy::STRING_TO_INT_HASH);
+        foreach ($str_int_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }),
+    'free'   => measure_free(function() use ($str_int_data) {
+        $j = new Judy(Judy::STRING_TO_INT_HASH);
+        foreach ($str_int_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }, $iterations),
+    'internal' => null,  // JudyHS has no C-level memory accounting
+    'note'   => 'memoryUsage()=null (JudyHS)',
+];
+
 // ── Long-key string subjects (JudyHS O(1) vs JudySL O(k) demo) ────────
 
 $long_size      = min($size, 100000);  // cap at 100K for long keys (128 B each)
@@ -775,6 +809,39 @@ $results['STR_TO_MIX_HASH (long)'] = [
     'note'   => 'JudyHS O(1) hash',
 ];
 
+$results['STR_TO_INT_HASH (long)'] = [
+    'keys'   => 'str128',
+    'values' => 'int',
+    'write'  => bench_median(function() use ($long_key_data) {
+        $j = new Judy(Judy::STRING_TO_INT_HASH);
+        foreach ($long_key_data as $k => $v) { $j[$k] = $v; }
+    }, $iterations),
+    'read'   => (function() use ($long_key_data, $long_keys, $iterations) {
+        $j = Judy::fromArray(Judy::STRING_TO_INT_HASH, $long_key_data);
+        return bench_median(function() use ($j, $long_keys) {
+            foreach ($long_keys as $k) { $v = $j[$k]; }
+        }, $iterations);
+    })(),
+    'iter'   => (function() use ($long_key_data, $iterations) {
+        $j = Judy::fromArray(Judy::STRING_TO_INT_HASH, $long_key_data);
+        return bench_median(function() use ($j) {
+            foreach ($j as $k => $v) {}
+        }, $iterations);
+    })(),
+    'heap'   => measure_heap(function() use ($long_key_data) {
+        $j = new Judy(Judy::STRING_TO_INT_HASH);
+        foreach ($long_key_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }),
+    'free'   => measure_free(function() use ($long_key_data) {
+        $j = new Judy(Judy::STRING_TO_INT_HASH);
+        foreach ($long_key_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }, $iterations),
+    'internal' => null,
+    'note'   => 'JudyHS O(1) hash',
+];
+
 // ── Output ─────────────────────────────────────────────────────────────────
 
 $div  = str_repeat('━', 92);
@@ -834,7 +901,7 @@ foreach ($int_groups as $group_label => $names) {
 echo "┌─ String-keyed types (" . number_format($size) . " elements) ───────────────────────────────┐\n\n";
 
 $str_groups = [
-    'integer values'                    => ['PHP array (str→int)',   'STRING_TO_INT'],
+    'integer values'                    => ['PHP array (str→int)',   'STRING_TO_INT', 'STRING_TO_INT_HASH'],
     'mixed values (str/int/array/bool)' => ['PHP array (str→mixed)', 'STRING_TO_MIXED', 'STRING_TO_MIXED_HASH'],
 ];
 
@@ -868,7 +935,7 @@ foreach ($str_groups as $group_label => $names) {
 
 echo "┌─ Long-key string types (" . number_format($long_size) . " elements, 128-byte keys) ──────────────┐\n\n";
 
-$long_names = ['PHP array (long→int)', 'STRING_TO_INT (long)', 'STR_TO_MIX_HASH (long)'];
+$long_names = ['PHP array (long→int)', 'STRING_TO_INT (long)', 'STR_TO_MIX_HASH (long)', 'STR_TO_INT_HASH (long)'];
 
 echo "  ── 128-byte keys → int ──\n\n";
 printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
@@ -909,9 +976,9 @@ $ordered = [
     'PHP array (bool)', 'BITSET',
     'PHP array (int)',  'INT_TO_INT',
     'PHP array (mixed)','INT_TO_MIXED', 'INT_TO_PACKED',
-    'PHP array (str→int)',   'STRING_TO_INT',
+    'PHP array (str→int)',   'STRING_TO_INT', 'STRING_TO_INT_HASH',
     'PHP array (str→mixed)', 'STRING_TO_MIXED', 'STRING_TO_MIXED_HASH',
-    'PHP array (long→int)', 'STRING_TO_INT (long)', 'STR_TO_MIX_HASH (long)',
+    'PHP array (long→int)', 'STRING_TO_INT (long)', 'STR_TO_MIX_HASH (long)', 'STR_TO_INT_HASH (long)',
 ];
 
 $prev_keys = null;

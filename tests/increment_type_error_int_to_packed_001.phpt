@@ -19,5 +19,5 @@ try {
 echo "Done\n";
 ?>
 --EXPECT--
-Exception: Judy::increment() is only supported for INT_TO_INT and STRING_TO_INT types
+Exception: Judy::increment() is only supported for INT_TO_INT, STRING_TO_INT and STRING_TO_INT_HASH types
 Done

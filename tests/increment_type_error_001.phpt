@@ -32,6 +32,6 @@ try {
 }
 ?>
 --EXPECT--
-BITSET: Judy::increment() is only supported for INT_TO_INT and STRING_TO_INT types
-INT_TO_MIXED: Judy::increment() is only supported for INT_TO_INT and STRING_TO_INT types
-STRING_TO_MIXED: Judy::increment() is only supported for INT_TO_INT and STRING_TO_INT types
+BITSET: Judy::increment() is only supported for INT_TO_INT, STRING_TO_INT and STRING_TO_INT_HASH types
+INT_TO_MIXED: Judy::increment() is only supported for INT_TO_INT, STRING_TO_INT and STRING_TO_INT_HASH types
+STRING_TO_MIXED: Judy::increment() is only supported for INT_TO_INT, STRING_TO_INT and STRING_TO_INT_HASH types

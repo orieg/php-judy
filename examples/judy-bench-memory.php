@@ -100,6 +100,10 @@ PHP,
             }
         }
 PHP,
+    'STRING_TO_INT_HASH' => <<<'PHP'
+        $j = new Judy(Judy::STRING_TO_INT_HASH);
+        for ($i = 0; $i < $N; $i++) $j["key_$i"] = $i;
+PHP,
 ];
 
 if ($has_packed) {
