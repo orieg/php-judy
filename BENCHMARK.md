@@ -285,6 +285,76 @@ foreach ($random_keys as $key) {
 
 ---
 
+## Understanding `Judy::memoryUsage()`
+
+The `memoryUsage()` method reports internal Judy C library memory consumption for the array. Its behavior varies by Judy type because the underlying C library provides different memory-accounting macros for each array family.
+
+### Return Values by Type
+
+| Judy Type | Underlying C Type | C Macro | `memoryUsage()` Return |
+|-----------|-------------------|---------|------------------------|
+| `BITSET` | Judy1 | `Judy1MemUsed` (J1MU) | `int` — bytes used |
+| `INT_TO_INT` | JudyL | `JudyLMemUsed` (JLMU) | `int` — bytes used |
+| `INT_TO_MIXED` | JudyL | `JudyLMemUsed` (JLMU) | `int` — bytes used (Judy storage only, excludes PHP zvals) |
+| `STRING_TO_INT` | JudySL | *(no macro)* | `NULL` |
+| `STRING_TO_MIXED` | JudySL | *(no macro)* | `NULL` |
+
+**Why STRING types return NULL**: The Judy C library does not provide a `JudySLMemUsed` macro. JudySL is internally a chain of JudyL arrays (one per byte of the key), making a single memory total impractical at the C level. Use `memory_get_usage()` deltas as an alternative for string-keyed types.
+
+**INT_TO_MIXED note**: The value returned is only the JudyL trie memory. The PHP `zval` pointers stored in each slot consume additional PHP heap memory not reflected in `memoryUsage()`.
+
+### How `memoryUsage()` Works Internally
+
+For `BITSET` and `INT_TO_*` types, the Judy library maintains a `TotalMemWords` counter in the root JPM (Judy Population/Memory) structure. `memoryUsage()` reads this counter and multiplies by `sizeof(Word_t)` — an O(1) operation with no traversal.
+
+```php
+$j = new Judy(Judy::INT_TO_INT);
+$j->memoryUsage(); // 0 — empty array, no JPM allocated yet
+
+for ($i = 0; $i < 10000; $i++) {
+    $j[$i] = $i;
+}
+$j->memoryUsage(); // e.g. 65536 — bytes used by Judy trie nodes
+
+$j->free();
+$j->memoryUsage(); // 0 — freed
+```
+
+### When Judy Saves Memory
+
+**Large sparse integer sets**: Judy's compressed trie uses memory proportional to *population*, not *key range*. A PHP array with keys `[0, 1000000, 2000000, ...]` allocates a full hash table; Judy allocates only the trie nodes needed.
+
+```
+10K elements with key step = 1000:
+  PHP array:       ~530 KB
+  Judy INT_TO_INT: ~ 90 KB   (5-6x less)
+  Judy BITSET:     ~ 50 KB   (10x less)
+```
+
+**Dense integer counters**: `INT_TO_INT` with sequential keys uses 2-4x less memory than a PHP array at large scale (100K+ elements), because Judy compresses dense key ranges into compact leaf nodes.
+
+**Bitset/presence tracking**: `BITSET` stores only the bit index with no value storage. At 1M elements, a Judy `BITSET` uses ~10x less memory than `$php_array[$i] = true`.
+
+### When PHP Arrays Win
+
+**Small datasets (< 1K elements)**: PHP's hash table has lower fixed overhead. The crossover point depends on key density, but Judy's memory advantage typically appears above ~1K elements.
+
+**Mixed-type values with frequent access**: `INT_TO_MIXED` stores `zval *` pointers in JudyL slots, so the zval heap cost is identical to PHP arrays. The `memoryUsage()` value only reflects Judy trie overhead, not the stored values. For small-to-medium datasets, PHP arrays will use less total memory.
+
+**String-keyed lookups**: JudySL's byte-by-byte trie traversal uses more memory per key than PHP's hash table for short, common-prefix-free keys.
+
+### Benchmark Script
+
+Run the memory patterns benchmark to see results on your hardware:
+
+```bash
+php examples/judy-bench-memory-patterns.php
+```
+
+This script compares Judy vs PHP arrays at 1K, 10K, 100K, and 1M elements across INT_TO_INT, BITSET, and STRING_TO_INT types, including sparse key scenarios.
+
+---
+
 ## Running the Benchmarks
 
 ### **Quick Benchmarks**
@@ -299,6 +369,9 @@ php examples/benchmark_real_world_patterns.php
 
 # Run batch operations and increment benchmarks
 php examples/judy-bench-batch-operations.php
+
+# Run memory usage pattern comparison
+php examples/judy-bench-memory-patterns.php
 ```
 
 **Note**: All benchmarks use proper Iterator interface methods and run without deprecated warnings.
