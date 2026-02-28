@@ -98,7 +98,8 @@ int judy_iterator_valid(zend_object_iterator *iterator)
 		if (Rc_int == 1) {
 			return SUCCESS;
 		}
-	} else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED) {
+	} else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED
+			|| object->type == TYPE_INT_TO_PACKED) {
 		Word_t    *PValue;
 
 		JLG(PValue, object->array, (Word_t) Z_LVAL_P(&it->key));
@@ -179,7 +180,8 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 			judy_iterator_data_dtor(it);
 		}
 
-	} else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED) {
+	} else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED
+			|| object->type == TYPE_INT_TO_PACKED) {
 
 		Word_t          index;
 		Pvoid_t          *PValue = NULL;
@@ -198,6 +200,13 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 
 			if (object->type == TYPE_INT_TO_INT) {
 				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
+			} else if (object->type == TYPE_INT_TO_PACKED) {
+				judy_packed_value *packed = JUDY_PVAL_READ(PValue);
+				if (packed) {
+					judy_unpack_value(packed, &it->data);
+				} else {
+					ZVAL_NULL(&it->data);
+				}
 			} else {
 				zval *value = JUDY_MVAL_READ(PValue);
 
@@ -266,7 +275,8 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			judy_iterator_data_dtor(it);
 		}
 
-	} else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED) {
+	} else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED
+			|| object->type == TYPE_INT_TO_PACKED) {
 
 		Word_t          index   = 0;
 		Pvoid_t          *PValue = NULL;
@@ -278,6 +288,13 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 
 			if (object->type == TYPE_INT_TO_INT) {
 				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
+			} else if (object->type == TYPE_INT_TO_PACKED) {
+				judy_packed_value *packed = JUDY_PVAL_READ(PValue);
+				if (packed) {
+					judy_unpack_value(packed, &it->data);
+				} else {
+					ZVAL_NULL(&it->data);
+				}
 			} else {
 				zval *value = JUDY_MVAL_READ(PValue);
 

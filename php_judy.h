@@ -73,6 +73,16 @@ typedef unsigned __int64 Word_t, * PWord_t;
 #define JUDY_MVAL_READ(PV)       ((zval *)(*(PV)))
 #define JUDY_MVAL_WRITE(PV, p)   (*(PV) = (Pvoid_t)(p))
 
+/* Packed value storage for TYPE_INT_TO_PACKED.
+ * Stores serialized PHP values as opaque byte buffers outside the GC. */
+typedef struct _judy_packed_value {
+    size_t len;
+    char   data[];   /* flexible array member: serialized bytes */
+} judy_packed_value;
+
+#define JUDY_PVAL_READ(PV)      ((judy_packed_value *)(*(PV)))
+#define JUDY_PVAL_WRITE(PV, p)  (*(PV) = (Pvoid_t)(p))
+
 #include "php.h"
 #include "php_ini.h"
 #include "zend_exceptions.h"
@@ -103,7 +113,8 @@ typedef enum _judy_type {
     TYPE_INT_TO_INT,
     TYPE_INT_TO_MIXED,
     TYPE_STRING_TO_INT,
-    TYPE_STRING_TO_MIXED
+    TYPE_STRING_TO_MIXED,
+    TYPE_INT_TO_PACKED
 } judy_type;
 /* }}} */
 
@@ -111,7 +122,8 @@ typedef enum _judy_type {
     if (type != TYPE_BITSET && type != TYPE_INT_TO_INT \
                            && type != TYPE_INT_TO_MIXED \
                            && type != TYPE_STRING_TO_INT \
-                           && type != TYPE_STRING_TO_MIXED) { \
+                           && type != TYPE_STRING_TO_MIXED \
+                           && type != TYPE_INT_TO_PACKED) { \
         php_error_docref(NULL, E_WARNING, "Not a valid Judy type. Please check the documentation for valid Judy type constant."); \
         jtype = 0; \
     } else { \
@@ -131,6 +143,7 @@ typedef enum _judy_type {
 #define JUDY_IS_INTEGER_KEYED(intern) ((intern)->is_integer_keyed)
 #define JUDY_IS_STRING_KEYED(intern) ((intern)->is_string_keyed)
 #define JUDY_IS_MIXED_VALUE(intern) ((intern)->is_mixed_value)
+#define JUDY_IS_PACKED_VALUE(intern) ((intern)->is_packed_value)
 
 typedef struct _judy_object {
 	zend_long       type;
@@ -146,6 +159,7 @@ typedef struct _judy_object {
 	zend_bool       is_integer_keyed;
 	zend_bool       is_string_keyed;
 	zend_bool       is_mixed_value;
+	zend_bool       is_packed_value;
 	zend_object     std;
 } judy_object;
 
@@ -168,6 +182,9 @@ zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv);
 int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value);
 int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty);
 int judy_object_unset_dimension_helper(zval *object, zval *offset);
+
+judy_packed_value *judy_pack_value(zval *value);
+int judy_unpack_value(judy_packed_value *packed, zval *rv);
 
 /* {{{ REGISTER_JUDY_CLASS_CONST_LONG */
 #define REGISTER_JUDY_CLASS_CONST_LONG(const_name, value) \

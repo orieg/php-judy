@@ -65,6 +65,11 @@ jobs:
           echo "=== SET OPERATIONS BENCHMARK ==="
           PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-set-operations.php 2>&1 | tee set-benchmark-results.txt
 
+          # All-types comparison: all 6 Judy types + native PHP array (50K elements, 3 iterations for CI speed)
+          echo ""
+          echo "=== ALL-TYPES COMPARISON BENCHMARK ==="
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-all-types.php 50000 3 2>&1 | tee all-types-benchmark-results.txt
+
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4
@@ -74,6 +79,7 @@ jobs:
             benchmark-results.txt
             batch-benchmark-results.txt
             set-benchmark-results.txt
+            all-types-benchmark-results.txt
           if-no-files-found: ignore
 
   validate-pecl:
@@ -208,6 +214,8 @@ jobs:
           #   1L  << N   -> sign-extends to 0xFFFFFFFF80000000 when N=31; 0 when N>=32
           #                 (breaks JU_BITPOSMASKB/L in JudyPrivate.h)
           #   0x100UL    -> 0x100 as 32-bit; JU_LEASTBYTESMASK wrong for BYTES>4
+          #   0xffL      -> 0xff as 32-bit; cJU_MASKATSTATE yields 0 for State>=5
+          #                 (breaks JU_SETDIGIT/cascade for JudySL with long strings)
           #
           # The root cause of the 17-min hang in PrevNextEmpty: bitposmaskL was
           # initialised to `1UL << 63` = 0 on MSVC x64, creating an infinite loop.
@@ -224,6 +232,8 @@ jobs:
             $text = [regex]::Replace($text, '\b1L\s*<<',  '(Word_t)1 <<')
             # Least-bytes mask base constant
             $text = $text.Replace('0x100UL', '(Word_t)0x100')
+            # Byte-mask base constant (cJU_MASKATSTATE in JudyPrivateBranch.h)
+            $text = $text.Replace('0xffL', '(Word_t)0xff')
             if ($text -ne $orig) {
               Set-Content $_.FullName -Value $text -NoNewline
               $fixCount++
@@ -365,12 +375,19 @@ jobs:
           # Run benchmarks (same script as Linux)
           & $phpExe.FullName examples/run-benchmarks.php 2>&1 | Tee-Object -FilePath benchmark-results.txt
 
+          # All-types comparison: all 6 Judy types + native PHP array
+          Write-Host ""
+          Write-Host "=== ALL-TYPES COMPARISON BENCHMARK ==="
+          & $phpExe.FullName examples/judy-bench-all-types.php 50000 3 2>&1 | Tee-Object -FilePath all-types-benchmark-results.txt
+
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-windows-php${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
-          path: benchmark-results.txt
+          path: |
+            benchmark-results.txt
+            all-types-benchmark-results.txt
           if-no-files-found: ignore
 
       - name: Debug on failure
@@ -746,6 +763,37 @@ jobs:
                       lines.append(set_data[latest])
                       lines.append("```\n")
                       lines.append("</details>\n")
+
+          # ── All-Types Comparison Benchmark ─────────────────────────
+          all_types_data = {}
+
+          for bench_dir in sorted(glob.glob("benchmarks/benchmark-linux-*")):
+              m = re.match(r'^.*benchmark-linux-php([\d.]+)$', bench_dir)
+              if not m:
+                  continue
+              php_ver = m.group(1)
+              fpath = os.path.join(bench_dir, "all-types-benchmark-results.txt")
+              if os.path.isfile(fpath):
+                  with open(fpath) as f:
+                      all_types_data[php_ver] = f.read().strip()
+
+          if all_types_data:
+              lines.append("## All-Types Comparison Benchmark\n")
+              lines.append(
+                  "Side-by-side comparison of all six Judy types and native PHP array "
+                  "(50K elements, 3 iterations, Linux only).\n"
+              )
+              latest_ver = sorted(
+                  all_types_data.keys(),
+                  key=lambda v: [int(x) for x in v.split(".")]
+              )[-1]
+              lines.append(
+                  f"<details><summary>All-Types Benchmark — PHP {latest_ver} (Linux)</summary>\n"
+              )
+              lines.append("```")
+              lines.append(all_types_data[latest_ver])
+              lines.append("```\n")
+              lines.append("</details>\n")
 
           report = "\n".join(lines) + "\n"
 
