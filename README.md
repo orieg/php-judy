@@ -175,7 +175,7 @@ make install
 
 Judy arrays can be used like usual PHP arrays. The difference will be in the type of key/values that you can use. Judy arrays are optimized for memory usage but it forces some limitations in the PHP API.
 
-There are currently 5 types of PHP Judy Arrays:
+There are currently 6 types of PHP Judy Arrays:
 
 ### 1. Judy::BITSET
 
@@ -243,6 +243,28 @@ $judy["scores"] = [85, 92, 78];
 
 echo $judy["name"]; // Outputs: John Doe
 ```
+
+### 6. Judy::INT_TO_PACKED
+
+A Judy array with integer keys and serialized ("packed") values. Values are stored as opaque byte buffers outside PHP's garbage collector using `php_var_serialize`/`php_var_unserialize`. This trades serialize/deserialize CPU cost for reduced GC pressure, making it suitable for large datasets where GC pauses are a concern.
+
+Supports any serializable PHP value (strings, integers, floats, arrays, objects). Closures and generators cannot be stored.
+
+```php
+$judy = new Judy(Judy::INT_TO_PACKED);
+$judy[0] = "Hello";
+$judy[1] = 42;
+$judy[2] = [1, 2, 3];
+$judy[3] = new DateTimeImmutable();
+
+echo $judy[0]; // Outputs: Hello
+// Values are fully reconstructed on read
+$arr = $judy[2]; // Returns [1, 2, 3]
+```
+
+**When to use INT_TO_PACKED vs INT_TO_MIXED:**
+- Use `INT_TO_MIXED` for small-to-medium arrays or when read/write speed is critical
+- Use `INT_TO_PACKED` for large arrays (100K+ elements) where GC pause reduction matters more than individual read/write latency
 
 ### Iterator Interface (PHP 8+)
 
@@ -334,7 +356,7 @@ Please report bugs and issues on the GitHub repository:
 - [x] **Performance**: Batch API (`putAll`, `getAll`, `toArray`, `fromArray`) to reduce function call overhead.
 - [x] **Performance**: Atomic `increment` method for `INT_TO_INT` and `STRING_TO_INT`.
 - [ ] **Feature**: Support `JudyHS` (Hash Array) for faster string lookups when sorting is not required.
-- [ ] **Performance**: Implement "Opaque" storage (packed values) to bypass GC scanning for large datasets.
+- [x] **Performance**: Implement "Opaque" storage (`INT_TO_PACKED`) to bypass GC scanning for large datasets.
 
 ## License
 

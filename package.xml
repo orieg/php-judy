@@ -61,6 +61,7 @@
          <file name="examples/judy-bench-set-operations.php" role="doc" />
          <file name="examples/judy-bench-batch-operations.php" role="doc" />
          <file name="examples/judy-bench-memory-patterns.php" role="doc" />
+         <file name="examples/judy-bench-packed-vs-mixed.php" role="doc" />
          <file md5sum="abc7eb31bb88857463ec941514e5f019" name="tests/001.phpt" role="test" />
          <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />
          <file md5sum="9f3363cc4c6d15cb52184351cf710fd7" name="tests/bitset_002.phpt" role="test" />
@@ -108,6 +109,23 @@
          <file name="tests/increment_string_to_int_001.phpt" role="test" />
          <file name="tests/increment_type_error_001.phpt" role="test" />
          <file name="tests/judy_memuse_001.phpt" role="test" />
+         <file name="tests/int_to_packed_001.phpt" role="test" />
+         <file name="tests/int_to_packed_002.phpt" role="test" />
+         <file name="tests/int_to_packed_003.phpt" role="test" />
+         <file name="tests/int_to_packed_004.phpt" role="test" />
+         <file name="tests/int_to_packed_unserializable_001.phpt" role="test" />
+         <file name="tests/judy_foreach_int_to_packed.phpt" role="test" />
+         <file name="tests/foreach_iterator_int_to_packed_001.phpt" role="test" />
+         <file name="tests/to_array_int_to_packed_001.phpt" role="test" />
+         <file name="tests/from_array_roundtrip_int_to_packed_001.phpt" role="test" />
+         <file name="tests/serialize_roundtrip_int_to_packed_001.phpt" role="test" />
+         <file name="tests/json_serialize_int_to_packed_001.phpt" role="test" />
+         <file name="tests/slice_int_to_packed_001.phpt" role="test" />
+         <file name="tests/clone_int_to_packed_001.phpt" role="test" />
+         <file name="tests/get_all_int_to_packed_001.phpt" role="test" />
+         <file name="tests/put_all_int_to_packed_001.phpt" role="test" />
+         <file name="tests/increment_type_error_int_to_packed_001.phpt" role="test" />
+         <file name="tests/judy_memuse_int_to_packed_001.phpt" role="test" />
          <file name="tests/free_lifecycle_001.phpt" role="test" />
          <file name="tests/free_reuse_001.phpt" role="test" />
          <file name="tests/constructor_error_001.phpt" role="test" />
