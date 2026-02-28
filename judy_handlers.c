@@ -116,6 +116,34 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			}
 			JSLN(PValue, old_obj->array, kindex)
 		}
+	} else if (old_obj->type == TYPE_STRING_TO_MIXED_HASH) {
+		/* Cloning JudyHS Array + parallel JudySL key_index */
+
+		uint8_t kindex[PHP_JUDY_MAX_LENGTH];
+		Pvoid_t *KValue;
+		Pvoid_t newKeyIndex = (Pvoid_t) NULL;
+
+		kindex[0] = '\0';
+		JSLF(KValue, old_obj->key_index, kindex);
+		while (KValue != NULL && KValue != PJERR) {
+			Word_t klen = (Word_t)strlen((char *)kindex);
+			Pvoid_t *HValue;
+			JHSG(HValue, old_obj->array, kindex, klen);
+			if (HValue != NULL && HValue != PJERR) {
+				Pvoid_t *newHValue;
+				Pvoid_t *newKValue;
+				JHSI(newHValue, newJArray, kindex, klen);
+				if (newHValue != NULL && newHValue != PJERR) {
+					zval *value = ecalloc(1, sizeof(zval));
+					ZVAL_COPY(value, JUDY_MVAL_READ(HValue));
+					JUDY_MVAL_WRITE(newHValue, value);
+				}
+				JSLI(newKValue, newKeyIndex, kindex);
+				if (newKValue == PJERR) break;
+			}
+			JSLN(KValue, old_obj->key_index, kindex)
+		}
+		new_obj->key_index = newKeyIndex;
 	}
 
 	new_obj->array = newJArray;
@@ -125,6 +153,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 	new_obj->is_string_keyed = old_obj->is_string_keyed;
 	new_obj->is_mixed_value = old_obj->is_mixed_value;
 	new_obj->is_packed_value = old_obj->is_packed_value;
+	new_obj->is_hash_keyed = old_obj->is_hash_keyed;
 
 	return &new_obj->std;
 }

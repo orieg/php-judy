@@ -179,6 +179,16 @@
          <file md5sum="79994e140460359a833462f83b3e17c8" name="tests/string_to_mixed_003.phpt" role="test" />
          <file md5sum="4ca22565e1851f289fad18923c7f95b1" name="tests/string_to_mixed_004.phpt" role="test" />
          <file md5sum="6c1c72b52db25d54eb9dabf3fb9d5563" name="tests/string_to_mixed_005.phpt" role="test" />
+         <file name="tests/string_to_mixed_hash_001.phpt" role="test" />
+         <file name="tests/string_to_mixed_hash_002.phpt" role="test" />
+         <file name="tests/string_to_mixed_hash_003.phpt" role="test" />
+         <file name="tests/string_to_mixed_hash_004.phpt" role="test" />
+         <file name="tests/string_to_mixed_hash_005.phpt" role="test" />
+         <file name="tests/string_to_mixed_hash_006.phpt" role="test" />
+         <file name="tests/from_array_roundtrip_string_to_mixed_hash.phpt" role="test" />
+         <file name="tests/json_serialize_string_to_mixed_hash.phpt" role="test" />
+         <file name="tests/serialize_roundtrip_string_to_mixed_hash.phpt" role="test" />
+         <file name="tests/judy_memuse_string_to_mixed_hash.phpt" role="test" />
          <file md5sum="e5bf869700c5c640235a0a07eeed21ad" name="tests/iterator_interface_001.phpt" role="test" />
          <file md5sum="aa6f6cae5ed042dba86fa5062ed544ea" name="tests/iterator_methods_simple_001.phpt" role="test" />
          <file md5sum="bdc7b4b17d7deb684155296f0f3a6022" name="tests/iterator_methods_individual_001.phpt" role="test" />

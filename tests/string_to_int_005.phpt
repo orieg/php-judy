@@ -14,5 +14,5 @@ try {
 echo "Done\n";
 ?>
 --EXPECT--
-Caught: Judy STRING_TO_INT and STRING_TO_MIXED values cannot be set without specifying a key
+Caught: Judy STRING_TO_INT, STRING_TO_MIXED and STRING_TO_MIXED_HASH values cannot be set without specifying a key
 Done

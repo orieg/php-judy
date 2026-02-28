@@ -537,6 +537,34 @@ $results['STRING_TO_MIXED'] = [
     'note'   => 'memoryUsage()=null (JudySL)',
 ];
 
+// STRING_TO_MIXED_HASH
+$results['STRING_TO_MIXED_HASH'] = [
+    'keys'   => 'string',
+    'values' => 'mixed',
+    'write'  => bench_median(function() use ($str_mixed_data) {
+        $j = new Judy(Judy::STRING_TO_MIXED_HASH);
+        foreach ($str_mixed_data as $k => $v) { $j[$k] = $v; }
+    }, $iterations),
+    'read'   => (function() use ($str_mixed_data, $str_mix_keys, $iterations) {
+        $j = Judy::fromArray(Judy::STRING_TO_MIXED_HASH, $str_mixed_data);
+        return bench_median(function() use ($j, $str_mix_keys) {
+            foreach ($str_mix_keys as $k) { $v = $j[$k]; }
+        }, $iterations);
+    })(),
+    'iter'   => (function() use ($str_mixed_data, $iterations) {
+        $j = Judy::fromArray(Judy::STRING_TO_MIXED_HASH, $str_mixed_data);
+        return bench_median(function() use ($j) {
+            foreach ($j as $k => $v) {}
+        }, $iterations);
+    })(),
+    'heap'   => measure_heap(function() use ($str_mixed_data) {
+        $j = new Judy(Judy::STRING_TO_MIXED_HASH);
+        foreach ($str_mixed_data as $k => $v) { $j[$k] = $v; }
+    }),
+    'internal' => null,  // JudyHS has no C-level memory accounting
+    'note'   => 'memoryUsage()=null (JudyHS)',
+];
+
 // ── Output ─────────────────────────────────────────────────────────────────
 
 $div  = str_repeat('━', 78);
@@ -596,7 +624,7 @@ echo "┌─ String-keyed types (" . number_format($size) . " elements) ──�
 
 $str_groups = [
     'integer values'                    => ['PHP array (str→int)',   'STRING_TO_INT'],
-    'mixed values (str/int/array/bool)' => ['PHP array (str→mixed)', 'STRING_TO_MIXED'],
+    'mixed values (str/int/array/bool)' => ['PHP array (str→mixed)', 'STRING_TO_MIXED', 'STRING_TO_MIXED_HASH'],
 ];
 
 foreach ($str_groups as $group_label => $names) {
@@ -641,7 +669,7 @@ $ordered = [
     'PHP array (int)',  'INT_TO_INT',
     'PHP array (mixed)','INT_TO_MIXED', 'INT_TO_PACKED',
     'PHP array (str→int)',   'STRING_TO_INT',
-    'PHP array (str→mixed)', 'STRING_TO_MIXED',
+    'PHP array (str→mixed)', 'STRING_TO_MIXED', 'STRING_TO_MIXED_HASH',
 ];
 
 $prev_keys = null;
@@ -668,6 +696,7 @@ echo "  • Heap delta: memory_get_usage() before/after populate (emalloc'd PHP 
 echo "  • Internal mem: Judy C-level accounting (JLMU/J1MU) via memoryUsage()\n";
 echo "    – BITSET/INT_TO_INT/INT_TO_MIXED/INT_TO_PACKED support this\n";
 echo "    – STRING_TO_INT/STRING_TO_MIXED: JudySL has no accounting macro → n/a\n";
+echo "    – STRING_TO_MIXED_HASH: JudyHS has no accounting macro → n/a\n";
 echo "    – INT_TO_MIXED: counts JudyL nodes only; ecalloc'd zvals not included\n";
 echo "    – INT_TO_PACKED: counts JudyL nodes only; emalloc'd packed bufs not included\n";
 echo "$div\n";
