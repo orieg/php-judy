@@ -1706,6 +1706,148 @@ alloc_error:
 }
 /* }}} */
 
+/* {{{ Helper to create a new empty Judy object of the given type as return_value */
+static judy_object *judy_create_result(zval *return_value, judy_type type)
+{
+	judy_object *result;
+
+	object_init_ex(return_value, judy_ce);
+	result = php_judy_object(Z_OBJ_P(return_value));
+	result->type = type;
+	result->array = (Pvoid_t) NULL;
+	result->counter = 0;
+	result->is_integer_keyed = (type == TYPE_BITSET || type == TYPE_INT_TO_INT || type == TYPE_INT_TO_MIXED);
+	result->is_string_keyed = (type == TYPE_STRING_TO_INT || type == TYPE_STRING_TO_MIXED);
+	result->is_mixed_value = (type == TYPE_INT_TO_MIXED || type == TYPE_STRING_TO_MIXED);
+	return result;
+}
+/* }}} */
+
+/* {{{ proto Judy Judy::slice(mixed $start, mixed $end)
+   Return a new Judy array of the same type containing entries in [$start, $end] inclusive */
+PHP_METHOD(judy, slice)
+{
+	zval *zstart, *zend_val;
+	judy_object *result;
+
+	JUDY_METHOD_GET_OBJECT
+
+	ZEND_PARSE_PARAMETERS_START(2, 2)
+		Z_PARAM_ZVAL(zstart)
+		Z_PARAM_ZVAL(zend_val)
+	ZEND_PARSE_PARAMETERS_END();
+
+	result = judy_create_result(return_value, intern->type);
+
+	if (intern->type == TYPE_BITSET) {
+		Word_t start = (Word_t) zval_get_long(zstart);
+		Word_t end = (Word_t) zval_get_long(zend_val);
+		Word_t index;
+		int Rc_int, Rc_set;
+
+		if (start > end) return;
+
+		index = start;
+		J1F(Rc_int, intern->array, index);
+		while (Rc_int && index <= end) {
+			J1S(Rc_set, result->array, index);
+			if (Rc_set == JERR) goto alloc_error;
+			J1N(Rc_int, intern->array, index);
+		}
+
+	} else if (intern->type == TYPE_INT_TO_INT) {
+		Word_t start = (Word_t) zval_get_long(zstart);
+		Word_t end = (Word_t) zval_get_long(zend_val);
+		Word_t index;
+		Pvoid_t *PValue;
+
+		if (start > end) return;
+
+		index = start;
+		JLF(PValue, intern->array, index);
+		while (PValue != NULL && PValue != PJERR && index <= end) {
+			Pvoid_t *PNew;
+			JLI(PNew, result->array, index);
+			if (PNew == PJERR) goto alloc_error;
+			JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+			JLN(PValue, intern->array, index);
+		}
+
+	} else if (intern->type == TYPE_INT_TO_MIXED) {
+		Word_t start = (Word_t) zval_get_long(zstart);
+		Word_t end = (Word_t) zval_get_long(zend_val);
+		Word_t index;
+		Pvoid_t *PValue;
+
+		if (start > end) return;
+
+		index = start;
+		JLF(PValue, intern->array, index);
+		while (PValue != NULL && PValue != PJERR && index <= end) {
+			Pvoid_t *PNew;
+			zval *new_value;
+			JLI(PNew, result->array, index);
+			if (PNew == PJERR) goto alloc_error;
+			new_value = ecalloc(1, sizeof(zval));
+			ZVAL_COPY(new_value, JUDY_MVAL_READ(PValue));
+			JUDY_MVAL_WRITE(PNew, new_value);
+			JLN(PValue, intern->array, index);
+		}
+
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+		char *str_start, *str_end;
+		size_t str_start_len, str_end_len;
+
+		if (Z_TYPE_P(zstart) != IS_STRING || Z_TYPE_P(zend_val) != IS_STRING) {
+			zend_throw_error(zend_ce_type_error, "Judy::slice() expects string arguments for string-keyed arrays");
+			return;
+		}
+
+		str_start = Z_STRVAL_P(zstart);
+		str_start_len = Z_STRLEN_P(zstart);
+		str_end = Z_STRVAL_P(zend_val);
+		str_end_len = Z_STRLEN_P(zend_val);
+
+		if (strcmp(str_start, str_end) > 0) return;
+
+		{
+			uint8_t key[PHP_JUDY_MAX_LENGTH];
+			Pvoid_t *PValue;
+			int key_len;
+
+			key_len = str_start_len >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_start_len;
+			memcpy(key, str_start, key_len);
+			key[key_len] = '\0';
+
+			JSLF(PValue, intern->array, key);
+			while (PValue != NULL && PValue != PJERR && strcmp((const char *)key, str_end) <= 0) {
+				Pvoid_t *PNew;
+				JSLI(PNew, result->array, key);
+				if (PNew == PJERR) goto alloc_error;
+
+				if (intern->type == TYPE_STRING_TO_INT) {
+					JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+				} else {
+					zval *new_value;
+					new_value = ecalloc(1, sizeof(zval));
+					ZVAL_COPY(new_value, JUDY_MVAL_READ(PValue));
+					JUDY_MVAL_WRITE(PNew, new_value);
+				}
+				result->counter++;
+				JSLN(PValue, intern->array, key);
+			}
+		}
+	}
+
+	return;
+
+alloc_error:
+	zval_ptr_dtor(return_value);
+	ZVAL_NULL(return_value);
+	zend_throw_exception(NULL, "Judy: memory allocation failed during slice", 0);
+}
+/* }}} */
+
 /* {{{ proto int Judy::getType()
    Return the current Judy Array type */
 PHP_METHOD(judy, getType)
@@ -1769,6 +1911,7 @@ PHP_METHOD(judy, union);
 PHP_METHOD(judy, intersect);
 PHP_METHOD(judy, diff);
 PHP_METHOD(judy, xor);
+PHP_METHOD(judy, slice);
 /* }}} */
 
 /* {{{ PHP Judy Methods for the Array Access Interface
@@ -1837,6 +1980,12 @@ ZEND_END_ARG_INFO()
 #define arginfo_judy_intersect arginfo_judy_union
 #define arginfo_judy_diff arginfo_judy_union
 #define arginfo_judy_xor arginfo_judy_union
+
+/* Slice arginfo */
+ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_judy_slice, 0, 2, Judy, 0)
+	ZEND_ARG_TYPE_INFO(0, start, IS_MIXED, 0)
+	ZEND_ARG_TYPE_INFO(0, end, IS_MIXED, 0)
+ZEND_END_ARG_INFO()
 
 /* }}} */
 
@@ -1939,6 +2088,9 @@ const zend_function_entry judy_class_methods[] = {
 	PHP_ME(judy, intersect, 		arginfo_judy_intersect, ZEND_ACC_PUBLIC)
 	PHP_ME(judy, diff, 				arginfo_judy_diff, ZEND_ACC_PUBLIC)
 	PHP_ME(judy, xor, 				arginfo_judy_xor, ZEND_ACC_PUBLIC)
+
+	/* PHP JUDY METHODS / SLICE */
+	PHP_ME(judy, slice, 			arginfo_judy_slice, ZEND_ACC_PUBLIC)
 
 	/* PHP JUDY METHODS / ARRAYACCESS INTERFACE */
 	PHP_ME(judy, offsetSet, 		arginfo_judy_offsetSet, ZEND_ACC_PUBLIC)
