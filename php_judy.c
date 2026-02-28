@@ -1840,6 +1840,10 @@ PHP_METHOD(Judy, prevEmpty)
 /* }}} */
 
 /* {{{ Helper to create a new empty BITSET Judy object as return_value */
+static void judy_create_bitset_result(zval *return_value);
+/* Forward declaration */
+static judy_object *judy_create_result(zval *return_value, judy_type type);
+
 static void judy_create_bitset_result(zval *return_value)
 {
 	judy_object *result;
@@ -1855,15 +1859,15 @@ static void judy_create_bitset_result(zval *return_value)
 }
 /* }}} */
 
-/* {{{ Helper to validate that both operands are BITSET type */
-static int judy_validate_bitset_operands(judy_object *self, judy_object *other)
+/* {{{ Helper to validate that both operands support set operations and have the same type */
+static int judy_validate_set_operands(judy_object *self, judy_object *other)
 {
-	if (self->type != TYPE_BITSET) {
-		zend_throw_exception(NULL, "Set operations are only supported on BITSET arrays", 0);
+	if (self->type != TYPE_BITSET && self->type != TYPE_INT_TO_INT) {
+		zend_throw_exception(NULL, "Set operations are only supported on BITSET and INT_TO_INT arrays", 0);
 		return FAILURE;
 	}
-	if (other->type != TYPE_BITSET) {
-		zend_throw_exception(NULL, "The other Judy array must also be a BITSET", 0);
+	if (other->type != self->type) {
+		zend_throw_exception(NULL, "Both Judy arrays must be the same type for set operations", 0);
 		return FAILURE;
 	}
 	return SUCCESS;
@@ -1871,13 +1875,13 @@ static int judy_validate_bitset_operands(judy_object *self, judy_object *other)
 /* }}} */
 
 /* {{{ proto Judy Judy::union(Judy $other)
-   Return a new BITSET containing all indices present in either array */
+   Return a new Judy array containing all indices present in either array.
+   For INT_TO_INT, values from self take priority (left-wins). */
 PHP_METHOD(Judy, union)
 {
 	zval *other_zval;
 	judy_object *other, *result;
 	Word_t index;
-	int Rc_int, Rc_set;
 
 	JUDY_METHOD_GET_OBJECT
 
@@ -1887,51 +1891,91 @@ PHP_METHOD(Judy, union)
 
 	other = php_judy_object(Z_OBJ_P(other_zval));
 
-	if (judy_validate_bitset_operands(intern, other) == FAILURE) {
+	if (judy_validate_set_operands(intern, other) == FAILURE) {
 		return;
 	}
 
-	judy_create_bitset_result(return_value);
-	result = php_judy_object(Z_OBJ_P(return_value));
+	if (intern->type == TYPE_BITSET) {
+		int Rc_int, Rc_set;
 
-	/* Add all indices from self */
-	index = 0;
-	J1F(Rc_int, intern->array, index);
-	while (Rc_int) {
-		J1S(Rc_set, result->array, index);
-		if (Rc_set == JERR) goto alloc_error;
-		J1N(Rc_int, intern->array, index);
+		judy_create_bitset_result(return_value);
+		result = php_judy_object(Z_OBJ_P(return_value));
+
+		/* Add all indices from self */
+		index = 0;
+		J1F(Rc_int, intern->array, index);
+		while (Rc_int) {
+			J1S(Rc_set, result->array, index);
+			if (Rc_set == JERR) goto alloc_error_bitset;
+			J1N(Rc_int, intern->array, index);
+		}
+
+		/* Add all indices from other */
+		index = 0;
+		J1F(Rc_int, other->array, index);
+		while (Rc_int) {
+			J1S(Rc_set, result->array, index);
+			if (Rc_set == JERR) goto alloc_error_bitset;
+			J1N(Rc_int, other->array, index);
+		}
+
+		return;
+
+alloc_error_bitset:
+		J1FA(Rc_int, result->array);
+		result->array = NULL;
+		zval_ptr_dtor(return_value);
+		ZVAL_NULL(return_value);
+		zend_throw_exception(NULL, "Judy: memory allocation failed during union", 0);
+
+	} else { /* TYPE_INT_TO_INT */
+		Pvoid_t *PValue, *PNew;
+
+		result = judy_create_result(return_value, TYPE_INT_TO_INT);
+
+		/* Add all entries from other first */
+		index = 0;
+		JLF(PValue, other->array, index);
+		while (PValue != NULL && PValue != PJERR) {
+			JLI(PNew, result->array, index);
+			if (PNew == PJERR) goto alloc_error_il;
+			JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+			JLN(PValue, other->array, index);
+		}
+
+		/* Add/overwrite with all entries from self (left-wins) */
+		index = 0;
+		JLF(PValue, intern->array, index);
+		while (PValue != NULL && PValue != PJERR) {
+			JLI(PNew, result->array, index);
+			if (PNew == PJERR) goto alloc_error_il;
+			JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+			JLN(PValue, intern->array, index);
+		}
+
+		return;
+
+alloc_error_il:
+		{
+			Word_t Rc_word;
+			JLFA(Rc_word, result->array);
+		}
+		result->array = NULL;
+		zval_ptr_dtor(return_value);
+		ZVAL_NULL(return_value);
+		zend_throw_exception(NULL, "Judy: memory allocation failed during union", 0);
 	}
-
-	/* Add all indices from other */
-	index = 0;
-	J1F(Rc_int, other->array, index);
-	while (Rc_int) {
-		J1S(Rc_set, result->array, index);
-		if (Rc_set == JERR) goto alloc_error;
-		J1N(Rc_int, other->array, index);
-	}
-
-	return;
-
-alloc_error:
-	J1FA(Rc_int, result->array);
-	result->array = NULL;
-	zval_ptr_dtor(return_value);
-	ZVAL_NULL(return_value);
-	zend_throw_exception(NULL, "Judy: memory allocation failed during union", 0);
 }
 /* }}} */
 
 /* {{{ proto Judy Judy::intersect(Judy $other)
-   Return a new BITSET containing only indices present in both arrays */
+   Return a new Judy array containing only indices present in both arrays.
+   For INT_TO_INT, values from self are used. */
 PHP_METHOD(Judy, intersect)
 {
 	zval *other_zval;
 	judy_object *other, *result;
-	Pvoid_t iter_array, test_array;
 	Word_t index;
-	int Rc_int, Rc_set;
 
 	JUDY_METHOD_GET_OBJECT
 
@@ -1941,58 +1985,114 @@ PHP_METHOD(Judy, intersect)
 
 	other = php_judy_object(Z_OBJ_P(other_zval));
 
-	if (judy_validate_bitset_operands(intern, other) == FAILURE) {
+	if (judy_validate_set_operands(intern, other) == FAILURE) {
 		return;
 	}
 
-	judy_create_bitset_result(return_value);
-	result = php_judy_object(Z_OBJ_P(return_value));
+	if (intern->type == TYPE_BITSET) {
+		Pvoid_t iter_array, test_array;
+		int Rc_int, Rc_set;
 
-	/* Iterate the smaller set, test against the larger for better performance */
-	{
-		Word_t count_self = 0, count_other = 0;
-		J1C(count_self, intern->array, 0, -1);
-		J1C(count_other, other->array, 0, -1);
-		if (count_self <= count_other) {
-			iter_array = intern->array;
-			test_array = other->array;
-		} else {
-			iter_array = other->array;
-			test_array = intern->array;
+		judy_create_bitset_result(return_value);
+		result = php_judy_object(Z_OBJ_P(return_value));
+
+		/* Iterate the smaller set, test against the larger for better performance */
+		{
+			Word_t count_self = 0, count_other = 0;
+			J1C(count_self, intern->array, 0, -1);
+			J1C(count_other, other->array, 0, -1);
+			if (count_self <= count_other) {
+				iter_array = intern->array;
+				test_array = other->array;
+			} else {
+				iter_array = other->array;
+				test_array = intern->array;
+			}
 		}
-	}
 
-	index = 0;
-	J1F(Rc_int, iter_array, index);
-	while (Rc_int) {
-		int in_test;
-		J1T(in_test, test_array, index);
-		if (in_test) {
-			J1S(Rc_set, result->array, index);
-			if (Rc_set == JERR) goto alloc_error;
+		index = 0;
+		J1F(Rc_int, iter_array, index);
+		while (Rc_int) {
+			int in_test;
+			J1T(in_test, test_array, index);
+			if (in_test) {
+				J1S(Rc_set, result->array, index);
+				if (Rc_set == JERR) goto alloc_error_bitset;
+			}
+			J1N(Rc_int, iter_array, index);
 		}
-		J1N(Rc_int, iter_array, index);
+
+		return;
+
+alloc_error_bitset:
+		J1FA(Rc_int, result->array);
+		result->array = NULL;
+		zval_ptr_dtor(return_value);
+		ZVAL_NULL(return_value);
+		zend_throw_exception(NULL, "Judy: memory allocation failed during intersect", 0);
+
+	} else { /* TYPE_INT_TO_INT */
+		Pvoid_t iter_array, test_array;
+		Pvoid_t *PValue, *PTest, *PNew;
+		int self_is_iter;
+
+		result = judy_create_result(return_value, TYPE_INT_TO_INT);
+
+		/* Iterate the smaller set for better performance */
+		{
+			Word_t count_self = 0, count_other = 0;
+			JLC(count_self, intern->array, 0, -1);
+			JLC(count_other, other->array, 0, -1);
+			if (count_self <= count_other) {
+				iter_array = intern->array;
+				test_array = other->array;
+				self_is_iter = 1;
+			} else {
+				iter_array = other->array;
+				test_array = intern->array;
+				self_is_iter = 0;
+			}
+		}
+
+		index = 0;
+		JLF(PValue, iter_array, index);
+		while (PValue != NULL && PValue != PJERR) {
+			JLG(PTest, test_array, index);
+			if (PTest != NULL && PTest != PJERR) {
+				JLI(PNew, result->array, index);
+				if (PNew == PJERR) goto alloc_error_il;
+				/* Always use self's value (left-wins) */
+				if (self_is_iter) {
+					JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+				} else {
+					JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PTest));
+				}
+			}
+			JLN(PValue, iter_array, index);
+		}
+
+		return;
+
+alloc_error_il:
+		{
+			Word_t Rc_word;
+			JLFA(Rc_word, result->array);
+		}
+		result->array = NULL;
+		zval_ptr_dtor(return_value);
+		ZVAL_NULL(return_value);
+		zend_throw_exception(NULL, "Judy: memory allocation failed during intersect", 0);
 	}
-
-	return;
-
-alloc_error:
-	J1FA(Rc_int, result->array);
-	result->array = NULL;
-	zval_ptr_dtor(return_value);
-	ZVAL_NULL(return_value);
-	zend_throw_exception(NULL, "Judy: memory allocation failed during intersect", 0);
 }
 /* }}} */
 
 /* {{{ proto Judy Judy::diff(Judy $other)
-   Return a new BITSET containing indices present in this array but not in $other */
+   Return a new Judy array containing indices present in this array but not in $other */
 PHP_METHOD(Judy, diff)
 {
 	zval *other_zval;
 	judy_object *other, *result;
 	Word_t index;
-	int Rc_int, Rc_set;
 
 	JUDY_METHOD_GET_OBJECT
 
@@ -2002,45 +2102,78 @@ PHP_METHOD(Judy, diff)
 
 	other = php_judy_object(Z_OBJ_P(other_zval));
 
-	if (judy_validate_bitset_operands(intern, other) == FAILURE) {
+	if (judy_validate_set_operands(intern, other) == FAILURE) {
 		return;
 	}
 
-	judy_create_bitset_result(return_value);
-	result = php_judy_object(Z_OBJ_P(return_value));
+	if (intern->type == TYPE_BITSET) {
+		int Rc_int, Rc_set;
 
-	/* Iterate self, add to result only if absent in other */
-	index = 0;
-	J1F(Rc_int, intern->array, index);
-	while (Rc_int) {
-		int in_other;
-		J1T(in_other, other->array, index);
-		if (!in_other) {
-			J1S(Rc_set, result->array, index);
-			if (Rc_set == JERR) goto alloc_error;
+		judy_create_bitset_result(return_value);
+		result = php_judy_object(Z_OBJ_P(return_value));
+
+		/* Iterate self, add to result only if absent in other */
+		index = 0;
+		J1F(Rc_int, intern->array, index);
+		while (Rc_int) {
+			int in_other;
+			J1T(in_other, other->array, index);
+			if (!in_other) {
+				J1S(Rc_set, result->array, index);
+				if (Rc_set == JERR) goto alloc_error_bitset;
+			}
+			J1N(Rc_int, intern->array, index);
 		}
-		J1N(Rc_int, intern->array, index);
+
+		return;
+
+alloc_error_bitset:
+		J1FA(Rc_int, result->array);
+		result->array = NULL;
+		zval_ptr_dtor(return_value);
+		ZVAL_NULL(return_value);
+		zend_throw_exception(NULL, "Judy: memory allocation failed during diff", 0);
+
+	} else { /* TYPE_INT_TO_INT */
+		Pvoid_t *PValue, *PTest, *PNew;
+
+		result = judy_create_result(return_value, TYPE_INT_TO_INT);
+
+		/* Iterate self, add to result only if absent in other */
+		index = 0;
+		JLF(PValue, intern->array, index);
+		while (PValue != NULL && PValue != PJERR) {
+			JLG(PTest, other->array, index);
+			if (PTest == NULL || PTest == PJERR) {
+				JLI(PNew, result->array, index);
+				if (PNew == PJERR) goto alloc_error_il;
+				JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+			}
+			JLN(PValue, intern->array, index);
+		}
+
+		return;
+
+alloc_error_il:
+		{
+			Word_t Rc_word;
+			JLFA(Rc_word, result->array);
+		}
+		result->array = NULL;
+		zval_ptr_dtor(return_value);
+		ZVAL_NULL(return_value);
+		zend_throw_exception(NULL, "Judy: memory allocation failed during diff", 0);
 	}
-
-	return;
-
-alloc_error:
-	J1FA(Rc_int, result->array);
-	result->array = NULL;
-	zval_ptr_dtor(return_value);
-	ZVAL_NULL(return_value);
-	zend_throw_exception(NULL, "Judy: memory allocation failed during diff", 0);
 }
 /* }}} */
 
 /* {{{ proto Judy Judy::xor(Judy $other)
-   Return a new BITSET containing indices present in exactly one of the arrays */
+   Return a new Judy array containing indices present in exactly one of the arrays */
 PHP_METHOD(Judy, xor)
 {
 	zval *other_zval;
 	judy_object *other, *result;
 	Word_t index;
-	int Rc_int, Rc_set;
 
 	JUDY_METHOD_GET_OBJECT
 
@@ -2050,47 +2183,94 @@ PHP_METHOD(Judy, xor)
 
 	other = php_judy_object(Z_OBJ_P(other_zval));
 
-	if (judy_validate_bitset_operands(intern, other) == FAILURE) {
+	if (judy_validate_set_operands(intern, other) == FAILURE) {
 		return;
 	}
 
-	judy_create_bitset_result(return_value);
-	result = php_judy_object(Z_OBJ_P(return_value));
+	if (intern->type == TYPE_BITSET) {
+		int Rc_int, Rc_set;
 
-	/* Add indices from self that are not in other */
-	index = 0;
-	J1F(Rc_int, intern->array, index);
-	while (Rc_int) {
-		int in_other;
-		J1T(in_other, other->array, index);
-		if (!in_other) {
-			J1S(Rc_set, result->array, index);
-			if (Rc_set == JERR) goto alloc_error;
+		judy_create_bitset_result(return_value);
+		result = php_judy_object(Z_OBJ_P(return_value));
+
+		/* Add indices from self that are not in other */
+		index = 0;
+		J1F(Rc_int, intern->array, index);
+		while (Rc_int) {
+			int in_other;
+			J1T(in_other, other->array, index);
+			if (!in_other) {
+				J1S(Rc_set, result->array, index);
+				if (Rc_set == JERR) goto alloc_error_bitset;
+			}
+			J1N(Rc_int, intern->array, index);
 		}
-		J1N(Rc_int, intern->array, index);
-	}
 
-	/* Add indices from other that are not in self */
-	index = 0;
-	J1F(Rc_int, other->array, index);
-	while (Rc_int) {
-		int in_self;
-		J1T(in_self, intern->array, index);
-		if (!in_self) {
-			J1S(Rc_set, result->array, index);
-			if (Rc_set == JERR) goto alloc_error;
+		/* Add indices from other that are not in self */
+		index = 0;
+		J1F(Rc_int, other->array, index);
+		while (Rc_int) {
+			int in_self;
+			J1T(in_self, intern->array, index);
+			if (!in_self) {
+				J1S(Rc_set, result->array, index);
+				if (Rc_set == JERR) goto alloc_error_bitset;
+			}
+			J1N(Rc_int, other->array, index);
 		}
-		J1N(Rc_int, other->array, index);
+
+		return;
+
+alloc_error_bitset:
+		J1FA(Rc_int, result->array);
+		result->array = NULL;
+		zval_ptr_dtor(return_value);
+		ZVAL_NULL(return_value);
+		zend_throw_exception(NULL, "Judy: memory allocation failed during xor", 0);
+
+	} else { /* TYPE_INT_TO_INT */
+		Pvoid_t *PValue, *PTest, *PNew;
+
+		result = judy_create_result(return_value, TYPE_INT_TO_INT);
+
+		/* Add entries from self that are not in other */
+		index = 0;
+		JLF(PValue, intern->array, index);
+		while (PValue != NULL && PValue != PJERR) {
+			JLG(PTest, other->array, index);
+			if (PTest == NULL || PTest == PJERR) {
+				JLI(PNew, result->array, index);
+				if (PNew == PJERR) goto alloc_error_il;
+				JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+			}
+			JLN(PValue, intern->array, index);
+		}
+
+		/* Add entries from other that are not in self */
+		index = 0;
+		JLF(PValue, other->array, index);
+		while (PValue != NULL && PValue != PJERR) {
+			JLG(PTest, intern->array, index);
+			if (PTest == NULL || PTest == PJERR) {
+				JLI(PNew, result->array, index);
+				if (PNew == PJERR) goto alloc_error_il;
+				JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+			}
+			JLN(PValue, other->array, index);
+		}
+
+		return;
+
+alloc_error_il:
+		{
+			Word_t Rc_word;
+			JLFA(Rc_word, result->array);
+		}
+		result->array = NULL;
+		zval_ptr_dtor(return_value);
+		ZVAL_NULL(return_value);
+		zend_throw_exception(NULL, "Judy: memory allocation failed during xor", 0);
 	}
-
-	return;
-
-alloc_error:
-	J1FA(Rc_int, result->array);
-	result->array = NULL;
-	zval_ptr_dtor(return_value);
-	ZVAL_NULL(return_value);
-	zend_throw_exception(NULL, "Judy: memory allocation failed during xor", 0);
 }
 /* }}} */
 

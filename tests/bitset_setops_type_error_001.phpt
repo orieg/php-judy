@@ -1,5 +1,5 @@
 --TEST--
-Judy BITSET set operations - type error on non-BITSET
+Judy set operations - type errors for unsupported and mismatched types
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
@@ -10,47 +10,47 @@ $bitset[1] = true;
 $intToInt = new Judy(Judy::INT_TO_INT);
 $intToInt[1] = 100;
 
-// Test union on non-BITSET self
+// Test type mismatch: INT_TO_INT vs BITSET
 try {
     $intToInt->union($bitset);
     echo "FAIL: should throw\n";
 } catch (Exception $e) {
-    echo "union on non-BITSET: " . $e->getMessage() . "\n";
+    echo "union mismatch: " . $e->getMessage() . "\n";
 }
 
-// Test union with non-BITSET other
+// Test type mismatch: BITSET vs INT_TO_INT
 try {
     $bitset->union($intToInt);
     echo "FAIL: should throw\n";
 } catch (Exception $e) {
-    echo "union with non-BITSET: " . $e->getMessage() . "\n";
+    echo "union reverse mismatch: " . $e->getMessage() . "\n";
 }
 
-// Test intersect on non-BITSET
+// Test type mismatch for intersect
 try {
     $intToInt->intersect($bitset);
     echo "FAIL: should throw\n";
 } catch (Exception $e) {
-    echo "intersect on non-BITSET: " . $e->getMessage() . "\n";
+    echo "intersect mismatch: " . $e->getMessage() . "\n";
 }
 
-// Test diff on non-BITSET
+// Test type mismatch for diff
 try {
     $intToInt->diff($bitset);
     echo "FAIL: should throw\n";
 } catch (Exception $e) {
-    echo "diff on non-BITSET: " . $e->getMessage() . "\n";
+    echo "diff mismatch: " . $e->getMessage() . "\n";
 }
 
-// Test xor on non-BITSET
+// Test type mismatch for xor
 try {
     $intToInt->xor($bitset);
     echo "FAIL: should throw\n";
 } catch (Exception $e) {
-    echo "xor on non-BITSET: " . $e->getMessage() . "\n";
+    echo "xor mismatch: " . $e->getMessage() . "\n";
 }
 
-// Test with STRING_TO_MIXED
+// Test with unsupported type STRING_TO_MIXED
 $strToMixed = new Judy(Judy::STRING_TO_MIXED);
 $strToMixed["foo"] = "bar";
 
@@ -60,11 +60,25 @@ try {
 } catch (Exception $e) {
     echo "union on STRING_TO_MIXED: " . $e->getMessage() . "\n";
 }
+
+// Test with unsupported type STRING_TO_INT
+$strToInt = new Judy(Judy::STRING_TO_INT);
+$strToInt["foo"] = 1;
+$strToInt2 = new Judy(Judy::STRING_TO_INT);
+$strToInt2["bar"] = 2;
+
+try {
+    $strToInt->intersect($strToInt2);
+    echo "FAIL: should throw\n";
+} catch (Exception $e) {
+    echo "intersect on STRING_TO_INT: " . $e->getMessage() . "\n";
+}
 ?>
 --EXPECT--
-union on non-BITSET: Set operations are only supported on BITSET arrays
-union with non-BITSET: The other Judy array must also be a BITSET
-intersect on non-BITSET: Set operations are only supported on BITSET arrays
-diff on non-BITSET: Set operations are only supported on BITSET arrays
-xor on non-BITSET: Set operations are only supported on BITSET arrays
-union on STRING_TO_MIXED: Set operations are only supported on BITSET arrays
+union mismatch: Both Judy arrays must be the same type for set operations
+union reverse mismatch: Both Judy arrays must be the same type for set operations
+intersect mismatch: Both Judy arrays must be the same type for set operations
+diff mismatch: Both Judy arrays must be the same type for set operations
+xor mismatch: Both Judy arrays must be the same type for set operations
+union on STRING_TO_MIXED: Set operations are only supported on BITSET and INT_TO_INT arrays
+intersect on STRING_TO_INT: Set operations are only supported on BITSET and INT_TO_INT arrays
