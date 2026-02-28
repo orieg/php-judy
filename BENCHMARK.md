@@ -322,7 +322,7 @@ $j->memoryUsage(); // 0 — freed
 
 ### When Judy Saves Memory
 
-**Large sparse integer sets**: Judy's compressed trie uses memory proportional to *population*, not *key range*. A PHP array with keys `[0, 1000000, 2000000, ...]` allocates a full hash table; Judy allocates only the trie nodes needed.
+**Large sparse integer sets**: Judy's compressed trie uses memory proportional to *population*, not *key range*. For sparse integer keys (e.g., `[0, 1000000, 2000000, ...]`), Judy is often more memory-efficient than a PHP array because its compressed structure only requires nodes for the populated keys.
 
 ```
 10K elements with key step = 1000:

@@ -10,8 +10,9 @@
  * JPM TotalMemWords counter).
  *
  * For JudySL (STRING_TO_INT, STRING_TO_MIXED), memoryUsage() returns NULL
- * because the Judy C library provides no JSLMU macro.  We use
- * memory_get_usage() deltas for those types instead.
+ * because the Judy C library provides no JSLMU macro, and JudySL allocates
+ * via C malloc (invisible to PHP's memory_get_usage()).  These types are
+ * included in the insertion throughput comparison but not memory footprint.
  *
  * All timings are median of N iterations using hrtime(true).
  */
@@ -45,6 +46,23 @@ function fmt_bytes(int $bytes): string {
 function ratio_str(int $a, int $b): string {
     if ($b == 0) return "n/a";
     return sprintf("%.1fx", $a / $b);
+}
+
+function run_throughput_bench(string $title, callable $php_bench, callable $judy_bench, array $sizes): void {
+    echo "  [$title]\n";
+    printf("  %-12s  %-14s  %-14s  %-14s\n",
+        "Elements", "PHP array", "Judy", "PHP/Judy");
+    printf("  %-12s  %-14s  %-14s  %-14s\n",
+        str_repeat("─", 12), str_repeat("─", 14), str_repeat("─", 14), str_repeat("─", 14));
+
+    foreach ($sizes as $size) {
+        if ($size > 100000) continue; // skip 1M for throughput (too slow)
+        $t_php  = $php_bench($size);
+        $t_judy = $judy_bench($size);
+        printf("  %-12s  %11.2f ms  %11.2f ms  %-14s\n",
+            number_format($size), $t_php, $t_judy, sprintf("%.1fx", $t_judy / max($t_php, 0.001)));
+    }
+    echo "\n";
 }
 
 // ── Measurement helpers ─────────────────────────────────────────────────
@@ -265,53 +283,9 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  3. Insertion Throughput (median of 5 iterations)\n";
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
 
-// INT_TO_INT
-echo "  [INT_TO_INT]\n";
-printf("  %-12s  %-14s  %-14s  %-14s\n",
-    "Elements", "PHP array", "Judy", "PHP/Judy");
-printf("  %-12s  %-14s  %-14s  %-14s\n",
-    str_repeat("─", 12), str_repeat("─", 14), str_repeat("─", 14), str_repeat("─", 14));
-
-foreach ($sizes as $size) {
-    if ($size > 100000) continue; // skip 1M for throughput (too slow)
-    $t_php  = bench_insert_int_php($size);
-    $t_judy = bench_insert_int_judy($size);
-    printf("  %-12s  %11.2f ms  %11.2f ms  %-14s\n",
-        number_format($size), $t_php, $t_judy, sprintf("%.1fx", $t_judy / max($t_php, 0.001)));
-}
-echo "\n";
-
-// BITSET
-echo "  [BITSET]\n";
-printf("  %-12s  %-14s  %-14s  %-14s\n",
-    "Elements", "PHP array", "Judy", "PHP/Judy");
-printf("  %-12s  %-14s  %-14s  %-14s\n",
-    str_repeat("─", 12), str_repeat("─", 14), str_repeat("─", 14), str_repeat("─", 14));
-
-foreach ($sizes as $size) {
-    if ($size > 100000) continue;
-    $t_php  = bench_insert_bitset_php($size);
-    $t_judy = bench_insert_bitset_judy($size);
-    printf("  %-12s  %11.2f ms  %11.2f ms  %-14s\n",
-        number_format($size), $t_php, $t_judy, sprintf("%.1fx", $t_judy / max($t_php, 0.001)));
-}
-echo "\n";
-
-// STRING_TO_INT
-echo "  [STRING_TO_INT]\n";
-printf("  %-12s  %-14s  %-14s  %-14s\n",
-    "Elements", "PHP array", "Judy", "PHP/Judy");
-printf("  %-12s  %-14s  %-14s  %-14s\n",
-    str_repeat("─", 12), str_repeat("─", 14), str_repeat("─", 14), str_repeat("─", 14));
-
-foreach ($sizes as $size) {
-    if ($size > 100000) continue;
-    $t_php  = bench_insert_string_php($size);
-    $t_judy = bench_insert_string_judy($size);
-    printf("  %-12s  %11.2f ms  %11.2f ms  %-14s\n",
-        number_format($size), $t_php, $t_judy, sprintf("%.1fx", $t_judy / max($t_php, 0.001)));
-}
-echo "\n";
+run_throughput_bench("INT_TO_INT", 'bench_insert_int_php', 'bench_insert_int_judy', $sizes);
+run_throughput_bench("BITSET", 'bench_insert_bitset_php', 'bench_insert_bitset_judy', $sizes);
+run_throughput_bench("STRING_TO_INT", 'bench_insert_string_php', 'bench_insert_string_judy', $sizes);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 4. Sparse key memory comparison
