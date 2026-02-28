@@ -1,18 +1,33 @@
 --TEST--
-Judy memoryUsage() on empty arrays (NULL intern->array)
+Judy memoryUsage() returns int and increases with data
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php
-// Test memoryUsage() on freshly created (empty) arrays where intern->array is NULL
+// INT_TO_INT: memoryUsage should be integer and increase with data
 $j = new Judy(Judy::INT_TO_INT);
-$mem = $j->memoryUsage();
-echo "INT_TO_INT empty: " . (is_int($mem) ? "ok" : "fail") . "\n";
+$empty_mem = $j->memoryUsage();
+echo "Empty INT_TO_INT memoryUsage is int: " . (is_int($empty_mem) ? "yes" : "no") . "\n";
 
+for ($i = 0; $i < 1000; $i++) {
+    $j[$i] = $i;
+}
+$full_mem = $j->memoryUsage();
+echo "INT_TO_INT memoryUsage increased: " . ($full_mem > $empty_mem ? "yes" : "no") . "\n";
+
+// BITSET: memoryUsage should work similarly
 $j = new Judy(Judy::BITSET);
-$mem = $j->memoryUsage();
-echo "BITSET empty: " . (is_int($mem) ? "ok" : "fail") . "\n";
+$empty_mem = $j->memoryUsage();
+echo "Empty BITSET memoryUsage is int: " . (is_int($empty_mem) ? "yes" : "no") . "\n";
+
+for ($i = 0; $i < 1000; $i++) {
+    $j[$i] = true;
+}
+$full_mem = $j->memoryUsage();
+echo "BITSET memoryUsage increased: " . ($full_mem > $empty_mem ? "yes" : "no") . "\n";
 ?>
 --EXPECT--
-INT_TO_INT empty: ok
-BITSET empty: ok
+Empty INT_TO_INT memoryUsage is int: yes
+INT_TO_INT memoryUsage increased: yes
+Empty BITSET memoryUsage is int: yes
+BITSET memoryUsage increased: yes
