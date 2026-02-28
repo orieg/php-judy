@@ -68,7 +68,7 @@ jobs:
           # All-types comparison: all 6 Judy types + native PHP array (50K elements, 3 iterations for CI speed)
           echo ""
           echo "=== ALL-TYPES COMPARISON BENCHMARK ==="
-          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-all-types.php 50000 3 2>&1 | tee all-types-benchmark-results.txt
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-all-types.php 500000 3 2>&1 | tee all-types-benchmark-results.txt
 
       - name: Upload benchmark results
         if: always()
