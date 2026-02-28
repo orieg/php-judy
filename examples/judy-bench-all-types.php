@@ -2,19 +2,19 @@
 /**
  * Benchmark: All Judy Types vs Native PHP Array
  *
- * Produces a unified comparison table across all six Judy array types plus
+ * Produces a unified comparison table across all seven Judy array types plus
  * a native PHP array baseline, measuring:
  *
  *   1. Write throughput  — individual element insertion
  *   2. Read throughput   — individual element lookup
  *   3. Iteration         — foreach over full array
- *   4. Memory usage      — emalloc'd PHP heap delta (all types) +
+ *   4. Free / destroy    — unset() + gc_collect_cycles() teardown time
+ *   5. Memory usage      — emalloc'd PHP heap delta (all types) +
  *                          memoryUsage() / JudyXMemUsed (where supported)
- *   5. GC timing         — gc_collect_cycles() with a live array in scope
  *
  * Grouping:
  *   Integer-keyed: PHP int array, BITSET, INT_TO_INT, INT_TO_MIXED, INT_TO_PACKED
- *   String-keyed:  PHP string array, STRING_TO_INT, STRING_TO_MIXED
+ *   String-keyed:  PHP string array, STRING_TO_INT, STRING_TO_MIXED, STRING_TO_MIXED_HASH
  *
  * Notes on memory reporting:
  *   PHP array        — memory_get_usage() delta (includes zval + bucket overhead)
@@ -29,11 +29,11 @@
  *   php examples/judy-bench-all-types.php 100000 7
  */
 
-ini_set('memory_limit', '512M');
+ini_set('memory_limit', '2G');
 
 // ── CLI arguments ──────────────────────────────────────────────────────────
 
-$size       = isset($argv[1]) ? (int)$argv[1] : 100000;
+$size       = isset($argv[1]) ? (int)$argv[1] : 500000;
 $iterations = isset($argv[2]) ? (int)$argv[2] : 5;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -55,14 +55,35 @@ function bench_median(callable $fn, int $iterations): float {
 
 /**
  * Measure the emalloc'd PHP heap consumed while $fn() runs.
- * Runs once (no warmup) after a GC cycle; reports the peak delta.
+ * $fn must return the created container so we can hold a reference
+ * and prevent PHP from freeing it before measurement.
  */
 function measure_heap(callable $fn): int {
     gc_collect_cycles();
     $before = memory_get_usage();
-    $fn();
+    $ref = $fn();
     $after  = memory_get_usage();
+    unset($ref);
     return max(0, $after - $before);
+}
+
+/**
+ * Measure the time to destroy (unset) a populated container.
+ * $create_fn must return the container. Median of $iterations runs.
+ */
+function measure_free(callable $create_fn, int $iterations): float {
+    $create_fn();  // warmup
+    $times = [];
+    for ($i = 0; $i < $iterations; $i++) {
+        $ref = $create_fn();
+        gc_collect_cycles();
+        $start = hrtime(true);
+        unset($ref);
+        gc_collect_cycles();
+        $times[] = (hrtime(true) - $start) / 1e6;
+    }
+    sort($times);
+    return $times[intdiv($iterations, 2)];
 }
 
 function fmt_bytes(int $bytes): string {
@@ -215,7 +236,13 @@ $results['PHP array (bool)'] = [
     'heap'     => measure_heap(function() use ($size) {
         $a = [];
         for ($i = 0; $i < $size; $i++) { $a[$i] = true; }
+        return $a;
     }),
+    'free'     => measure_free(function() use ($size) {
+        $a = [];
+        for ($i = 0; $i < $size; $i++) { $a[$i] = true; }
+        return $a;
+    }, $iterations),
     'internal' => null,
     'note'     => '',
 ];
@@ -245,7 +272,13 @@ $results['BITSET'] = [
     'heap'   => measure_heap(function() use ($size) {
         $j = new Judy(Judy::BITSET);
         for ($i = 0; $i < $size; $i++) { $j[$i] = true; }
+        return $j;
     }),
+    'free'   => measure_free(function() use ($size) {
+        $j = new Judy(Judy::BITSET);
+        for ($i = 0; $i < $size; $i++) { $j[$i] = true; }
+        return $j;
+    }, $iterations),
     'internal' => (function() use ($size) {
         $j = new Judy(Judy::BITSET);
         for ($i = 0; $i < $size; $i++) { $j[$i] = true; }
@@ -278,7 +311,13 @@ $results['PHP array (int)'] = [
     'heap'   => measure_heap(function() use ($size) {
         $a = [];
         for ($i = 0; $i < $size; $i++) { $a[$i] = $i; }
+        return $a;
     }),
+    'free'   => measure_free(function() use ($size) {
+        $a = [];
+        for ($i = 0; $i < $size; $i++) { $a[$i] = $i; }
+        return $a;
+    }, $iterations),
     'internal' => null,
     'note'   => '',
 ];
@@ -308,7 +347,13 @@ $results['INT_TO_INT'] = [
     'heap'   => measure_heap(function() use ($size) {
         $j = new Judy(Judy::INT_TO_INT);
         for ($i = 0; $i < $size; $i++) { $j[$i] = $i; }
+        return $j;
     }),
+    'free'   => measure_free(function() use ($size) {
+        $j = new Judy(Judy::INT_TO_INT);
+        for ($i = 0; $i < $size; $i++) { $j[$i] = $i; }
+        return $j;
+    }, $iterations),
     'internal' => (function() use ($size) {
         $j = new Judy(Judy::INT_TO_INT);
         for ($i = 0; $i < $size; $i++) { $j[$i] = $i; }
@@ -342,7 +387,13 @@ $results['PHP array (mixed)'] = [
     'heap'   => measure_heap(function() use ($mixed_data) {
         $a = [];
         foreach ($mixed_data as $k => $v) { $a[$k] = $v; }
+        return $a;
     }),
+    'free'   => measure_free(function() use ($mixed_data) {
+        $a = [];
+        foreach ($mixed_data as $k => $v) { $a[$k] = $v; }
+        return $a;
+    }, $iterations),
     'internal' => null,
     'note'   => '',
 ];
@@ -370,7 +421,13 @@ $results['INT_TO_MIXED'] = [
     'heap'   => measure_heap(function() use ($mixed_data) {
         $j = new Judy(Judy::INT_TO_MIXED);
         foreach ($mixed_data as $k => $v) { $j[$k] = $v; }
+        return $j;
     }),
+    'free'   => measure_free(function() use ($mixed_data) {
+        $j = new Judy(Judy::INT_TO_MIXED);
+        foreach ($mixed_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }, $iterations),
     'internal' => (function() use ($mixed_data) {
         $j = Judy::fromArray(Judy::INT_TO_MIXED, $mixed_data);
         return $j->memoryUsage();
@@ -402,7 +459,13 @@ if ($has_packed) {
         'heap'   => measure_heap(function() use ($mixed_data) {
             $j = new Judy(Judy::INT_TO_PACKED);
             foreach ($mixed_data as $k => $v) { $j[$k] = $v; }
+            return $j;
         }),
+        'free'   => measure_free(function() use ($mixed_data) {
+            $j = new Judy(Judy::INT_TO_PACKED);
+            foreach ($mixed_data as $k => $v) { $j[$k] = $v; }
+            return $j;
+        }, $iterations),
         'internal' => (function() use ($mixed_data) {
             $j = Judy::fromArray(Judy::INT_TO_PACKED, $mixed_data);
             return $j->memoryUsage();
@@ -413,7 +476,7 @@ if ($has_packed) {
     $results['INT_TO_PACKED'] = [
         'keys' => 'int', 'values' => 'mixed',
         'write' => null, 'read' => null, 'iter' => null,
-        'heap' => null, 'internal' => null,
+        'heap' => null, 'free' => null, 'internal' => null,
         'note' => 'not supported on this platform',
     ];
 }
@@ -448,7 +511,13 @@ $results['PHP array (str→int)'] = [
     'heap'   => measure_heap(function() use ($str_int_data) {
         $a = [];
         foreach ($str_int_data as $k => $v) { $a[$k] = $v; }
+        return $a;
     }),
+    'free'   => measure_free(function() use ($str_int_data) {
+        $a = [];
+        foreach ($str_int_data as $k => $v) { $a[$k] = $v; }
+        return $a;
+    }, $iterations),
     'internal' => null,
     'note'   => '',
 ];
@@ -476,7 +545,13 @@ $results['STRING_TO_INT'] = [
     'heap'   => measure_heap(function() use ($str_int_data) {
         $j = new Judy(Judy::STRING_TO_INT);
         foreach ($str_int_data as $k => $v) { $j[$k] = $v; }
+        return $j;
     }),
+    'free'   => measure_free(function() use ($str_int_data) {
+        $j = new Judy(Judy::STRING_TO_INT);
+        foreach ($str_int_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }, $iterations),
     'internal' => null,  // JudySL has no C-level memory accounting
     'note'   => 'memoryUsage()=null (JudySL)',
 ];
@@ -504,7 +579,13 @@ $results['PHP array (str→mixed)'] = [
     'heap'   => measure_heap(function() use ($str_mixed_data) {
         $a = [];
         foreach ($str_mixed_data as $k => $v) { $a[$k] = $v; }
+        return $a;
     }),
+    'free'   => measure_free(function() use ($str_mixed_data) {
+        $a = [];
+        foreach ($str_mixed_data as $k => $v) { $a[$k] = $v; }
+        return $a;
+    }, $iterations),
     'internal' => null,
     'note'   => '',
 ];
@@ -532,7 +613,13 @@ $results['STRING_TO_MIXED'] = [
     'heap'   => measure_heap(function() use ($str_mixed_data) {
         $j = new Judy(Judy::STRING_TO_MIXED);
         foreach ($str_mixed_data as $k => $v) { $j[$k] = $v; }
+        return $j;
     }),
+    'free'   => measure_free(function() use ($str_mixed_data) {
+        $j = new Judy(Judy::STRING_TO_MIXED);
+        foreach ($str_mixed_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }, $iterations),
     'internal' => null,  // JudySL has no C-level memory accounting
     'note'   => 'memoryUsage()=null (JudySL)',
 ];
@@ -560,15 +647,21 @@ $results['STRING_TO_MIXED_HASH'] = [
     'heap'   => measure_heap(function() use ($str_mixed_data) {
         $j = new Judy(Judy::STRING_TO_MIXED_HASH);
         foreach ($str_mixed_data as $k => $v) { $j[$k] = $v; }
+        return $j;
     }),
+    'free'   => measure_free(function() use ($str_mixed_data) {
+        $j = new Judy(Judy::STRING_TO_MIXED_HASH);
+        foreach ($str_mixed_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }, $iterations),
     'internal' => null,  // JudyHS has no C-level memory accounting
     'note'   => 'memoryUsage()=null (JudyHS)',
 ];
 
 // ── Output ─────────────────────────────────────────────────────────────────
 
-$div  = str_repeat('━', 78);
-$dash = str_repeat('─', 78);
+$div  = str_repeat('━', 92);
+$dash = str_repeat('─', 92);
 
 echo "$div\n";
 echo "  Judy All-Types Benchmark — " . number_format($size) . " elements, $iterations iterations (median)\n";
@@ -592,28 +685,30 @@ $int_groups = [
 ];
 
 foreach ($int_groups as $group_label => $names) {
-    $w = [24, 10, 10, 10, 14, 20];
-    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %-{$w[5]}s\n",
-        "[$group_label]", 'Write', 'Read', 'Foreach', 'Heap delta', 'Internal mem');
-    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %-{$w[5]}s\n",
+    $w = [24, 10, 10, 10, 10, 14, 20];
+    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
+        "[$group_label]", 'Write', 'Read', 'Foreach', 'Free', 'Heap delta', 'Internal mem');
+    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
         str_repeat('─', $w[0]),
         str_repeat('─', $w[1]),
         str_repeat('─', $w[2]),
         str_repeat('─', $w[3]),
         str_repeat('─', $w[4]),
-        str_repeat('─', $w[5]));
+        str_repeat('─', $w[5]),
+        str_repeat('─', $w[6]));
 
     foreach ($names as $name) {
         $r = $results[$name];
         $write = $r['write'] !== null ? sprintf('%.2f ms', $r['write']) : '—';
         $read  = $r['read']  !== null ? sprintf('%.2f ms', $r['read'])  : '—';
         $iter  = $r['iter']  !== null ? sprintf('%.2f ms', $r['iter'])  : '—';
+        $free  = $r['free']  !== null ? sprintf('%.2f ms', $r['free'])  : '—';
         $heap  = $r['heap']  !== null ? fmt_bytes($r['heap'])           : '—';
         $mem   = fmt_mem($r['internal']);
         $note  = $r['note'] !== '' ? " ({$r['note']})" : '';
 
-        printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %-{$w[5]}s\n",
-            $name, $write, $read, $iter, $heap, $mem . $note);
+        printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
+            $name, $write, $read, $iter, $free, $heap, $mem . $note);
     }
     echo "\n";
 }
@@ -628,27 +723,30 @@ $str_groups = [
 ];
 
 foreach ($str_groups as $group_label => $names) {
-    $w = [26, 10, 10, 10, 14, 20];
-    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %-{$w[5]}s\n",
-        "[$group_label]", 'Write', 'Read', 'Foreach', 'Heap delta', 'Internal mem');
-    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %-{$w[5]}s\n",
+    $w = [26, 10, 10, 10, 10, 14, 20];
+    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
+        "[$group_label]", 'Write', 'Read', 'Foreach', 'Free', 'Heap delta', 'Internal mem');
+    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
         str_repeat('─', $w[0]),
         str_repeat('─', $w[1]),
         str_repeat('─', $w[2]),
         str_repeat('─', $w[3]),
         str_repeat('─', $w[4]),
-        str_repeat('─', $w[5]));
+        str_repeat('─', $w[5]),
+        str_repeat('─', $w[6]));
 
     foreach ($names as $name) {
         $r = $results[$name];
         $write = $r['write'] !== null ? sprintf('%.2f ms', $r['write']) : '—';
         $read  = $r['read']  !== null ? sprintf('%.2f ms', $r['read'])  : '—';
         $iter  = $r['iter']  !== null ? sprintf('%.2f ms', $r['iter'])  : '—';
+        $free  = $r['free']  !== null ? sprintf('%.2f ms', $r['free'])  : '—';
         $heap  = $r['heap']  !== null ? fmt_bytes($r['heap'])           : '—';
+        $mem   = fmt_mem($r['internal']);
         $note  = $r['note'] !== '' ? " ({$r['note']})" : '';
 
-        printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %-{$w[5]}s\n",
-            $name, $write, $read, $iter, $heap, 'n/a' . $note);
+        printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
+            $name, $write, $read, $iter, $free, $heap, $mem . $note);
     }
     echo "\n";
 }
@@ -659,9 +757,9 @@ echo "$div\n";
 echo "  SUMMARY — All types, " . number_format($size) . " elements (median of $iterations iterations)\n";
 echo "$div\n";
 
-$w = [22, 8, 7, 10, 10, 10, 14];
-printf("  %-{$w[0]}s  %-{$w[1]}s  %-{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %{$w[6]}s\n",
-    'Type', 'Keys', 'Values', 'Write(ms)', 'Read(ms)', 'Iter(ms)', 'Heap delta');
+$w = [22, 8, 7, 10, 10, 10, 10, 14];
+printf("  %-{$w[0]}s  %-{$w[1]}s  %-{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %{$w[6]}s  %{$w[7]}s\n",
+    'Type', 'Keys', 'Values', 'Write(ms)', 'Read(ms)', 'Iter(ms)', 'Free(ms)', 'Heap delta');
 printf("  %s\n", str_repeat('─', array_sum($w) + count($w) * 2));
 
 $ordered = [
@@ -683,15 +781,17 @@ foreach ($ordered as $name) {
     $write = $r['write'] !== null ? sprintf('%.2f', $r['write']) : '—';
     $read  = $r['read']  !== null ? sprintf('%.2f', $r['read'])  : '—';
     $iter  = $r['iter']  !== null ? sprintf('%.2f', $r['iter'])  : '—';
+    $free  = $r['free']  !== null ? sprintf('%.2f', $r['free'])  : '—';
     $heap  = $r['heap']  !== null ? fmt_bytes($r['heap'])        : '—';
 
-    printf("  %-{$w[0]}s  %-{$w[1]}s  %-{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %{$w[6]}s\n",
-        $name, $r['keys'], $r['values'], $write, $read, $iter, $heap);
+    printf("  %-{$w[0]}s  %-{$w[1]}s  %-{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %{$w[6]}s  %{$w[7]}s\n",
+        $name, $r['keys'], $r['values'], $write, $read, $iter, $free, $heap);
 }
 
 echo "\n";
 echo "  Notes:\n";
 echo "  • Write/Read/Iter: median of $iterations iterations via hrtime(true)\n";
+echo "  • Free: median time to unset() + gc_collect_cycles() a populated container\n";
 echo "  • Heap delta: memory_get_usage() before/after populate (emalloc'd PHP heap)\n";
 echo "  • Internal mem: Judy C-level accounting (JLMU/J1MU) via memoryUsage()\n";
 echo "    – BITSET/INT_TO_INT/INT_TO_MIXED/INT_TO_PACKED support this\n";
