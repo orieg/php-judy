@@ -59,6 +59,7 @@
          <file md5sum="9531f74e337528d75dd9b5ff66437351" name="examples/run-benchmarks-robust.php" role="doc" />
          <file md5sum="163369b8ada5a8bf7bc9853ae7cc4522" name="examples/iterator_performance_analysis.md" role="doc" />
          <file name="examples/judy-bench-set-operations.php" role="doc" />
+         <file name="examples/judy-bench-batch-operations.php" role="doc" />
          <file md5sum="abc7eb31bb88857463ec941514e5f019" name="tests/001.phpt" role="test" />
          <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />
          <file md5sum="9f3363cc4c6d15cb52184351cf710fd7" name="tests/bitset_002.phpt" role="test" />
