@@ -52,7 +52,7 @@ try {
 // The code must define $N from the environment and allocate exactly one
 // container that stays alive until process exit.
 $types = [
-    'PHP array (int→int)' => <<<'PHP'
+    'PHP array (int->int)' => <<<'PHP'
         $a = []; for ($i = 0; $i < $N; $i++) $a[$i] = $i;
 PHP,
     'BITSET' => <<<'PHP'
@@ -209,7 +209,7 @@ foreach ($types as $label => $code) {
 
 $w = [24, 14, 14, 12];
 printf("\n  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s\n",
-    '', 'Peak heap', 'Net (−base)', 'Per element');
+    '', 'Peak heap', 'Net (-base)', 'Per element');
 printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s\n",
     str_repeat('─', $w[0]),
     str_repeat('─', $w[1]),
@@ -219,9 +219,12 @@ printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s\n",
 foreach ($results as $label => $r) {
     $peak = $r['peak'] !== null ? fmt($r['peak']) : '?';
     $net  = $r['net']  !== null ? fmt($r['net'])  : '?';
-    $per  = ($r['net'] !== null && $size > 0)
-        ? sprintf('%.1f B', $r['net'] / $size)
-        : '?';
+    if ($r['net'] === null || $size <= 0) {
+        $per = '?';
+    } else {
+        $per_val = $r['net'] / $size;
+        $per = ($per_val > 0 && $per_val < 0.05) ? '< 0.1 B' : sprintf('%.1f B', $per_val);
+    }
 
     printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s\n",
         $label, $peak, $net, $per);
@@ -237,6 +240,9 @@ echo "  • PHP array shows ~0 because PHP uses emalloc (mmap'd), not malloc —
 echo "    judy-bench-all-types.php 'Heap delta' column for PHP-level memory comparison\n";
 echo "  • Judy types show libJudy.so malloc overhead — this fills the gap for\n";
 echo "    STRING_TO_* types where memoryUsage() returns null\n";
+echo "  • MIXED types (INT_TO_MIXED, STRING_TO_MIXED) may undercount at large N:\n";
+echo "    PHP GC fires mid-loop, temporarily lowering tracked malloc heap; Massif\n";
+echo "    peak can be captured before loop completion. Use <=100K for reliable results.\n";
 echo "$div\n";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
