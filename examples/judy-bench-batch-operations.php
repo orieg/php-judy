@@ -2,26 +2,20 @@
 /**
  * Benchmark: Judy Batch Operations vs Individual Operations vs PHP Arrays
  *
- * Compares:
- * - Bulk add: putAll() vs individual $j[$k]=$v vs PHP array
- * - Bulk get: getAll() vs individual $j[$k] vs PHP array
- * - Conversion: fromArray()/toArray() vs manual loops
+ * For each Judy type (INT_TO_INT, STRING_TO_INT) at multiple sizes, compares:
  *
- * Tests INT_TO_INT and STRING_TO_INT types.
+ *   1. Bulk Add:    putAll() vs fromArray() vs individual $j[$k]=$v vs PHP array
+ *   2. Bulk Get:    getAll() vs individual $j[$k] vs PHP array
+ *   3. Conversion:  toArray() vs manual foreach vs PHP array_values
+ *   4. Increment:   increment() vs manual $j[$k]+1 vs PHP $a[$k]++
+ *
+ * All timings are median of N iterations using hrtime(true).
  */
 
 ini_set("memory_limit", "512M");
 
-function format_bytes($size) {
-    $unit = ['b', 'kb', 'mb', 'gb'];
-    $i = $size > 0 ? floor(log($size, 1024)) : 0;
-    return round($size / pow(1024, $i), 2) . ' ' . $unit[$i];
-}
-
 function bench(callable $fn, int $iterations = 5): float {
-    // Warmup
-    $fn();
-
+    $fn(); // warmup
     $times = [];
     for ($i = 0; $i < $iterations; $i++) {
         $start = hrtime(true);
@@ -29,7 +23,7 @@ function bench(callable $fn, int $iterations = 5): float {
         $times[] = (hrtime(true) - $start) / 1e6; // ms
     }
     sort($times);
-    return $times[intdiv($iterations, 2)]; // median
+    return $times[intdiv($iterations, 2)];
 }
 
 function bench_print(string $label, callable $fn, int $iterations = 5): float {
@@ -38,20 +32,18 @@ function bench_print(string $label, callable $fn, int $iterations = 5): float {
     return $median;
 }
 
-/**
- * Build a PHP array of random int=>int data for a given size.
- */
+function ratio(string $label, float $numerator, float $denominator): void {
+    printf("  %-50s %.2fx\n", $label, $numerator / max($denominator, 0.001));
+}
+
 function make_int_data(int $size): array {
     $data = [];
     for ($i = 0; $i < $size; $i++) {
-        $data[$i * 3] = $i * 7; // sparse keys with integer values
+        $data[$i * 3] = $i * 7;
     }
     return $data;
 }
 
-/**
- * Build a PHP array of random string=>int data for a given size.
- */
 function make_string_data(int $size): array {
     $data = [];
     for ($i = 0; $i < $size; $i++) {
@@ -60,280 +52,182 @@ function make_string_data(int $size): array {
     return $data;
 }
 
+/**
+ * Run the full benchmark suite for a given Judy type.
+ */
+function bench_type(string $type_name, int $judy_type, array $data, int $size, int $iterations): void {
+    $keys = array_keys($data);
+
+    // Keys for getAll: 10% of total + 100 guaranteed-missing keys
+    $get_count = max(1000, (int)($size * 0.1));
+    $get_keys = array_slice($keys, 0, $get_count);
+    if ($judy_type === Judy::INT_TO_INT) {
+        for ($i = 0; $i < 100; $i++) $get_keys[] = $size * 10 + $i;
+    } else {
+        for ($i = 0; $i < 100; $i++) $get_keys[] = "missing_$i";
+    }
+
+    // Number of unique keys for increment (1K keys, each hit many times)
+    $inc_unique = min(1000, $size);
+    if ($judy_type === Judy::STRING_TO_INT) {
+        $inc_keys = [];
+        for ($i = 0; $i < $inc_unique; $i++) $inc_keys[] = "counter_$i";
+    }
+
+    echo "===========================================================\n";
+    echo "  $type_name — " . number_format($size) . " elements\n";
+    echo "===========================================================\n\n";
+
+    // ================================================================
+    // 1. BULK ADD
+    // ================================================================
+    echo "  [1. Bulk Add: populate $size elements]\n";
+
+    $t_php = bench_print("PHP array (foreach assign)", function() use ($data) {
+        $a = [];
+        foreach ($data as $k => $v) { $a[$k] = $v; }
+    }, $iterations);
+
+    $t_individual = bench_print("Judy individual \$j[\$k] = \$v", function() use ($judy_type, $data) {
+        $j = new Judy($judy_type);
+        foreach ($data as $k => $v) { $j[$k] = $v; }
+    }, $iterations);
+
+    $t_putall = bench_print("Judy putAll()", function() use ($judy_type, $data) {
+        $j = new Judy($judy_type);
+        $j->putAll($data);
+    }, $iterations);
+
+    $t_fromarray = bench_print("Judy::fromArray()", function() use ($judy_type, $data) {
+        Judy::fromArray($judy_type, $data);
+    }, $iterations);
+
+    ratio("putAll() vs individual Judy", $t_individual, $t_putall);
+    ratio("fromArray() vs individual Judy", $t_individual, $t_fromarray);
+    ratio("Judy putAll() vs PHP array", $t_putall, $t_php);
+    ratio("Judy fromArray() vs PHP array", $t_fromarray, $t_php);
+    echo "\n";
+
+    // ================================================================
+    // 2. BULK GET
+    // ================================================================
+    $get_n = count($get_keys);
+    echo "  [2. Bulk Get: fetch $get_n keys (incl. 100 missing)]\n";
+
+    $j_read = Judy::fromArray($judy_type, $data);
+
+    $t_php_get = bench_print("PHP array (\$a[\$k] ?? null)", function() use ($data, $get_keys) {
+        $results = [];
+        foreach ($get_keys as $k) { $results[$k] = $data[$k] ?? null; }
+    }, $iterations);
+
+    $t_individual_get = bench_print("Judy individual \$j[\$k]", function() use ($j_read, $get_keys) {
+        $results = [];
+        foreach ($get_keys as $k) { $results[$k] = $j_read[$k] ?? null; }
+    }, $iterations);
+
+    $t_getall = bench_print("Judy getAll()", function() use ($j_read, $get_keys) {
+        $j_read->getAll($get_keys);
+    }, $iterations);
+
+    ratio("getAll() vs individual Judy", $t_individual_get, $t_getall);
+    ratio("Judy getAll() vs PHP array", $t_getall, $t_php_get);
+    echo "\n";
+
+    // ================================================================
+    // 3. CONVERSION (toArray)
+    // ================================================================
+    echo "  [3. Conversion: Judy to PHP array]\n";
+
+    $t_toarray = bench_print("Judy toArray()", function() use ($j_read) {
+        $j_read->toArray();
+    }, $iterations);
+
+    $t_manual = bench_print("Judy manual foreach loop", function() use ($j_read) {
+        $arr = [];
+        foreach ($j_read as $k => $v) { $arr[$k] = $v; }
+    }, $iterations);
+
+    ratio("toArray() vs manual foreach", $t_manual, $t_toarray);
+    echo "\n";
+
+    // ================================================================
+    // 4. INCREMENT (INT_TO_INT and STRING_TO_INT only)
+    // ================================================================
+    echo "  [4. Increment: $size ops on $inc_unique unique keys]\n";
+
+    if ($judy_type === Judy::INT_TO_INT) {
+        $t_php_inc = bench_print("PHP array \$a[\$k]++", function() use ($size, $inc_unique) {
+            $a = [];
+            for ($i = 0; $i < $size; $i++) {
+                $k = $i % $inc_unique;
+                if (!isset($a[$k])) $a[$k] = 0;
+                $a[$k]++;
+            }
+        }, $iterations);
+
+        $t_judy_manual = bench_print("Judy \$j[\$k] = \$j[\$k] + 1", function() use ($size, $inc_unique) {
+            $j = new Judy(Judy::INT_TO_INT);
+            for ($i = 0; $i < $size; $i++) {
+                $k = $i % $inc_unique;
+                $j[$k] = ($j[$k] ?? 0) + 1;
+            }
+        }, $iterations);
+
+        $t_judy_inc = bench_print("Judy increment()", function() use ($size, $inc_unique) {
+            $j = new Judy(Judy::INT_TO_INT);
+            for ($i = 0; $i < $size; $i++) {
+                $j->increment($i % $inc_unique);
+            }
+        }, $iterations);
+    } else {
+        $t_php_inc = bench_print("PHP array \$a[\$k]++", function() use ($size, $inc_keys, $inc_unique) {
+            $a = [];
+            for ($i = 0; $i < $size; $i++) {
+                $k = $inc_keys[$i % $inc_unique];
+                if (!isset($a[$k])) $a[$k] = 0;
+                $a[$k]++;
+            }
+        }, $iterations);
+
+        $t_judy_manual = bench_print("Judy \$j[\$k] = \$j[\$k] + 1", function() use ($size, $inc_keys, $inc_unique) {
+            $j = new Judy(Judy::STRING_TO_INT);
+            for ($i = 0; $i < $size; $i++) {
+                $k = $inc_keys[$i % $inc_unique];
+                $j[$k] = ($j[$k] ?? 0) + 1;
+            }
+        }, $iterations);
+
+        $t_judy_inc = bench_print("Judy increment()", function() use ($size, $inc_keys, $inc_unique) {
+            $j = new Judy(Judy::STRING_TO_INT);
+            for ($i = 0; $i < $size; $i++) {
+                $j->increment($inc_keys[$i % $inc_unique]);
+            }
+        }, $iterations);
+    }
+
+    ratio("increment() vs manual Judy", $t_judy_manual, $t_judy_inc);
+    ratio("Judy increment() vs PHP array", $t_judy_inc, $t_php_inc);
+    echo "\n";
+
+    unset($j_read);
+}
+
+// ---- Main ----
+
 $sizes = [10000, 100000, 500000];
 $iterations = 5;
 
 echo "=============================================================\n";
-echo "  Judy Batch Operations Benchmark\n";
+echo "  Judy Batch Operations & Increment Benchmark\n";
 echo "=============================================================\n";
 echo "  PHP " . phpversion() . " | Judy ext " . judy_version() . "\n";
-echo "  Iterations: $iterations (median)\n";
+echo "  Iterations: $iterations (median of each)\n";
 echo "=============================================================\n\n";
 
 foreach ($sizes as $size) {
-    $int_data = make_int_data($size);
-    $keys_int = array_keys($int_data);
-    // Pick a subset of keys for getAll (10% of total, random sample)
-    $get_count = max(1000, (int)($size * 0.1));
-    $get_keys_int = array_slice($keys_int, 0, $get_count);
-    // Add some missing keys
-    $get_keys_int_with_missing = $get_keys_int;
-    for ($i = 0; $i < 100; $i++) {
-        $get_keys_int_with_missing[] = $size * 10 + $i; // guaranteed missing
-    }
-
-    echo "===========================================================\n";
-    echo "  INT_TO_INT — " . number_format($size) . " elements\n";
-    echo "===========================================================\n\n";
-
-    // ---- BULK ADD ----
-    echo "  [Bulk Add: populate $size elements]\n";
-
-    $t_php = bench_print("PHP array (literal assignment)", function() use ($int_data, $size) {
-        $a = [];
-        foreach ($int_data as $k => $v) {
-            $a[$k] = $v;
-        }
-    }, $iterations);
-
-    $t_individual = bench_print("Judy individual \$j[\$k] = \$v", function() use ($int_data, $size) {
-        $j = new Judy(Judy::INT_TO_INT);
-        foreach ($int_data as $k => $v) {
-            $j[$k] = $v;
-        }
-    }, $iterations);
-
-    $t_putall = bench_print("Judy putAll()", function() use ($int_data, $size) {
-        $j = new Judy(Judy::INT_TO_INT);
-        $j->putAll($int_data);
-    }, $iterations);
-
-    $t_fromarray = bench_print("Judy::fromArray()", function() use ($int_data, $size) {
-        $j = Judy::fromArray(Judy::INT_TO_INT, $int_data);
-    }, $iterations);
-
-    printf("  %-50s %.2fx\n", "putAll() vs individual", $t_individual / max($t_putall, 0.001));
-    printf("  %-50s %.2fx\n", "fromArray() vs individual", $t_individual / max($t_fromarray, 0.001));
-    printf("  %-50s %.2fx\n", "PHP array vs Judy putAll()", $t_putall / max($t_php, 0.001));
-    echo "\n";
-
-    // ---- BULK GET ----
-    $get_n = count($get_keys_int_with_missing);
-    echo "  [Bulk Get: fetch $get_n keys (incl. 100 missing)]\n";
-
-    // Pre-populate for read tests
-    $j_read = new Judy(Judy::INT_TO_INT);
-    $j_read->putAll($int_data);
-
-    $t_php_get = bench_print("PHP array (individual access)", function() use ($int_data, $get_keys_int_with_missing) {
-        $results = [];
-        foreach ($get_keys_int_with_missing as $k) {
-            $results[$k] = $int_data[$k] ?? null;
-        }
-    }, $iterations);
-
-    $t_individual_get = bench_print("Judy individual \$j[\$k]", function() use ($j_read, $get_keys_int_with_missing) {
-        $results = [];
-        foreach ($get_keys_int_with_missing as $k) {
-            $results[$k] = $j_read[$k] ?? null;
-        }
-    }, $iterations);
-
-    $t_getall = bench_print("Judy getAll()", function() use ($j_read, $get_keys_int_with_missing) {
-        $results = $j_read->getAll($get_keys_int_with_missing);
-    }, $iterations);
-
-    printf("  %-50s %.2fx\n", "getAll() vs individual Judy", $t_individual_get / max($t_getall, 0.001));
-    printf("  %-50s %.2fx\n", "PHP array vs Judy getAll()", $t_getall / max($t_php_get, 0.001));
-    echo "\n";
-
-    // ---- CONVERSION ----
-    echo "  [Conversion: toArray()]\n";
-
-    $t_toarray = bench_print("Judy toArray()", function() use ($j_read) {
-        $arr = $j_read->toArray();
-    }, $iterations);
-
-    $t_manual = bench_print("Judy manual foreach loop", function() use ($j_read) {
-        $arr = [];
-        foreach ($j_read as $k => $v) {
-            $arr[$k] = $v;
-        }
-    }, $iterations);
-
-    printf("  %-50s %.2fx\n", "toArray() vs manual foreach", $t_manual / max($t_toarray, 0.001));
-    echo "\n";
-
-    unset($j_read, $int_data, $keys_int, $get_keys_int, $get_keys_int_with_missing);
-
-    // ---- STRING_TO_INT ----
-    $string_data = make_string_data($size);
-    $keys_str = array_keys($string_data);
-    $get_keys_str = array_slice($keys_str, 0, $get_count);
-    $get_keys_str_with_missing = $get_keys_str;
-    for ($i = 0; $i < 100; $i++) {
-        $get_keys_str_with_missing[] = "missing_" . $i;
-    }
-
-    echo "===========================================================\n";
-    echo "  STRING_TO_INT — " . number_format($size) . " elements\n";
-    echo "===========================================================\n\n";
-
-    // ---- BULK ADD ----
-    echo "  [Bulk Add: populate $size elements]\n";
-
-    $t_php = bench_print("PHP array (literal assignment)", function() use ($string_data, $size) {
-        $a = [];
-        foreach ($string_data as $k => $v) {
-            $a[$k] = $v;
-        }
-    }, $iterations);
-
-    $t_individual = bench_print("Judy individual \$j[\$k] = \$v", function() use ($string_data, $size) {
-        $j = new Judy(Judy::STRING_TO_INT);
-        foreach ($string_data as $k => $v) {
-            $j[$k] = $v;
-        }
-    }, $iterations);
-
-    $t_putall = bench_print("Judy putAll()", function() use ($string_data, $size) {
-        $j = new Judy(Judy::STRING_TO_INT);
-        $j->putAll($string_data);
-    }, $iterations);
-
-    $t_fromarray = bench_print("Judy::fromArray()", function() use ($string_data, $size) {
-        $j = Judy::fromArray(Judy::STRING_TO_INT, $string_data);
-    }, $iterations);
-
-    printf("  %-50s %.2fx\n", "putAll() vs individual", $t_individual / max($t_putall, 0.001));
-    printf("  %-50s %.2fx\n", "fromArray() vs individual", $t_individual / max($t_fromarray, 0.001));
-    printf("  %-50s %.2fx\n", "PHP array vs Judy putAll()", $t_putall / max($t_php, 0.001));
-    echo "\n";
-
-    // ---- BULK GET ----
-    $get_n = count($get_keys_str_with_missing);
-    echo "  [Bulk Get: fetch $get_n keys (incl. 100 missing)]\n";
-
-    $j_read = new Judy(Judy::STRING_TO_INT);
-    $j_read->putAll($string_data);
-
-    $t_php_get = bench_print("PHP array (individual access)", function() use ($string_data, $get_keys_str_with_missing) {
-        $results = [];
-        foreach ($get_keys_str_with_missing as $k) {
-            $results[$k] = $string_data[$k] ?? null;
-        }
-    }, $iterations);
-
-    $t_individual_get = bench_print("Judy individual \$j[\$k]", function() use ($j_read, $get_keys_str_with_missing) {
-        $results = [];
-        foreach ($get_keys_str_with_missing as $k) {
-            $results[$k] = $j_read[$k] ?? null;
-        }
-    }, $iterations);
-
-    $t_getall = bench_print("Judy getAll()", function() use ($j_read, $get_keys_str_with_missing) {
-        $results = $j_read->getAll($get_keys_str_with_missing);
-    }, $iterations);
-
-    printf("  %-50s %.2fx\n", "getAll() vs individual Judy", $t_individual_get / max($t_getall, 0.001));
-    printf("  %-50s %.2fx\n", "PHP array vs Judy getAll()", $t_getall / max($t_php_get, 0.001));
-    echo "\n";
-
-    // ---- CONVERSION ----
-    echo "  [Conversion: toArray()]\n";
-
-    $t_toarray = bench_print("Judy toArray()", function() use ($j_read) {
-        $arr = $j_read->toArray();
-    }, $iterations);
-
-    $t_manual = bench_print("Judy manual foreach loop", function() use ($j_read) {
-        $arr = [];
-        foreach ($j_read as $k => $v) {
-            $arr[$k] = $v;
-        }
-    }, $iterations);
-
-    printf("  %-50s %.2fx\n", "toArray() vs manual foreach", $t_manual / max($t_toarray, 0.001));
-    echo "\n";
-
-    unset($j_read, $string_data, $keys_str, $get_keys_str, $get_keys_str_with_missing);
-}
-
-// ---- INCREMENT BENCHMARK ----
-echo "===========================================================\n";
-echo "  Increment Benchmark\n";
-echo "===========================================================\n\n";
-
-foreach ($sizes as $size) {
-    echo "  --- " . number_format($size) . " increments ---\n";
-
-    // INT_TO_INT increment
-    echo "  [INT_TO_INT]\n";
-
-    $t_php_inc = bench_print("PHP array \$a[\$k]++", function() use ($size) {
-        $a = [];
-        for ($i = 0; $i < $size; $i++) {
-            $k = $i % 1000; // 1000 unique keys, each incremented many times
-            if (!isset($a[$k])) $a[$k] = 0;
-            $a[$k]++;
-        }
-    }, $iterations);
-
-    $t_judy_manual = bench_print("Judy \$j[\$k] = \$j[\$k] + 1", function() use ($size) {
-        $j = new Judy(Judy::INT_TO_INT);
-        for ($i = 0; $i < $size; $i++) {
-            $k = $i % 1000;
-            $j[$k] = ($j[$k] ?? 0) + 1;
-        }
-    }, $iterations);
-
-    $t_judy_inc = bench_print("Judy increment()", function() use ($size) {
-        $j = new Judy(Judy::INT_TO_INT);
-        for ($i = 0; $i < $size; $i++) {
-            $j->increment($i % 1000);
-        }
-    }, $iterations);
-
-    printf("  %-50s %.2fx\n", "increment() vs manual Judy", $t_judy_manual / max($t_judy_inc, 0.001));
-    printf("  %-50s %.2fx\n", "PHP array vs Judy increment()", $t_judy_inc / max($t_php_inc, 0.001));
-    echo "\n";
-
-    // STRING_TO_INT increment
-    echo "  [STRING_TO_INT]\n";
-
-    // Pre-generate keys to avoid measuring string creation overhead
-    $str_keys = [];
-    for ($i = 0; $i < 1000; $i++) {
-        $str_keys[] = "counter_" . $i;
-    }
-
-    $t_php_inc = bench_print("PHP array \$a[\$k]++", function() use ($size, $str_keys) {
-        $a = [];
-        for ($i = 0; $i < $size; $i++) {
-            $k = $str_keys[$i % 1000];
-            if (!isset($a[$k])) $a[$k] = 0;
-            $a[$k]++;
-        }
-    }, $iterations);
-
-    $t_judy_manual = bench_print("Judy \$j[\$k] = \$j[\$k] + 1", function() use ($size, $str_keys) {
-        $j = new Judy(Judy::STRING_TO_INT);
-        for ($i = 0; $i < $size; $i++) {
-            $k = $str_keys[$i % 1000];
-            $j[$k] = ($j[$k] ?? 0) + 1;
-        }
-    }, $iterations);
-
-    $t_judy_inc = bench_print("Judy increment()", function() use ($size, $str_keys) {
-        $j = new Judy(Judy::STRING_TO_INT);
-        for ($i = 0; $i < $size; $i++) {
-            $j->increment($str_keys[$i % 1000]);
-        }
-    }, $iterations);
-
-    printf("  %-50s %.2fx\n", "increment() vs manual Judy", $t_judy_manual / max($t_judy_inc, 0.001));
-    printf("  %-50s %.2fx\n", "PHP array vs Judy increment()", $t_judy_inc / max($t_php_inc, 0.001));
-    echo "\n";
+    bench_type("INT_TO_INT", Judy::INT_TO_INT, make_int_data($size), $size, $iterations);
+    bench_type("STRING_TO_INT", Judy::STRING_TO_INT, make_string_data($size), $size, $iterations);
 }
 
 echo "=============================================================\n";
