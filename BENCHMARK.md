@@ -121,6 +121,48 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 
 **Key Insight**: Judy performs well with real-world data patterns that have locality.
 
+### **Table 4: Batch Operations — Bulk Add (100K elements)**
+
+| Method | INT_TO_INT | STRING_TO_INT | Notes |
+|--------|-----------|---------------|-------|
+| **PHP array** (foreach assign) | 2.2 ms | 2.5 ms | Baseline |
+| **Judy individual** `$j[$k] = $v` | 4.7 ms | 19.3 ms | 2.1x / 7.7x slower than PHP |
+| **Judy putAll()** | 5.5 ms | 18.6 ms | ~1.0x vs individual |
+| **Judy::fromArray()** | 3.5 ms | 18.0 ms | 1.3x faster than individual (INT) |
+
+**Key Insight**: `fromArray()` provides a meaningful speedup for integer-keyed types by avoiding per-element PHP method dispatch. For string-keyed types, the Judy tree traversal cost dominates.
+
+### **Table 5: Batch Operations — Bulk Get (10K lookups on 100K elements)**
+
+| Method | INT_TO_INT | STRING_TO_INT | Notes |
+|--------|-----------|---------------|-------|
+| **PHP array** (`$a[$k] ?? null`) | 0.23 ms | 0.26 ms | Baseline |
+| **Judy individual** `$j[$k]` | 0.30 ms | 0.89 ms | 1.3x / 3.4x slower than PHP |
+| **Judy getAll()** | 0.16 ms | 0.80 ms | **1.9x / 1.1x faster than individual** |
+
+**Key Insight**: `getAll()` is significantly faster than individual lookups for integer keys (1.9x speedup) because it avoids per-element ArrayAccess overhead. For string keys the benefit is smaller but still measurable.
+
+### **Table 6: Conversion — toArray() vs Manual Foreach (100K elements)**
+
+| Method | INT_TO_INT | STRING_TO_INT | Notes |
+|--------|-----------|---------------|-------|
+| **Judy toArray()** | 4.2 ms | 13.2 ms | Native C iteration |
+| **Judy manual foreach** | 11.8 ms | 41.0 ms | PHP Iterator overhead |
+| **Speedup** | **2.8x** | **3.1x** | toArray() avoids Iterator dispatch |
+
+**Key Insight**: `toArray()` is 2-3x faster than building an array via `foreach` because it uses native C iteration internally, bypassing the PHP Iterator interface overhead.
+
+### **Table 7: Atomic Increment (100K operations, 1K unique keys)**
+
+| Method | INT_TO_INT | STRING_TO_INT | Notes |
+|--------|-----------|---------------|-------|
+| **PHP array** `$a[$k]++` | 1.7 ms | 2.8 ms | Baseline |
+| **Judy manual** `$j[$k] = $j[$k] + 1` | 4.7 ms | 12.8 ms | Two traversals (read + write) |
+| **Judy increment()** | 3.0 ms | 10.1 ms | Single traversal for INT (JLI); two for STRING (JSLG+JSLI) |
+| **increment() vs manual** | **1.6x faster** | **1.3x faster** | Eliminates redundant lookup |
+
+**Key Insight**: For `INT_TO_INT`, `increment()` achieves a true single-traversal update via `JLI`'s insert-or-get semantics (1.6x speedup). For `STRING_TO_INT`, two traversals are needed (`JSLG` to check existence for counter tracking + `JSLI` to insert/update), still providing a 1.3x speedup by keeping all logic in C rather than PHP.
+
 ---
 
 ## Key Findings
@@ -254,6 +296,9 @@ php examples/run_comprehensive_benchmarks.php
 php examples/benchmark_ordered_data.php
 php examples/benchmark_range_queries.php
 php examples/benchmark_real_world_patterns.php
+
+# Run batch operations and increment benchmarks
+php examples/judy-bench-batch-operations.php
 ```
 
 **Note**: All benchmarks use proper Iterator interface methods and run without deprecated warnings.
