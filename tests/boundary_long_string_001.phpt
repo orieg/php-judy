@@ -25,6 +25,20 @@ $j["x"] = 99;
 echo "Single char key: " . $j["x"] . "\n";
 
 echo "Count: " . $j->count() . "\n";
+
+// Maximum allowed key length (PHP_JUDY_MAX_LENGTH - 1 = 65535)
+$max_key = str_repeat("m", 65535);
+$j[$max_key] = 123;
+echo "Max length key (65535) stored: " . ($j[$max_key] === 123 ? "yes" : "no") . "\n";
+
+// Key exceeding maximum length (65536) should throw exception
+try {
+    $too_long = str_repeat("z", 65536);
+    $j[$too_long] = 456;
+    echo "ERROR: no exception for oversized key\n";
+} catch (Exception $e) {
+    echo "Oversized key exception: yes\n";
+}
 ?>
 --EXPECT--
 1000-char key stored: yes
@@ -33,3 +47,5 @@ echo "Count: " . $j->count() . "\n";
 500-char key 'b': 2
 Single char key: 99
 Count: 4
+Max length key (65535) stored: yes
+Oversized key exception: yes

@@ -18,6 +18,10 @@ echo "Value PHP_INT_MIN: " . ($j[1] === PHP_INT_MIN ? "yes" : "no") . "\n";
 $j[PHP_INT_MAX - 1] = 42;
 echo "Key PHP_INT_MAX-1: " . $j[PHP_INT_MAX - 1] . "\n";
 
+// PHP_INT_MAX as key
+$j[PHP_INT_MAX] = 99;
+echo "Key PHP_INT_MAX: " . $j[PHP_INT_MAX] . "\n";
+
 // Zero key and value
 $j[0] = 0;
 echo "Value 0 at key 0: " . ($j[0] === 0 ? "yes" : "no") . "\n";
@@ -30,6 +34,7 @@ echo "Count: " . $j->count() . "\n";
 Value PHP_INT_MAX: yes
 Value PHP_INT_MIN: yes
 Key PHP_INT_MAX-1: 42
+Key PHP_INT_MAX: 99
 Value 0 at key 0: yes
 Key 0 exists: yes
-Count: 3
+Count: 4
