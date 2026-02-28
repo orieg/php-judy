@@ -25,6 +25,7 @@
 #include "judy_arrayaccess.h"
 #include "judy_iterator.h"
 #include "ext/spl/spl_iterators.h"
+#include "ext/json/php_json.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(judy)
 
@@ -594,7 +595,7 @@ PHP_MINIT_FUNCTION(judy)
 	judy_handlers.offset = XtOffsetOf(judy_object, std);
 
 	/* implements some interface to provide access to judy object as an array */
-	zend_class_implements(judy_ce, 3, zend_ce_arrayaccess, zend_ce_countable, zend_ce_iterator);
+	zend_class_implements(judy_ce, 4, zend_ce_arrayaccess, zend_ce_countable, zend_ce_iterator, php_json_serializable_ce);
 
 	judy_ce->get_iterator = judy_get_iterator;
 
@@ -1848,6 +1849,165 @@ alloc_error:
 }
 /* }}} */
 
+/* {{{ Helper to build a PHP array from a Judy array's contents.
+   Used by both jsonSerialize() and __serialize() to avoid duplication.
+   Populates `data` (which must be initialized as an array by the caller). */
+static void judy_build_data_array(judy_object *intern, zval *data)
+{
+	if (intern->type == TYPE_BITSET) {
+		Word_t index = 0;
+		int Rc_int;
+
+		J1F(Rc_int, intern->array, index);
+		while (Rc_int) {
+			add_next_index_long(data, (zend_long)index);
+			J1N(Rc_int, intern->array, index);
+		}
+
+	} else if (intern->type == TYPE_INT_TO_INT) {
+		Word_t index = 0;
+		Pvoid_t *PValue;
+
+		JLF(PValue, intern->array, index);
+		while (PValue != NULL && PValue != PJERR) {
+			add_index_long(data, (zend_long)index, JUDY_LVAL_READ(PValue));
+			JLN(PValue, intern->array, index);
+		}
+
+	} else if (intern->type == TYPE_INT_TO_MIXED) {
+		Word_t index = 0;
+		Pvoid_t *PValue;
+
+		JLF(PValue, intern->array, index);
+		while (PValue != NULL && PValue != PJERR) {
+			zval *value = JUDY_MVAL_READ(PValue);
+			Z_TRY_ADDREF_P(value);
+			add_index_zval(data, (zend_long)index, value);
+			JLN(PValue, intern->array, index);
+		}
+
+	} else if (intern->type == TYPE_STRING_TO_INT) {
+		uint8_t key[PHP_JUDY_MAX_LENGTH];
+		Pvoid_t *PValue;
+
+		key[0] = '\0';
+		JSLF(PValue, intern->array, key);
+		while (PValue != NULL && PValue != PJERR) {
+			add_assoc_long(data, (const char *)key, JUDY_LVAL_READ(PValue));
+			JSLN(PValue, intern->array, key);
+		}
+
+	} else if (intern->type == TYPE_STRING_TO_MIXED) {
+		uint8_t key[PHP_JUDY_MAX_LENGTH];
+		Pvoid_t *PValue;
+
+		key[0] = '\0';
+		JSLF(PValue, intern->array, key);
+		while (PValue != NULL && PValue != PJERR) {
+			zval *value = JUDY_MVAL_READ(PValue);
+			Z_TRY_ADDREF_P(value);
+			add_assoc_zval(data, (const char *)key, value);
+			JSLN(PValue, intern->array, key);
+		}
+	}
+}
+/* }}} */
+
+/* {{{ proto mixed Judy::jsonSerialize()
+   Returns data suitable for json_encode(). Implements JsonSerializable. */
+PHP_METHOD(judy, jsonSerialize)
+{
+	JUDY_METHOD_GET_OBJECT
+
+	array_init(return_value);
+	judy_build_data_array(intern, return_value);
+}
+/* }}} */
+
+/* {{{ proto array Judy::__serialize()
+   Returns serialization data: ['type' => int, 'data' => array] */
+PHP_METHOD(judy, __serialize)
+{
+	JUDY_METHOD_GET_OBJECT
+
+	zval data;
+
+	array_init(return_value);
+	add_assoc_long(return_value, "type", intern->type);
+
+	array_init(&data);
+	judy_build_data_array(intern, &data);
+	add_assoc_zval(return_value, "data", &data);
+}
+/* }}} */
+
+/* {{{ proto void Judy::__unserialize(array $data)
+   Restores a Judy array from serialized data */
+PHP_METHOD(judy, __unserialize)
+{
+	zval *arr, *ztype, *zdata, *entry;
+	zend_long type;
+	judy_type jtype;
+	zend_string *str_key;
+	zend_ulong num_key;
+
+	JUDY_METHOD_GET_OBJECT
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_ARRAY(arr)
+	ZEND_PARSE_PARAMETERS_END();
+
+	ztype = zend_hash_str_find(Z_ARRVAL_P(arr), "type", sizeof("type") - 1);
+	zdata = zend_hash_str_find(Z_ARRVAL_P(arr), "data", sizeof("data") - 1);
+
+	if (!ztype || !zdata || Z_TYPE_P(ztype) != IS_LONG || Z_TYPE_P(zdata) != IS_ARRAY) {
+		zend_throw_exception(NULL, "Invalid serialization data for Judy array", 0);
+		return;
+	}
+
+	type = Z_LVAL_P(ztype);
+	JTYPE(jtype, type);
+	if (jtype == 0) {
+		zend_throw_exception(NULL, "Invalid Judy type in serialized data", 0);
+		return;
+	}
+
+	intern->type = jtype;
+	intern->array = (Pvoid_t) NULL;
+	intern->counter = 0;
+	intern->is_integer_keyed = (jtype == TYPE_BITSET || jtype == TYPE_INT_TO_INT || jtype == TYPE_INT_TO_MIXED);
+	intern->is_string_keyed = (jtype == TYPE_STRING_TO_INT || jtype == TYPE_STRING_TO_MIXED);
+	intern->is_mixed_value = (jtype == TYPE_INT_TO_MIXED || jtype == TYPE_STRING_TO_MIXED);
+
+	ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(zdata), num_key, str_key, entry) {
+		zval offset, *val_to_write;
+
+		if (intern->type == TYPE_BITSET) {
+			/* BITSET data is a flat array of index values */
+			ZVAL_LONG(&offset, zval_get_long(entry));
+			zval bool_true;
+			ZVAL_TRUE(&bool_true);
+			judy_object_write_dimension_helper(object, &offset, &bool_true);
+		} else if (intern->is_string_keyed) {
+			if (str_key) {
+				ZVAL_STR_COPY(&offset, str_key);
+			} else {
+				/* Numeric key in string array -- convert to string */
+				ZVAL_STR(&offset, zend_long_to_str((zend_long)num_key));
+			}
+			val_to_write = entry;
+			judy_object_write_dimension_helper(object, &offset, val_to_write);
+			zval_ptr_dtor(&offset);
+		} else {
+			/* Integer-keyed types */
+			ZVAL_LONG(&offset, (zend_long)num_key);
+			val_to_write = entry;
+			judy_object_write_dimension_helper(object, &offset, val_to_write);
+		}
+	} ZEND_HASH_FOREACH_END();
+}
+/* }}} */
+
 /* {{{ proto int Judy::getType()
    Return the current Judy Array type */
 PHP_METHOD(judy, getType)
@@ -1912,6 +2072,9 @@ PHP_METHOD(judy, intersect);
 PHP_METHOD(judy, diff);
 PHP_METHOD(judy, xor);
 PHP_METHOD(judy, slice);
+PHP_METHOD(judy, jsonSerialize);
+PHP_METHOD(judy, __serialize);
+PHP_METHOD(judy, __unserialize);
 /* }}} */
 
 /* {{{ PHP Judy Methods for the Array Access Interface
@@ -2048,6 +2211,17 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_next, 0, 0, IS_VOID, 0)
 ZEND_END_ARG_INFO()
 
+/* JsonSerializable / Serialization arginfo */
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_jsonSerialize, 0, 0, IS_MIXED, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy___serialize, 0, 0, IS_ARRAY, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy___unserialize, 0, 1, IS_VOID, 0)
+	ZEND_ARG_TYPE_INFO(0, data, IS_ARRAY, 0)
+ZEND_END_ARG_INFO()
+
 /* {{{ judy_functions[]
  *
  * Every user visible function must have an entry in judy_functions[].
@@ -2092,6 +2266,11 @@ const zend_function_entry judy_class_methods[] = {
 	/* PHP JUDY METHODS / SLICE */
 	PHP_ME(judy, slice, 			arginfo_judy_slice, ZEND_ACC_PUBLIC)
 
+	/* PHP JUDY METHODS / SERIALIZATION */
+	PHP_ME(judy, jsonSerialize, 	arginfo_judy_jsonSerialize, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, __serialize, 		arginfo_judy___serialize, ZEND_ACC_PUBLIC)
+	PHP_ME(judy, __unserialize, 	arginfo_judy___unserialize, ZEND_ACC_PUBLIC)
+
 	/* PHP JUDY METHODS / ARRAYACCESS INTERFACE */
 	PHP_ME(judy, offsetSet, 		arginfo_judy_offsetSet, ZEND_ACC_PUBLIC)
 	PHP_ME(judy, offsetUnset, 		arginfo_judy_offsetUnset, ZEND_ACC_PUBLIC)
@@ -2112,6 +2291,7 @@ const zend_function_entry judy_class_methods[] = {
 
 static const zend_module_dep judy_deps[] = {
 	ZEND_MOD_REQUIRED("spl")
+	ZEND_MOD_REQUIRED("json")
 	{NULL, NULL, NULL}
 };
 

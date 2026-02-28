@@ -295,8 +295,8 @@ Please report bugs and issues on the GitHub repository:
 - [x] **Performance**: Optimize `get_iterator` to use native C iterators.
 - [x] **Core Features**: Implement `slice($start, $end)` for efficient range queries.
 - [x] **Set Operations**: Add native methods for Union, Intersection, and Difference (especially for BITSET).
-- [ ] **Serialization**: Implement `__serialize`/`__unserialize` for optimized binary persistence.
-- [ ] **Interoperability**: Implement `JsonSerializable` interface.
+- [x] **Serialization**: Implement `__serialize`/`__unserialize` for optimized binary persistence.
+- [x] **Interoperability**: Implement `JsonSerializable` interface.
 - [ ] **Testing**: More comprehensive test coverage.
 - [ ] **Documentation**: Document memory usage patterns vs standard arrays.
 
