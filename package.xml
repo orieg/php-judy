@@ -19,8 +19,8 @@
    <date>2026-02-27</date>
    <time>00:00:00</time>
    <version>
-      <release>2.3.0</release>
-      <api>2.3.0</api>
+      <release>2.4.0</release>
+      <api>2.4.0</api>
    </version>
    <stability>
       <release>stable</release>
@@ -28,17 +28,14 @@
    </stability>
    <license uri="http://www.php.net/license">PHP</license>
    <notes>
-- NEW FEATURE: Windows PECL DLL builds now published with each release (PHP 8.1-8.5, x86/x64, TS/NTS)
-- NEW FEATURE: PHP 8.5 support added to CI matrix
-- FIX: PHP 8.1+ compile fix - ZVAL_DUP replaced with ZVAL_COPY throughout
-- FIX: free_obj memory leak resolved (Judy array, zvals, and iterator state now properly freed)
-- FIX: BITSET clone bug fixed (was iterating new array instead of source)
-- FIX: STRING_TO_INT counter no longer overcounts on value overwrite
-- FIX: E_ERROR replaced with exceptions in constructor and write_dimension
-- FIX: foreach-by-ref now throws a proper error instead of E_ERROR; fixed emalloc leak
-- FIX: long->zend_long throughout; JLF() iterator bug fixed; redundant JLG lookups removed
-- FIX: Removed -march=native and -flto from config.m4 for portability
-- IMPROVEMENT: CI workflow consolidated; Windows benchmarks added to CI reporting
+- NEW FEATURE: Fast ZPP (Zend Parameter Parsing) macros across all methods for improved performance
+- NEW FEATURE: Native zend_object_handlers (read/write/has/unset_dimension) bypass ArrayAccess overhead
+- NEW FEATURE: Native C iterators via get_iterator for zero-overhead foreach loops
+- NEW FEATURE: BITSET set operations -- union(), intersect(), diff(), xor() methods
+- NEW FEATURE: slice($start, $end) for efficient range extraction on all array types
+- NEW FEATURE: JsonSerializable interface -- json_encode() works natively on Judy arrays
+- NEW FEATURE: __serialize()/__unserialize() for native PHP serialize/unserialize support
+- IMPROVEMENT: 85 tests covering all features
    </notes>
    <contents>
       <dir name="/">
@@ -257,6 +254,27 @@
       <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
    </extsrcrelease>
    <changelog>
+      <release>
+         <date>2026-02-27</date>
+         <version>
+            <release>2.4.0</release>
+            <api>2.4.0</api>
+         </version>
+         <stability>
+            <release>stable</release>
+            <api>stable</api>
+         </stability>
+         <notes>
+- NEW FEATURE: Fast ZPP (Zend Parameter Parsing) macros across all methods for improved performance
+- NEW FEATURE: Native zend_object_handlers (read/write/has/unset_dimension) bypass ArrayAccess overhead
+- NEW FEATURE: Native C iterators via get_iterator for zero-overhead foreach loops
+- NEW FEATURE: BITSET set operations -- union(), intersect(), diff(), xor() methods
+- NEW FEATURE: slice($start, $end) for efficient range extraction on all array types
+- NEW FEATURE: JsonSerializable interface -- json_encode() works natively on Judy arrays
+- NEW FEATURE: __serialize()/__unserialize() for native PHP serialize/unserialize support
+- IMPROVEMENT: 85 tests covering all features
+         </notes>
+      </release>
       <release>
          <date>2026-02-27</date>
          <version>
