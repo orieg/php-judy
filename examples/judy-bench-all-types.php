@@ -169,6 +169,18 @@ function make_str_mixed(int $size): array {
     return $data;
 }
 
+/**
+ * Generate $size long-key string-keyed integer values.
+ * Keys are 128-byte strings to stress trie traversal (JudySL) vs hash (JudyHS).
+ */
+function make_long_key_int(int $size): array {
+    $data = [];
+    for ($i = 0; $i < $size; $i++) {
+        $data[str_pad("longkey_$i", 128, '_')] = $i;
+    }
+    return $data;
+}
+
 // ── Benchmark a single subject ─────────────────────────────────────────────
 
 /**
@@ -658,6 +670,111 @@ $results['STRING_TO_MIXED_HASH'] = [
     'note'   => 'memoryUsage()=null (JudyHS)',
 ];
 
+// ── Long-key string subjects (JudyHS O(1) vs JudySL O(k) demo) ────────
+
+$long_size      = min($size, 100000);  // cap at 100K for long keys (128 B each)
+$long_key_data  = make_long_key_int($long_size);
+$long_keys      = array_keys($long_key_data);
+
+$results['PHP array (long→int)'] = [
+    'keys'   => 'str128',
+    'values' => 'int',
+    'write'  => bench_median(function() use ($long_key_data) {
+        $a = [];
+        foreach ($long_key_data as $k => $v) { $a[$k] = $v; }
+    }, $iterations),
+    'read'   => (function() use ($long_key_data, $long_keys, $iterations) {
+        $a = $long_key_data;
+        return bench_median(function() use ($a, $long_keys) {
+            foreach ($long_keys as $k) { $v = $a[$k]; }
+        }, $iterations);
+    })(),
+    'iter'   => (function() use ($long_key_data, $iterations) {
+        $a = $long_key_data;
+        return bench_median(function() use ($a) {
+            foreach ($a as $k => $v) {}
+        }, $iterations);
+    })(),
+    'heap'   => measure_heap(function() use ($long_key_data) {
+        $a = [];
+        foreach ($long_key_data as $k => $v) { $a[$k] = $v; }
+        return $a;
+    }),
+    'free'   => measure_free(function() use ($long_key_data) {
+        $a = [];
+        foreach ($long_key_data as $k => $v) { $a[$k] = $v; }
+        return $a;
+    }, $iterations),
+    'internal' => null,
+    'note'   => '',
+];
+
+$results['STRING_TO_INT (long)'] = [
+    'keys'   => 'str128',
+    'values' => 'int',
+    'write'  => bench_median(function() use ($long_key_data) {
+        $j = new Judy(Judy::STRING_TO_INT);
+        foreach ($long_key_data as $k => $v) { $j[$k] = $v; }
+    }, $iterations),
+    'read'   => (function() use ($long_key_data, $long_keys, $iterations) {
+        $j = Judy::fromArray(Judy::STRING_TO_INT, $long_key_data);
+        return bench_median(function() use ($j, $long_keys) {
+            foreach ($long_keys as $k) { $v = $j[$k]; }
+        }, $iterations);
+    })(),
+    'iter'   => (function() use ($long_key_data, $iterations) {
+        $j = Judy::fromArray(Judy::STRING_TO_INT, $long_key_data);
+        return bench_median(function() use ($j) {
+            foreach ($j as $k => $v) {}
+        }, $iterations);
+    })(),
+    'heap'   => measure_heap(function() use ($long_key_data) {
+        $j = new Judy(Judy::STRING_TO_INT);
+        foreach ($long_key_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }),
+    'free'   => measure_free(function() use ($long_key_data) {
+        $j = new Judy(Judy::STRING_TO_INT);
+        foreach ($long_key_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }, $iterations),
+    'internal' => null,
+    'note'   => 'JudySL O(k) trie',
+];
+
+$results['STR_TO_MIX_HASH (long)'] = [
+    'keys'   => 'str128',
+    'values' => 'int',
+    'write'  => bench_median(function() use ($long_key_data) {
+        $j = new Judy(Judy::STRING_TO_MIXED_HASH);
+        foreach ($long_key_data as $k => $v) { $j[$k] = $v; }
+    }, $iterations),
+    'read'   => (function() use ($long_key_data, $long_keys, $iterations) {
+        $j = Judy::fromArray(Judy::STRING_TO_MIXED_HASH, $long_key_data);
+        return bench_median(function() use ($j, $long_keys) {
+            foreach ($long_keys as $k) { $v = $j[$k]; }
+        }, $iterations);
+    })(),
+    'iter'   => (function() use ($long_key_data, $iterations) {
+        $j = Judy::fromArray(Judy::STRING_TO_MIXED_HASH, $long_key_data);
+        return bench_median(function() use ($j) {
+            foreach ($j as $k => $v) {}
+        }, $iterations);
+    })(),
+    'heap'   => measure_heap(function() use ($long_key_data) {
+        $j = new Judy(Judy::STRING_TO_MIXED_HASH);
+        foreach ($long_key_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }),
+    'free'   => measure_free(function() use ($long_key_data) {
+        $j = new Judy(Judy::STRING_TO_MIXED_HASH);
+        foreach ($long_key_data as $k => $v) { $j[$k] = $v; }
+        return $j;
+    }, $iterations),
+    'internal' => null,
+    'note'   => 'JudyHS O(1) hash',
+];
+
 // ── Output ─────────────────────────────────────────────────────────────────
 
 $div  = str_repeat('━', 92);
@@ -685,17 +802,16 @@ $int_groups = [
 ];
 
 foreach ($int_groups as $group_label => $names) {
-    $w = [24, 10, 10, 10, 10, 14, 20];
-    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
-        "[$group_label]", 'Write', 'Read', 'Foreach', 'Free', 'Heap delta', 'Internal mem');
-    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
+    $w = [24, 10, 10, 10, 10, 14];
+    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
+        "[$group_label]", 'Write', 'Read', 'Foreach', 'Free', 'Heap delta');
+    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
         str_repeat('─', $w[0]),
         str_repeat('─', $w[1]),
         str_repeat('─', $w[2]),
         str_repeat('─', $w[3]),
         str_repeat('─', $w[4]),
-        str_repeat('─', $w[5]),
-        str_repeat('─', $w[6]));
+        str_repeat('─', $w[5]));
 
     foreach ($names as $name) {
         $r = $results[$name];
@@ -704,11 +820,9 @@ foreach ($int_groups as $group_label => $names) {
         $iter  = $r['iter']  !== null ? sprintf('%.2f ms', $r['iter'])  : '—';
         $free  = $r['free']  !== null ? sprintf('%.2f ms', $r['free'])  : '—';
         $heap  = $r['heap']  !== null ? fmt_bytes($r['heap'])           : '—';
-        $mem   = fmt_mem($r['internal']);
-        $note  = $r['note'] !== '' ? " ({$r['note']})" : '';
 
-        printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
-            $name, $write, $read, $iter, $free, $heap, $mem . $note);
+        printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
+            $name, $write, $read, $iter, $free, $heap);
     }
     echo "\n";
 }
@@ -723,17 +837,16 @@ $str_groups = [
 ];
 
 foreach ($str_groups as $group_label => $names) {
-    $w = [26, 10, 10, 10, 10, 14, 20];
-    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
-        "[$group_label]", 'Write', 'Read', 'Foreach', 'Free', 'Heap delta', 'Internal mem');
-    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
+    $w = [24, 10, 10, 10, 10, 14];
+    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
+        "[$group_label]", 'Write', 'Read', 'Foreach', 'Free', 'Heap delta');
+    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
         str_repeat('─', $w[0]),
         str_repeat('─', $w[1]),
         str_repeat('─', $w[2]),
         str_repeat('─', $w[3]),
         str_repeat('─', $w[4]),
-        str_repeat('─', $w[5]),
-        str_repeat('─', $w[6]));
+        str_repeat('─', $w[5]));
 
     foreach ($names as $name) {
         $r = $results[$name];
@@ -742,16 +855,44 @@ foreach ($str_groups as $group_label => $names) {
         $iter  = $r['iter']  !== null ? sprintf('%.2f ms', $r['iter'])  : '—';
         $free  = $r['free']  !== null ? sprintf('%.2f ms', $r['free'])  : '—';
         $heap  = $r['heap']  !== null ? fmt_bytes($r['heap'])           : '—';
-        $mem   = fmt_mem($r['internal']);
-        $note  = $r['note'] !== '' ? " ({$r['note']})" : '';
 
-        printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s  %-{$w[6]}s\n",
-            $name, $write, $read, $iter, $free, $heap, $mem . $note);
+        printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
+            $name, $write, $read, $iter, $free, $heap);
     }
     echo "\n";
 }
 
-// ── Section 3: Summary comparison table ────────────────────────────────
+// ── Section 3: Long-key string benchmarks (JudyHS O(1) vs JudySL O(k)) ──
+
+echo "┌─ Long-key string types (" . number_format($long_size) . " elements, 128-byte keys) ──────────────┐\n\n";
+
+$long_names = ['PHP array (long→int)', 'STRING_TO_INT (long)', 'STR_TO_MIX_HASH (long)'];
+
+$w = [24, 10, 10, 10, 10, 14];
+printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
+    '[128-byte keys → int]', 'Write', 'Read', 'Foreach', 'Free', 'Heap delta');
+printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
+    str_repeat('─', $w[0]),
+    str_repeat('─', $w[1]),
+    str_repeat('─', $w[2]),
+    str_repeat('─', $w[3]),
+    str_repeat('─', $w[4]),
+    str_repeat('─', $w[5]));
+
+foreach ($long_names as $name) {
+    $r = $results[$name];
+    $write = $r['write'] !== null ? sprintf('%.2f ms', $r['write']) : '—';
+    $read  = $r['read']  !== null ? sprintf('%.2f ms', $r['read'])  : '—';
+    $iter  = $r['iter']  !== null ? sprintf('%.2f ms', $r['iter'])  : '—';
+    $free  = $r['free']  !== null ? sprintf('%.2f ms', $r['free'])  : '—';
+    $heap  = $r['heap']  !== null ? fmt_bytes($r['heap'])           : '—';
+
+    printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
+        $name, $write, $read, $iter, $free, $heap);
+}
+echo "\n";
+
+// ── Section 4: Summary comparison table ────────────────────────────────
 
 echo "$div\n";
 echo "  SUMMARY — All types, " . number_format($size) . " elements (median of $iterations iterations)\n";
@@ -768,6 +909,7 @@ $ordered = [
     'PHP array (mixed)','INT_TO_MIXED', 'INT_TO_PACKED',
     'PHP array (str→int)',   'STRING_TO_INT',
     'PHP array (str→mixed)', 'STRING_TO_MIXED', 'STRING_TO_MIXED_HASH',
+    'PHP array (long→int)', 'STRING_TO_INT (long)', 'STR_TO_MIX_HASH (long)',
 ];
 
 $prev_keys = null;
@@ -793,12 +935,8 @@ echo "  Notes:\n";
 echo "  • Write/Read/Iter: median of $iterations iterations via hrtime(true)\n";
 echo "  • Free: median time to unset() + gc_collect_cycles() a populated container\n";
 echo "  • Heap delta: memory_get_usage() before/after populate (emalloc'd PHP heap)\n";
-echo "  • Internal mem: Judy C-level accounting (JLMU/J1MU) via memoryUsage()\n";
-echo "    – BITSET/INT_TO_INT/INT_TO_MIXED/INT_TO_PACKED support this\n";
-echo "    – STRING_TO_INT/STRING_TO_MIXED: JudySL has no accounting macro → n/a\n";
-echo "    – STRING_TO_MIXED_HASH: JudyHS has no accounting macro → n/a\n";
-echo "    – INT_TO_MIXED: counts JudyL nodes only; ecalloc'd zvals not included\n";
-echo "    – INT_TO_PACKED: counts JudyL nodes only; emalloc'd packed bufs not included\n";
+echo "  • Long keys: 128-byte keys, capped at " . number_format($long_size) . " elements\n";
+echo "    – Demonstrates JudyHS O(1) hash vs JudySL O(k) trie traversal\n";
 echo "$div\n";
 echo "  Benchmark complete — " . date('Y-m-d H:i:s') . "\n";
 echo "$div\n";
