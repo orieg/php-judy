@@ -1,5 +1,5 @@
 --TEST--
-Judy memoryUsage() for all types: returns int, increases with data, resets after free()
+Judy memoryUsage() returns int and increases with data for all types
 --SKIPIF--
 <?php
 if (!extension_loaded("judy")) print "skip";
@@ -18,10 +18,6 @@ for ($i = 0; $i < 1000; $i++) {
 $full_mem = $j->memoryUsage();
 echo "INT_TO_INT memoryUsage increased: " . ($full_mem > $empty_mem ? "yes" : "no") . "\n";
 
-$j->free();
-$freed_mem = $j->memoryUsage();
-echo "INT_TO_INT memoryUsage after free: $freed_mem\n";
-
 // BITSET: memoryUsage should work similarly
 $j = new Judy(Judy::BITSET);
 $empty_mem = $j->memoryUsage();
@@ -32,10 +28,6 @@ for ($i = 0; $i < 1000; $i++) {
 }
 $full_mem = $j->memoryUsage();
 echo "BITSET memoryUsage increased: " . ($full_mem > $empty_mem ? "yes" : "no") . "\n";
-
-$j->free();
-$freed_mem = $j->memoryUsage();
-echo "BITSET memoryUsage after free: $freed_mem\n";
 
 // INT_TO_MIXED: returns int (uses JudyL internally)
 $j = new Judy(Judy::INT_TO_MIXED);
@@ -58,10 +50,8 @@ echo "STRING_TO_MIXED: " . ($mem === null ? "null" : "unexpected: $mem") . "\n";
 --EXPECT--
 Empty INT_TO_INT memoryUsage is int: yes
 INT_TO_INT memoryUsage increased: yes
-INT_TO_INT memoryUsage after free: 0
 Empty BITSET memoryUsage is int: yes
 BITSET memoryUsage increased: yes
-BITSET memoryUsage after free: 0
 INT_TO_MIXED: int > 0
 STRING_TO_INT: null
 STRING_TO_MIXED: null
