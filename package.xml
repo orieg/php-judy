@@ -106,6 +106,22 @@
          <file name="tests/increment_int_to_int_001.phpt" role="test" />
          <file name="tests/increment_string_to_int_001.phpt" role="test" />
          <file name="tests/increment_type_error_001.phpt" role="test" />
+         <file name="tests/memory_usage_001.phpt" role="test" />
+         <file name="tests/memory_usage_all_types_001.phpt" role="test" />
+         <file name="tests/free_lifecycle_001.phpt" role="test" />
+         <file name="tests/free_reuse_001.phpt" role="test" />
+         <file name="tests/constructor_error_001.phpt" role="test" />
+         <file name="tests/clone_int_to_int_001.phpt" role="test" />
+         <file name="tests/clone_int_to_mixed_001.phpt" role="test" />
+         <file name="tests/clone_string_to_int_001.phpt" role="test" />
+         <file name="tests/clone_string_to_mixed_001.phpt" role="test" />
+         <file name="tests/boundary_int_max_001.phpt" role="test" />
+         <file name="tests/boundary_long_string_001.phpt" role="test" />
+         <file name="tests/boundary_empty_string_key_001.phpt" role="test" />
+         <file name="tests/boundary_special_chars_001.phpt" role="test" />
+         <file name="tests/batch_empty_input_001.phpt" role="test" />
+         <file name="tests/batch_large_001.phpt" role="test" />
+         <file name="tests/increment_boundary_001.phpt" role="test" />
          <file md5sum="3022d615e01248b9aedcc07d53f9d298" name="tests/clone_bitset_001.phpt" role="test" />
          <file md5sum="ebf5a62bedc4d0100256bc6db614cac0" name="tests/int_to_int_001.phpt" role="test" />
          <file md5sum="293c4e8f37490390abeaac289e8d4ee7" name="tests/int_to_int_002.phpt" role="test" />
