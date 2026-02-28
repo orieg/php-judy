@@ -17,5 +17,5 @@ echo json_encode($j) . "\n";
 echo "Done\n";
 ?>
 --EXPECT--
-{"0":"hello","1":42,"2":true,"3":[1,2]}
+["hello",42,true,[1,2]]
 Done

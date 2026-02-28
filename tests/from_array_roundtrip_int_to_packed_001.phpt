@@ -13,21 +13,27 @@ $j = Judy::fromArray(Judy::INT_TO_PACKED, $data);
 echo "Type: " . $j->getType() . " (INT_TO_PACKED=" . Judy::INT_TO_PACKED . ")\n";
 echo "Count: " . $j->count() . "\n";
 
-$result = $j->toArray();
-echo var_export($result, true) . "\n";
+var_dump($j->toArray());
 echo "Done\n";
 ?>
 --EXPECT--
 Type: 6 (INT_TO_PACKED=6)
 Count: 4
-array (
-  0 => 'hello',
-  5 => 42,
-  10 => array (
-    0 => 1,
-    1 => 2,
-    2 => 3,
-  ),
-  15 => true,
-)
+array(4) {
+  [0]=>
+  string(5) "hello"
+  [5]=>
+  int(42)
+  [10]=>
+  array(3) {
+    [0]=>
+    int(1)
+    [1]=>
+    int(2)
+    [2]=>
+    int(3)
+  }
+  [15]=>
+  bool(true)
+}
 Done

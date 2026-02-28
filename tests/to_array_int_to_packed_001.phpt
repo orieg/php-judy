@@ -13,17 +13,23 @@ $j[5] = 42;
 $j[10] = [1, 2, 3];
 
 $arr = $j->toArray();
-echo var_export($arr, true) . "\n";
+var_dump($arr);
 echo "Done\n";
 ?>
 --EXPECT--
-array (
-  0 => 'hello',
-  5 => 42,
-  10 => array (
-    0 => 1,
-    1 => 2,
-    2 => 3,
-  ),
-)
+array(3) {
+  [0]=>
+  string(5) "hello"
+  [5]=>
+  int(42)
+  [10]=>
+  array(3) {
+    [0]=>
+    int(1)
+    [1]=>
+    int(2)
+    [2]=>
+    int(3)
+  }
+}
 Done

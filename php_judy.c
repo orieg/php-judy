@@ -27,6 +27,7 @@
 #include "ext/spl/spl_iterators.h"
 #include "ext/json/php_json.h"
 #include "ext/standard/php_var.h"
+#include "zend_smart_str.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(judy)
 

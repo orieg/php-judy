@@ -14,17 +14,23 @@ $j[10] = [1, 2];
 
 $result = $j->getAll([0, 5, 10, 99]);
 
-echo var_export($result, true) . "\n";
+var_dump($result);
 echo "Done\n";
 ?>
 --EXPECT--
-array (
-  0 => 'zero',
-  5 => 42,
-  10 => array (
-    0 => 1,
-    1 => 2,
-  ),
-  99 => NULL,
-)
+array(4) {
+  [0]=>
+  string(4) "zero"
+  [5]=>
+  int(42)
+  [10]=>
+  array(2) {
+    [0]=>
+    int(1)
+    [1]=>
+    int(2)
+  }
+  [99]=>
+  NULL
+}
 Done
