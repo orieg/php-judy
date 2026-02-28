@@ -276,6 +276,38 @@ while ($judy->valid()) {
 - **Range Queries**: Native support for range operations
 - **Random Access**: Slower than PHP arrays (O(log n) vs O(1))
 
+### Batch Operations and Conversion
+
+Judy arrays provide batch methods for efficient bulk operations:
+
+```php
+// Convert a PHP array to a Judy array
+$judy = Judy::fromArray(Judy::INT_TO_INT, [0 => 100, 5 => 200, 10 => 300]);
+
+// Convert a Judy array back to a PHP array
+$arr = $judy->toArray(); // [0 => 100, 5 => 200, 10 => 300]
+
+// Bulk-insert from an existing array
+$judy->putAll([20 => 400, 30 => 500]);
+
+// Retrieve multiple values at once (missing keys return null)
+$values = $judy->getAll([0, 5, 99]); // [0 => 100, 5 => 200, 99 => null]
+```
+
+### Atomic Increment
+
+For `INT_TO_INT` and `STRING_TO_INT` types, `increment()` performs a single-traversal counter update:
+
+```php
+$counters = new Judy(Judy::STRING_TO_INT);
+
+// Increment creates the key with the given amount if it doesn't exist
+$counters->increment("page_views");       // returns 1
+$counters->increment("page_views");       // returns 2
+$counters->increment("page_views", 10);   // returns 12
+$counters->increment("page_views", -3);   // returns 9
+```
+
 For detailed performance analysis, see [BENCHMARK.md](BENCHMARK.md).
 
 ## Reporting Bugs
@@ -299,6 +331,10 @@ Please report bugs and issues on the GitHub repository:
 - [x] **Interoperability**: Implement `JsonSerializable` interface.
 - [ ] **Testing**: More comprehensive test coverage.
 - [ ] **Documentation**: Document memory usage patterns vs standard arrays.
+- [x] **Performance**: Batch API (`putAll`, `getAll`, `toArray`, `fromArray`) to reduce function call overhead.
+- [x] **Performance**: Atomic `increment` method for `INT_TO_INT` and `STRING_TO_INT`.
+- [ ] **Feature**: Support `JudyHS` (Hash Array) for faster string lookups when sorting is not required.
+- [ ] **Performance**: Implement "Opaque" storage (packed values) to bypass GC scanning for large datasets.
 
 ## License
 

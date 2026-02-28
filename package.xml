@@ -91,6 +91,20 @@
          <file name="tests/serialize_roundtrip_string_to_int_001.phpt" role="test" />
          <file name="tests/serialize_roundtrip_string_to_mixed_001.phpt" role="test" />
          <file name="tests/serialize_error_001.phpt" role="test" />
+         <file name="tests/to_array_bitset_001.phpt" role="test" />
+         <file name="tests/to_array_int_to_int_001.phpt" role="test" />
+         <file name="tests/to_array_int_to_mixed_001.phpt" role="test" />
+         <file name="tests/to_array_string_to_int_001.phpt" role="test" />
+         <file name="tests/to_array_string_to_mixed_001.phpt" role="test" />
+         <file name="tests/to_array_empty_001.phpt" role="test" />
+         <file name="tests/from_array_roundtrip_001.phpt" role="test" />
+         <file name="tests/from_array_error_001.phpt" role="test" />
+         <file name="tests/put_all_001.phpt" role="test" />
+         <file name="tests/put_all_overwrite_001.phpt" role="test" />
+         <file name="tests/get_all_001.phpt" role="test" />
+         <file name="tests/increment_int_to_int_001.phpt" role="test" />
+         <file name="tests/increment_string_to_int_001.phpt" role="test" />
+         <file name="tests/increment_type_error_001.phpt" role="test" />
          <file md5sum="3022d615e01248b9aedcc07d53f9d298" name="tests/clone_bitset_001.phpt" role="test" />
          <file md5sum="ebf5a62bedc4d0100256bc6db614cac0" name="tests/int_to_int_001.phpt" role="test" />
          <file md5sum="293c4e8f37490390abeaac289e8d4ee7" name="tests/int_to_int_002.phpt" role="test" />
