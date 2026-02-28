@@ -801,10 +801,12 @@ $int_groups = [
     'mixed values (str/int/array/bool)'=> ['PHP array (mixed)','INT_TO_MIXED','INT_TO_PACKED'],
 ];
 
+$w = [24, 10, 10, 10, 10, 14];
+
 foreach ($int_groups as $group_label => $names) {
-    $w = [24, 10, 10, 10, 10, 14];
+    echo "  ── $group_label ──\n\n";
     printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
-        "[$group_label]", 'Write', 'Read', 'Foreach', 'Free', 'Heap delta');
+        '', 'Write', 'Read', 'Foreach', 'Free', 'Heap delta');
     printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
         str_repeat('─', $w[0]),
         str_repeat('─', $w[1]),
@@ -837,9 +839,9 @@ $str_groups = [
 ];
 
 foreach ($str_groups as $group_label => $names) {
-    $w = [24, 10, 10, 10, 10, 14];
+    echo "  ── $group_label ──\n\n";
     printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
-        "[$group_label]", 'Write', 'Read', 'Foreach', 'Free', 'Heap delta');
+        '', 'Write', 'Read', 'Foreach', 'Free', 'Heap delta');
     printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
         str_repeat('─', $w[0]),
         str_repeat('─', $w[1]),
@@ -868,9 +870,9 @@ echo "┌─ Long-key string types (" . number_format($long_size) . " elements, 
 
 $long_names = ['PHP array (long→int)', 'STRING_TO_INT (long)', 'STR_TO_MIX_HASH (long)'];
 
-$w = [24, 10, 10, 10, 10, 14];
+echo "  ── 128-byte keys → int ──\n\n";
 printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
-    '[128-byte keys → int]', 'Write', 'Read', 'Foreach', 'Free', 'Heap delta');
+    '', 'Write', 'Read', 'Foreach', 'Free', 'Heap delta');
 printf("  %-{$w[0]}s  %{$w[1]}s  %{$w[2]}s  %{$w[3]}s  %{$w[4]}s  %{$w[5]}s\n",
     str_repeat('─', $w[0]),
     str_repeat('─', $w[1]),
