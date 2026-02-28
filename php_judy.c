@@ -1821,16 +1821,14 @@ PHP_METHOD(judy, slice)
 
 			JSLF(PValue, intern->array, key);
 			while (PValue != NULL && PValue != PJERR && strcmp((const char *)key, str_end) <= 0) {
+				Pvoid_t *PNew;
+				JSLI(PNew, result->array, key);
+				if (PNew == PJERR) goto alloc_error;
+
 				if (intern->type == TYPE_STRING_TO_INT) {
-					Pvoid_t *PNew;
-					JSLI(PNew, result->array, key);
-					if (PNew == PJERR) goto alloc_error;
 					JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
 				} else {
-					Pvoid_t *PNew;
 					zval *new_value;
-					JSLI(PNew, result->array, key);
-					if (PNew == PJERR) goto alloc_error;
 					new_value = ecalloc(1, sizeof(zval));
 					ZVAL_COPY(new_value, JUDY_MVAL_READ(PValue));
 					JUDY_MVAL_WRITE(PNew, new_value);
@@ -1844,7 +1842,6 @@ PHP_METHOD(judy, slice)
 	return;
 
 alloc_error:
-	judy_free_array_internal(result);
 	zval_ptr_dtor(return_value);
 	ZVAL_NULL(return_value);
 	zend_throw_exception(NULL, "Judy: memory allocation failed during slice", 0);
