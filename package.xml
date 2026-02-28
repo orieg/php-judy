@@ -63,6 +63,7 @@
          <file name="examples/judy-bench-memory-patterns.php" role="doc" />
          <file name="examples/judy-bench-packed-vs-mixed.php" role="doc" />
          <file name="examples/judy-bench-all-types.php" role="doc" />
+         <file name="examples/judy-bench-memory.php" role="doc" />
          <file md5sum="abc7eb31bb88857463ec941514e5f019" name="tests/001.phpt" role="test" />
          <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />
          <file md5sum="9f3363cc4c6d15cb52184351cf710fd7" name="tests/bitset_002.phpt" role="test" />
@@ -189,6 +190,19 @@
          <file name="tests/json_serialize_string_to_mixed_hash.phpt" role="test" />
          <file name="tests/serialize_roundtrip_string_to_mixed_hash.phpt" role="test" />
          <file name="tests/judy_memuse_string_to_mixed_hash.phpt" role="test" />
+         <file name="tests/string_to_int_hash_001.phpt" role="test" />
+         <file name="tests/string_to_int_hash_002.phpt" role="test" />
+         <file name="tests/string_to_int_hash_003.phpt" role="test" />
+         <file name="tests/string_to_int_hash_004.phpt" role="test" />
+         <file name="tests/string_to_int_hash_005.phpt" role="test" />
+         <file name="tests/string_to_int_hash_006.phpt" role="test" />
+         <file name="tests/string_to_int_hash_007.phpt" role="test" />
+         <file name="tests/string_to_int_hash_008.phpt" role="test" />
+         <file name="tests/string_to_int_hash_009.phpt" role="test" />
+         <file name="tests/int_to_int_set_ops_001.phpt" role="test" />
+         <file name="tests/int_to_int_set_ops_002.phpt" role="test" />
+         <file name="tests/int_to_int_set_ops_003.phpt" role="test" />
+         <file name="tests/int_to_int_set_ops_004.phpt" role="test" />
          <file md5sum="e5bf869700c5c640235a0a07eeed21ad" name="tests/iterator_interface_001.phpt" role="test" />
          <file md5sum="aa6f6cae5ed042dba86fa5062ed544ea" name="tests/iterator_methods_simple_001.phpt" role="test" />
          <file md5sum="bdc7b4b17d7deb684155296f0f3a6022" name="tests/iterator_methods_individual_001.phpt" role="test" />
@@ -210,6 +224,8 @@
          <file md5sum="8b18c913476fa203cf3d6d23bb3a1272" name="tests/strings_as_values.phpt" role="test" />
          <file md5sum="4b423ec936b0274bb518529660501c8b" name="config.m4" role="src" />
          <file md5sum="d78e29903e6fc36c24051fcc7b698147" name="config.w32" role="src" />
+         <file name="Judy.stub.php" role="src" />
+         <file name="Judy_arginfo.h" role="src" />
          <file md5sum="27b93d365b2b7cde97ac4bb819e445b3" name="judy_arrayaccess.c" role="src" />
          <file md5sum="f2e35cd52cb1ed5cb00eae5431680d33" name="judy_arrayaccess.h" role="src" />
          <file md5sum="75d1e492e98c9121bd8689447e41a93e" name="judy_handlers.c" role="src" />

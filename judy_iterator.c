@@ -125,7 +125,8 @@ int judy_iterator_valid(zend_object_iterator *iterator)
 		if (PValue != NULL && PValue != PJERR) {
 			return SUCCESS;
 		}
-	} else if (object->type == TYPE_STRING_TO_MIXED_HASH) {
+	} else if (object->type == TYPE_STRING_TO_MIXED_HASH
+			|| object->type == TYPE_STRING_TO_INT_HASH) {
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		Pvoid_t     *HValue;
 
@@ -268,7 +269,8 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 		} else {
 			judy_iterator_data_dtor(it);
 		}
-	} else if (object->type == TYPE_STRING_TO_MIXED_HASH) {
+	} else if (object->type == TYPE_STRING_TO_MIXED_HASH
+			|| object->type == TYPE_STRING_TO_INT_HASH) {
 
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		Pvoid_t      *KValue;
@@ -293,8 +295,12 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 			Pvoid_t *HValue;
 			JHSG(HValue, object->array, key, (Word_t)strlen((char *)key));
 			if (HValue != NULL && HValue != PJERR) {
-				zval *value = JUDY_MVAL_READ(HValue);
-				ZVAL_COPY(&it->data, value);
+				if (object->type == TYPE_STRING_TO_INT_HASH) {
+					ZVAL_LONG(&it->data, JUDY_LVAL_READ(HValue));
+				} else {
+					zval *value = JUDY_MVAL_READ(HValue);
+					ZVAL_COPY(&it->data, value);
+				}
 			} else {
 				ZVAL_NULL(&it->data);
 			}
@@ -374,7 +380,8 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 				ZVAL_COPY(&it->data, value);
 			}
 		}
-	} else if (object->type == TYPE_STRING_TO_MIXED_HASH) {
+	} else if (object->type == TYPE_STRING_TO_MIXED_HASH
+			|| object->type == TYPE_STRING_TO_INT_HASH) {
 
 		uint8_t     key[PHP_JUDY_MAX_LENGTH];
 		Pvoid_t      *KValue;
@@ -390,8 +397,12 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			Pvoid_t *HValue;
 			JHSG(HValue, object->array, key, (Word_t)strlen((char *)key));
 			if (HValue != NULL && HValue != PJERR) {
-				zval *value = JUDY_MVAL_READ(HValue);
-				ZVAL_COPY(&it->data, value);
+				if (object->type == TYPE_STRING_TO_INT_HASH) {
+					ZVAL_LONG(&it->data, JUDY_LVAL_READ(HValue));
+				} else {
+					zval *value = JUDY_MVAL_READ(HValue);
+					ZVAL_COPY(&it->data, value);
+				}
 			} else {
 				ZVAL_NULL(&it->data);
 			}

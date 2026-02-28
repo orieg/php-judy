@@ -115,7 +115,8 @@ typedef enum _judy_type {
     TYPE_STRING_TO_INT,
     TYPE_STRING_TO_MIXED,
     TYPE_INT_TO_PACKED,
-    TYPE_STRING_TO_MIXED_HASH  /* JudyHS: O(1) avg hash lookup, parallel JudySL key index for iteration */
+    TYPE_STRING_TO_MIXED_HASH, /* JudyHS: O(1) avg hash lookup, parallel JudySL key index for iteration */
+    TYPE_STRING_TO_INT_HASH    /* JudyHS: O(1) avg hash lookup for string→int, parallel JudySL key index */
 } judy_type;
 /* }}} */
 
@@ -125,7 +126,8 @@ typedef enum _judy_type {
                            && type != TYPE_STRING_TO_INT \
                            && type != TYPE_STRING_TO_MIXED \
                            && type != TYPE_INT_TO_PACKED \
-                           && type != TYPE_STRING_TO_MIXED_HASH) { \
+                           && type != TYPE_STRING_TO_MIXED_HASH \
+                           && type != TYPE_STRING_TO_INT_HASH) { \
         php_error_docref(NULL, E_WARNING, "Not a valid Judy type. Please check the documentation for valid Judy type constant."); \
         jtype = 0; \
     } else { \
@@ -162,8 +164,8 @@ typedef struct _judy_object {
 	zend_bool       is_string_keyed;
 	zend_bool       is_mixed_value;
 	zend_bool       is_packed_value;
-	zend_bool       is_hash_keyed;   /* type == TYPE_STRING_TO_MIXED_HASH */
-	/* Parallel JudySL key index for STRING_TO_MIXED_HASH iteration */
+	zend_bool       is_hash_keyed;   /* type == TYPE_STRING_TO_MIXED_HASH || TYPE_STRING_TO_INT_HASH */
+	/* Parallel JudySL key index for hash-keyed type iteration */
 	Pvoid_t         key_index;
 	zend_object     std;
 } judy_object;

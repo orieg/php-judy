@@ -144,6 +144,32 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			JSLN(KValue, old_obj->key_index, kindex)
 		}
 		new_obj->key_index = newKeyIndex;
+	} else if (old_obj->type == TYPE_STRING_TO_INT_HASH) {
+		/* Cloning JudyHS Array (Word_t values) + parallel JudySL key_index */
+
+		uint8_t kindex[PHP_JUDY_MAX_LENGTH];
+		Pvoid_t *KValue;
+		Pvoid_t newKeyIndex = (Pvoid_t) NULL;
+
+		kindex[0] = '\0';
+		JSLF(KValue, old_obj->key_index, kindex);
+		while (KValue != NULL && KValue != PJERR) {
+			Word_t klen = (Word_t)strlen((char *)kindex);
+			Pvoid_t *HValue;
+			JHSG(HValue, old_obj->array, kindex, klen);
+			if (HValue != NULL && HValue != PJERR) {
+				Pvoid_t *newHValue;
+				Pvoid_t *newKValue;
+				JHSI(newHValue, newJArray, kindex, klen);
+				if (newHValue != NULL && newHValue != PJERR) {
+					JUDY_LVAL_WRITE(newHValue, JUDY_LVAL_READ(HValue));
+				}
+				JSLI(newKValue, newKeyIndex, kindex);
+				if (newKValue == PJERR) break;
+			}
+			JSLN(KValue, old_obj->key_index, kindex)
+		}
+		new_obj->key_index = newKeyIndex;
 	}
 
 	new_obj->array = newJArray;

@@ -21,7 +21,7 @@
 
 /* {{{ proto int Judy::offsetSet(mixed offset, mixed value)
    Set the value at the given offset in the Judy Array */
-PHP_METHOD(judy, offsetSet)
+PHP_METHOD(Judy, offsetSet)
 {
 	zval *offset, *value;
 
@@ -39,7 +39,7 @@ PHP_METHOD(judy, offsetSet)
 
 /* {{{ proto int Judy::offsetUnset(mixed offset)
    Unset the given offset in the Judy Array */
-PHP_METHOD(judy, offsetUnset)
+PHP_METHOD(Judy, offsetUnset)
 {
 	zval *offset;
 
@@ -56,7 +56,7 @@ PHP_METHOD(judy, offsetUnset)
 
 /* {{{ proto mixed Judy::offsetGet(mixed offset)
    Fetch the given offset in the Judy Array */
-PHP_METHOD(judy, offsetGet)
+PHP_METHOD(Judy, offsetGet)
 {
 	zval *offset, result, *result_ptr;
 
@@ -74,7 +74,7 @@ PHP_METHOD(judy, offsetGet)
 
 /* {{{ proto int Judy::offsetExists(mixed offset)
    Check if the the given offset exists in the Judy Array */
-PHP_METHOD(judy, offsetExists)
+PHP_METHOD(Judy, offsetExists)
 {
 	zval *offset;
 
