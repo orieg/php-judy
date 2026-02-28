@@ -11,8 +11,9 @@ RUN apt-get update && apt-get install -y \
 COPY . /usr/src/php-judy
 WORKDIR /usr/src/php-judy
 
-# Build and install the judy extension
-RUN phpize \
+# Build and install the judy extension (clean first to remove stale build artifacts)
+RUN find . -name "*.lo" -delete && find . -name "*.dep" -delete && rm -f Makefile Makefile.objects Makefile.fragments \
+    && phpize \
     && ./configure --with-judy=/usr \
     && make \
     && make install

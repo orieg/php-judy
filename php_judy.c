@@ -91,6 +91,26 @@ static Word_t judy_free_array_internal(judy_object *intern)
 			JSLN(PValue, intern->array, kindex);
 		}
 		JSLFA(Rc_word, intern->array);
+	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
+		uint8_t kindex[PHP_JUDY_MAX_LENGTH];
+		Word_t *PValue;
+		Pvoid_t *HValue;
+
+		/* Enumerate keys via key_index (JudySL), free zvals via JudyHS lookup */
+		kindex[0] = '\0';
+		JSLF(PValue, intern->key_index, kindex);
+		while (PValue != NULL && PValue != PJERR) {
+			JHSG(HValue, intern->array, kindex, (Word_t)strlen((char *)kindex));
+			if (HValue != NULL && HValue != PJERR) {
+				zval *value = JUDY_MVAL_READ(HValue);
+				zval_ptr_dtor(value);
+				efree(value);
+			}
+			JSLN(PValue, intern->key_index, kindex);
+		}
+		JHSFA(Rc_word, intern->array);
+		JSLFA(Rc_word, intern->key_index);
+		intern->key_index = NULL;
 	} else if (intern->type == TYPE_BITSET) {
 		J1FA(Rc_word, intern->array);
 	} else if (intern->type == TYPE_INT_TO_INT) {
@@ -224,6 +244,7 @@ PHP_INI_END()
 			break;							\
 		case TYPE_STRING_TO_INT:			\
 		case TYPE_STRING_TO_MIXED:			\
+		case TYPE_STRING_TO_MIXED_HASH:		\
 			if (UNEXPECTED(Z_TYPE_P(offset) != IS_STRING)) {	\
 				zend_throw_error(zend_ce_type_error, "Judy offset must be of type string for string-based arrays"); \
 				_error_flag_ = 1; \
@@ -274,12 +295,16 @@ zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv) /*
 		case TYPE_STRING_TO_MIXED:
 			JSLG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
 			break;
+		case TYPE_STRING_TO_MIXED_HASH:
+			JHSG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), (Word_t)Z_STRLEN_P(pstring_key));
+			break;
 	}
 
 	if (PValue != NULL && PValue != PJERR) {
 		if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_STRING_TO_INT) {
 			ZVAL_LONG(rv, JUDY_LVAL_READ(PValue));
-		} else if (intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_STRING_TO_MIXED) {
+		} else if (intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_STRING_TO_MIXED
+				|| intern->type == TYPE_STRING_TO_MIXED_HASH) {
 			ZVAL_COPY(rv, JUDY_MVAL_READ(PValue));
 		} else if (intern->type == TYPE_INT_TO_PACKED) {
 			judy_packed_value *packed = JUDY_PVAL_READ(PValue);
@@ -321,8 +346,9 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			return FAILURE;
 		}
 	} else {
-		if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
-			zend_throw_exception(NULL, "Judy STRING_TO_INT and STRING_TO_MIXED values cannot be set without specifying a key", 0);
+		if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED
+				|| intern->type == TYPE_STRING_TO_MIXED_HASH) {
+			zend_throw_exception(NULL, "Judy STRING_TO_INT, STRING_TO_MIXED and STRING_TO_MIXED_HASH values cannot be set without specifying a key", 0);
 			return FAILURE;
 		}
 	}
@@ -481,6 +507,45 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			res = FAILURE;
 		}
 		return res;
+	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
+		Pvoid_t *HValue;
+		Pvoid_t *KValue;
+		int res;
+		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
+
+		/* JudySL key_index uses null-terminated strings; reject embedded NULs */
+		if (memchr(Z_STRVAL_P(pstring_key), '\0', Z_STRLEN_P(pstring_key)) != NULL) {
+			zend_throw_exception(NULL,
+				"Judy STRING_TO_MIXED_HASH keys must not contain embedded null bytes", 0);
+			return FAILURE;
+		}
+
+		JHSI(HValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
+		if (HValue != NULL && HValue != PJERR) {
+			zval *old_value, *new_value;
+			if (JUDY_MVAL_READ(HValue) != NULL) {
+				old_value = JUDY_MVAL_READ(HValue);
+				zval_ptr_dtor(old_value);
+				efree(old_value);
+			} else {
+				/* Register key in JudySL key_index for iteration support */
+				JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
+				if (KValue == PJERR) {
+					/* Rollback the JudyHS insertion */
+					int Rc_tmp = 0;
+					JHSD(Rc_tmp, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
+					return FAILURE;
+				}
+				intern->counter++;
+			}
+			new_value = ecalloc(1, sizeof(zval));
+			ZVAL_COPY(new_value, value);
+			JUDY_MVAL_WRITE(HValue, new_value);
+			res = SUCCESS;
+		} else {
+			res = FAILURE;
+		}
+		return res;
 	}
 	return FAILURE;
 }
@@ -531,6 +596,9 @@ int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty
 		case TYPE_STRING_TO_MIXED:
 			JSLG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
 			break;
+		case TYPE_STRING_TO_MIXED_HASH:
+			JHSG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), (Word_t)Z_STRLEN_P(pstring_key));
+			break;
 	}
 
 	if (PValue != NULL && PValue != PJERR) {
@@ -541,7 +609,8 @@ int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty
 				return 1;
 			}
 			return 0;
-		} else if (intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_STRING_TO_MIXED) {
+		} else if (intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_STRING_TO_MIXED
+				|| intern->type == TYPE_STRING_TO_MIXED_HASH) {
 			if (JUDY_MVAL_READ(PValue) && zend_is_true(JUDY_MVAL_READ(PValue))) {
 				return 1;
 			}
@@ -637,6 +706,24 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 		if (Rc_int == 1) {
 			intern->counter--;
 		}
+	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
+		Pvoid_t     *HValue;
+		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
+
+		JHSG(HValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
+		if (HValue != NULL && HValue != PJERR) {
+			zval *value = JUDY_MVAL_READ(HValue);
+			zval_ptr_dtor(value);
+			efree(value);
+			JHSD(Rc_int, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
+			if (Rc_int == 1) {
+				int Rc_del = 0;
+				JSLD(Rc_del, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
+				if (Rc_del == 1) {
+					intern->counter--;
+				}
+			}
+		}
 	}
 	return Rc_int ? SUCCESS : FAILURE;
 }
@@ -692,6 +779,7 @@ PHP_MINIT_FUNCTION(judy)
 	REGISTER_JUDY_CLASS_CONST_LONG("STRING_TO_INT", TYPE_STRING_TO_INT);
 	REGISTER_JUDY_CLASS_CONST_LONG("STRING_TO_MIXED", TYPE_STRING_TO_MIXED);
 	REGISTER_JUDY_CLASS_CONST_LONG("INT_TO_PACKED", TYPE_INT_TO_PACKED);
+	REGISTER_JUDY_CLASS_CONST_LONG("STRING_TO_MIXED_HASH", TYPE_STRING_TO_MIXED_HASH);
 
 	return SUCCESS;
 }
@@ -761,7 +849,7 @@ PHP_METHOD(judy, __construct)
 		}
 #if !JUDY_MIXED_SUPPORTED
 		if (jtype == TYPE_INT_TO_MIXED || jtype == TYPE_STRING_TO_MIXED
-				|| jtype == TYPE_INT_TO_PACKED) {
+				|| jtype == TYPE_INT_TO_PACKED || jtype == TYPE_STRING_TO_MIXED_HASH) {
 			zend_throw_exception(NULL, "MIXED/PACKED Judy types are not supported on this platform (Word_t too small for pointers)", 0);
 			zend_restore_error_handling(&error_handling);
 			return;
@@ -770,12 +858,14 @@ PHP_METHOD(judy, __construct)
 		intern->counter = 0;
 		intern->type = jtype;
 		intern->array = (Pvoid_t) NULL;
+		intern->key_index = (Pvoid_t) NULL;
 
 		/* Initialize cached type flags for performance optimization */
 		intern->is_integer_keyed = (jtype == TYPE_BITSET || jtype == TYPE_INT_TO_INT || jtype == TYPE_INT_TO_MIXED || jtype == TYPE_INT_TO_PACKED);
-		intern->is_string_keyed = (jtype == TYPE_STRING_TO_INT || jtype == TYPE_STRING_TO_MIXED);
-		intern->is_mixed_value = (jtype == TYPE_INT_TO_MIXED || jtype == TYPE_STRING_TO_MIXED);
+		intern->is_string_keyed = (jtype == TYPE_STRING_TO_INT || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH);
+		intern->is_mixed_value = (jtype == TYPE_INT_TO_MIXED || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH);
 		intern->is_packed_value = (jtype == TYPE_INT_TO_PACKED);
+		intern->is_hash_keyed = (jtype == TYPE_STRING_TO_MIXED_HASH);
 	}
 
 	zend_restore_error_handling(&error_handling);
@@ -864,7 +954,8 @@ PHP_METHOD(judy, size)
 			}
 
 			RETURN_LONG(Rc_word);
-		} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+		} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED
+				|| intern->type == TYPE_STRING_TO_MIXED_HASH) {
 			RETURN_LONG(intern->counter);
 		}
 }
@@ -888,7 +979,8 @@ PHP_METHOD(judy, count)
 			}
 
 			RETURN_LONG(Rc_word);
-		} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+		} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED
+				|| intern->type == TYPE_STRING_TO_MIXED_HASH) {
 			RETURN_LONG(intern->counter);
 		}
 }
@@ -989,6 +1081,29 @@ PHP_METHOD(judy, first)
 		JSLF(PValue, intern->array, key);
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_STRING((char *)key);
+	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
+		char        *str;
+		size_t       str_length = 0;
+
+		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		PWord_t     PValue;
+
+		ZEND_PARSE_PARAMETERS_START(0, 1)
+			Z_PARAM_OPTIONAL
+			Z_PARAM_STRING(str, str_length)
+		ZEND_PARSE_PARAMETERS_END();
+
+		if (str_length == 0) {
+			key[0] = '\0';
+		} else {
+			int key_len = str_length >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_length;
+			memcpy(key, str, key_len);
+			key[key_len] = '\0';
+		}
+
+		JSLF(PValue, intern->key_index, key);
+		if (PValue != NULL && PValue != PJERR)
+			RETURN_STRING((char *)key);
 	}
 
 	RETURN_NULL();
@@ -997,7 +1112,7 @@ PHP_METHOD(judy, first)
 
 /* {{{ proto mixed Judy::searchNext(mixed index)
    Search (exclusive) for the next index present that is greater than the passed Index
-   
+
    This method was renamed from next() to avoid Iterator interface conflicts.
    The original search functionality has been moved to searchNext() method.
    Original functionality: Search (exclusive) for the next index present
@@ -1056,6 +1171,28 @@ PHP_METHOD(judy, searchNext)
 		}
 
 		JSLN(PValue, intern->array, key);
+		if (PValue != NULL && PValue != PJERR)
+			RETURN_STRING((char *)key);
+	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
+		char        *str;
+		size_t       str_length;
+
+		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		PWord_t     PValue;
+
+		ZEND_PARSE_PARAMETERS_START(1, 1)
+			Z_PARAM_STRING(str, str_length)
+		ZEND_PARSE_PARAMETERS_END();
+
+		if (str_length == 0) {
+			key[0] = '\0';
+		} else {
+			int key_len = str_length >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_length;
+			memcpy(key, str, key_len);
+			key[key_len] = '\0';
+		}
+
+		JSLN(PValue, intern->key_index, key);
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_STRING((char *)key);
 	}
@@ -1140,7 +1277,11 @@ PHP_METHOD(judy, next)
 			key_len = Z_STRLEN_P(&intern->iterator_key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&intern->iterator_key);
 			memcpy(key, Z_STRVAL_P(&intern->iterator_key), key_len);
 			key[key_len] = '\0';
-			JSLN(PValue, intern->array, key);
+			if (intern->is_hash_keyed) {
+				JSLN(PValue, intern->key_index, key);
+			} else {
+				JSLN(PValue, intern->array, key);
+			}
 		} else {
 			/* Invalid key type, mark iterator as invalid */
 			ZVAL_UNDEF(&intern->iterator_key);
@@ -1152,7 +1293,14 @@ PHP_METHOD(judy, next)
 			zval_ptr_dtor(&intern->iterator_key);
 			ZVAL_STRING(&intern->iterator_key, (char *)key);
 
-			if (JUDY_IS_MIXED_VALUE(intern)) {
+			if (intern->is_hash_keyed) {
+				Pvoid_t *HValue;
+				JHSG(HValue, intern->array, key, (Word_t)strlen((char *)key));
+				if (HValue != NULL && HValue != PJERR) {
+					zval *value = JUDY_MVAL_READ(HValue);
+					ZVAL_COPY(&intern->iterator_data, value);
+				}
+			} else if (JUDY_IS_MIXED_VALUE(intern)) {
 				zval *value = JUDY_MVAL_READ(PValue);
 				ZVAL_COPY(&intern->iterator_data, value);
 			} else {
@@ -1225,12 +1373,23 @@ PHP_METHOD(judy, rewind)
 		Pvoid_t      *PValue;
 
 		key[0] = '\0';
-		JSLF(PValue, intern->array, key);
+		if (intern->is_hash_keyed) {
+			JSLF(PValue, intern->key_index, key);
+		} else {
+			JSLF(PValue, intern->array, key);
+		}
 
 		if (PValue != NULL && PValue != PJERR) {
 			zval_ptr_dtor(&intern->iterator_key);
 			ZVAL_STRING(&intern->iterator_key, (const char *) key);
-			if (JUDY_IS_MIXED_VALUE(intern)) {
+			if (intern->is_hash_keyed) {
+				Pvoid_t *HValue;
+				JHSG(HValue, intern->array, key, (Word_t)strlen((char *)key));
+				if (HValue != NULL && HValue != PJERR) {
+					zval *value = JUDY_MVAL_READ(HValue);
+					ZVAL_COPY(&intern->iterator_data, value);
+				}
+			} else if (JUDY_IS_MIXED_VALUE(intern)) {
 				zval *value = JUDY_MVAL_READ(PValue);
 				ZVAL_COPY(&intern->iterator_data, value);
 			} else {
@@ -1348,6 +1507,30 @@ PHP_METHOD(judy, last)
 		JSLL(PValue, intern->array, key);
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_STRING((char *)key);
+	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
+		char        *str;
+		size_t       str_length = 0;
+
+		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		PWord_t     PValue;
+
+		ZEND_PARSE_PARAMETERS_START(0, 1)
+			Z_PARAM_OPTIONAL
+			Z_PARAM_STRING(str, str_length)
+		ZEND_PARSE_PARAMETERS_END();
+
+		if (str_length == 0) {
+			memset(key, 0xff, PHP_JUDY_MAX_LENGTH);
+			key[PHP_JUDY_MAX_LENGTH-1] = '\0';
+		} else {
+			int key_len = str_length >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_length;
+			memcpy(key, str, key_len);
+			key[key_len] = '\0';
+		}
+
+		JSLL(PValue, intern->key_index, key);
+		if (PValue != NULL && PValue != PJERR)
+			RETURN_STRING((char *)key);
 	}
 
 	RETURN_NULL();
@@ -1409,6 +1592,28 @@ PHP_METHOD(judy, prev)
 		}
 
 		JSLP(PValue, intern->array, key);
+		if (PValue != NULL && PValue != PJERR)
+			RETURN_STRING((char *)key);
+	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
+		char        *str;
+		size_t       str_length;
+
+		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		PWord_t     PValue;
+
+		ZEND_PARSE_PARAMETERS_START(1, 1)
+			Z_PARAM_STRING(str, str_length)
+		ZEND_PARSE_PARAMETERS_END();
+
+		if (str_length == 0) {
+			key[0] = '\0';
+		} else {
+			int key_len = str_length >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_length;
+			memcpy(key, str, key_len);
+			key[key_len] = '\0';
+		}
+
+		JSLP(PValue, intern->key_index, key);
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_STRING((char *)key);
 	}
@@ -1825,9 +2030,11 @@ static judy_object *judy_create_result(zval *return_value, judy_type type)
 	result->array = (Pvoid_t) NULL;
 	result->counter = 0;
 	result->is_integer_keyed = (type == TYPE_BITSET || type == TYPE_INT_TO_INT || type == TYPE_INT_TO_MIXED || type == TYPE_INT_TO_PACKED);
-	result->is_string_keyed = (type == TYPE_STRING_TO_INT || type == TYPE_STRING_TO_MIXED);
-	result->is_mixed_value = (type == TYPE_INT_TO_MIXED || type == TYPE_STRING_TO_MIXED);
+	result->is_string_keyed = (type == TYPE_STRING_TO_INT || type == TYPE_STRING_TO_MIXED || type == TYPE_STRING_TO_MIXED_HASH);
+	result->is_mixed_value = (type == TYPE_INT_TO_MIXED || type == TYPE_STRING_TO_MIXED || type == TYPE_STRING_TO_MIXED_HASH);
 	result->is_packed_value = (type == TYPE_INT_TO_PACKED);
+	result->is_hash_keyed = (type == TYPE_STRING_TO_MIXED_HASH);
+	result->key_index = (Pvoid_t) NULL;
 	return result;
 }
 /* }}} */
@@ -1973,6 +2180,50 @@ PHP_METHOD(judy, slice)
 				JSLN(PValue, intern->array, key);
 			}
 		}
+	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
+		char *str_start, *str_end;
+		size_t str_start_len;
+
+		if (Z_TYPE_P(zstart) != IS_STRING || Z_TYPE_P(zend_val) != IS_STRING) {
+			zend_throw_error(zend_ce_type_error, "Judy::slice() expects string arguments for string-keyed arrays");
+			return;
+		}
+
+		str_start = Z_STRVAL_P(zstart);
+		str_start_len = Z_STRLEN_P(zstart);
+		str_end = Z_STRVAL_P(zend_val);
+
+		if (strcmp(str_start, str_end) > 0) return;
+
+		{
+			uint8_t key[PHP_JUDY_MAX_LENGTH];
+			Pvoid_t *KValue;
+			int key_len;
+
+			key_len = str_start_len >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_start_len;
+			memcpy(key, str_start, key_len);
+			key[key_len] = '\0';
+
+			JSLF(KValue, intern->key_index, key);
+			while (KValue != NULL && KValue != PJERR && strcmp((const char *)key, str_end) <= 0) {
+				Word_t klen = (Word_t)strlen((char *)key);
+				Pvoid_t *HValue;
+				JHSG(HValue, intern->array, key, klen);
+				if (HValue != NULL && HValue != PJERR) {
+					Pvoid_t *PNew;
+					Pvoid_t *KNew;
+					JHSI(PNew, result->array, key, klen);
+					if (PNew == PJERR) goto alloc_error;
+					zval *new_value = ecalloc(1, sizeof(zval));
+					ZVAL_COPY(new_value, JUDY_MVAL_READ(HValue));
+					JUDY_MVAL_WRITE(PNew, new_value);
+					JSLI(KNew, result->key_index, key);
+					if (KNew == PJERR) goto alloc_error;
+					result->counter++;
+				}
+				JSLN(KValue, intern->key_index, key);
+			}
+		}
 	}
 
 	return;
@@ -2062,6 +2313,23 @@ static void judy_build_data_array(judy_object *intern, zval *data)
 			add_assoc_zval(data, (const char *)key, value);
 			JSLN(PValue, intern->array, key);
 		}
+	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
+		uint8_t key[PHP_JUDY_MAX_LENGTH];
+		Pvoid_t *KValue;
+
+		/* Enumerate keys via key_index (JudySL), fetch values via JudyHS */
+		key[0] = '\0';
+		JSLF(KValue, intern->key_index, key);
+		while (KValue != NULL && KValue != PJERR) {
+			Pvoid_t *HValue;
+			JHSG(HValue, intern->array, key, (Word_t)strlen((char *)key));
+			if (HValue != NULL && HValue != PJERR) {
+				zval *value = JUDY_MVAL_READ(HValue);
+				Z_TRY_ADDREF_P(value);
+				add_assoc_zval(data, (const char *)key, value);
+			}
+			JSLN(KValue, intern->key_index, key);
+		}
 	}
 }
 /* }}} */
@@ -2129,9 +2397,11 @@ PHP_METHOD(judy, __unserialize)
 	intern->array = (Pvoid_t) NULL;
 	intern->counter = 0;
 	intern->is_integer_keyed = (jtype == TYPE_BITSET || jtype == TYPE_INT_TO_INT || jtype == TYPE_INT_TO_MIXED || jtype == TYPE_INT_TO_PACKED);
-	intern->is_string_keyed = (jtype == TYPE_STRING_TO_INT || jtype == TYPE_STRING_TO_MIXED);
-	intern->is_mixed_value = (jtype == TYPE_INT_TO_MIXED || jtype == TYPE_STRING_TO_MIXED);
+	intern->is_string_keyed = (jtype == TYPE_STRING_TO_INT || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH);
+	intern->is_mixed_value = (jtype == TYPE_INT_TO_MIXED || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH);
 	intern->is_packed_value = (jtype == TYPE_INT_TO_PACKED);
+	intern->is_hash_keyed = (jtype == TYPE_STRING_TO_MIXED_HASH);
+	intern->key_index = (Pvoid_t) NULL;
 
 	ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(zdata), num_key, str_key, entry) {
 		zval offset, *val_to_write;
@@ -2294,19 +2564,33 @@ PHP_METHOD(judy, getAll)
 			}
 		} else { /* is_string_keyed */
 			zend_string *skey = zval_get_string(key_entry);
-			Pvoid_t *PValue;
-			JSLG(PValue, intern->array, (uint8_t *)ZSTR_VAL(skey));
-			if (PValue == NULL || PValue == PJERR) {
-				add_assoc_null(return_value, ZSTR_VAL(skey));
-			} else if (intern->type == TYPE_STRING_TO_INT) {
-				add_assoc_long(return_value, ZSTR_VAL(skey), JUDY_LVAL_READ(PValue));
-			} else { /* TYPE_STRING_TO_MIXED */
-				if (JUDY_MVAL_READ(PValue) != NULL) {
-					zval *value = JUDY_MVAL_READ(PValue);
+			if (intern->is_hash_keyed) {
+				Pvoid_t *HValue;
+				JHSG(HValue, intern->array, (uint8_t *)ZSTR_VAL(skey), (Word_t)ZSTR_LEN(skey));
+				if (HValue == NULL || HValue == PJERR) {
+					add_assoc_null(return_value, ZSTR_VAL(skey));
+				} else if (JUDY_MVAL_READ(HValue) != NULL) {
+					zval *value = JUDY_MVAL_READ(HValue);
 					Z_TRY_ADDREF_P(value);
 					add_assoc_zval(return_value, ZSTR_VAL(skey), value);
 				} else {
 					add_assoc_null(return_value, ZSTR_VAL(skey));
+				}
+			} else {
+				Pvoid_t *PValue;
+				JSLG(PValue, intern->array, (uint8_t *)ZSTR_VAL(skey));
+				if (PValue == NULL || PValue == PJERR) {
+					add_assoc_null(return_value, ZSTR_VAL(skey));
+				} else if (intern->type == TYPE_STRING_TO_INT) {
+					add_assoc_long(return_value, ZSTR_VAL(skey), JUDY_LVAL_READ(PValue));
+				} else { /* TYPE_STRING_TO_MIXED */
+					if (JUDY_MVAL_READ(PValue) != NULL) {
+						zval *value = JUDY_MVAL_READ(PValue);
+						Z_TRY_ADDREF_P(value);
+						add_assoc_zval(return_value, ZSTR_VAL(skey), value);
+					} else {
+						add_assoc_null(return_value, ZSTR_VAL(skey));
+					}
 				}
 			}
 			zend_string_release(skey);

@@ -125,6 +125,25 @@ int judy_iterator_valid(zend_object_iterator *iterator)
 		if (PValue != NULL && PValue != PJERR) {
 			return SUCCESS;
 		}
+	} else if (object->type == TYPE_STRING_TO_MIXED_HASH) {
+		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		Pvoid_t     *HValue;
+
+		if (Z_TYPE_P(&it->key) == IS_STRING) {
+			int key_len;
+			key_len = Z_STRLEN_P(&it->key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&it->key);
+			memcpy(key, Z_STRVAL_P(&it->key), key_len);
+			key[key_len] = '\0';
+		} else if (Z_TYPE_P(&it->key) == IS_NULL) {
+			key[0] = '\0';
+		} else {
+			return FAILURE;
+		}
+
+		JHSG(HValue, object->array, key, (Word_t)strlen((char *)key));
+		if (HValue != NULL && HValue != PJERR) {
+			return SUCCESS;
+		}
 	}
 
 	return FAILURE;
@@ -249,6 +268,39 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 		} else {
 			judy_iterator_data_dtor(it);
 		}
+	} else if (object->type == TYPE_STRING_TO_MIXED_HASH) {
+
+		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		Pvoid_t      *KValue;
+
+		/* Navigate key_index (JudySL) for ordering */
+		if (Z_TYPE_P(&it->key) == IS_STRING) {
+			int key_len;
+			key_len = Z_STRLEN_P(&it->key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&it->key);
+			memcpy(key, Z_STRVAL_P(&it->key), key_len);
+			key[key_len] = '\0';
+
+			JSLN(KValue, object->key_index, key);
+		} else {
+			key[0] = '\0';
+			JSLF(KValue, object->key_index, key);
+		}
+
+		if (KValue != NULL && KValue != PJERR) {
+			zval_ptr_dtor(&it->key);
+			ZVAL_STRING(&it->key, (char *)key);
+
+			Pvoid_t *HValue;
+			JHSG(HValue, object->array, key, (Word_t)strlen((char *)key));
+			if (HValue != NULL && HValue != PJERR) {
+				zval *value = JUDY_MVAL_READ(HValue);
+				ZVAL_COPY(&it->data, value);
+			} else {
+				ZVAL_NULL(&it->data);
+			}
+		} else {
+			judy_iterator_data_dtor(it);
+		}
 	}
 }
 /* }}} */
@@ -320,6 +372,28 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 				zval *value = JUDY_MVAL_READ(PValue);
 
 				ZVAL_COPY(&it->data, value);
+			}
+		}
+	} else if (object->type == TYPE_STRING_TO_MIXED_HASH) {
+
+		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		Pvoid_t      *KValue;
+
+		/* Rewind via key_index (JudySL) for alphabetical ordering */
+		key[0] = '\0';
+		JSLF(KValue, object->key_index, key);
+
+		if (KValue != NULL && KValue != PJERR) {
+			zval_ptr_dtor(&it->key);
+			ZVAL_STRING(&it->key, (const char *) key);
+
+			Pvoid_t *HValue;
+			JHSG(HValue, object->array, key, (Word_t)strlen((char *)key));
+			if (HValue != NULL && HValue != PJERR) {
+				zval *value = JUDY_MVAL_READ(HValue);
+				ZVAL_COPY(&it->data, value);
+			} else {
+				ZVAL_NULL(&it->data);
 			}
 		}
 	}
