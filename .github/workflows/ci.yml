@@ -105,7 +105,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.4'
+          php-version: "8.4"
           coverage: none
 
       - name: Build PECL package
@@ -378,7 +378,7 @@ jobs:
           # All-types comparison: all 6 Judy types + native PHP array
           Write-Host ""
           Write-Host "=== ALL-TYPES COMPARISON BENCHMARK ==="
-          & $phpExe.FullName examples/judy-bench-all-types.php 50000 3 2>&1 | Tee-Object -FilePath all-types-benchmark-results.txt
+          & $phpExe.FullName examples/judy-bench-all-types.php 500000 3 2>&1 | Tee-Object -FilePath all-types-benchmark-results.txt
 
       - name: Upload benchmark results
         if: always()
