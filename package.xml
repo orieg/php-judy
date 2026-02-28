@@ -107,6 +107,7 @@
          <file name="tests/increment_string_to_int_001.phpt" role="test" />
          <file name="tests/increment_type_error_001.phpt" role="test" />
          <file name="tests/judy_memuse_001.phpt" role="test" />
+         <file name="tests/judy_memuse_002.phpt" role="test" />
          <file name="tests/free_lifecycle_001.phpt" role="test" />
          <file name="tests/free_reuse_001.phpt" role="test" />
          <file name="tests/constructor_error_001.phpt" role="test" />
