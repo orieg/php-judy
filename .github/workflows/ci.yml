@@ -294,7 +294,7 @@ jobs:
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
           args: --with-judy=${{ runner.temp }}\libjudy
-          test-workers: "2"
+          test-workers: "1"
           test-runner-args: "--set-timeout 30"
         env:
           TEST_PHP_JUNIT: ${{ runner.temp }}\junit.xml
