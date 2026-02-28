@@ -28,6 +28,7 @@
 #include "ext/json/php_json.h"
 #include "ext/standard/php_var.h"
 #include "zend_smart_str.h"
+#include "Judy_arginfo.h"
 
 ZEND_DECLARE_MODULE_GLOBALS(judy)
 
@@ -809,7 +810,7 @@ PHP_MINIT_FUNCTION(judy)
 
 	/* Judy class definition */
 
-	INIT_CLASS_ENTRY(ce, "Judy", judy_class_methods);
+	INIT_CLASS_ENTRY(ce, "Judy", class_Judy_methods);
 
 	judy_ce = zend_register_internal_class_ex(&ce, NULL);
 	judy_ce->create_object = judy_object_new;
@@ -885,7 +886,7 @@ PHP_MINFO_FUNCTION(judy)
 
 /* {{{ proto Judy::__construct(long type)
    Constructs a new Judy array of the given type */
-PHP_METHOD(judy, __construct)
+PHP_METHOD(Judy, __construct)
 {
 	zend_long               type;
 	judy_type               jtype;
@@ -936,7 +937,7 @@ PHP_METHOD(judy, __construct)
 
 /* {{{ proto Judy::__destruct()
    Free Judy array and any other references */
-PHP_METHOD(judy, __destruct)
+PHP_METHOD(Judy, __destruct)
 {
 	zval *object = getThis();
 	judy_object *intern = php_judy_object(Z_OBJ_P(object));
@@ -954,7 +955,7 @@ PHP_METHOD(judy, __destruct)
 
 /* {{{ proto long Judy::free()
    Free the entire Judy Array. Return the number of bytes freed */
-PHP_METHOD(judy, free)
+PHP_METHOD(Judy, free)
 {
 	JUDY_METHOD_GET_OBJECT
 
@@ -964,7 +965,7 @@ PHP_METHOD(judy, free)
 
 /* {{{ proto long Judy::memoryUsage()
    Return the memory used by the Judy Array */
-PHP_METHOD(judy, memoryUsage)
+PHP_METHOD(Judy, memoryUsage)
 {
 	Word_t     Rc_word;
 
@@ -990,7 +991,7 @@ PHP_METHOD(judy, memoryUsage)
 
 /* {{{ proto long Judy::size()
    Return the current size of the array. */
-PHP_METHOD(judy, size)
+PHP_METHOD(Judy, size)
 {
 	JUDY_METHOD_GET_OBJECT
 
@@ -1024,7 +1025,7 @@ PHP_METHOD(judy, size)
 
 /* {{{ proto long Judy::count()
    Return the current size of the array. */
-PHP_METHOD(judy, count)
+PHP_METHOD(Judy, count)
 {
 	JUDY_METHOD_GET_OBJECT
 
@@ -1052,7 +1053,7 @@ PHP_METHOD(judy, count)
 /* {{{ proto long Judy::byCount(long nth_index)
    Locate the Nth index that is present in the Judy array (Nth = 1 returns the first index present).
    To refer to the last index in a fully populated array (all indexes present, which is rare), use Nth = 0. */
-PHP_METHOD(judy, byCount)
+PHP_METHOD(Judy, byCount)
 {
 
 	JUDY_METHOD_GET_OBJECT
@@ -1085,7 +1086,7 @@ PHP_METHOD(judy, byCount)
 
 /* {{{ proto mixed Judy::first([mixed index])
    Search (inclusive) for the first index present that is equal to or greater than the passed Index */
-PHP_METHOD(judy, first)
+PHP_METHOD(Judy, first)
 {
 
 	JUDY_METHOD_GET_OBJECT
@@ -1181,7 +1182,7 @@ PHP_METHOD(judy, first)
    Original functionality: Search (exclusive) for the next index present
    that is greater than the passed Index.
    */
-PHP_METHOD(judy, searchNext)
+PHP_METHOD(Judy, searchNext)
 {
 
 	JUDY_METHOD_GET_OBJECT
@@ -1274,7 +1275,7 @@ PHP_METHOD(judy, searchNext)
  * This zero-argument method is required by the Iterator interface and
  * is called by foreach loops to advance the iterator position.
  */
-PHP_METHOD(judy, next)
+PHP_METHOD(Judy, next)
 {
 	JUDY_METHOD_GET_OBJECT
 	
@@ -1384,7 +1385,7 @@ PHP_METHOD(judy, next)
 /* }}} */
 
 /* {{{ Iterator interface rewind() method - Fixes GitHub issue #25 */
-PHP_METHOD(judy, rewind)
+PHP_METHOD(Judy, rewind)
 {
 	JUDY_METHOD_GET_OBJECT
 	
@@ -1478,7 +1479,7 @@ PHP_METHOD(judy, rewind)
 /* }}} */
 
 /* {{{ Iterator interface valid() method - Fixes GitHub issue #25 */
-PHP_METHOD(judy, valid)
+PHP_METHOD(Judy, valid)
 {
 	JUDY_METHOD_GET_OBJECT
 	
@@ -1493,7 +1494,7 @@ PHP_METHOD(judy, valid)
 /* }}} */
 
 /* {{{ Iterator interface current() method - Fixes GitHub issue #25 */
-PHP_METHOD(judy, current)
+PHP_METHOD(Judy, current)
 {
 	JUDY_METHOD_GET_OBJECT
 	
@@ -1506,7 +1507,7 @@ PHP_METHOD(judy, current)
 /* }}} */
 
 /* {{{ Iterator interface key() method - Fixes GitHub issue #25 */
-PHP_METHOD(judy, key)
+PHP_METHOD(Judy, key)
 {
 	JUDY_METHOD_GET_OBJECT
 	
@@ -1520,7 +1521,7 @@ PHP_METHOD(judy, key)
 
 /* {{{ proto mixed Judy::last([mixed index])
    Search (inclusive) for the last index present that is equal to or less than the passed Index */
-PHP_METHOD(judy, last)
+PHP_METHOD(Judy, last)
 {
 
 	JUDY_METHOD_GET_OBJECT
@@ -1612,7 +1613,7 @@ PHP_METHOD(judy, last)
 
 /* {{{ proto mixed Judy::prev(mixed index)
    Search (exclusive) for the previous index present that is less than the passed Index */
-PHP_METHOD(judy, prev)
+PHP_METHOD(Judy, prev)
 {
 
 	JUDY_METHOD_GET_OBJECT
@@ -1698,7 +1699,7 @@ PHP_METHOD(judy, prev)
 
 /* {{{ proto long Judy::firstEmpty([long index])
    Search (inclusive) for the first absent index that is equal to or greater than the passed Index */
-PHP_METHOD(judy, firstEmpty)
+PHP_METHOD(Judy, firstEmpty)
 {
 	zend_long      zl_index = 0;
 	Word_t         index;
@@ -1734,7 +1735,7 @@ PHP_METHOD(judy, firstEmpty)
 
 /* {{{ proto long Judy::lastEmpty([long index])
    Search (inclusive) for the last absent index that is equal to or less than the passed Index */
-PHP_METHOD(judy, lastEmpty)
+PHP_METHOD(Judy, lastEmpty)
 {
 	zend_long      zl_index = -1;
 	Word_t         index;
@@ -1770,7 +1771,7 @@ PHP_METHOD(judy, lastEmpty)
 
 /* {{{ proto long Judy::nextEmpty(long index)
    Search (exclusive) for the next absent index that is greater than the passed Index */
-PHP_METHOD(judy, nextEmpty)
+PHP_METHOD(Judy, nextEmpty)
 {
 	zend_long      zl_index;
 	Word_t         index;
@@ -1805,7 +1806,7 @@ PHP_METHOD(judy, nextEmpty)
 
 /* {{{ proto long Judy::prevEmpty(long index)
    Search (exclusive) for the previous index absent that is less than the passed Index */
-PHP_METHOD(judy, prevEmpty)
+PHP_METHOD(Judy, prevEmpty)
 {
 	zend_long      zl_index;
 	Word_t         index;
@@ -1871,7 +1872,7 @@ static int judy_validate_bitset_operands(judy_object *self, judy_object *other)
 
 /* {{{ proto Judy Judy::union(Judy $other)
    Return a new BITSET containing all indices present in either array */
-PHP_METHOD(judy, union)
+PHP_METHOD(Judy, union)
 {
 	zval *other_zval;
 	judy_object *other, *result;
@@ -1924,7 +1925,7 @@ alloc_error:
 
 /* {{{ proto Judy Judy::intersect(Judy $other)
    Return a new BITSET containing only indices present in both arrays */
-PHP_METHOD(judy, intersect)
+PHP_METHOD(Judy, intersect)
 {
 	zval *other_zval;
 	judy_object *other, *result;
@@ -1986,7 +1987,7 @@ alloc_error:
 
 /* {{{ proto Judy Judy::diff(Judy $other)
    Return a new BITSET containing indices present in this array but not in $other */
-PHP_METHOD(judy, diff)
+PHP_METHOD(Judy, diff)
 {
 	zval *other_zval;
 	judy_object *other, *result;
@@ -2034,7 +2035,7 @@ alloc_error:
 
 /* {{{ proto Judy Judy::xor(Judy $other)
    Return a new BITSET containing indices present in exactly one of the arrays */
-PHP_METHOD(judy, xor)
+PHP_METHOD(Judy, xor)
 {
 	zval *other_zval;
 	judy_object *other, *result;
@@ -2115,7 +2116,7 @@ static judy_object *judy_create_result(zval *return_value, judy_type type)
 
 /* {{{ proto Judy Judy::slice(mixed $start, mixed $end)
    Return a new Judy array of the same type containing entries in [$start, $end] inclusive */
-PHP_METHOD(judy, slice)
+PHP_METHOD(Judy, slice)
 {
 	zval *zstart, *zend_val;
 	judy_object *result;
@@ -2467,7 +2468,7 @@ static void judy_build_data_array(judy_object *intern, zval *data)
 
 /* {{{ proto mixed Judy::jsonSerialize()
    Returns data suitable for json_encode(). Implements JsonSerializable. */
-PHP_METHOD(judy, jsonSerialize)
+PHP_METHOD(Judy, jsonSerialize)
 {
 	JUDY_METHOD_GET_OBJECT
 
@@ -2478,7 +2479,7 @@ PHP_METHOD(judy, jsonSerialize)
 
 /* {{{ proto array Judy::__serialize()
    Returns serialization data: ['type' => int, 'data' => array] */
-PHP_METHOD(judy, __serialize)
+PHP_METHOD(Judy, __serialize)
 {
 	JUDY_METHOD_GET_OBJECT
 
@@ -2495,7 +2496,7 @@ PHP_METHOD(judy, __serialize)
 
 /* {{{ proto void Judy::__unserialize(array $data)
    Restores a Judy array from serialized data */
-PHP_METHOD(judy, __unserialize)
+PHP_METHOD(Judy, __unserialize)
 {
 	zval *arr, *ztype, *zdata, *entry;
 	zend_long type;
@@ -2565,7 +2566,7 @@ PHP_METHOD(judy, __unserialize)
 
 /* {{{ proto array Judy::toArray()
    Convert the Judy array to a native PHP array */
-PHP_METHOD(judy, toArray)
+PHP_METHOD(Judy, toArray)
 {
 	JUDY_METHOD_GET_OBJECT
 
@@ -2607,7 +2608,7 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 
 /* {{{ proto Judy Judy::fromArray(int $type, array $data)
    Static factory: create a new Judy array from a PHP array */
-PHP_METHOD(judy, fromArray)
+PHP_METHOD(Judy, fromArray)
 {
 	zend_long type;
 	judy_type jtype;
@@ -2631,7 +2632,7 @@ PHP_METHOD(judy, fromArray)
 
 /* {{{ proto void Judy::putAll(array $data)
    Bulk-insert entries from a PHP array into this Judy array */
-PHP_METHOD(judy, putAll)
+PHP_METHOD(Judy, putAll)
 {
 	zval *arr;
 
@@ -2647,7 +2648,7 @@ PHP_METHOD(judy, putAll)
 
 /* {{{ proto array Judy::getAll(array $keys)
    Retrieve multiple values at once. Returns key => value (or null if absent). */
-PHP_METHOD(judy, getAll)
+PHP_METHOD(Judy, getAll)
 {
 	zval *keys, *key_entry;
 
@@ -2736,7 +2737,7 @@ PHP_METHOD(judy, getAll)
    Atomic increment for INT_TO_INT (single-traversal via JLI) and
    STRING_TO_INT (two traversals: JSLG for counter tracking + JSLI).
    Returns the new value. Creates the key with value $amount if it doesn't exist. */
-PHP_METHOD(judy, increment)
+PHP_METHOD(Judy, increment)
 {
 	zval *zkey;
 	zend_long amount = 1;
@@ -2853,7 +2854,7 @@ PHP_METHOD(judy, increment)
 
 /* {{{ proto int Judy::getType()
    Return the current Judy Array type */
-PHP_METHOD(judy, getType)
+PHP_METHOD(Judy, getType)
 {
 	JUDY_METHOD_GET_OBJECT
 	RETURN_LONG(intern->type);
@@ -2884,287 +2885,6 @@ PHP_FUNCTION(judy_type)
 }
 /* }}} */
 
-PHP_MINIT_FUNCTION(judy);
-PHP_MSHUTDOWN_FUNCTION(judy);
-PHP_RINIT_FUNCTION(judy);
-PHP_MINFO_FUNCTION(judy);
-
-/* PHP Judy Function */
-PHP_FUNCTION(judy_version);
-PHP_FUNCTION(judy_type);
-
-/* {{{ PHP Judy Methods
-*/
-PHP_METHOD(judy, __construct);
-PHP_METHOD(judy, __destruct);
-PHP_METHOD(judy, getType);
-PHP_METHOD(judy, free);
-PHP_METHOD(judy, memoryUsage);
-PHP_METHOD(judy, count);
-PHP_METHOD(judy, byCount);
-PHP_METHOD(judy, first);
-PHP_METHOD(judy, next);
-PHP_METHOD(judy, last);
-PHP_METHOD(judy, prev);
-PHP_METHOD(judy, firstEmpty);
-PHP_METHOD(judy, nextEmpty);
-PHP_METHOD(judy, lastEmpty);
-PHP_METHOD(judy, prevEmpty);
-PHP_METHOD(judy, union);
-PHP_METHOD(judy, intersect);
-PHP_METHOD(judy, diff);
-PHP_METHOD(judy, xor);
-PHP_METHOD(judy, slice);
-PHP_METHOD(judy, jsonSerialize);
-PHP_METHOD(judy, __serialize);
-PHP_METHOD(judy, __unserialize);
-PHP_METHOD(judy, toArray);
-PHP_METHOD(judy, fromArray);
-PHP_METHOD(judy, putAll);
-PHP_METHOD(judy, getAll);
-PHP_METHOD(judy, increment);
-/* }}} */
-
-/* {{{ PHP Judy Methods for the Array Access Interface
-*/
-PHP_METHOD(judy, offsetSet);
-PHP_METHOD(judy, offsetUnset);
-PHP_METHOD(judy, offsetGet);
-PHP_METHOD(judy, offsetExists);
-/* }}} */
-
-/* {{{ Judy function parameters
-*/
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_type, 0, 0, 1)
-	ZEND_ARG_INFO(0, array)
-ZEND_END_ARG_INFO()
-/* }}} */
-
-/* {{{ Judy class methods parameters
-*/
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_size, 0, 0, 0)
-	ZEND_ARG_INFO(0, index_start)
-	ZEND_ARG_INFO(0, index_end)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_byCount, 0, 0, 1)
-	ZEND_ARG_INFO(0, nth_index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_first, 0, 0, 1)
-	ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_search_next, 0, 0, 1)
-	ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_last, 0, 0, 1)
-	ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prev, 0, 0, 1)
-	ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_firstEmpty, 0, 0, 1)
-	ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_nextEmpty, 0, 0, 1)
-	ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_lastEmpty, 0, 0, 1)
-	ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy_prevEmpty, 0, 0, 1)
-	ZEND_ARG_INFO(0, index)
-ZEND_END_ARG_INFO()
-
-/* Bitset set operations arginfo */
-ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_judy_union, 0, 1, Judy, 0)
-	ZEND_ARG_OBJ_INFO(0, other, Judy, 0)
-ZEND_END_ARG_INFO()
-
-#define arginfo_judy_intersect arginfo_judy_union
-#define arginfo_judy_diff arginfo_judy_union
-#define arginfo_judy_xor arginfo_judy_union
-
-/* Slice arginfo */
-ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_judy_slice, 0, 2, Judy, 0)
-	ZEND_ARG_TYPE_INFO(0, start, IS_MIXED, 0)
-	ZEND_ARG_TYPE_INFO(0, end, IS_MIXED, 0)
-ZEND_END_ARG_INFO()
-
-/* }}} */
-
-/* {{{ Judy class methods parameters the Array Access Interface
-*/
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_offsetExists, 0, 1, _IS_BOOL, 0)
-	ZEND_ARG_TYPE_INFO(0, offset, IS_MIXED, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_offsetGet, 0, 1, IS_MIXED, 0)
-	ZEND_ARG_TYPE_INFO(0, offset, IS_MIXED, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_offsetSet, 0, 2, IS_VOID, 0)
-	ZEND_ARG_TYPE_INFO(0, offset, IS_MIXED, 0)
-	ZEND_ARG_TYPE_INFO(0, value, IS_MIXED, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_offsetUnset, 0, 1, IS_VOID, 0)
-	ZEND_ARG_TYPE_INFO(0, offset, IS_MIXED, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_count, 0, 0, IS_LONG, 0)
-ZEND_END_ARG_INFO()
-
-/* }}} */
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_version, 0, 0, IS_STRING, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy___construct, 0, 0, 1)
-	ZEND_ARG_TYPE_INFO(0, type, IS_LONG, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_judy___destruct, 0, 0, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_getType, 0, 0, IS_LONG, 0)
-ZEND_END_ARG_INFO()
-
-#define arginfo_judy_free arginfo_judy_getType
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_memoryUsage, 0, 0, IS_LONG, 1)
-ZEND_END_ARG_INFO()
-
-/* Iterator interface methods - Fixes GitHub issue #25 */
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_rewind, 0, 0, IS_VOID, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_valid, 0, 0, _IS_BOOL, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_current, 0, 0, IS_MIXED, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_key, 0, 0, IS_MIXED, 0)
-ZEND_END_ARG_INFO()
-
-/* Iterator interface next() method signature */
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_next, 0, 0, IS_VOID, 0)
-ZEND_END_ARG_INFO()
-
-/* JsonSerializable / Serialization arginfo */
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_jsonSerialize, 0, 0, IS_MIXED, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy___serialize, 0, 0, IS_ARRAY, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy___unserialize, 0, 1, IS_VOID, 0)
-	ZEND_ARG_TYPE_INFO(0, data, IS_ARRAY, 0)
-ZEND_END_ARG_INFO()
-
-/* Batch operations and increment arginfo */
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_toArray, 0, 0, IS_ARRAY, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_judy_fromArray, 0, 2, Judy, 0)
-	ZEND_ARG_TYPE_INFO(0, type, IS_LONG, 0)
-	ZEND_ARG_TYPE_INFO(0, data, IS_ARRAY, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_putAll, 0, 1, IS_VOID, 0)
-	ZEND_ARG_TYPE_INFO(0, data, IS_ARRAY, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_getAll, 0, 1, IS_ARRAY, 0)
-	ZEND_ARG_TYPE_INFO(0, keys, IS_ARRAY, 0)
-ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_increment, 0, 1, IS_LONG, 0)
-	ZEND_ARG_TYPE_INFO(0, key, IS_MIXED, 0)
-	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, amount, IS_LONG, 0, "1")
-ZEND_END_ARG_INFO()
-
-/* {{{ judy_functions[]
- *
- * Every user visible function must have an entry in judy_functions[].
- */
-const zend_function_entry judy_functions[] = {
-	/* PHP JUDY FUNCTIONS */
-	PHP_FE(judy_version, arginfo_judy_version)
-	PHP_FE(judy_type, arginfo_judy_type)
-	{NULL, NULL, NULL}
-};
-/* }}} */
-
-/* {{{ judy_class_methodss[]
- *
- * Every user visible Judy method must have an entry in judy_class_methods[].
- */
-const zend_function_entry judy_class_methods[] = {
-	/* PHP JUDY METHODS */
-	PHP_ME(judy, __construct, 		arginfo_judy___construct, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, __destruct, 		arginfo_judy___destruct, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, getType, 			arginfo_judy_getType, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, free, 				arginfo_judy_free, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, memoryUsage, 		arginfo_judy_memoryUsage, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, size, 				arginfo_judy_size, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, count, 			arginfo_judy_count, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, byCount, 			arginfo_judy_byCount, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, first, 			arginfo_judy_first, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, searchNext, 		arginfo_judy_search_next, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, last, 				arginfo_judy_last, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, prev, 				arginfo_judy_prev, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, firstEmpty, 		arginfo_judy_firstEmpty, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, nextEmpty, 		arginfo_judy_nextEmpty, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, lastEmpty, 		arginfo_judy_lastEmpty, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, prevEmpty, 		arginfo_judy_prevEmpty, ZEND_ACC_PUBLIC)
-
-	/* PHP JUDY METHODS / BITSET SET OPERATIONS */
-	PHP_ME(judy, union, 			arginfo_judy_union, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, intersect, 		arginfo_judy_intersect, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, diff, 				arginfo_judy_diff, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, xor, 				arginfo_judy_xor, ZEND_ACC_PUBLIC)
-
-	/* PHP JUDY METHODS / SLICE */
-	PHP_ME(judy, slice, 			arginfo_judy_slice, ZEND_ACC_PUBLIC)
-
-	/* PHP JUDY METHODS / SERIALIZATION */
-	PHP_ME(judy, jsonSerialize, 	arginfo_judy_jsonSerialize, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, __serialize, 		arginfo_judy___serialize, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, __unserialize, 	arginfo_judy___unserialize, ZEND_ACC_PUBLIC)
-
-	/* PHP JUDY METHODS / BATCH OPERATIONS AND INCREMENT */
-	PHP_ME(judy, toArray, 			arginfo_judy_toArray, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, fromArray, 		arginfo_judy_fromArray, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
-	PHP_ME(judy, putAll, 			arginfo_judy_putAll, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, getAll, 			arginfo_judy_getAll, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, increment, 		arginfo_judy_increment, ZEND_ACC_PUBLIC)
-
-	/* PHP JUDY METHODS / ARRAYACCESS INTERFACE */
-	PHP_ME(judy, offsetSet, 		arginfo_judy_offsetSet, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, offsetUnset, 		arginfo_judy_offsetUnset, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, offsetGet, 		arginfo_judy_offsetGet, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, offsetExists, 		arginfo_judy_offsetExists, ZEND_ACC_PUBLIC)
-
-	/* Iterator interface methods - Fixes GitHub issue #25 */
-	PHP_ME(judy, rewind, 			arginfo_judy_rewind, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, valid, 			arginfo_judy_valid, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, current, 			arginfo_judy_current, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, key, 				arginfo_judy_key, ZEND_ACC_PUBLIC)
-	PHP_ME(judy, next, 				arginfo_judy_next, ZEND_ACC_PUBLIC)
-
-	/* NULL TERMINATED VECTOR */
-	{NULL, NULL, NULL}
-};
-/* }}} */
 
 static const zend_module_dep judy_deps[] = {
 	ZEND_MOD_REQUIRED("spl")
@@ -3178,7 +2898,7 @@ zend_module_entry judy_module_entry = {
 	STANDARD_MODULE_HEADER_EX, NULL,
 	judy_deps,
 	PHP_JUDY_EXTNAME,
-	judy_functions,
+	ext_functions,
 	PHP_MINIT(judy),
 	PHP_MSHUTDOWN(judy),
 	PHP_RINIT(judy),
