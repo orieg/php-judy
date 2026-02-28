@@ -35,19 +35,19 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
 
     /* ── Navigation ──────────────────────────────────────────── */
 
-    public function first(mixed $index): mixed {}
+    public function first(mixed $index = null): mixed {}
 
     public function searchNext(mixed $index): mixed {}
 
-    public function last(mixed $index): mixed {}
+    public function last(mixed $index = null): mixed {}
 
     public function prev(mixed $index): mixed {}
 
-    public function firstEmpty(mixed $index): mixed {}
+    public function firstEmpty(mixed $index = null): mixed {}
 
     public function nextEmpty(mixed $index): mixed {}
 
-    public function lastEmpty(mixed $index): mixed {}
+    public function lastEmpty(mixed $index = null): mixed {}
 
     public function prevEmpty(mixed $index): mixed {}
 

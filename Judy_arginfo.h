@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: ad886f77fef0e98b49cc30752f56f01d9d6e5daa */
+ * Stub hash: e1cf1a00811b2ae2bd9502cb30fe573f640ecf73 */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_version, 0, 0, IS_STRING, 0)
 ZEND_END_ARG_INFO()
@@ -34,23 +34,25 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_byCount, 0, 1, IS_MIX
 	ZEND_ARG_TYPE_INFO(0, nth_index, IS_MIXED, 0)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_first, 0, 1, IS_MIXED, 0)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_first, 0, 0, IS_MIXED, 0)
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, index, IS_MIXED, 0, "null")
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_searchNext, 0, 1, IS_MIXED, 0)
 	ZEND_ARG_TYPE_INFO(0, index, IS_MIXED, 0)
 ZEND_END_ARG_INFO()
 
-#define arginfo_class_Judy_searchNext arginfo_class_Judy_first
-
 #define arginfo_class_Judy_last arginfo_class_Judy_first
 
-#define arginfo_class_Judy_prev arginfo_class_Judy_first
+#define arginfo_class_Judy_prev arginfo_class_Judy_searchNext
 
 #define arginfo_class_Judy_firstEmpty arginfo_class_Judy_first
 
-#define arginfo_class_Judy_nextEmpty arginfo_class_Judy_first
+#define arginfo_class_Judy_nextEmpty arginfo_class_Judy_searchNext
 
 #define arginfo_class_Judy_lastEmpty arginfo_class_Judy_first
 
-#define arginfo_class_Judy_prevEmpty arginfo_class_Judy_first
+#define arginfo_class_Judy_prevEmpty arginfo_class_Judy_searchNext
 
 ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_Judy_union, 0, 1, Judy, 0)
 	ZEND_ARG_OBJ_INFO(0, other, Judy, 0)

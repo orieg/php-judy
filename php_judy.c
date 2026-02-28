@@ -2473,7 +2473,11 @@ PHP_METHOD(Judy, slice)
 					ZVAL_COPY(new_value, JUDY_MVAL_READ(HValue));
 					JUDY_MVAL_WRITE(PNew, new_value);
 					JSLI(KNew, result->key_index, key);
-					if (KNew == PJERR) goto alloc_error;
+					if (KNew == PJERR) {
+						int jhsd_rc;
+						JHSD(jhsd_rc, result->array, key, klen);
+						goto alloc_error;
+					}
 					result->counter++;
 				}
 				JSLN(KValue, intern->key_index, key);
@@ -2515,7 +2519,11 @@ PHP_METHOD(Judy, slice)
 					if (PNew == PJERR) goto alloc_error;
 					JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(HValue));
 					JSLI(KNew, result->key_index, key);
-					if (KNew == PJERR) goto alloc_error;
+					if (KNew == PJERR) {
+						int jhsd_rc;
+						JHSD(jhsd_rc, result->array, key, klen);
+						goto alloc_error;
+					}
 					result->counter++;
 				}
 				JSLN(KValue, intern->key_index, key);
