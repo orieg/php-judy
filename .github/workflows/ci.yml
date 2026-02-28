@@ -287,6 +287,15 @@ jobs:
           reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting" /v Disabled /t REG_DWORD /d 1 /f
           reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpType /t REG_DWORD /d 0 /f
 
+      - name: Exclude workspace from Windows Defender
+        shell: pwsh
+        run: |
+          # Defender real-time scanning can lock .php temp files that
+          # run-tests.php creates, causing 30-second timeouts and
+          # "Permission denied" errors on retry.
+          Add-MpPreference -ExclusionPath "${{ github.workspace }}"
+          Add-MpPreference -ExclusionPath "${{ runner.temp }}"
+
       - name: Build the extension
         uses: php/php-windows-builder/extension@v1
         with:
@@ -294,7 +303,7 @@ jobs:
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
           args: --with-judy=${{ runner.temp }}\libjudy
-          test-workers: "2"
+          test-workers: "1"
           test-runner-args: "--set-timeout 30"
         env:
           TEST_PHP_JUNIT: ${{ runner.temp }}\junit.xml

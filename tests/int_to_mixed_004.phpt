@@ -1,17 +1,20 @@
 --TEST--
-Check for Judy INT_TO_INT firstEmpty/nextEmpty/lastEmpty/prevEmpty methods
+Check for Judy INT_TO_MIXED firstEmpty/nextEmpty/lastEmpty/prevEmpty methods
 --SKIPIF--
-<?php if (!extension_loaded("judy")) print "skip"; ?>
+<?php
+if (!extension_loaded("judy")) print "skip";
+try { new Judy(Judy::INT_TO_MIXED); } catch (Exception $e) { print "skip MIXED types not supported"; }
+?>
 --FILE--
-<?php 
-$judy = new Judy(Judy::INT_TO_INT);
+<?php
+$judy = new Judy(Judy::INT_TO_MIXED);
 
 // Init array
 
 echo "Insert 500 index with a rand value\n";
 for ($i=100; $i<600; $i++) {
         $value = rand();
-        $judy[$i] = $value;
+        $judy[$i] = "$value";
         if(!$judy[$i])
             echo "Failed to insert index $i (value: $value)\n";
 }
