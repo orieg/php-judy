@@ -60,6 +60,7 @@ if test "$PHP_JUDY" != "no"; then
   fi
   
   PHP_NEW_EXTENSION(judy, php_judy.c $judy_sources, $ext_shared)
+  PHP_ADD_EXTENSION_DEP(judy, json)
   PHP_ADD_BUILD_DIR($ext_builddir/lib, 1)
   PHP_SUBST(JUDY_SHARED_LIBADD)
 

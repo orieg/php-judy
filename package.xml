@@ -79,6 +79,18 @@
          <file name="tests/slice_string_to_int_001.phpt" role="test" />
          <file name="tests/slice_string_to_mixed_001.phpt" role="test" />
          <file name="tests/slice_empty_001.phpt" role="test" />
+         <file name="tests/json_serialize_bitset_001.phpt" role="test" />
+         <file name="tests/json_serialize_int_to_int_001.phpt" role="test" />
+         <file name="tests/json_serialize_int_to_mixed_001.phpt" role="test" />
+         <file name="tests/json_serialize_string_to_int_001.phpt" role="test" />
+         <file name="tests/json_serialize_string_to_mixed_001.phpt" role="test" />
+         <file name="tests/json_serialize_empty_001.phpt" role="test" />
+         <file name="tests/serialize_roundtrip_bitset_001.phpt" role="test" />
+         <file name="tests/serialize_roundtrip_int_to_int_001.phpt" role="test" />
+         <file name="tests/serialize_roundtrip_int_to_mixed_001.phpt" role="test" />
+         <file name="tests/serialize_roundtrip_string_to_int_001.phpt" role="test" />
+         <file name="tests/serialize_roundtrip_string_to_mixed_001.phpt" role="test" />
+         <file name="tests/serialize_error_001.phpt" role="test" />
          <file md5sum="3022d615e01248b9aedcc07d53f9d298" name="tests/clone_bitset_001.phpt" role="test" />
          <file md5sum="ebf5a62bedc4d0100256bc6db614cac0" name="tests/int_to_int_001.phpt" role="test" />
          <file md5sum="293c4e8f37490390abeaac289e8d4ee7" name="tests/int_to_int_002.phpt" role="test" />

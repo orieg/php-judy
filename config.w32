@@ -6,6 +6,7 @@ ARG_WITH("judy", "Judy support", "no");
 if (PHP_JUDY != "no") {
 	if (CHECK_LIB("libJudy_a.lib;libJudy.lib", "judy", PHP_JUDY) && CHECK_HEADER_ADD_INCLUDE("Judy.h", "CFLAGS_JUDY", PHP_JUDY + ";" + PHP_JUDY + "\\include")) {
 		EXTENSION("judy", "php_judy.c judy_arrayaccess.c judy_handlers.c judy_iterator.c");
+		ADD_EXTENSION_DEP("judy", "json");
 		AC_DEFINE('HAVE_JUDY', 1, 'Have Judy library');
 
 		ADD_FLAG("CFLAGS_JUDY", "/D JU_WIN");
