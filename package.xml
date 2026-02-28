@@ -110,6 +110,10 @@
          <file name="tests/increment_string_to_int_001.phpt" role="test" />
          <file name="tests/increment_type_error_001.phpt" role="test" />
          <file name="tests/judy_memuse_001.phpt" role="test" />
+         <file name="tests/judy_memuse_002.phpt" role="test" />
+         <file name="tests/judy_memuse_003.phpt" role="test" />
+         <file name="tests/judy_memuse_004.phpt" role="test" />
+         <file name="tests/judy_memuse_005.phpt" role="test" />
          <file name="tests/int_to_packed_001.phpt" role="test" />
          <file name="tests/int_to_packed_002.phpt" role="test" />
          <file name="tests/int_to_packed_003.phpt" role="test" />
