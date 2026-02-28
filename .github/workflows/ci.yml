@@ -214,6 +214,8 @@ jobs:
           #   1L  << N   -> sign-extends to 0xFFFFFFFF80000000 when N=31; 0 when N>=32
           #                 (breaks JU_BITPOSMASKB/L in JudyPrivate.h)
           #   0x100UL    -> 0x100 as 32-bit; JU_LEASTBYTESMASK wrong for BYTES>4
+          #   0xffL      -> 0xff as 32-bit; cJU_MASKATSTATE yields 0 for State>=5
+          #                 (breaks JU_SETDIGIT/cascade for JudySL with long strings)
           #
           # The root cause of the 17-min hang in PrevNextEmpty: bitposmaskL was
           # initialised to `1UL << 63` = 0 on MSVC x64, creating an infinite loop.
@@ -230,6 +232,8 @@ jobs:
             $text = [regex]::Replace($text, '\b1L\s*<<',  '(Word_t)1 <<')
             # Least-bytes mask base constant
             $text = $text.Replace('0x100UL', '(Word_t)0x100')
+            # Byte-mask base constant (cJU_MASKATSTATE in JudyPrivateBranch.h)
+            $text = $text.Replace('0xffL', '(Word_t)0xff')
             if ($text -ne $orig) {
               Set-Content $_.FullName -Value $text -NoNewline
               $fixCount++
