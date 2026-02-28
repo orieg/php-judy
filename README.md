@@ -296,7 +296,7 @@ $values = $judy->getAll([0, 5, 99]); // [0 => 100, 5 => 200, 99 => null]
 
 ### Atomic Increment
 
-For `INT_TO_INT` and `STRING_TO_INT` types, `increment()` performs a single-traversal counter update:
+For `INT_TO_INT` and `STRING_TO_INT` types, `increment()` performs an efficient counter update. For `INT_TO_INT`, it uses a single traversal via `JLI`. For `STRING_TO_INT`, it requires two traversals (`JSLG` + `JSLI`) to correctly track the element counter:
 
 ```php
 $counters = new Judy(Judy::STRING_TO_INT);

@@ -57,12 +57,23 @@ jobs:
 
           PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/run-benchmarks.php | tee benchmark-results.txt
 
+          # Run batch operations and set operations benchmarks (smaller sizes for CI)
+          echo ""
+          echo "=== BATCH OPERATIONS BENCHMARK ==="
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-batch-operations.php 2>&1 | tee batch-benchmark-results.txt
+          echo ""
+          echo "=== SET OPERATIONS BENCHMARK ==="
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-set-operations.php 2>&1 | tee set-benchmark-results.txt
+
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-linux-php${{ matrix.php-version }}
-          path: benchmark-results.txt
+          path: |
+            benchmark-results.txt
+            batch-benchmark-results.txt
+            set-benchmark-results.txt
           if-no-files-found: ignore
 
   validate-pecl:
@@ -677,6 +688,55 @@ jobs:
                       lines.append("")
 
               lines.append("</details>\n")
+
+          # ── Batch & Set Operations Benchmarks ──────────────────────
+          batch_data = defaultdict(dict)  # {php_ver: text}
+          set_data = defaultdict(dict)
+
+          for bench_dir in sorted(glob.glob("benchmarks/benchmark-linux-*")):
+              m = re.match(r'^.*benchmark-linux-php([\d.]+)$', bench_dir)
+              if not m:
+                  continue
+              php_ver = m.group(1)
+              for fname, store in [
+                  ("batch-benchmark-results.txt", batch_data),
+                  ("set-benchmark-results.txt", set_data),
+              ]:
+                  fpath = os.path.join(bench_dir, fname)
+                  if os.path.isfile(fpath):
+                      with open(fpath) as f:
+                          store[php_ver] = f.read().strip()
+
+          if batch_data or set_data:
+              lines.append("## Batch & Set Operations Benchmarks\n")
+              lines.append(
+                  "Benchmarks for `putAll()`, `fromArray()`, `getAll()`, "
+                  "`toArray()`, `increment()`, and BITSET set operations "
+                  "(`union`, `intersect`, `diff`, `xor`).\n"
+              )
+              # Pick the latest PHP version with results
+              all_vers = sorted(
+                  set(list(batch_data.keys()) + list(set_data.keys())),
+                  key=lambda v: [int(x) for x in v.split(".")]
+              )
+              if all_vers:
+                  latest = all_vers[-1]
+                  if latest in batch_data:
+                      lines.append(
+                          f"<details><summary>Batch Operations — PHP {latest} (Linux)</summary>\n"
+                      )
+                      lines.append("```")
+                      lines.append(batch_data[latest])
+                      lines.append("```\n")
+                      lines.append("</details>\n")
+                  if latest in set_data:
+                      lines.append(
+                          f"<details><summary>Set Operations — PHP {latest} (Linux)</summary>\n"
+                      )
+                      lines.append("```")
+                      lines.append(set_data[latest])
+                      lines.append("```\n")
+                      lines.append("</details>\n")
 
           report = "\n".join(lines) + "\n"
 

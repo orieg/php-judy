@@ -2021,16 +2021,42 @@ PHP_METHOD(judy, toArray)
 }
 /* }}} */
 
+/* {{{ judy_populate_from_array — shared helper for fromArray() and putAll() */
+static void judy_populate_from_array(zval *judy_obj, zval *arr) {
+	judy_object *intern = php_judy_object(Z_OBJ_P(judy_obj));
+	zval *entry, offset;
+	zend_string *str_key;
+	zend_ulong num_key;
+
+	ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
+		if (intern->type == TYPE_BITSET) {
+			ZVAL_LONG(&offset, zval_get_long(entry));
+			zval bool_true;
+			ZVAL_TRUE(&bool_true);
+			judy_object_write_dimension_helper(judy_obj, &offset, &bool_true);
+		} else if (intern->is_string_keyed) {
+			if (str_key) {
+				ZVAL_STR_COPY(&offset, str_key);
+			} else {
+				ZVAL_STR(&offset, zend_long_to_str((zend_long)num_key));
+			}
+			judy_object_write_dimension_helper(judy_obj, &offset, entry);
+			zval_ptr_dtor(&offset);
+		} else {
+			ZVAL_LONG(&offset, (zend_long)num_key);
+			judy_object_write_dimension_helper(judy_obj, &offset, entry);
+		}
+	} ZEND_HASH_FOREACH_END();
+}
+/* }}} */
+
 /* {{{ proto Judy Judy::fromArray(int $type, array $data)
    Static factory: create a new Judy array from a PHP array */
 PHP_METHOD(judy, fromArray)
 {
 	zend_long type;
 	judy_type jtype;
-	zval *arr, *entry, offset;
-	zend_string *str_key;
-	zend_ulong num_key;
-	judy_object *result;
+	zval *arr;
 
 	ZEND_PARSE_PARAMETERS_START(2, 2)
 		Z_PARAM_LONG(type)
@@ -2043,27 +2069,8 @@ PHP_METHOD(judy, fromArray)
 		return;
 	}
 
-	result = judy_create_result(return_value, jtype);
-
-	ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
-		if (jtype == TYPE_BITSET) {
-			ZVAL_LONG(&offset, zval_get_long(entry));
-			zval bool_true;
-			ZVAL_TRUE(&bool_true);
-			judy_object_write_dimension_helper(return_value, &offset, &bool_true);
-		} else if (result->is_string_keyed) {
-			if (str_key) {
-				ZVAL_STR_COPY(&offset, str_key);
-			} else {
-				ZVAL_STR(&offset, zend_long_to_str((zend_long)num_key));
-			}
-			judy_object_write_dimension_helper(return_value, &offset, entry);
-			zval_ptr_dtor(&offset);
-		} else {
-			ZVAL_LONG(&offset, (zend_long)num_key);
-			judy_object_write_dimension_helper(return_value, &offset, entry);
-		}
-	} ZEND_HASH_FOREACH_END();
+	judy_create_result(return_value, jtype);
+	judy_populate_from_array(return_value, arr);
 }
 /* }}} */
 
@@ -2071,9 +2078,7 @@ PHP_METHOD(judy, fromArray)
    Bulk-insert entries from a PHP array into this Judy array */
 PHP_METHOD(judy, putAll)
 {
-	zval *arr, *entry, offset;
-	zend_string *str_key;
-	zend_ulong num_key;
+	zval *arr;
 
 	JUDY_METHOD_GET_OBJECT
 
@@ -2081,25 +2086,7 @@ PHP_METHOD(judy, putAll)
 		Z_PARAM_ARRAY(arr)
 	ZEND_PARSE_PARAMETERS_END();
 
-	ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
-		if (intern->type == TYPE_BITSET) {
-			ZVAL_LONG(&offset, zval_get_long(entry));
-			zval bool_true;
-			ZVAL_TRUE(&bool_true);
-			judy_object_write_dimension_helper(object, &offset, &bool_true);
-		} else if (intern->is_string_keyed) {
-			if (str_key) {
-				ZVAL_STR_COPY(&offset, str_key);
-			} else {
-				ZVAL_STR(&offset, zend_long_to_str((zend_long)num_key));
-			}
-			judy_object_write_dimension_helper(object, &offset, entry);
-			zval_ptr_dtor(&offset);
-		} else {
-			ZVAL_LONG(&offset, (zend_long)num_key);
-			judy_object_write_dimension_helper(object, &offset, entry);
-		}
-	} ZEND_HASH_FOREACH_END();
+	judy_populate_from_array(object, arr);
 }
 /* }}} */
 
@@ -2118,55 +2105,45 @@ PHP_METHOD(judy, getAll)
 	array_init(return_value);
 
 	ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(keys), key_entry) {
-		if (intern->type == TYPE_BITSET) {
+		if (intern->is_integer_keyed) {
 			Word_t index = (Word_t)zval_get_long(key_entry);
-			int Rc_int;
-			J1T(Rc_int, intern->array, index);
-			add_index_bool(return_value, (zend_long)index, Rc_int);
-
-		} else if (intern->type == TYPE_INT_TO_INT) {
-			Word_t index = (Word_t)zval_get_long(key_entry);
-			Pvoid_t *PValue;
-			JLG(PValue, intern->array, index);
-			if (PValue != NULL && PValue != PJERR) {
-				add_index_long(return_value, (zend_long)index, JUDY_LVAL_READ(PValue));
+			if (intern->type == TYPE_BITSET) {
+				int Rc_int;
+				J1T(Rc_int, intern->array, index);
+				add_index_bool(return_value, (zend_long)index, Rc_int);
 			} else {
-				add_index_null(return_value, (zend_long)index);
+				Pvoid_t *PValue;
+				JLG(PValue, intern->array, index);
+				if (PValue == NULL || PValue == PJERR) {
+					add_index_null(return_value, (zend_long)index);
+				} else if (intern->type == TYPE_INT_TO_INT) {
+					add_index_long(return_value, (zend_long)index, JUDY_LVAL_READ(PValue));
+				} else { /* TYPE_INT_TO_MIXED */
+					if (JUDY_MVAL_READ(PValue) != NULL) {
+						zval *value = JUDY_MVAL_READ(PValue);
+						Z_TRY_ADDREF_P(value);
+						add_index_zval(return_value, (zend_long)index, value);
+					} else {
+						add_index_null(return_value, (zend_long)index);
+					}
+				}
 			}
-
-		} else if (intern->type == TYPE_INT_TO_MIXED) {
-			Word_t index = (Word_t)zval_get_long(key_entry);
-			Pvoid_t *PValue;
-			JLG(PValue, intern->array, index);
-			if (PValue != NULL && PValue != PJERR && JUDY_MVAL_READ(PValue) != NULL) {
-				zval *value = JUDY_MVAL_READ(PValue);
-				Z_TRY_ADDREF_P(value);
-				add_index_zval(return_value, (zend_long)index, value);
-			} else {
-				add_index_null(return_value, (zend_long)index);
-			}
-
-		} else if (intern->type == TYPE_STRING_TO_INT) {
+		} else { /* is_string_keyed */
 			zend_string *skey = zval_get_string(key_entry);
 			Pvoid_t *PValue;
 			JSLG(PValue, intern->array, (uint8_t *)ZSTR_VAL(skey));
-			if (PValue != NULL && PValue != PJERR) {
+			if (PValue == NULL || PValue == PJERR) {
+				add_assoc_null(return_value, ZSTR_VAL(skey));
+			} else if (intern->type == TYPE_STRING_TO_INT) {
 				add_assoc_long(return_value, ZSTR_VAL(skey), JUDY_LVAL_READ(PValue));
-			} else {
-				add_assoc_null(return_value, ZSTR_VAL(skey));
-			}
-			zend_string_release(skey);
-
-		} else if (intern->type == TYPE_STRING_TO_MIXED) {
-			zend_string *skey = zval_get_string(key_entry);
-			Pvoid_t *PValue;
-			JSLG(PValue, intern->array, (uint8_t *)ZSTR_VAL(skey));
-			if (PValue != NULL && PValue != PJERR && JUDY_MVAL_READ(PValue) != NULL) {
-				zval *value = JUDY_MVAL_READ(PValue);
-				Z_TRY_ADDREF_P(value);
-				add_assoc_zval(return_value, ZSTR_VAL(skey), value);
-			} else {
-				add_assoc_null(return_value, ZSTR_VAL(skey));
+			} else { /* TYPE_STRING_TO_MIXED */
+				if (JUDY_MVAL_READ(PValue) != NULL) {
+					zval *value = JUDY_MVAL_READ(PValue);
+					Z_TRY_ADDREF_P(value);
+					add_assoc_zval(return_value, ZSTR_VAL(skey), value);
+				} else {
+					add_assoc_null(return_value, ZSTR_VAL(skey));
+				}
 			}
 			zend_string_release(skey);
 		}
@@ -2175,7 +2152,8 @@ PHP_METHOD(judy, getAll)
 /* }}} */
 
 /* {{{ proto int Judy::increment(mixed $key, int $amount = 1)
-   Atomic single-traversal increment for INT_TO_INT and STRING_TO_INT types.
+   Atomic increment for INT_TO_INT (single-traversal via JLI) and
+   STRING_TO_INT (two traversals: JSLG for counter tracking + JSLI).
    Returns the new value. Creates the key with value $amount if it doesn't exist. */
 PHP_METHOD(judy, increment)
 {
@@ -2208,7 +2186,15 @@ PHP_METHOD(judy, increment)
 		Pvoid_t *PExisting;
 		Pvoid_t *PValue;
 
-		/* Check if key exists for counter tracking */
+		if (ZSTR_LEN(skey) >= PHP_JUDY_MAX_LENGTH) {
+			zend_string_release(skey);
+			zend_throw_exception_ex(NULL, 0,
+				"Judy string key length (%zu) exceeds maximum of %d bytes",
+				ZSTR_LEN(skey), PHP_JUDY_MAX_LENGTH - 1);
+			return;
+		}
+
+		/* Check if key exists for counter tracking (requires JSLG + JSLI) */
 		JSLG(PExisting, intern->array, (uint8_t *)ZSTR_VAL(skey));
 
 		JSLI(PValue, intern->array, (uint8_t *)ZSTR_VAL(skey));

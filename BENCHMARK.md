@@ -158,10 +158,10 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 |--------|-----------|---------------|-------|
 | **PHP array** `$a[$k]++` | 1.7 ms | 2.8 ms | Baseline |
 | **Judy manual** `$j[$k] = $j[$k] + 1` | 4.7 ms | 12.8 ms | Two traversals (read + write) |
-| **Judy increment()** | 3.0 ms | 10.1 ms | Single traversal (JLI/JSLI) |
+| **Judy increment()** | 3.0 ms | 10.1 ms | Single traversal for INT (JLI); two for STRING (JSLG+JSLI) |
 | **increment() vs manual** | **1.6x faster** | **1.3x faster** | Eliminates redundant lookup |
 
-**Key Insight**: `increment()` provides a 1.3-1.6x speedup over manual read-modify-write by using JLI/JSLI's insert-or-get semantics for a single tree traversal instead of two.
+**Key Insight**: For `INT_TO_INT`, `increment()` achieves a true single-traversal update via `JLI`'s insert-or-get semantics (1.6x speedup). For `STRING_TO_INT`, two traversals are needed (`JSLG` to check existence for counter tracking + `JSLI` to insert/update), still providing a 1.3x speedup by keeping all logic in C rather than PHP.
 
 ---
 
