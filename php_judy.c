@@ -365,10 +365,12 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			J1U(Rc_int, intern->array, index);
 		}
 		return Rc_int ? SUCCESS : FAILURE;
-	} else if (intern->type == TYPE_INT_TO_INT) {
-		Pvoid_t   *PValue;
-		zend_long value_long = zval_get_long(value);
+	} else if (intern->type == TYPE_INT_TO_INT
+			|| intern->type == TYPE_INT_TO_MIXED
+			|| intern->type == TYPE_INT_TO_PACKED) {
+		Pvoid_t     *PValue;
 
+		/* Common: determine the target index (identical for all JudyL-backed types). */
 		if (!offset || index <= -1) {
 			if (intern->array) {
 				if (!offset && intern->next_empty_is_valid) {
@@ -398,106 +400,46 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			intern->next_empty_is_valid = 0;
 		}
 
-		JLI(PValue, intern->array, index);
-		if (PValue != NULL && PValue != PJERR) {
-			JUDY_LVAL_WRITE(PValue, value_long);
-			return SUCCESS;
-		}
-		return FAILURE;
-	} else if (intern->type == TYPE_INT_TO_MIXED) {
-		Pvoid_t     *PValue;
-
-		if (!offset || index <= -1) {
-			if (intern->array){
-				if (!offset && intern->next_empty_is_valid) {
-					index = intern->next_empty++;
-				} else {
-					index = -1;
-					JLL(PValue, intern->array, index);
-
-					if (PValue != NULL && PValue != PJERR) {
-						index += 1;
-						if (!offset) {
-							intern->next_empty = index + 1;
-							intern->next_empty_is_valid = 1;
-						}
-					} else {
-						return FAILURE;
-					}
-				}
-			} else {
-				if (intern->next_empty_is_valid) {
-					index = intern->next_empty++;
-				} else {
-					index = 0;
-				}
+		/* Type-specific: value preparation and JLI insertion. */
+		if (intern->type == TYPE_INT_TO_INT) {
+			JLI(PValue, intern->array, index);
+			if (PValue != NULL && PValue != PJERR) {
+				JUDY_LVAL_WRITE(PValue, zval_get_long(value));
+				return SUCCESS;
 			}
-		} else {
-			intern->next_empty_is_valid = 0;
-		}
-
-		JLI(PValue, intern->array, index);
-		if (PValue != NULL && PValue != PJERR) {
-			zval *old_value, *new_value;
-			if (JUDY_MVAL_READ(PValue) != NULL) {
-				old_value = JUDY_MVAL_READ(PValue);
-				zval_ptr_dtor(old_value);
-				efree(old_value);
-			}
-			new_value = ecalloc(1, sizeof(zval));
-			ZVAL_COPY(new_value, value);
-			JUDY_MVAL_WRITE(PValue, new_value);
-			return SUCCESS;
-		}
-		return FAILURE;
-	} else if (intern->type == TYPE_INT_TO_PACKED) {
-		Pvoid_t     *PValue;
-
-		if (!offset || index <= -1) {
-			if (intern->array){
-				if (!offset && intern->next_empty_is_valid) {
-					index = intern->next_empty++;
-				} else {
-					index = -1;
-					JLL(PValue, intern->array, index);
-
-					if (PValue != NULL && PValue != PJERR) {
-						index += 1;
-						if (!offset) {
-							intern->next_empty = index + 1;
-							intern->next_empty_is_valid = 1;
-						}
-					} else {
-						return FAILURE;
-					}
+			return FAILURE;
+		} else if (intern->type == TYPE_INT_TO_MIXED) {
+			JLI(PValue, intern->array, index);
+			if (PValue != NULL && PValue != PJERR) {
+				zval *old_value, *new_value;
+				if (JUDY_MVAL_READ(PValue) != NULL) {
+					old_value = JUDY_MVAL_READ(PValue);
+					zval_ptr_dtor(old_value);
+					efree(old_value);
 				}
-			} else {
-				if (intern->next_empty_is_valid) {
-					index = intern->next_empty++;
-				} else {
-					index = 0;
-				}
+				new_value = ecalloc(1, sizeof(zval));
+				ZVAL_COPY(new_value, value);
+				JUDY_MVAL_WRITE(PValue, new_value);
+				return SUCCESS;
 			}
-		} else {
-			intern->next_empty_is_valid = 0;
-		}
-
-		judy_packed_value *packed = judy_pack_value(value);
-		if (!packed) {
+			return FAILURE;
+		} else { /* TYPE_INT_TO_PACKED */
+			judy_packed_value *packed = judy_pack_value(value);
+			if (!packed) {
+				return FAILURE;
+			}
+			JLI(PValue, intern->array, index);
+			if (PValue != NULL && PValue != PJERR) {
+				judy_packed_value *old = JUDY_PVAL_READ(PValue);
+				if (old != NULL) {
+					efree(old);
+				}
+				JUDY_PVAL_WRITE(PValue, packed);
+				return SUCCESS;
+			}
+			efree(packed);
 			return FAILURE;
 		}
-
-		JLI(PValue, intern->array, index);
-		if (PValue != NULL && PValue != PJERR) {
-			judy_packed_value *old = JUDY_PVAL_READ(PValue);
-			if (old != NULL) {
-				efree(old);
-			}
-			JUDY_PVAL_WRITE(PValue, packed);
-			return SUCCESS;
-		}
-		efree(packed);
-		return FAILURE;
 	} else if (intern->type == TYPE_STRING_TO_INT) {
 		PWord_t     *PValue;
 		PWord_t     *PExisting;
