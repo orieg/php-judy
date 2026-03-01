@@ -523,10 +523,11 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		/* Type-specific: value preparation and JLI insertion. */
 		if (intern->type == TYPE_INT_TO_INT) {
 			PWord_t PExisting;
+			zend_long lval = zval_get_long(value);
 			JLG(PExisting, intern->array, index);
 			JLI(PValue, intern->array, index);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				JUDY_LVAL_WRITE(PValue, zval_get_long(value));
+				JUDY_LVAL_WRITE(PValue, lval);
 				if (PExisting == NULL) intern->counter++;
 				return SUCCESS;
 			}
@@ -569,14 +570,19 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		}
 	} else if (intern->type == TYPE_STRING_TO_INT) {
 		PWord_t     *PValue;
+		PWord_t     *PExisting;
+		zend_long lval = zval_get_long(value);
 		int res;
+
+		/* Check if key already exists before insert to track count correctly */
+		JSLG(PExisting, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
 
 		JSLI(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
 		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-			if (*(Word_t *)PValue == 0) {
+			if (PExisting == NULL) {
 				intern->counter++;
 			}
-			JUDY_LVAL_WRITE(PValue, zval_get_long(value));
+			JUDY_LVAL_WRITE(PValue, lval);
 			res = SUCCESS;
 		} else {
 			res = FAILURE;

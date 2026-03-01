@@ -76,9 +76,9 @@ if (was_new) intern->counter++;
 
 **Expected improvement**: ~30-40% speedup on bulk insert workloads by cutting Judy tree traversals in half.
 
-> **⚠️ Correctness Note on value 0 ambiguity for INT_TO_INT**: When a user stores the value `0` into an existing key, `*PValue` will be `0` after the write, making it indistinguishable from a new slot. This means the counter could be incremented incorrectly on overwrite-with-zero.
+> **⚠️ Correctness Note on value 0 ambiguity for INT_TO_INT and STRING_TO_INT**: The proposed optimization checks if `*PValue == 0` after a `JLI` or `JSLI` call to detect a new key, as Judy zeros new slots. However, this is ambiguous for `INT_TO_INT` and `STRING_TO_INT` types, where `0` is a valid user-stored value. If an existing key already has the value `0`, the check will incorrectly identify it as a new key and increment the counter on overwrite.
 >
-> **Recommended Solution (Option 3)**: Keep the `JLG` only for `INT_TO_INT` and remove it for `MIXED`/`PACKED` types where a `NULL` pointer is an unambiguous "new slot" indicator. This captures most of the benefit with zero correctness risk.
+> **Recommended Solution**: Keep the `JLG`/`JSLG` lookup for `INT_TO_INT` and `STRING_TO_INT` types. The optimization can be safely applied to `MIXED`/`PACKED` types where a `NULL` pointer is an unambiguous "new slot" indicator. This captures most of the benefit with zero correctness risk.
 
 ---
 
