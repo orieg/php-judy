@@ -73,13 +73,6 @@ typedef unsigned __int64 Word_t, * PWord_t;
 #define JUDY_MVAL_READ(PV)       ((zval *)(*(PV)))
 #define JUDY_MVAL_WRITE(PV, p)   (*(PV) = (Pvoid_t)(p))
 
-/* Packed value storage for TYPE_INT_TO_PACKED.
- * Stores serialized PHP values as opaque byte buffers outside the GC. */
-typedef struct _judy_packed_value {
-    size_t len;
-    char   data[];   /* flexible array member: serialized bytes */
-} judy_packed_value;
-
 #define JUDY_PVAL_READ(PV)      ((judy_packed_value *)(*(PV)))
 #define JUDY_PVAL_WRITE(PV, p)  (*(PV) = (Pvoid_t)(p))
 
@@ -88,6 +81,28 @@ typedef struct _judy_packed_value {
 #include "zend_exceptions.h"
 #include "zend_interfaces.h"
 #include "ext/standard/info.h"
+
+/* Packed value storage for TYPE_INT_TO_PACKED.
+ * Tagged union: scalars stored directly (no serialize), complex types fall back.
+ * Tag values: 0=long, 1=double, 2=true, 3=false, 4=null, 5=string, 255=serialized */
+typedef struct _judy_packed_value {
+    uint8_t tag;
+    union {
+        zend_long lval;
+        double    dval;
+        struct { size_t len; char data[]; } str;
+    } v;
+} judy_packed_value;
+
+static inline size_t judy_packed_value_size(judy_packed_value *p) {
+    switch (p->tag) {
+    case 0:   return offsetof(judy_packed_value, v) + sizeof(zend_long);
+    case 1:   return offsetof(judy_packed_value, v) + sizeof(double);
+    case 2: case 3: case 4: return offsetof(judy_packed_value, v);
+    case 5: case 255: return offsetof(judy_packed_value, v) + sizeof(size_t) + p->v.str.len;
+    default:  return sizeof(judy_packed_value);
+    }
+}
 
 extern zend_module_entry judy_module_entry;
 #define phpext_judy_ptr &judy_module_entry
