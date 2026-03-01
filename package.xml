@@ -42,7 +42,11 @@
 - NEW FEATURE: STRING_TO_INT_HASH type (type 8) -- JudyHS-backed O(1) string-to-int map
 - NEW FEATURE: .stub.php arginfo generation replaces hand-written C arginfo
 - FIX: JudySL hang on Windows x64 -- cJU_MASKATSTATE 0xffL truncation at States 5-8 (issue #46)
-- IMPROVEMENT: 158 tests covering all features
+- PERF: foreach iterator overhaul -- valid flag eliminates per-step Judy lookups, heap key buffer replaces 64KB stack allocations, zend_string reuse reduces allocation churn
+- PERF: tagged-union packed format for INT_TO_PACKED -- eliminates php_var_serialize/unserialize for scalar values (long, double, bool, null, string); complex types fall back transparently
+- PERF: O(1) count() for all types -- counter maintained on every insert/delete, replaces O(n) J1C/JLC scans
+- PERF: type-specialized bulk-insert loops in fromArray()/putAll()/__unserialize() bypass per-element dispatch for integer-keyed types
+- IMPROVEMENT: 167 tests covering all features
    </notes>
    <contents>
       <dir name="/">
@@ -286,7 +290,11 @@
 - NEW FEATURE: STRING_TO_INT_HASH type (type 8) -- JudyHS-backed O(1) string-to-int map
 - NEW FEATURE: .stub.php arginfo generation replaces hand-written C arginfo
 - FIX: JudySL hang on Windows x64 -- cJU_MASKATSTATE 0xffL truncation at States 5-8 (issue #46)
-- IMPROVEMENT: 158 tests covering all features
+- PERF: foreach iterator overhaul -- valid flag eliminates per-step Judy lookups, heap key buffer replaces 64KB stack allocations, zend_string reuse reduces allocation churn
+- PERF: tagged-union packed format for INT_TO_PACKED -- eliminates php_var_serialize/unserialize for scalar values (long, double, bool, null, string); complex types fall back transparently
+- PERF: O(1) count() for all types -- counter maintained on every insert/delete, replaces O(n) J1C/JLC scans
+- PERF: type-specialized bulk-insert loops in fromArray()/putAll()/__unserialize() bypass per-element dispatch for integer-keyed types
+- IMPROVEMENT: 167 tests covering all features
          </notes>
       </release>
       <release>
