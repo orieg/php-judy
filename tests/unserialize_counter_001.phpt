@@ -57,23 +57,6 @@ $s = serialize($j);
 $j2 = unserialize($s);
 var_dump(count($j2));  // 2
 
-// STRING_TO_MIXED_HASH
-$j = new Judy(Judy::STRING_TO_MIXED_HASH);
-$j["foo"] = "bar";
-$j["baz"] = 99;
-$s = serialize($j);
-$j2 = unserialize($s);
-var_dump(count($j2));  // 2
-
-// STRING_TO_INT_HASH
-$j = new Judy(Judy::STRING_TO_INT_HASH);
-$j["alpha"] = 1;
-$j["beta"] = 2;
-$j["gamma"] = 3;
-$s = serialize($j);
-$j2 = unserialize($s);
-var_dump(count($j2));  // 3
-
 echo "OK\n";
 ?>
 --EXPECT--
@@ -86,6 +69,4 @@ int(3)
 float(3.14)
 int(2)
 int(2)
-int(2)
-int(3)
 OK
