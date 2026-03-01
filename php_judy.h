@@ -73,13 +73,6 @@ typedef unsigned __int64 Word_t, * PWord_t;
 #define JUDY_MVAL_READ(PV)       ((zval *)(*(PV)))
 #define JUDY_MVAL_WRITE(PV, p)   (*(PV) = (Pvoid_t)(p))
 
-/* Packed value storage for TYPE_INT_TO_PACKED.
- * Stores serialized PHP values as opaque byte buffers outside the GC. */
-typedef struct _judy_packed_value {
-    size_t len;
-    char   data[];   /* flexible array member: serialized bytes */
-} judy_packed_value;
-
 #define JUDY_PVAL_READ(PV)      ((judy_packed_value *)(*(PV)))
 #define JUDY_PVAL_WRITE(PV, p)  (*(PV) = (Pvoid_t)(p))
 
@@ -88,6 +81,42 @@ typedef struct _judy_packed_value {
 #include "zend_exceptions.h"
 #include "zend_interfaces.h"
 #include "ext/standard/info.h"
+
+/* Packed value storage for TYPE_INT_TO_PACKED.
+ * Tagged union: scalars stored directly (no serialize), complex types fall back. */
+typedef enum _judy_packed_tag {
+    JUDY_TAG_LONG       = 0,
+    JUDY_TAG_DOUBLE     = 1,
+    JUDY_TAG_TRUE       = 2,
+    JUDY_TAG_FALSE      = 3,
+    JUDY_TAG_NULL       = 4,
+    JUDY_TAG_STRING     = 5,
+    JUDY_TAG_SERIALIZED = 255
+} judy_packed_tag;
+
+typedef struct _judy_packed_value {
+    uint8_t tag;
+    union {
+        zend_long lval;
+        double    dval;
+        struct { size_t len; char data[]; } str;
+    } v;
+} judy_packed_value;
+
+static inline size_t judy_packed_value_size(judy_packed_value *p) {
+    switch ((judy_packed_tag)p->tag) {
+    case JUDY_TAG_LONG:       return offsetof(judy_packed_value, v) + sizeof(zend_long);
+    case JUDY_TAG_DOUBLE:     return offsetof(judy_packed_value, v) + sizeof(double);
+    case JUDY_TAG_TRUE:
+    case JUDY_TAG_FALSE:
+    case JUDY_TAG_NULL:       return offsetof(judy_packed_value, v);
+    case JUDY_TAG_STRING:
+    case JUDY_TAG_SERIALIZED: return offsetof(judy_packed_value, v) + sizeof(size_t) + p->v.str.len;
+    default:
+        zend_error(E_WARNING, "judy_packed_value: unknown tag %u", (unsigned)p->tag);
+        return 0;
+    }
+}
 
 extern zend_module_entry judy_module_entry;
 #define phpext_judy_ptr &judy_module_entry

@@ -73,9 +73,9 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 				} else if (old_obj->type == TYPE_INT_TO_PACKED) {
 					judy_packed_value *src = JUDY_PVAL_READ(PValue);
 					if (src) {
-						judy_packed_value *dst = emalloc(sizeof(judy_packed_value) + src->len);
-						dst->len = src->len;
-						memcpy(dst->data, src->data, src->len);
+						size_t sz = judy_packed_value_size(src);
+						judy_packed_value *dst = emalloc(sz);
+						memcpy(dst, src, sz);
 						JUDY_PVAL_WRITE(newPValue, dst);
 					} else {
 						JUDY_PVAL_WRITE(newPValue, NULL);

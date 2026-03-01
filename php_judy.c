@@ -131,50 +131,118 @@ static Word_t judy_free_array_internal(judy_object *intern)
 	return Rc_word;
 }
 
-/* {{{ judy_pack_value — serialize a zval into a heap-allocated judy_packed_value.
-   Returns NULL on serialization failure. Caller owns the returned memory. */
+/* {{{ judy_pack_value — pack a zval into a heap-allocated judy_packed_value.
+   Scalars are stored directly (fast path). Arrays/objects fall back to serialize.
+   Returns NULL on failure. Caller owns the returned memory. */
 judy_packed_value *judy_pack_value(zval *value)
 {
-	smart_str buf = {0};
-	php_serialize_data_t var_hash;
+	judy_packed_value *packed;
 
-	PHP_VAR_SERIALIZE_INIT(var_hash);
-	php_var_serialize(&buf, value, &var_hash);
-	PHP_VAR_SERIALIZE_DESTROY(var_hash);
+	switch (Z_TYPE_P(value)) {
+	case IS_LONG:
+		packed = emalloc(offsetof(judy_packed_value, v) + sizeof(zend_long));
+		packed->tag = JUDY_TAG_LONG;
+		packed->v.lval = Z_LVAL_P(value);
+		return packed;
+	case IS_DOUBLE:
+		packed = emalloc(offsetof(judy_packed_value, v) + sizeof(double));
+		packed->tag = JUDY_TAG_DOUBLE;
+		packed->v.dval = Z_DVAL_P(value);
+		return packed;
+	case IS_TRUE:
+		packed = emalloc(offsetof(judy_packed_value, v));
+		packed->tag = JUDY_TAG_TRUE;
+		return packed;
+	case IS_FALSE:
+		packed = emalloc(offsetof(judy_packed_value, v));
+		packed->tag = JUDY_TAG_FALSE;
+		return packed;
+	case IS_NULL:
+		packed = emalloc(offsetof(judy_packed_value, v));
+		packed->tag = JUDY_TAG_NULL;
+		return packed;
+	case IS_STRING:
+		{
+			size_t len = Z_STRLEN_P(value);
+			packed = emalloc(offsetof(judy_packed_value, v) + sizeof(size_t) + len);
+			packed->tag = JUDY_TAG_STRING;
+			packed->v.str.len = len;
+			memcpy(packed->v.str.data, Z_STRVAL_P(value), len);
+			return packed;
+		}
+	default:
+		/* Arrays, objects, etc. — fall back to php_var_serialize */
+		{
+			smart_str buf = {0};
+			php_serialize_data_t var_hash;
 
-	if (EG(exception) || !buf.s) {
-		smart_str_free(&buf);
-		return NULL;
+			PHP_VAR_SERIALIZE_INIT(var_hash);
+			php_var_serialize(&buf, value, &var_hash);
+			PHP_VAR_SERIALIZE_DESTROY(var_hash);
+
+			if (EG(exception) || !buf.s) {
+				smart_str_free(&buf);
+				return NULL;
+			}
+
+			size_t len = ZSTR_LEN(buf.s);
+			packed = emalloc(offsetof(judy_packed_value, v) + sizeof(size_t) + len);
+			packed->tag = JUDY_TAG_SERIALIZED;
+			packed->v.str.len = len;
+			memcpy(packed->v.str.data, ZSTR_VAL(buf.s), len);
+
+			smart_str_free(&buf);
+			return packed;
+		}
 	}
-
-	size_t len = ZSTR_LEN(buf.s);
-	judy_packed_value *packed = emalloc(sizeof(judy_packed_value) + len);
-	packed->len = len;
-	memcpy(packed->data, ZSTR_VAL(buf.s), len);
-
-	smart_str_free(&buf);
-	return packed;
 }
 /* }}} */
 
-/* {{{ judy_unpack_value — unserialize a judy_packed_value into rv.
+/* {{{ judy_unpack_value — reconstruct a zval from a judy_packed_value into rv.
+   Scalars are reconstructed directly (fast path). Tag 255 uses unserialize.
    Returns SUCCESS/FAILURE. On success, rv holds the reconstructed value. */
 int judy_unpack_value(judy_packed_value *packed, zval *rv)
 {
-	php_unserialize_data_t var_hash;
-	const unsigned char *p = (const unsigned char *)packed->data;
-	const unsigned char *end = p + packed->len;
+	switch ((judy_packed_tag)packed->tag) {
+	case JUDY_TAG_LONG:
+		ZVAL_LONG(rv, packed->v.lval);
+		return SUCCESS;
+	case JUDY_TAG_DOUBLE:
+		ZVAL_DOUBLE(rv, packed->v.dval);
+		return SUCCESS;
+	case JUDY_TAG_TRUE:
+		ZVAL_TRUE(rv);
+		return SUCCESS;
+	case JUDY_TAG_FALSE:
+		ZVAL_FALSE(rv);
+		return SUCCESS;
+	case JUDY_TAG_NULL:
+		ZVAL_NULL(rv);
+		return SUCCESS;
+	case JUDY_TAG_STRING:
+		ZVAL_STRINGL(rv, packed->v.str.data, packed->v.str.len);
+		return SUCCESS;
+	case JUDY_TAG_SERIALIZED:
+		{
+			php_unserialize_data_t var_hash;
+			const unsigned char *p = (const unsigned char *)packed->v.str.data;
+			const unsigned char *end = p + packed->v.str.len;
 
-	PHP_VAR_UNSERIALIZE_INIT(var_hash);
-	int result = php_var_unserialize(rv, &p, end, &var_hash);
-	PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
+			PHP_VAR_UNSERIALIZE_INIT(var_hash);
+			int result = php_var_unserialize(rv, &p, end, &var_hash);
+			PHP_VAR_UNSERIALIZE_DESTROY(var_hash);
 
-	if (!result) {
-		zval_ptr_dtor(rv);
+			if (!result) {
+				zval_ptr_dtor(rv);
+				ZVAL_NULL(rv);
+				return FAILURE;
+			}
+			return SUCCESS;
+		}
+	default:
 		ZVAL_NULL(rv);
 		return FAILURE;
 	}
-	return SUCCESS;
 }
 /* }}} */
 
@@ -2393,9 +2461,9 @@ PHP_METHOD(Judy, slice)
 
 			judy_packed_value *src = JUDY_PVAL_READ(PValue);
 			if (src) {
-				judy_packed_value *dst = emalloc(sizeof(judy_packed_value) + src->len);
-				dst->len = src->len;
-				memcpy(dst->data, src->data, src->len);
+				size_t sz = judy_packed_value_size(src);
+				judy_packed_value *dst = emalloc(sz);
+				memcpy(dst, src, sz);
 				JUDY_PVAL_WRITE(PNew, dst);
 			} else {
 				JUDY_PVAL_WRITE(PNew, NULL);
