@@ -2331,7 +2331,7 @@ PHP_METHOD(Judy, slice)
 		while (Rc_int && index <= end) {
 			J1S(Rc_set, result->array, index);
 			if (Rc_set == JERR) goto alloc_error;
-			result->counter++;
+			if (Rc_set == 1) result->counter++;
 			J1N(Rc_int, intern->array, index);
 		}
 
