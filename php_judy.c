@@ -396,8 +396,10 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 
 		if (zend_is_true(value)) {
 			J1S(Rc_int, intern->array, index);
+			if (Rc_int == 1) intern->counter++;
 		} else {
 			J1U(Rc_int, intern->array, index);
+			if (Rc_int == 1) intern->counter--;
 		}
 		return Rc_int ? SUCCESS : FAILURE;
 	} else if (intern->type == TYPE_INT_TO_INT
@@ -437,9 +439,12 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 
 		/* Type-specific: value preparation and JLI insertion. */
 		if (intern->type == TYPE_INT_TO_INT) {
+			PWord_t PExisting;
+			JLG(PExisting, intern->array, index);
 			JLI(PValue, intern->array, index);
 			if (PValue != NULL && PValue != PJERR) {
 				JUDY_LVAL_WRITE(PValue, zval_get_long(value));
+				if (PExisting == NULL) intern->counter++;
 				return SUCCESS;
 			}
 			return FAILURE;
@@ -451,6 +456,8 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 					old_value = JUDY_MVAL_READ(PValue);
 					zval_ptr_dtor(old_value);
 					efree(old_value);
+				} else {
+					intern->counter++;
 				}
 				new_value = emalloc(sizeof(zval));
 				ZVAL_COPY(new_value, value);
@@ -468,6 +475,8 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 				judy_packed_value *old = JUDY_PVAL_READ(PValue);
 				if (old != NULL) {
 					efree(old);
+				} else {
+					intern->counter++;
 				}
 				JUDY_PVAL_WRITE(PValue, packed);
 				return SUCCESS;
@@ -707,6 +716,7 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 
 	if (intern->type == TYPE_BITSET) {
 		J1U(Rc_int, intern->array, j_index);
+		if (Rc_int == 1) intern->counter--;
 	} else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_INT_TO_MIXED
 			|| intern->type == TYPE_INT_TO_PACKED) {
 		if (intern->type == TYPE_INT_TO_INT) {
@@ -1029,23 +1039,7 @@ PHP_METHOD(Judy, count)
 {
 	JUDY_METHOD_GET_OBJECT
 
-		if (intern->type == TYPE_BITSET || intern->type == TYPE_INT_TO_INT
-				|| intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_INT_TO_PACKED) {
-			Word_t   idx1 = 0;
-			Word_t   idx2 = -1;
-			Word_t   Rc_word;
-
-			if (intern->type == TYPE_BITSET) {
-				J1C(Rc_word, intern->array, idx1, idx2);
-			} else {
-				JLC(Rc_word, intern->array, idx1, idx2);
-			}
-
-			RETURN_LONG(Rc_word);
-		} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED
-				|| intern->type == TYPE_STRING_TO_MIXED_HASH || intern->type == TYPE_STRING_TO_INT_HASH) {
-			RETURN_LONG(intern->counter);
-		}
+		RETURN_LONG(intern->counter);
 }
 
 /* }}} */
@@ -1907,6 +1901,7 @@ PHP_METHOD(Judy, union)
 		while (Rc_int) {
 			J1S(Rc_set, result->array, index);
 			if (Rc_set == JERR) goto alloc_error_bitset;
+			if (Rc_set == 1) result->counter++;
 			J1N(Rc_int, intern->array, index);
 		}
 
@@ -1916,6 +1911,7 @@ PHP_METHOD(Judy, union)
 		while (Rc_int) {
 			J1S(Rc_set, result->array, index);
 			if (Rc_set == JERR) goto alloc_error_bitset;
+			if (Rc_set == 1) result->counter++;
 			J1N(Rc_int, other->array, index);
 		}
 
@@ -1933,13 +1929,14 @@ alloc_error_bitset:
 
 		result = judy_create_result(return_value, TYPE_INT_TO_INT);
 
-		/* Add all entries from other first */
+		/* Add all entries from other first (result is empty, every key is new) */
 		index = 0;
 		JLF(PValue, other->array, index);
 		while (PValue != NULL && PValue != PJERR) {
 			JLI(PNew, result->array, index);
 			if (PNew == PJERR) goto alloc_error_il;
 			JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+			result->counter++;
 			JLN(PValue, other->array, index);
 		}
 
@@ -1947,9 +1944,12 @@ alloc_error_bitset:
 		index = 0;
 		JLF(PValue, intern->array, index);
 		while (PValue != NULL && PValue != PJERR) {
+			Pvoid_t *PExisting;
+			JLG(PExisting, result->array, index);
 			JLI(PNew, result->array, index);
 			if (PNew == PJERR) goto alloc_error_il;
 			JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+			if (PExisting == NULL) result->counter++;
 			JLN(PValue, intern->array, index);
 		}
 
@@ -2018,6 +2018,7 @@ PHP_METHOD(Judy, intersect)
 			if (in_test) {
 				J1S(Rc_set, result->array, index);
 				if (Rc_set == JERR) goto alloc_error_bitset;
+				if (Rc_set == 1) result->counter++;
 			}
 			J1N(Rc_int, iter_array, index);
 		}
@@ -2067,6 +2068,7 @@ alloc_error_bitset:
 				} else {
 					JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PTest));
 				}
+				result->counter++;
 			}
 			JLN(PValue, iter_array, index);
 		}
@@ -2121,6 +2123,7 @@ PHP_METHOD(Judy, diff)
 			if (!in_other) {
 				J1S(Rc_set, result->array, index);
 				if (Rc_set == JERR) goto alloc_error_bitset;
+				if (Rc_set == 1) result->counter++;
 			}
 			J1N(Rc_int, intern->array, index);
 		}
@@ -2148,6 +2151,7 @@ alloc_error_bitset:
 				JLI(PNew, result->array, index);
 				if (PNew == PJERR) goto alloc_error_il;
 				JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+				result->counter++;
 			}
 			JLN(PValue, intern->array, index);
 		}
@@ -2202,6 +2206,7 @@ PHP_METHOD(Judy, xor)
 			if (!in_other) {
 				J1S(Rc_set, result->array, index);
 				if (Rc_set == JERR) goto alloc_error_bitset;
+				if (Rc_set == 1) result->counter++;
 			}
 			J1N(Rc_int, intern->array, index);
 		}
@@ -2215,6 +2220,7 @@ PHP_METHOD(Judy, xor)
 			if (!in_self) {
 				J1S(Rc_set, result->array, index);
 				if (Rc_set == JERR) goto alloc_error_bitset;
+				if (Rc_set == 1) result->counter++;
 			}
 			J1N(Rc_int, other->array, index);
 		}
@@ -2242,6 +2248,7 @@ alloc_error_bitset:
 				JLI(PNew, result->array, index);
 				if (PNew == PJERR) goto alloc_error_il;
 				JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+				result->counter++;
 			}
 			JLN(PValue, intern->array, index);
 		}
@@ -2255,6 +2262,7 @@ alloc_error_bitset:
 				JLI(PNew, result->array, index);
 				if (PNew == PJERR) goto alloc_error_il;
 				JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+				result->counter++;
 			}
 			JLN(PValue, other->array, index);
 		}
@@ -2323,6 +2331,7 @@ PHP_METHOD(Judy, slice)
 		while (Rc_int && index <= end) {
 			J1S(Rc_set, result->array, index);
 			if (Rc_set == JERR) goto alloc_error;
+			result->counter++;
 			J1N(Rc_int, intern->array, index);
 		}
 
@@ -2341,6 +2350,7 @@ PHP_METHOD(Judy, slice)
 			JLI(PNew, result->array, index);
 			if (PNew == PJERR) goto alloc_error;
 			JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
+			result->counter++;
 			JLN(PValue, intern->array, index);
 		}
 
@@ -2362,6 +2372,7 @@ PHP_METHOD(Judy, slice)
 			new_value = emalloc(sizeof(zval));
 			ZVAL_COPY(new_value, JUDY_MVAL_READ(PValue));
 			JUDY_MVAL_WRITE(PNew, new_value);
+			result->counter++;
 			JLN(PValue, intern->array, index);
 		}
 
@@ -2389,6 +2400,7 @@ PHP_METHOD(Judy, slice)
 			} else {
 				JUDY_PVAL_WRITE(PNew, NULL);
 			}
+			result->counter++;
 			JLN(PValue, intern->array, index);
 		}
 
@@ -2941,12 +2953,15 @@ PHP_METHOD(Judy, increment)
 	if (intern->type == TYPE_INT_TO_INT) {
 		Word_t index = (Word_t)zval_get_long(zkey);
 		Pvoid_t *PValue;
+		Pvoid_t *PExisting;
 
+		JLG(PExisting, intern->array, index);
 		JLI(PValue, intern->array, index);
 		if (PValue == NULL || PValue == PJERR) {
 			zend_throw_exception(NULL, "Judy: memory allocation failed during increment", 0);
 			return;
 		}
+		if (PExisting == NULL) intern->counter++;
 		zend_long old_val = JUDY_LVAL_READ(PValue);
 		JUDY_LVAL_WRITE(PValue, old_val + amount);
 		RETURN_LONG(old_val + amount);
