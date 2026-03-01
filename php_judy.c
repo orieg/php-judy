@@ -417,7 +417,7 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 					zval_ptr_dtor(old_value);
 					efree(old_value);
 				}
-				new_value = ecalloc(1, sizeof(zval));
+				new_value = emalloc(sizeof(zval));
 				ZVAL_COPY(new_value, value);
 				JUDY_MVAL_WRITE(PValue, new_value);
 				return SUCCESS;
@@ -473,7 +473,7 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			} else {
 				intern->counter++;
 			}
-			new_value = ecalloc(1, sizeof(zval));
+			new_value = emalloc(sizeof(zval));
 			ZVAL_COPY(new_value, value);
 			JUDY_MVAL_WRITE(PValue, new_value);
 			res = SUCCESS;
@@ -795,8 +795,8 @@ PHP_METHOD(judy, __destruct)
 	zval_ptr_dtor(&intern->iterator_data);
 	ZVAL_UNDEF(&intern->iterator_data);
 
-	/* calling the object's free() method */
-	zend_call_method_with_0_params(Z_OBJ_P(object), NULL, NULL, "free", NULL);
+	/* Free the Judy array directly (avoids virtual method dispatch overhead) */
+	judy_free_array_internal(intern);
 }
 /* }}} */
 
@@ -1897,7 +1897,7 @@ PHP_METHOD(judy, slice)
 			zval *new_value;
 			JLI(PNew, result->array, index);
 			if (PNew == PJERR) goto alloc_error;
-			new_value = ecalloc(1, sizeof(zval));
+			new_value = emalloc(sizeof(zval));
 			ZVAL_COPY(new_value, JUDY_MVAL_READ(PValue));
 			JUDY_MVAL_WRITE(PNew, new_value);
 			JLN(PValue, intern->array, index);
@@ -1965,7 +1965,7 @@ PHP_METHOD(judy, slice)
 					JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
 				} else {
 					zval *new_value;
-					new_value = ecalloc(1, sizeof(zval));
+					new_value = emalloc(sizeof(zval));
 					ZVAL_COPY(new_value, JUDY_MVAL_READ(PValue));
 					JUDY_MVAL_WRITE(PNew, new_value);
 				}

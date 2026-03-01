@@ -67,7 +67,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			JLI(newPValue, newJArray, kindex);
 			if (newPValue != NULL && newPValue != PJERR) {
 				if (old_obj->type == TYPE_INT_TO_MIXED) {
-					zval *value = ecalloc(1, sizeof(zval));
+					zval *value = emalloc(sizeof(zval));
 					ZVAL_COPY(value, JUDY_MVAL_READ(PValue));
 					JUDY_MVAL_WRITE(newPValue, value);
 				} else if (old_obj->type == TYPE_INT_TO_PACKED) {
@@ -107,7 +107,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			JSLI(newPValue, newJArray, kindex);
 			if (newPValue != NULL && newPValue != PJERR) {
 				if (old_obj->type == TYPE_STRING_TO_MIXED) {
-					zval *value = ecalloc(1, sizeof(zval));
+					zval *value = emalloc(sizeof(zval));
 					ZVAL_COPY(value, JUDY_MVAL_READ(PValue));
 					JUDY_MVAL_WRITE(newPValue, value);
 				} else {
