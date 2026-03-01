@@ -53,6 +53,8 @@ zend_object_iterator *judy_get_iterator(zend_class_entry *ce, zval *object, int 
 	it->intern.funcs = &judy_iterator_funcs;
 	ZVAL_UNDEF(&it->key);
 	ZVAL_UNDEF(&it->data);
+	it->valid = 0;
+	it->key_scratch = emalloc(PHP_JUDY_MAX_LENGTH);
 
 	return &it->intern;
 }
@@ -66,6 +68,7 @@ void judy_iterator_data_dtor(judy_iterator *it)
 	ZVAL_UNDEF(&it->key);
 	zval_ptr_dtor(&it->data);
 	ZVAL_UNDEF(&it->data);
+	it->valid = 0;
 }
 /* }}} */
 
@@ -76,6 +79,7 @@ void judy_iterator_dtor(zend_object_iterator *iterator)
 	judy_iterator   *it = (judy_iterator*) iterator;
 
 	judy_iterator_data_dtor(it);
+	efree(it->key_scratch);
 
 	zval_ptr_dtor(&it->intern.data);
 }
@@ -85,69 +89,8 @@ void judy_iterator_dtor(zend_object_iterator *iterator)
 */
 int judy_iterator_valid(zend_object_iterator *iterator)
 {
-	JUDY_ITERATOR_GET_OBJECT
-
-	if (Z_ISUNDEF_P(&it->key) && Z_ISUNDEF_P(&it->data)) {
-		return FAILURE;
-	}
-
-	if (object->type == TYPE_BITSET) {
-		int     Rc_int;
-
-		J1T(Rc_int, object->array, (Word_t) Z_LVAL_P(&it->key));
-		if (Rc_int == 1) {
-			return SUCCESS;
-		}
-	} else if (object->type == TYPE_INT_TO_INT || object->type == TYPE_INT_TO_MIXED
-			|| object->type == TYPE_INT_TO_PACKED) {
-		Word_t    *PValue;
-
-		JLG(PValue, object->array, (Word_t) Z_LVAL_P(&it->key));
-		if (PValue != NULL && PValue != PJERR) {
-			return SUCCESS;
-		}
-	} else if (object->type == TYPE_STRING_TO_INT || object->type == TYPE_STRING_TO_MIXED) {
-		uint8_t     key[PHP_JUDY_MAX_LENGTH];
-		Word_t      *PValue;
-
-		if (Z_TYPE_P(&it->key) == IS_STRING) {
-			int key_len;
-			key_len = Z_STRLEN_P(&it->key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&it->key);
-			memcpy(key, Z_STRVAL_P(&it->key), key_len);
-			key[key_len] = '\0';
-		} else if (Z_TYPE_P(&it->key) == IS_NULL) {
-			key[0] = '\0';
-		} else {
-			return FAILURE;
-		}
-
-		JSLG(PValue, object->array, key);
-		if (PValue != NULL && PValue != PJERR) {
-			return SUCCESS;
-		}
-	} else if (object->type == TYPE_STRING_TO_MIXED_HASH
-			|| object->type == TYPE_STRING_TO_INT_HASH) {
-		uint8_t     key[PHP_JUDY_MAX_LENGTH];
-		Pvoid_t     *HValue;
-
-		if (Z_TYPE_P(&it->key) == IS_STRING) {
-			int key_len;
-			key_len = Z_STRLEN_P(&it->key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&it->key);
-			memcpy(key, Z_STRVAL_P(&it->key), key_len);
-			key[key_len] = '\0';
-		} else if (Z_TYPE_P(&it->key) == IS_NULL) {
-			key[0] = '\0';
-		} else {
-			return FAILURE;
-		}
-
-		JHSG(HValue, object->array, key, (Word_t)strlen((char *)key));
-		if (HValue != NULL && HValue != PJERR) {
-			return SUCCESS;
-		}
-	}
-
-	return FAILURE;
+	judy_iterator *it = (judy_iterator *) iterator;
+	return it->valid ? SUCCESS : FAILURE;
 }
 /* }}} */
 
@@ -196,6 +139,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 			zval_ptr_dtor(&it->key);
 			ZVAL_LONG(&it->key, index);
 			ZVAL_BOOL(&it->data, 1);
+			it->valid = 1;
 		} else {
 			judy_iterator_data_dtor(it);
 		}
@@ -232,21 +176,21 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 
 				ZVAL_COPY(&it->data, value);
 			}
+			it->valid = 1;
 		} else {
 			judy_iterator_data_dtor(it);
 		}
 
 	} else if (object->type == TYPE_STRING_TO_INT || object->type == TYPE_STRING_TO_MIXED) {
 
-		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		uint8_t     *key = it->key_scratch;
 		Pvoid_t      *PValue;
 
 		/* JudySL require null terminated strings */
 		if (Z_TYPE_P(&it->key) == IS_STRING) {
-			int key_len;
-			key_len = Z_STRLEN_P(&it->key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&it->key);
-			memcpy(key, Z_STRVAL_P(&it->key), key_len);
-			key[key_len] = '\0';
+			size_t copy_len = Z_STRLEN_P(&it->key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&it->key);
+			memcpy(key, Z_STRVAL_P(&it->key), copy_len);
+			key[copy_len] = '\0';
 
 			JSLN(PValue, object->array, key);
 		} else {
@@ -255,9 +199,15 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 		}
 
 		if ((PValue != NULL && PValue != PJERR)) {
-
-			zval_ptr_dtor(&it->key);
-			ZVAL_STRING(&it->key, (char *)key);
+			size_t new_len = strlen((char *)key);
+			if (Z_TYPE(it->key) == IS_STRING && !ZSTR_IS_INTERNED(Z_STR(it->key))
+				&& GC_REFCOUNT(Z_STR(it->key)) == 1 && new_len <= ZSTR_LEN(Z_STR(it->key))) {
+				memcpy(ZSTR_VAL(Z_STR(it->key)), key, new_len + 1);
+				ZSTR_LEN(Z_STR(it->key)) = new_len;
+			} else {
+				zval_ptr_dtor(&it->key);
+				ZVAL_STRINGL(&it->key, (char *)key, new_len);
+			}
 
 			if (object->type == TYPE_STRING_TO_INT) {
 				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
@@ -266,6 +216,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 
 				ZVAL_COPY(&it->data, value);
 			}
+			it->valid = 1;
 		} else {
 			judy_iterator_data_dtor(it);
 		}
@@ -304,6 +255,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 			} else {
 				ZVAL_NULL(&it->data);
 			}
+			it->valid = 1;
 		} else {
 			judy_iterator_data_dtor(it);
 		}
@@ -329,6 +281,7 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			zval_ptr_dtor(&it->key);
 			ZVAL_LONG(&it->key, index);
 			ZVAL_BOOL(&it->data, 1);
+			it->valid = 1;
 		} else {
 			judy_iterator_data_dtor(it);
 		}
@@ -358,11 +311,12 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 
 				ZVAL_COPY(&it->data, value);
 			}
+			it->valid = 1;
 		}
 
 	} else if (object->type == TYPE_STRING_TO_INT || object->type == TYPE_STRING_TO_MIXED) {
 
-		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		uint8_t     *key = it->key_scratch;
 		Pvoid_t      *PValue;
 
 		/* JudySL require null terminated strings */
@@ -370,8 +324,9 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 		JSLF(PValue, object->array, key);
 
 		if (PValue != NULL && PValue != PJERR) {
+			size_t new_len = strlen((char *)key);
 			zval_ptr_dtor(&it->key);
-			ZVAL_STRING(&it->key, (const char *) key);
+			ZVAL_STRINGL(&it->key, (const char *) key, new_len);
 			if (object->type == TYPE_STRING_TO_INT) {
 				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
 			} else {
@@ -379,6 +334,7 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 
 				ZVAL_COPY(&it->data, value);
 			}
+			it->valid = 1;
 		}
 	} else if (object->type == TYPE_STRING_TO_MIXED_HASH
 			|| object->type == TYPE_STRING_TO_INT_HASH) {
@@ -406,6 +362,7 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			} else {
 				ZVAL_NULL(&it->data);
 			}
+			it->valid = 1;
 		}
 	}
 }
