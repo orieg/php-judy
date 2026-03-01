@@ -57,6 +57,8 @@ if test "$PHP_JUDY" != "no"; then
     CFLAGS="$CFLAGS -DNDEBUG"
     dnl # Additional performance flags
     CFLAGS="$CFLAGS -fno-common"
+    CFLAGS="$CFLAGS -funroll-loops"
+    CFLAGS="$CFLAGS -flto"
   fi
   
   PHP_NEW_EXTENSION(judy, php_judy.c $judy_sources, $ext_shared)

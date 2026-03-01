@@ -69,6 +69,14 @@ typedef unsigned __int64 Word_t, * PWord_t;
 #define JUDY_LVAL_READ(PV)       ((zend_long)(*(Word_t *)(PV)))
 #define JUDY_LVAL_WRITE(PV, v)   (*(Word_t *)(PV) = (Word_t)(v))
 
+#if defined(__GNUC__) || defined(__clang__)
+#define JUDY_LIKELY(x)   __builtin_expect(!!(x), 1)
+#define JUDY_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define JUDY_LIKELY(x)   (x)
+#define JUDY_UNLIKELY(x) (x)
+#endif
+
 #define JUDY_MIXED_SUPPORTED 1
 #define JUDY_MVAL_READ(PV)       ((zval *)(*(PV)))
 #define JUDY_MVAL_WRITE(PV, p)   (*(PV) = (Pvoid_t)(p))
@@ -179,24 +187,24 @@ typedef enum _judy_type {
 #define JUDY_IS_PACKED_VALUE(intern) ((intern)->is_packed_value)
 
 typedef struct _judy_object {
-	zend_long       type;
-	Pvoid_t         array;
-	zend_long       counter;
-	Word_t			next_empty;
-	zend_bool		next_empty_is_valid;
+	Pvoid_t         array;               /* 8 — hottest field */
+	Pvoid_t         key_index;           /* 8 */
+	zend_long       counter;             /* 8 */
+	Word_t			next_empty;          /* 8 */
+	zend_long       type;                /* 8 */
 	/* Iterator state for Iterator interface methods */
-	zval            iterator_key;
-	zval            iterator_data;
+	zval            iterator_key;        /* 16 */
+	zval            iterator_data;       /* 16 */
+	uint8_t         *key_scratch;        /* 8 — heap-allocated PHP_JUDY_MAX_LENGTH buffer */
+	/* Pack all bools together (7 bytes + 1 padding) */
+	zend_bool       next_empty_is_valid;
 	zend_bool       iterator_initialized;
-	/* Cached type flags for performance optimization */
 	zend_bool       is_integer_keyed;
 	zend_bool       is_string_keyed;
 	zend_bool       is_mixed_value;
 	zend_bool       is_packed_value;
-	zend_bool       is_hash_keyed;   /* type == TYPE_STRING_TO_MIXED_HASH || TYPE_STRING_TO_INT_HASH */
-	/* Parallel JudySL key index for hash-keyed type iteration */
-	Pvoid_t         key_index;
-	zend_object     std;
+	zend_bool       is_hash_keyed;
+	zend_object     std;                 /* must be last */
 } judy_object;
 
 static inline judy_object *php_judy_object(zend_object *obj) {
