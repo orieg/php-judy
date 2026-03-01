@@ -16,11 +16,11 @@
       <email>nicolas@brousse.info</email>
       <active>yes</active>
    </lead>
-   <date>2026-02-27</date>
+   <date>2026-02-28</date>
    <time>00:00:00</time>
    <version>
-      <release>2.3.0</release>
-      <api>2.3.0</api>
+      <release>2.4.0</release>
+      <api>2.4.0</api>
    </version>
    <stability>
       <release>stable</release>
@@ -28,17 +28,25 @@
    </stability>
    <license uri="http://www.php.net/license">PHP</license>
    <notes>
-- NEW FEATURE: Windows PECL DLL builds now published with each release (PHP 8.1-8.5, x86/x64, TS/NTS)
-- NEW FEATURE: PHP 8.5 support added to CI matrix
-- FIX: PHP 8.1+ compile fix - ZVAL_DUP replaced with ZVAL_COPY throughout
-- FIX: free_obj memory leak resolved (Judy array, zvals, and iterator state now properly freed)
-- FIX: BITSET clone bug fixed (was iterating new array instead of source)
-- FIX: STRING_TO_INT counter no longer overcounts on value overwrite
-- FIX: E_ERROR replaced with exceptions in constructor and write_dimension
-- FIX: foreach-by-ref now throws a proper error instead of E_ERROR; fixed emalloc leak
-- FIX: long->zend_long throughout; JLF() iterator bug fixed; redundant JLG lookups removed
-- FIX: Removed -march=native and -flto from config.m4 for portability
-- IMPROVEMENT: CI workflow consolidated; Windows benchmarks added to CI reporting
+- NEW FEATURE: Fast ZPP (Zend Parameter Parsing) macros across all methods for improved performance
+- NEW FEATURE: Native zend_object_handlers (read/write/has/unset_dimension) bypass ArrayAccess overhead
+- NEW FEATURE: Native C iterators via get_iterator for zero-overhead foreach loops
+- NEW FEATURE: BITSET set operations -- union(), intersect(), diff(), xor() methods
+- NEW FEATURE: INT_TO_INT set operations -- union/intersect/diff/xor with left-wins value semantics
+- NEW FEATURE: slice($start, $end) for efficient range extraction on all array types
+- NEW FEATURE: JsonSerializable interface -- json_encode() works natively on Judy arrays
+- NEW FEATURE: __serialize()/__unserialize() for native PHP serialize/unserialize support
+- NEW FEATURE: Batch operations -- fromArray(), toArray(), putAll(), getAll(), increment()
+- NEW FEATURE: INT_TO_PACKED type (type 6) -- GC-free opaque value storage via php_var_serialize
+- NEW FEATURE: STRING_TO_MIXED_HASH type (type 7) -- JudyHS-backed O(1) string-to-mixed map
+- NEW FEATURE: STRING_TO_INT_HASH type (type 8) -- JudyHS-backed O(1) string-to-int map
+- NEW FEATURE: .stub.php arginfo generation replaces hand-written C arginfo
+- FIX: JudySL hang on Windows x64 -- cJU_MASKATSTATE 0xffL truncation at States 5-8 (issue #46)
+- PERF: foreach iterator overhaul -- valid flag eliminates per-step Judy lookups, heap key buffer replaces 64KB stack allocations, zend_string reuse reduces allocation churn
+- PERF: tagged-union packed format for INT_TO_PACKED -- eliminates php_var_serialize/unserialize for scalar values (long, double, bool, null, string); complex types fall back transparently
+- PERF: O(1) count() for all types -- counter maintained on every insert/delete, replaces O(n) J1C/JLC scans
+- PERF: type-specialized bulk-insert loops in fromArray()/putAll()/__unserialize() bypass per-element dispatch for integer-keyed types
+- IMPROVEMENT: 167 tests covering all features
    </notes>
    <contents>
       <dir name="/">
@@ -258,7 +266,39 @@
    </extsrcrelease>
    <changelog>
       <release>
-         <date>2026-02-27</date>
+         <date>2026-02-28</date>
+         <version>
+            <release>2.4.0</release>
+            <api>2.4.0</api>
+         </version>
+         <stability>
+            <release>stable</release>
+            <api>stable</api>
+         </stability>
+         <notes>
+- NEW FEATURE: Fast ZPP (Zend Parameter Parsing) macros across all methods for improved performance
+- NEW FEATURE: Native zend_object_handlers (read/write/has/unset_dimension) bypass ArrayAccess overhead
+- NEW FEATURE: Native C iterators via get_iterator for zero-overhead foreach loops
+- NEW FEATURE: BITSET set operations -- union(), intersect(), diff(), xor() methods
+- NEW FEATURE: INT_TO_INT set operations -- union/intersect/diff/xor with left-wins value semantics
+- NEW FEATURE: slice($start, $end) for efficient range extraction on all array types
+- NEW FEATURE: JsonSerializable interface -- json_encode() works natively on Judy arrays
+- NEW FEATURE: __serialize()/__unserialize() for native PHP serialize/unserialize support
+- NEW FEATURE: Batch operations -- fromArray(), toArray(), putAll(), getAll(), increment()
+- NEW FEATURE: INT_TO_PACKED type (type 6) -- GC-free opaque value storage via php_var_serialize
+- NEW FEATURE: STRING_TO_MIXED_HASH type (type 7) -- JudyHS-backed O(1) string-to-mixed map
+- NEW FEATURE: STRING_TO_INT_HASH type (type 8) -- JudyHS-backed O(1) string-to-int map
+- NEW FEATURE: .stub.php arginfo generation replaces hand-written C arginfo
+- FIX: JudySL hang on Windows x64 -- cJU_MASKATSTATE 0xffL truncation at States 5-8 (issue #46)
+- PERF: foreach iterator overhaul -- valid flag eliminates per-step Judy lookups, heap key buffer replaces 64KB stack allocations, zend_string reuse reduces allocation churn
+- PERF: tagged-union packed format for INT_TO_PACKED -- eliminates php_var_serialize/unserialize for scalar values (long, double, bool, null, string); complex types fall back transparently
+- PERF: O(1) count() for all types -- counter maintained on every insert/delete, replaces O(n) J1C/JLC scans
+- PERF: type-specialized bulk-insert loops in fromArray()/putAll()/__unserialize() bypass per-element dispatch for integer-keyed types
+- IMPROVEMENT: 167 tests covering all features
+         </notes>
+      </release>
+      <release>
+         <date>2026-02-28</date>
          <version>
             <release>2.3.0</release>
             <api>2.3.0</api>
