@@ -2762,15 +2762,16 @@ PHP_METHOD(Judy, __serialize)
 }
 /* }}} */
 
+/* Forward declaration — defined after fromArray()/putAll() */
+static void judy_populate_from_array(zval *judy_obj, zval *arr);
+
 /* {{{ proto void Judy::__unserialize(array $data)
    Restores a Judy array from serialized data */
 PHP_METHOD(Judy, __unserialize)
 {
-	zval *arr, *ztype, *zdata, *entry;
+	zval *arr, *ztype, *zdata;
 	zend_long type;
 	judy_type jtype;
-	zend_string *str_key;
-	zend_ulong num_key;
 
 	JUDY_METHOD_GET_OBJECT
 
@@ -2803,32 +2804,7 @@ PHP_METHOD(Judy, __unserialize)
 	intern->is_hash_keyed = (jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_INT_HASH);
 	intern->key_index = (Pvoid_t) NULL;
 
-	ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(zdata), num_key, str_key, entry) {
-		zval offset, *val_to_write;
-
-		if (intern->type == TYPE_BITSET) {
-			/* BITSET data is a flat array of index values */
-			ZVAL_LONG(&offset, zval_get_long(entry));
-			zval bool_true;
-			ZVAL_TRUE(&bool_true);
-			judy_object_write_dimension_helper(object, &offset, &bool_true);
-		} else if (intern->is_string_keyed) {
-			if (str_key) {
-				ZVAL_STR_COPY(&offset, str_key);
-			} else {
-				/* Numeric key in string array -- convert to string */
-				ZVAL_STR(&offset, zend_long_to_str((zend_long)num_key));
-			}
-			val_to_write = entry;
-			judy_object_write_dimension_helper(object, &offset, val_to_write);
-			zval_ptr_dtor(&offset);
-		} else {
-			/* Integer-keyed types */
-			ZVAL_LONG(&offset, (zend_long)num_key);
-			val_to_write = entry;
-			judy_object_write_dimension_helper(object, &offset, val_to_write);
-		}
-	} ZEND_HASH_FOREACH_END();
+	judy_populate_from_array(object, zdata);
 }
 /* }}} */
 
@@ -2845,20 +2821,91 @@ PHP_METHOD(Judy, toArray)
 }
 /* }}} */
 
-/* {{{ judy_populate_from_array — shared helper for fromArray() and putAll() */
+/* {{{ judy_populate_from_array — shared helper for fromArray(), putAll(), __unserialize().
+   Type-specialized tight loops for integer-keyed types avoid per-element
+   write_dimension_helper dispatch. String-keyed types still use the helper
+   (key validation + embedded NUL checks + dual JudySL/JudyHS insert). */
 static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 	judy_object *intern = php_judy_object(Z_OBJ_P(judy_obj));
-	zval *entry, offset;
+	zval *entry;
 	zend_string *str_key;
 	zend_ulong num_key;
 
-	ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
-		if (intern->type == TYPE_BITSET) {
-			ZVAL_LONG(&offset, zval_get_long(entry));
-			zval bool_true;
-			ZVAL_TRUE(&bool_true);
-			judy_object_write_dimension_helper(judy_obj, &offset, &bool_true);
-		} else if (intern->is_string_keyed) {
+	switch (intern->type) {
+	case TYPE_BITSET:
+	{
+		/* BITSET data is a flat array of index values */
+		int Rc_int;
+		ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(arr), entry) {
+			Word_t index = (Word_t)zval_get_long(entry);
+			J1S(Rc_int, intern->array, index);
+			if (Rc_int == 1) intern->counter++;
+		} ZEND_HASH_FOREACH_END();
+		break;
+	}
+	case TYPE_INT_TO_INT:
+	{
+		Pvoid_t *PValue;
+		ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
+			Word_t index = (Word_t)num_key;
+			Pvoid_t *PExisting;
+			JLG(PExisting, intern->array, index);
+			JLI(PValue, intern->array, index);
+			if (PValue != NULL && PValue != PJERR) {
+				JUDY_LVAL_WRITE(PValue, zval_get_long(entry));
+				if (PExisting == NULL) intern->counter++;
+			}
+		} ZEND_HASH_FOREACH_END();
+		break;
+	}
+	case TYPE_INT_TO_MIXED:
+	{
+		Pvoid_t *PValue;
+		ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
+			Word_t index = (Word_t)num_key;
+			JLI(PValue, intern->array, index);
+			if (PValue != NULL && PValue != PJERR) {
+				if (JUDY_MVAL_READ(PValue) != NULL) {
+					zval *old_value = JUDY_MVAL_READ(PValue);
+					zval_ptr_dtor(old_value);
+					efree(old_value);
+				} else {
+					intern->counter++;
+				}
+				zval *new_value = emalloc(sizeof(zval));
+				ZVAL_COPY(new_value, entry);
+				JUDY_MVAL_WRITE(PValue, new_value);
+			}
+		} ZEND_HASH_FOREACH_END();
+		break;
+	}
+	case TYPE_INT_TO_PACKED:
+	{
+		Pvoid_t *PValue;
+		ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
+			Word_t index = (Word_t)num_key;
+			judy_packed_value *packed = judy_pack_value(entry);
+			if (!packed) continue;
+			JLI(PValue, intern->array, index);
+			if (PValue != NULL && PValue != PJERR) {
+				judy_packed_value *old = JUDY_PVAL_READ(PValue);
+				if (old != NULL) {
+					efree(old);
+				} else {
+					intern->counter++;
+				}
+				JUDY_PVAL_WRITE(PValue, packed);
+			} else {
+				efree(packed);
+			}
+		} ZEND_HASH_FOREACH_END();
+		break;
+	}
+	default:
+	{
+		/* String-keyed types: keep write_dimension_helper for key validation */
+		zval offset;
+		ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
 			if (str_key) {
 				ZVAL_STR_COPY(&offset, str_key);
 			} else {
@@ -2866,11 +2913,10 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 			}
 			judy_object_write_dimension_helper(judy_obj, &offset, entry);
 			zval_ptr_dtor(&offset);
-		} else {
-			ZVAL_LONG(&offset, (zend_long)num_key);
-			judy_object_write_dimension_helper(judy_obj, &offset, entry);
-		}
-	} ZEND_HASH_FOREACH_END();
+		} ZEND_HASH_FOREACH_END();
+		break;
+	}
+	}
 }
 /* }}} */
 
