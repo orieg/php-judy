@@ -32,6 +32,8 @@ typedef struct {
 	zend_object_iterator	intern;
 	zval					key;
 	zval					data;
+	zend_bool				valid;       /* cached valid flag, set by rewind/move_forward */
+	uint8_t					*key_scratch; /* heap-allocated PHP_JUDY_MAX_LENGTH buffer for string keys */
 } judy_iterator;
 /* }}} */
 
