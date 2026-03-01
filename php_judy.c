@@ -2848,11 +2848,12 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 		Pvoid_t *PValue;
 		ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
 			Word_t index = (Word_t)num_key;
+			zend_long lval = zval_get_long(entry); /* evaluate before JLI to prevent UAF via callbacks */
 			Pvoid_t *PExisting;
 			JLG(PExisting, intern->array, index);
 			JLI(PValue, intern->array, index);
 			if (PValue != NULL && PValue != PJERR) {
-				JUDY_LVAL_WRITE(PValue, zval_get_long(entry));
+				JUDY_LVAL_WRITE(PValue, lval);
 				if (PExisting == NULL) intern->counter++;
 			}
 		} ZEND_HASH_FOREACH_END();
@@ -2863,9 +2864,11 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 		Pvoid_t *PValue;
 		ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
 			Word_t index = (Word_t)num_key;
+			Pvoid_t *PExisting;
+			JLG(PExisting, intern->array, index); /* check existence before JLI to avoid reading uninitialized slot */
 			JLI(PValue, intern->array, index);
 			if (PValue != NULL && PValue != PJERR) {
-				if (JUDY_MVAL_READ(PValue) != NULL) {
+				if (PExisting != NULL) {
 					zval *old_value = JUDY_MVAL_READ(PValue);
 					zval_ptr_dtor(old_value);
 					efree(old_value);
@@ -2886,11 +2889,13 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 			Word_t index = (Word_t)num_key;
 			judy_packed_value *packed = judy_pack_value(entry);
 			if (!packed) continue;
+			Pvoid_t *PExisting;
+			JLG(PExisting, intern->array, index); /* check existence before JLI to avoid reading uninitialized slot */
 			JLI(PValue, intern->array, index);
 			if (PValue != NULL && PValue != PJERR) {
-				judy_packed_value *old = JUDY_PVAL_READ(PValue);
-				if (old != NULL) {
-					efree(old);
+				if (PExisting != NULL) {
+					judy_packed_value *old = JUDY_PVAL_READ(PValue);
+					if (old) efree(old);
 				} else {
 					intern->counter++;
 				}
