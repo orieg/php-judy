@@ -141,31 +141,31 @@ judy_packed_value *judy_pack_value(zval *value)
 	switch (Z_TYPE_P(value)) {
 	case IS_LONG:
 		packed = emalloc(offsetof(judy_packed_value, v) + sizeof(zend_long));
-		packed->tag = 0;
+		packed->tag = JUDY_TAG_LONG;
 		packed->v.lval = Z_LVAL_P(value);
 		return packed;
 	case IS_DOUBLE:
 		packed = emalloc(offsetof(judy_packed_value, v) + sizeof(double));
-		packed->tag = 1;
+		packed->tag = JUDY_TAG_DOUBLE;
 		packed->v.dval = Z_DVAL_P(value);
 		return packed;
 	case IS_TRUE:
 		packed = emalloc(offsetof(judy_packed_value, v));
-		packed->tag = 2;
+		packed->tag = JUDY_TAG_TRUE;
 		return packed;
 	case IS_FALSE:
 		packed = emalloc(offsetof(judy_packed_value, v));
-		packed->tag = 3;
+		packed->tag = JUDY_TAG_FALSE;
 		return packed;
 	case IS_NULL:
 		packed = emalloc(offsetof(judy_packed_value, v));
-		packed->tag = 4;
+		packed->tag = JUDY_TAG_NULL;
 		return packed;
 	case IS_STRING:
 		{
 			size_t len = Z_STRLEN_P(value);
 			packed = emalloc(offsetof(judy_packed_value, v) + sizeof(size_t) + len);
-			packed->tag = 5;
+			packed->tag = JUDY_TAG_STRING;
 			packed->v.str.len = len;
 			memcpy(packed->v.str.data, Z_STRVAL_P(value), len);
 			return packed;
@@ -187,7 +187,7 @@ judy_packed_value *judy_pack_value(zval *value)
 
 			size_t len = ZSTR_LEN(buf.s);
 			packed = emalloc(offsetof(judy_packed_value, v) + sizeof(size_t) + len);
-			packed->tag = 255;
+			packed->tag = JUDY_TAG_SERIALIZED;
 			packed->v.str.len = len;
 			memcpy(packed->v.str.data, ZSTR_VAL(buf.s), len);
 
@@ -203,26 +203,26 @@ judy_packed_value *judy_pack_value(zval *value)
    Returns SUCCESS/FAILURE. On success, rv holds the reconstructed value. */
 int judy_unpack_value(judy_packed_value *packed, zval *rv)
 {
-	switch (packed->tag) {
-	case 0:
+	switch ((judy_packed_tag)packed->tag) {
+	case JUDY_TAG_LONG:
 		ZVAL_LONG(rv, packed->v.lval);
 		return SUCCESS;
-	case 1:
+	case JUDY_TAG_DOUBLE:
 		ZVAL_DOUBLE(rv, packed->v.dval);
 		return SUCCESS;
-	case 2:
+	case JUDY_TAG_TRUE:
 		ZVAL_TRUE(rv);
 		return SUCCESS;
-	case 3:
+	case JUDY_TAG_FALSE:
 		ZVAL_FALSE(rv);
 		return SUCCESS;
-	case 4:
+	case JUDY_TAG_NULL:
 		ZVAL_NULL(rv);
 		return SUCCESS;
-	case 5:
+	case JUDY_TAG_STRING:
 		ZVAL_STRINGL(rv, packed->v.str.data, packed->v.str.len);
 		return SUCCESS;
-	case 255:
+	case JUDY_TAG_SERIALIZED:
 		{
 			php_unserialize_data_t var_hash;
 			const unsigned char *p = (const unsigned char *)packed->v.str.data;

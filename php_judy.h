@@ -83,8 +83,17 @@ typedef unsigned __int64 Word_t, * PWord_t;
 #include "ext/standard/info.h"
 
 /* Packed value storage for TYPE_INT_TO_PACKED.
- * Tagged union: scalars stored directly (no serialize), complex types fall back.
- * Tag values: 0=long, 1=double, 2=true, 3=false, 4=null, 5=string, 255=serialized */
+ * Tagged union: scalars stored directly (no serialize), complex types fall back. */
+typedef enum _judy_packed_tag {
+    JUDY_TAG_LONG       = 0,
+    JUDY_TAG_DOUBLE     = 1,
+    JUDY_TAG_TRUE       = 2,
+    JUDY_TAG_FALSE      = 3,
+    JUDY_TAG_NULL       = 4,
+    JUDY_TAG_STRING     = 5,
+    JUDY_TAG_SERIALIZED = 255
+} judy_packed_tag;
+
 typedef struct _judy_packed_value {
     uint8_t tag;
     union {
@@ -95,12 +104,17 @@ typedef struct _judy_packed_value {
 } judy_packed_value;
 
 static inline size_t judy_packed_value_size(judy_packed_value *p) {
-    switch (p->tag) {
-    case 0:   return offsetof(judy_packed_value, v) + sizeof(zend_long);
-    case 1:   return offsetof(judy_packed_value, v) + sizeof(double);
-    case 2: case 3: case 4: return offsetof(judy_packed_value, v);
-    case 5: case 255: return offsetof(judy_packed_value, v) + sizeof(size_t) + p->v.str.len;
-    default:  return sizeof(judy_packed_value);
+    switch ((judy_packed_tag)p->tag) {
+    case JUDY_TAG_LONG:       return offsetof(judy_packed_value, v) + sizeof(zend_long);
+    case JUDY_TAG_DOUBLE:     return offsetof(judy_packed_value, v) + sizeof(double);
+    case JUDY_TAG_TRUE:
+    case JUDY_TAG_FALSE:
+    case JUDY_TAG_NULL:       return offsetof(judy_packed_value, v);
+    case JUDY_TAG_STRING:
+    case JUDY_TAG_SERIALIZED: return offsetof(judy_packed_value, v) + sizeof(size_t) + p->v.str.len;
+    default:
+        zend_error(E_WARNING, "judy_packed_value: unknown tag %u", (unsigned)p->tag);
+        return 0;
     }
 }
 
