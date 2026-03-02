@@ -732,16 +732,24 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		}
 		return res;
 	} else if (intern->type == TYPE_STRING_TO_INT_ADAPTIVE) {
+		if (UNEXPECTED(memchr(Z_STRVAL_P(pstring_key), '\0', Z_STRLEN_P(pstring_key)) != NULL)) {
+			zend_throw_exception(NULL, "Judy adaptive keys must not contain embedded null bytes", 0);
+			return FAILURE;
+		}
 		Pvoid_t *PValue;
 		Pvoid_t *KValue;
 		int res;
 		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
 		Word_t sso_idx;
 
+		zend_long lval = zval_get_long(value);
+
 		if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
+			Pvoid_t *PExisting;
+			JLG(PExisting, intern->array, sso_idx);
 			JLI(PValue, intern->array, sso_idx);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (*(Word_t *)PValue == 0) {
+				if (PExisting == NULL) {
 					/* Register in key_index for iteration */
 					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
 					if (JUDY_UNLIKELY(KValue == PJERR)) {
@@ -750,15 +758,17 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 					}
 					intern->counter++;
 				}
-				JUDY_LVAL_WRITE(PValue, zval_get_long(value));
+				JUDY_LVAL_WRITE(PValue, lval);
 				res = SUCCESS;
 			} else {
 				res = FAILURE;
 			}
 		} else {
+			Pvoid_t *HExisting;
+			JHSG(HExisting, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			JHSI(PValue, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (*(Word_t *)PValue == 0) {
+				if (HExisting == NULL) {
 					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
 					if (JUDY_UNLIKELY(KValue == PJERR)) {
 						int Rc_tmp;
@@ -767,7 +777,7 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 					}
 					intern->counter++;
 				}
-				JUDY_LVAL_WRITE(PValue, zval_get_long(value));
+				JUDY_LVAL_WRITE(PValue, lval);
 				res = SUCCESS;
 			} else {
 				res = FAILURE;
@@ -775,6 +785,10 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		}
 		return res;
 	} else if (intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
+		if (UNEXPECTED(memchr(Z_STRVAL_P(pstring_key), '\0', Z_STRLEN_P(pstring_key)) != NULL)) {
+			zend_throw_exception(NULL, "Judy adaptive keys must not contain embedded null bytes", 0);
+			return FAILURE;
+		}
 		Pvoid_t *PValue;
 		Pvoid_t *KValue;
 		int res;
@@ -782,9 +796,11 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		Word_t sso_idx;
 
 		if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
+			Pvoid_t *PExisting;
+			JLG(PExisting, intern->array, sso_idx);
 			JLI(PValue, intern->array, sso_idx);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (*(Pvoid_t *)PValue != NULL) {
+				if (PExisting != NULL) {
 					zval *old_value = JUDY_MVAL_READ(PValue);
 					zval_ptr_dtor(old_value);
 					efree(old_value);
@@ -804,9 +820,11 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 				res = FAILURE;
 			}
 		} else {
+			Pvoid_t *HExisting;
+			JHSG(HExisting, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			JHSI(PValue, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (*(Pvoid_t *)PValue != NULL) {
+				if (HExisting != NULL) {
 					zval *old_value = JUDY_MVAL_READ(PValue);
 					zval_ptr_dtor(old_value);
 					efree(old_value);
@@ -1001,7 +1019,9 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 				if (Rc_int == 1) {
 					int Rc_idx_del;
 					JSLD(Rc_idx_del, intern->key_index, key);
-					intern->counter--;
+					if (Rc_idx_del == 1) {
+						intern->counter--;
+					}
 				}
 			}
 		} else {
@@ -1017,7 +1037,9 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 				if (Rc_int == 1) {
 					int Rc_idx_del;
 					JSLD(Rc_idx_del, intern->key_index, key);
-					intern->counter--;
+					if (Rc_idx_del == 1) {
+						intern->counter--;
+					}
 				}
 			}
 		}
@@ -1322,7 +1344,8 @@ PHP_METHOD(Judy, size)
 
 			RETURN_LONG(Rc_word);
 		} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED
-				|| intern->type == TYPE_STRING_TO_MIXED_HASH || intern->type == TYPE_STRING_TO_INT_HASH) {
+				|| intern->type == TYPE_STRING_TO_MIXED_HASH || intern->type == TYPE_STRING_TO_INT_HASH
+				|| intern->type == TYPE_STRING_TO_INT_ADAPTIVE || intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
 			RETURN_LONG(intern->counter);
 		}
 }
@@ -2131,6 +2154,7 @@ PHP_METHOD(Judy, prevEmpty)
 static void judy_create_bitset_result(zval *return_value);
 /* Forward declaration */
 static judy_object *judy_create_result(zval *return_value, judy_type type);
+static void judy_object_merge_with_helper(judy_object *intern, judy_object *other);
 
 static void judy_create_bitset_result(zval *return_value)
 {
@@ -2260,18 +2284,9 @@ alloc_error_il:
 		zend_throw_exception(NULL, "Judy: memory allocation failed during union", 0);
 	} else { /* STRING_TO_INT types */
 		result = judy_create_result(return_value, intern->type);
-		
-		/* We can use mergeWith implementation logic here but into 'result' */
-		zval res_zv;
-		ZVAL_OBJ(&res_zv, &result->std);
-		
+
 		/* Add other first, then self (left-wins) */
-		zval other_zv;
-		ZVAL_OBJ(&other_zv, &other->std);
 		judy_object_merge_with_helper(result, other);
-		
-		zval self_zv;
-		ZVAL_OBJ(&self_zv, &intern->std);
 		judy_object_merge_with_helper(result, intern);
 	}
 }
@@ -2341,7 +2356,7 @@ alloc_error_bitset:
 		ZVAL_NULL(return_value);
 		zend_throw_exception(NULL, "Judy: memory allocation failed during intersect", 0);
 
-	} else { /* TYPE_INT_TO_INT */
+	} else if (intern->type == TYPE_INT_TO_INT) {
 		Pvoid_t iter_array, test_array;
 		Pvoid_t *PValue, *PTest, *PNew;
 		int self_is_iter;
@@ -3088,6 +3103,53 @@ static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mo
 			JLN(PValue, intern->array, index);
 		}
 
+	} else if (intern->is_adaptive) {
+		uint8_t *key = intern->key_scratch;
+		Pvoid_t *PValue;
+		key[0] = '\0';
+		JSLF(PValue, intern->key_index, key);
+
+		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+			if (mode == JUDY_COLLECT_KEYS) {
+				add_next_index_string(data, (const char *)key);
+			} else {
+				Word_t key_len = (Word_t)strlen((char *)key);
+				Word_t sso_idx;
+				Pvoid_t *VValue = NULL;
+
+				if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
+					JLG(VValue, intern->array, sso_idx);
+				} else {
+					JHSG(VValue, intern->hs_array, key, key_len);
+				}
+
+				if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
+					if (intern->type == TYPE_STRING_TO_INT_ADAPTIVE) {
+						if (mode == JUDY_COLLECT_ALL) {
+							add_assoc_long(data, (const char *)key, JUDY_LVAL_READ(VValue));
+						} else {
+							add_next_index_long(data, JUDY_LVAL_READ(VValue));
+						}
+					} else { /* MIXED */
+						zval *value = JUDY_MVAL_READ(VValue);
+						Z_TRY_ADDREF_P(value);
+						if (mode == JUDY_COLLECT_ALL) {
+							add_assoc_zval(data, (const char *)key, value);
+						} else {
+							add_next_index_zval(data, value);
+						}
+					}
+				} else {
+					if (mode == JUDY_COLLECT_ALL) {
+						add_assoc_null(data, (const char *)key);
+					} else {
+						add_next_index_null(data);
+					}
+				}
+			}
+			JSLN(PValue, intern->key_index, key);
+		}
+
 	} else { /* is_string_keyed */
 		uint8_t *key = intern->key_scratch;
 		Pvoid_t *PValue;
@@ -3138,52 +3200,6 @@ static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mo
 			} else {
 				JSLN(PValue, intern->array, key);
 			}
-		}
-	} else if (intern->is_adaptive) {
-		uint8_t *key = intern->key_scratch;
-		Pvoid_t *PValue;
-		key[0] = '\0';
-		JSLF(PValue, intern->key_index, key);
-
-		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-			if (mode == JUDY_COLLECT_KEYS) {
-				add_next_index_string(data, (const char *)key);
-			} else {
-				Word_t key_len = (Word_t)strlen((char *)key);
-				Word_t sso_idx;
-				Pvoid_t *VValue = NULL;
-
-				if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
-					JLG(VValue, intern->array, sso_idx);
-				} else {
-					JHSG(VValue, intern->hs_array, key, key_len);
-				}
-
-				if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
-					if (intern->type == TYPE_STRING_TO_INT_ADAPTIVE) {
-						if (mode == JUDY_COLLECT_ALL) {
-							add_assoc_long(data, (const char *)key, JUDY_LVAL_READ(VValue));
-						} else {
-							add_next_index_long(data, JUDY_LVAL_READ(VValue));
-						}
-					} else { /* MIXED */
-						zval *value = JUDY_MVAL_READ(VValue);
-						Z_TRY_ADDREF_P(value);
-						if (mode == JUDY_COLLECT_ALL) {
-							add_assoc_zval(data, (const char *)key, value);
-						} else {
-							add_next_index_zval(data, value);
-						}
-					}
-				} else {
-					if (mode == JUDY_COLLECT_ALL) {
-						add_assoc_null(data, (const char *)key);
-					} else {
-						add_next_index_null(data);
-					}
-				}
-			}
-			JSLN(PValue, intern->key_index, key);
 		}
 	}
 }
@@ -3266,6 +3282,30 @@ PHP_METHOD(Judy, sumValues)
 			JSLN(PValue, intern->key_index, key);
 		}
 	} else { /* string keyed */
+		uint8_t *key = intern->key_scratch;
+		Pvoid_t *PValue;
+		key[0] = '\0';
+		if (intern->is_hash_keyed) {
+			JSLF(PValue, intern->key_index, key);
+		} else {
+			JSLF(PValue, intern->array, key);
+		}
+
+		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+			Pvoid_t *VValue = PValue;
+			if (intern->is_hash_keyed) {
+				JHSG(VValue, intern->array, key, (Word_t)strlen((char *)key));
+			}
+			if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
+				sum += (double)JUDY_LVAL_READ(VValue);
+			}
+			if (intern->is_hash_keyed) {
+				JSLN(PValue, intern->key_index, key);
+			} else {
+				JSLN(PValue, intern->array, key);
+			}
+		}
+	}
 
 	if (sum > (double)ZEND_LONG_MAX || sum < (double)ZEND_LONG_MIN) {
 		RETURN_DOUBLE(sum);
@@ -3794,6 +3834,50 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 				if (action_rc == SUCCESS) JLN(PValue, intern->array, index);
 			}
 		}
+	} else if (intern->is_adaptive) {
+		uint8_t *key = intern->key_scratch;
+		Pvoid_t *PValue;
+		key[0] = '\0';
+		JSLF(PValue, intern->key_index, key);
+
+		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR) && action_rc == SUCCESS) {
+			ZVAL_STRING(&args[1], (const char *)key);
+			Word_t key_len = (Word_t)strlen((char *)key);
+			Word_t sso_idx;
+			Pvoid_t *VValue = NULL;
+
+			if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
+				JLG(VValue, intern->array, sso_idx);
+			} else {
+				JHSG(VValue, intern->hs_array, key, key_len);
+			}
+
+			if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
+				if (intern->type == TYPE_STRING_TO_INT_ADAPTIVE) {
+					ZVAL_LONG(&args[0], JUDY_LVAL_READ(VValue));
+				} else {
+					ZVAL_COPY(&args[0], JUDY_MVAL_READ(VValue));
+				}
+
+				fci->param_count = 2;
+				fci->params = args;
+				fci->retval = &retval;
+
+				if (zend_call_function(fci, fci_cache) == SUCCESS && !Z_ISUNDEF(retval)) {
+					action_rc = action(intern, &args[1], &retval, data);
+					zval_ptr_dtor(&retval);
+				} else {
+					action_rc = FAILURE;
+				}
+				zval_ptr_dtor(&args[0]);
+			}
+			zval_ptr_dtor(&args[1]);
+
+			if (action_rc == SUCCESS) {
+				JSLN(PValue, intern->key_index, key);
+			}
+		}
+
 	} else { /* string keyed */
 		uint8_t *key = intern->key_scratch;
 		Pvoid_t *PValue;
@@ -3839,53 +3923,9 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 					JSLN(PValue, intern->array, key);
 				}
 			}
-			}
-			}
-			} else if (intern->is_adaptive) {
-			uint8_t *key = intern->key_scratch;
-			Pvoid_t *PValue;
-			key[0] = '\0';
-			JSLF(PValue, intern->key_index, key);
-
-			while (JUDY_LIKELY(PValue != NULL && PValue != PJERR) && action_rc == SUCCESS) {
-			ZVAL_STRING(&args[1], (const char *)key);
-			Word_t key_len = (Word_t)strlen((char *)key);
-			Word_t sso_idx;
-			Pvoid_t *VValue = NULL;
-
-			if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
-			JLG(VValue, intern->array, sso_idx);
-			} else {
-			JHSG(VValue, intern->hs_array, key, key_len);
-			}
-
-			if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
-			if (intern->type == TYPE_STRING_TO_INT_ADAPTIVE) {
-				ZVAL_LONG(&args[0], JUDY_LVAL_READ(VValue));
-			} else {
-				ZVAL_COPY(&args[0], JUDY_MVAL_READ(VValue));
-			}
-
-			fci->param_count = 2;
-			fci->params = args;
-			fci->retval = &retval;
-
-			if (zend_call_function(fci, fci_cache) == SUCCESS && !Z_ISUNDEF(retval)) {
-				action_rc = action(intern, &args[1], &retval, data);
-				zval_ptr_dtor(&retval);
-			} else {
-				action_rc = FAILURE;
-			}
-			zval_ptr_dtor(&args[0]);
-			}
-			zval_ptr_dtor(&args[1]);
-
-			if (action_rc == SUCCESS) {
-			JSLN(PValue, intern->key_index, key);
-			}
-			}
-			}
-			}
+		}
+	}
+}
 static int action_foreach(judy_object *intern, zval *key, zval *retval, void *data) {
 	return SUCCESS; /* forEach just calls the callback, iterator handles it */
 }
