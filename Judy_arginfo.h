@@ -131,6 +131,21 @@ ZEND_END_ARG_INFO()
 
 #define arginfo_class_Judy_values arginfo_class_Judy_keys
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_forEach, 0, 1, IS_VOID, 0)
+	ZEND_ARG_TYPE_INFO(0, callback, IS_CALLABLE, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_Judy_filter, 0, 1, Judy, 0)
+	ZEND_ARG_TYPE_INFO(0, predicate, IS_CALLABLE, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_Judy_map, 0, 1, Judy, 0)
+	ZEND_ARG_TYPE_INFO(0, transform, IS_CALLABLE, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_averageValues, 0, 0, IS_DOUBLE, 1)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_class_Judy_sumValues, 0, 0, MAY_BE_LONG|MAY_BE_DOUBLE)
 ZEND_END_ARG_INFO()
 
@@ -191,7 +206,11 @@ ZEND_METHOD(Judy, key);
 ZEND_METHOD(Judy, next);
 ZEND_METHOD(Judy, keys);
 ZEND_METHOD(Judy, values);
+ZEND_METHOD(Judy, forEach);
+ZEND_METHOD(Judy, filter);
+ZEND_METHOD(Judy, map);
 ZEND_METHOD(Judy, sumValues);
+ZEND_METHOD(Judy, averageValues);
 ZEND_METHOD(Judy, populationCount);
 ZEND_METHOD(Judy, deleteRange);
 ZEND_METHOD(Judy, equals);
@@ -245,7 +264,11 @@ static const zend_function_entry class_Judy_methods[] = {
 	ZEND_ME(Judy, next, arginfo_class_Judy_next, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, keys, arginfo_class_Judy_keys, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, values, arginfo_class_Judy_values, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, forEach, arginfo_class_Judy_forEach, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, filter, arginfo_class_Judy_filter, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, map, arginfo_class_Judy_map, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, sumValues, arginfo_class_Judy_sumValues, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, averageValues, arginfo_class_Judy_averageValues, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, populationCount, arginfo_class_Judy_populationCount, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, deleteRange, arginfo_class_Judy_deleteRange, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, equals, arginfo_class_Judy_equals, ZEND_ACC_PUBLIC)

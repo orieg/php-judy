@@ -61,17 +61,18 @@ try {
     echo "union on STRING_TO_MIXED: " . $e->getMessage() . "\n";
 }
 
-// Test with unsupported type STRING_TO_INT
+// Test STRING_TO_INT intersect now succeeds (supported since Phase 3)
 $strToInt = new Judy(Judy::STRING_TO_INT);
 $strToInt["foo"] = 1;
+$strToInt["bar"] = 2;
 $strToInt2 = new Judy(Judy::STRING_TO_INT);
-$strToInt2["bar"] = 2;
+$strToInt2["bar"] = 20;
+$strToInt2["baz"] = 30;
 
-try {
-    $strToInt->intersect($strToInt2);
-    echo "FAIL: should throw\n";
-} catch (Exception $e) {
-    echo "intersect on STRING_TO_INT: " . $e->getMessage() . "\n";
+$result = $strToInt->intersect($strToInt2);
+echo "intersect on STRING_TO_INT: count=" . count($result) . "\n";
+foreach ($result as $k => $v) {
+    echo "  $k => $v\n";
 }
 ?>
 --EXPECT--
@@ -80,5 +81,6 @@ union reverse mismatch: Both Judy arrays must be the same type for set operation
 intersect mismatch: Both Judy arrays must be the same type for set operations
 diff mismatch: Both Judy arrays must be the same type for set operations
 xor mismatch: Both Judy arrays must be the same type for set operations
-union on STRING_TO_MIXED: Set operations are only supported on BITSET and INT_TO_INT arrays
-intersect on STRING_TO_INT: Set operations are only supported on BITSET and INT_TO_INT arrays
+union on STRING_TO_MIXED: Set operations are only supported on BITSET and integer-valued arrays
+intersect on STRING_TO_INT: count=1
+  bar => 2
