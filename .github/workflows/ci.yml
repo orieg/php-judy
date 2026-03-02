@@ -72,6 +72,9 @@ jobs:
           echo ""
           echo "=== NATIVE API BENCHMARK ==="
           PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-phase2-api.php 500000 5 2>&1 | tee phase2-api-benchmark-results.txt
+          echo ""
+          echo "=== ADVANCED BENCHMARK ==="
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-phase3-advanced.php 200000 5 2>&1 | tee advanced-benchmark-results.txt
 
       - name: Upload benchmark results
         if: always()
@@ -84,6 +87,7 @@ jobs:
             set-benchmark-results.txt
             all-types-benchmark-results.txt
             phase2-api-benchmark-results.txt
+            advanced-benchmark-results.txt
           if-no-files-found: ignore
 
   validate-pecl:
@@ -827,6 +831,38 @@ jobs:
               )
               lines.append("```")
               lines.append(phase2_data[latest_ver])
+              lines.append("```\n")
+              lines.append("</details>\n")
+
+          # ── Advanced Benchmark ──────────────────────────────────
+          advanced_data = {}
+
+          for bench_dir in sorted(glob.glob("benchmarks/benchmark-linux-*")):
+              m = re.match(r'^.*benchmark-linux-php([\d.]+)$', bench_dir)
+              if not m:
+                  continue
+              php_ver = m.group(1)
+              fpath = os.path.join(bench_dir, "advanced-benchmark-results.txt")
+              if os.path.isfile(fpath):
+                  with open(fpath) as f:
+                      advanced_data[php_ver] = f.read().strip()
+
+          if advanced_data:
+              lines.append("## Advanced Benchmark\n")
+              lines.append(
+                  "C-level forEach/filter/map, string set operations, "
+                  "and adaptive SSO type comparison "
+                  "(200K elements, 5 iterations median, Linux only).\n"
+              )
+              latest_ver = sorted(
+                  advanced_data.keys(),
+                  key=lambda v: [int(x) for x in v.split(".")],
+              )[-1]
+              lines.append(
+                  f"<details><summary>Advanced Benchmark — PHP {latest_ver} (Linux)</summary>\n"
+              )
+              lines.append("```")
+              lines.append(advanced_data[latest_ver])
               lines.append("```\n")
               lines.append("</details>\n")
 
