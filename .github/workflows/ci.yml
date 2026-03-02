@@ -58,6 +58,45 @@ jobs:
             --json bench.json --size 500000 --iterations 7 --suite all \
             2>&1 | tee benchmark-output.txt
 
+      - name: Install PIE
+        if: matrix.php-version == '8.4'
+        run: |
+          curl -fsSL https://github.com/php/pie/releases/latest/download/pie.phar \
+            -o /usr/local/bin/pie
+          chmod +x /usr/local/bin/pie
+          pie --version
+
+      - name: Install v2.3.0 baseline via PIE
+        if: matrix.php-version == '8.4'
+        run: |
+          sudo pie install --skip-enable-extension orieg/judy:2.3.0 \
+            --with-judy=/usr
+          BASELINE_SO="$(php-config --extension-dir)/judy.so"
+          echo "BASELINE_SO=$BASELINE_SO" >> "$GITHUB_ENV"
+          php -d "extension=$BASELINE_SO" -r \
+            'echo "Baseline loaded: judy " . judy_version() . "\n";'
+
+      - name: Run baseline benchmarks
+        if: matrix.php-version == '8.4'
+        run: |
+          mkdir -p /tmp/php-judy-baseline-ini
+          echo "extension=$BASELINE_SO" > /tmp/php-judy-baseline-ini/judy.ini
+
+          # v2.3.0 only has the 5 core types (no hash/adaptive/packed/API)
+          PHP_INI_SCAN_DIR=/tmp/php-judy-baseline-ini php examples/judy-bench.php \
+            --json baseline-bench.json --size 500000 --iterations 7 --suite core \
+            2>&1 | tee baseline-benchmark-output.txt
+
+      - name: Upload baseline benchmark results
+        if: always() && matrix.php-version == '8.4'
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-baseline-linux-php${{ matrix.php-version }}
+          path: |
+            baseline-bench.json
+            baseline-benchmark-output.txt
+          if-no-files-found: ignore
+
       - name: Upload benchmark results
         if: always()
         uses: actions/upload-artifact@v4
@@ -859,15 +898,33 @@ jobs:
                   lines.append("</details>\n")
 
               # ── Cross-release baseline comparison ──
-              baseline_file = "baselines/latest.json"
-              if os.path.isfile(baseline_file):
-                  with open(baseline_file) as f:
-                      try:
-                          baseline = json.load(f)
-                      except json.JSONDecodeError:
-                          baseline = None
-              else:
-                  baseline = None
+              # Prefer CI-generated baseline (same runner = no arch noise)
+              baseline = None
+              baseline_source = None
+
+              for bdir in sorted(glob.glob(
+                  "benchmarks/benchmark-baseline-*"
+              )):
+                  bf = os.path.join(bdir, "baseline-bench.json")
+                  if os.path.isfile(bf):
+                      with open(bf) as f:
+                          try:
+                              baseline = json.load(f)
+                              baseline_source = "same-runner"
+                          except json.JSONDecodeError:
+                              pass
+                      break
+
+              # Fallback: committed baseline file
+              if baseline is None:
+                  fallback = "baselines/latest.json"
+                  if os.path.isfile(fallback):
+                      with open(fallback) as f:
+                          try:
+                              baseline = json.load(f)
+                              baseline_source = "committed"
+                          except json.JSONDecodeError:
+                              pass
 
               if baseline and baseline.get("benchmarks"):
                   base_bm = baseline["benchmarks"]
@@ -948,12 +1005,23 @@ jobs:
                           f"### Release Comparison "
                           f"({base_ver} \u2192 {cur_ver})\n"
                       )
-                      lines.append(
-                          f"> Baseline: `pecl install judy` "
-                          f"v{base_ver}. "
-                          f"Comparing {primary} PHP {latest} "
-                          f"benchmarks. Threshold: \u00b1{threshold:.0f}%.\n"
-                      )
+                      if baseline_source == "same-runner":
+                          lines.append(
+                              f"> Baseline: v{base_ver} via "
+                              f"`pie install` on **same CI "
+                              f"runner**. "
+                              f"Comparing {primary} PHP {latest} "
+                              f"benchmarks. "
+                              f"Threshold: \u00b1{threshold:.0f}%.\n"
+                          )
+                      else:
+                          lines.append(
+                              f"> \u26a0\ufe0f Baseline: v{base_ver} "
+                              f"from committed file "
+                              f"(cross-architecture — deltas may "
+                              f"be unreliable). "
+                              f"Threshold: \u00b1{threshold:.0f}%.\n"
+                          )
                       # Summary line
                       parts = []
                       if counts["faster"]:
