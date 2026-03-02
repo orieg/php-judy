@@ -783,6 +783,66 @@ foreach (['union', 'intersect', 'diff'] as $op) {
         sprintf('%.2f', $t_php['median']), fmt_ratio($t_php['median'], $t_judy['median']));
 }
 
+// mergeWith() — in-place merge (INT_TO_INT)
+{
+    $mw_a = new Judy(Judy::INT_TO_INT);
+    $mw_b = new Judy(Judy::INT_TO_INT);
+    for ($i = 0; $i < $size; $i++) {
+        $mw_a[$i] = $i;
+        $mw_b[$only_a + $i] = $i + $size;
+    }
+
+    $t_judy = bench_median(function() use ($mw_a, $mw_b, $size, $only_a) {
+        $target = new Judy(Judy::INT_TO_INT);
+        for ($i = 0; $i < $size; $i++) { $target[$i] = $i; }
+        $target->mergeWith($mw_b);
+    }, $iterations);
+
+    $t_php = bench_median(function() use ($mw_a, $mw_b, $size, $only_a) {
+        $target = new Judy(Judy::INT_TO_INT);
+        for ($i = 0; $i < $size; $i++) { $target[$i] = $i; }
+        foreach ($mw_b as $k => $v) { $target[$k] = $v; }
+    }, $iterations);
+
+    record("api.mergeWith.int_to_int.judy", $t_judy['median'], $t_judy['runs']);
+    record("api.mergeWith.int_to_int.php",  $t_php['median'],  $t_php['runs']);
+    printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n",
+        'mergeWith() INT_TO_INT', sprintf('%.2f', $t_judy['median']),
+        sprintf('%.2f', $t_php['median']), fmt_ratio($t_php['median'], $t_judy['median']));
+
+    unset($mw_a, $mw_b);
+}
+
+// mergeWith() — in-place merge (STRING_TO_INT)
+{
+    $mws_a = new Judy(Judy::STRING_TO_INT);
+    $mws_b = new Judy(Judy::STRING_TO_INT);
+    for ($i = 0; $i < $size; $i++) {
+        $mws_a["k_$i"] = $i;
+        $mws_b["k_" . ($i + $half)] = $i + $size;
+    }
+
+    $t_judy = bench_median(function() use ($mws_a, $mws_b, $size) {
+        $target = new Judy(Judy::STRING_TO_INT);
+        for ($i = 0; $i < $size; $i++) { $target["k_$i"] = $i; }
+        $target->mergeWith($mws_b);
+    }, $iterations);
+
+    $t_php = bench_median(function() use ($mws_a, $mws_b, $size) {
+        $target = new Judy(Judy::STRING_TO_INT);
+        for ($i = 0; $i < $size; $i++) { $target["k_$i"] = $i; }
+        foreach ($mws_b as $k => $v) { $target[$k] = $v; }
+    }, $iterations);
+
+    record("api.mergeWith.string_to_int.judy", $t_judy['median'], $t_judy['runs']);
+    record("api.mergeWith.string_to_int.php",  $t_php['median'],  $t_php['runs']);
+    printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n",
+        'mergeWith() STRING_TO_INT', sprintf('%.2f', $t_judy['median']),
+        sprintf('%.2f', $t_php['median']), fmt_ratio($t_php['median'], $t_judy['median']));
+
+    unset($mws_a, $mws_b);
+}
+
 unset($judy_a, $judy_b, $php_a, $php_b, $j_a, $j_b, $js_a, $js_b);
 echo "\n";
 

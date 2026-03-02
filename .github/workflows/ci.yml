@@ -650,6 +650,8 @@ jobs:
               ("api.setop.intersect.bitset", "intersect() Bitset"),
               ("api.setop.diff.bitset", "diff() Bitset"),
               ("api.setop.xor.bitset", "xor() Bitset"),
+              ("api.mergeWith.int_to_int", "mergeWith() Int\u2192Int"),
+              ("api.mergeWith.string_to_int", "mergeWith() Str\u2192Int"),
               ("adv.forEach.int_to_int", "forEach() Int\u2192Int"),
               ("adv.filter.int_to_int", "filter() Int\u2192Int"),
               ("adv.map.int_to_int", "map() Int\u2192Int"),
