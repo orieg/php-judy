@@ -226,6 +226,17 @@ static inline int judy_pack_short_string_internal(const char *str, size_t len, W
 	return 1;
 }
 
+static inline void judy_init_type_flags(judy_object *intern, zend_long jtype)
+{
+	intern->type = jtype;
+	intern->is_integer_keyed = (jtype == TYPE_BITSET || jtype == TYPE_INT_TO_INT || jtype == TYPE_INT_TO_MIXED || jtype == TYPE_INT_TO_PACKED);
+	intern->is_string_keyed = (jtype == TYPE_STRING_TO_INT || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_INT_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
+	intern->is_mixed_value = (jtype == TYPE_INT_TO_MIXED || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE);
+	intern->is_packed_value = (jtype == TYPE_INT_TO_PACKED);
+	intern->is_hash_keyed = (jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_INT_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
+	intern->is_adaptive = (jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
+}
+
 /* Max length, this must be a constant for it to work in
  * declarings as we cannot use runtime decided values at
  * compile time ofcourse

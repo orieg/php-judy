@@ -107,6 +107,7 @@ $jm["bb"] = "second";
 $jm["long_key_cc"] = "third";
 $slm = $jm->slice("bb", "long_key_cc");
 echo "mixed slice size: " . $slm->size() . "\n";
+echo "slice iteration:\n";
 foreach ($slm as $k => $v) {
     echo "  $k => $v\n";
 }
