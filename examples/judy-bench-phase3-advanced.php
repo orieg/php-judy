@@ -1,6 +1,6 @@
 <?php
 /**
- * Benchmark: Phase 3 — Advanced Performance & Adaptive Types (SSO)
+ * Benchmark: Advanced Performance & Adaptive Types (SSO)
  *
  * Compares:
  *   1. forEach() (C-level)  vs  foreach loop (PHP iterator protocol)
@@ -43,7 +43,7 @@ $div  = str_repeat('━', 100);
 $dash = str_repeat('─', 100);
 
 echo "$div\n";
-echo "  Phase 3 Benchmark — " . number_format($size) . " elements, $iterations iterations (median)\n";
+echo "  Advanced Benchmark — " . number_format($size) . " elements, $iterations iterations (median)\n";
 echo "  PHP " . phpversion() . " | Judy ext " . judy_version() . "\n";
 echo "$div\n\n";
 
@@ -380,6 +380,6 @@ echo "\n";
 // ── Summary ─────────────────────────────────────────────────────────────
 
 echo "$div\n";
-echo "  Phase 3 Benchmark complete — " . date('Y-m-d H:i:s') . "\n";
+echo "  Advanced Benchmark complete — " . date('Y-m-d H:i:s') . "\n";
 echo "  Speedup = baseline_time / optimized_time (higher = better)\n";
 echo "$div\n";
