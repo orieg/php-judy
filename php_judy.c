@@ -44,6 +44,9 @@ static void php_judy_init_globals(zend_judy_globals *judy_globals)
 }
 /* }}} */
 
+/* Forward declaration needed by judy_free_array_internal */
+static const judy_type_ops judy_inline_ops;
+
 /* {{{ judy_free_storage
    close all resources and the memory allocated for the object */
 static Word_t judy_free_array_internal(judy_object *intern)
@@ -59,24 +62,6 @@ static Word_t judy_free_array_internal(judy_object *intern)
 			} else if (intern->is_packed_value) {
 				efree((void *)intern->inline_values[i]);
 			}
-		}
-		intern->counter = 0;
-		return 0;
-	}
-
-	if (intern->storage_tier == 1) {
-		if (intern->linear_data) {
-			for (int i = 0; i < (int)intern->counter; i++) {
-				if (intern->is_mixed_value) {
-					zval *v = (zval *)intern->linear_data[i].value;
-					zval_ptr_dtor(v);
-					efree(v);
-				} else if (intern->is_packed_value) {
-					efree((void *)intern->linear_data[i].value);
-				}
-			}
-			efree(intern->linear_data);
-			intern->linear_data = NULL;
 		}
 		intern->counter = 0;
 		return 0;
@@ -193,6 +178,8 @@ static Word_t judy_free_array_internal(judy_object *intern)
 
 	intern->array = NULL;
 	intern->counter = 0;
+	intern->storage_tier = 0;
+	intern->ops = &judy_inline_ops;
 
 	return Rc_word;
 }
@@ -331,6 +318,10 @@ static void judy_object_free_storage(zend_object *object)
 }
 /* }}} */
 
+/* Forward declarations for vtable structs */
+static const judy_type_ops judy_inline_ops;
+static const judy_type_ops judy_full_ops;
+
 static inline void judy_init_type_flags(judy_object *intern, zend_long jtype)
 {
 	intern->type = jtype;
@@ -342,8 +333,13 @@ static inline void judy_init_type_flags(judy_object *intern, zend_long jtype)
 	intern->is_adaptive = (jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
 
 	/* Initialize tiered storage */
-	intern->storage_tier = 0;
-	intern->ops = &judy_inline_ops;
+	if (JUDY_G(tiered_storage)) {
+		intern->storage_tier = 0;
+		intern->ops = &judy_inline_ops;
+	} else {
+		intern->storage_tier = 2;
+		intern->ops = &judy_full_ops;
+	}
 }
 
 /* {{{ judy_object_new_ex
@@ -360,7 +356,6 @@ zend_object *judy_object_new_ex(zend_class_entry *ce, judy_object **ptr)
 	intern->next_empty_is_valid = 1;
 	intern->next_empty = 0;
 	intern->hs_array = (Pvoid_t) NULL;
-	intern->linear_data = NULL;
 
 	/* Initialize iterator state */
 	ZVAL_UNDEF(&intern->iterator_key);
@@ -393,6 +388,7 @@ PHP_JUDY_API zend_class_entry *php_judy_ce(void)
 */
 PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("judy.string.maxlength", "65536", PHP_INI_ALL, OnUpdateLong, max_length, zend_judy_globals, judy_globals)
+	STD_PHP_INI_ENTRY("judy.tiered_storage", "1", PHP_INI_ALL, OnUpdateBool, tiered_storage, zend_judy_globals, judy_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -434,249 +430,9 @@ static int judy_inline_find_key(judy_object *intern, Word_t key)
 	return -1;
 }
 
-static int judy_linear_find_key(judy_object *intern, Word_t key)
-{
-	int low = 0, high = (int)intern->counter - 1;
-	while (low <= high) {
-		int mid = low + (high - low) / 2;
-		if (intern->linear_data[mid].key == key) return mid;
-		if (intern->linear_data[mid].key < key) low = mid + 1;
-		else high = mid - 1;
-	}
-	return -1;
-}
-
-static void judy_object_promote_to_linear(judy_object *intern);
 static void judy_object_promote_to_full(judy_object *intern);
 
-/* --- Tier 1: Linear Sorted Array --- */
-
-static zval *judy_linear_read(judy_object *intern, zval *offset, zval *rv)
-{
-	zend_long index;
-	zval *pstring_key = NULL;
-	int error_flag = 0;
-	Word_t j_index;
-
-	CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, error_flag, return NULL);
-	if (error_flag) return NULL;
-
-	if (pstring_key) {
-		if (!judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), Z_STRLEN_P(pstring_key), &j_index)) return NULL;
-	} else {
-		j_index = (Word_t)index;
-	}
-
-	int pos = judy_linear_find_key(intern, j_index);
-	if (pos >= 0) {
-		Word_t val = intern->linear_data[pos].value;
-		if (intern->type == TYPE_BITSET) {
-			ZVAL_BOOL(rv, 1);
-		} else if (intern->is_mixed_value) {
-			ZVAL_COPY(rv, (zval *)val);
-		} else if (intern->is_packed_value) {
-			judy_unpack_value((judy_packed_value *)val, rv);
-		} else {
-			ZVAL_LONG(rv, (zend_long)val);
-		}
-		return rv;
-	}
-	return NULL;
-}
-
-static int judy_linear_write(judy_object *intern, zval *offset, zval *value)
-{
-	zend_long index = 0;
-	zval *pstring_key = NULL;
-	int error_flag = 0;
-	Word_t j_index;
-
-	if (offset) {
-		CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, error_flag, return FAILURE);
-		if (error_flag) return FAILURE;
-		if (pstring_key) {
-			if (!judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), Z_STRLEN_P(pstring_key), &j_index)) {
-				judy_object_promote_to_full(intern);
-				return intern->ops->write(intern, offset, value);
-			}
-		} else {
-			j_index = (Word_t)index;
-		}
-	} else {
-		if (intern->is_string_keyed) return FAILURE;
-		/* Linear array is sorted, find max key */
-		if (intern->counter > 0) {
-			j_index = 0;
-			for(int i=0; i<intern->counter; i++) if(intern->linear_data[i].key > j_index) j_index = intern->linear_data[i].key;
-			j_index++;
-		} else {
-			j_index = 0;
-		}
-	}
-
-	int pos = judy_linear_find_key(intern, j_index);
-	if (pos >= 0) {
-		/* Overwrite */
-		if (intern->type == TYPE_BITSET) {
-			if (!zend_is_true(value)) {
-				/* Delete by shifting */
-				for (int i = pos; i < (int)intern->counter - 1; i++) {
-					intern->linear_data[i] = intern->linear_data[i+1];
-				}
-				intern->counter--;
-			}
-		} else {
-			Word_t new_val;
-			if (intern->is_mixed_value) {
-				zval *old = (zval *)intern->linear_data[pos].value;
-				zval_ptr_dtor(old);
-				efree(old);
-				zval *nv = emalloc(sizeof(zval));
-				ZVAL_COPY(nv, value);
-				new_val = (Word_t)nv;
-			} else if (intern->is_packed_value) {
-				judy_packed_value *old = (judy_packed_value *)intern->linear_data[pos].value;
-				if (old) efree(old);
-				new_val = (Word_t)judy_pack_value(value);
-			} else {
-				new_val = (Word_t)zval_get_long(value);
-			}
-			intern->linear_data[pos].value = new_val;
-		}
-		return SUCCESS;
-	}
-
-	if (intern->counter >= 128) {
-		judy_object_promote_to_full(intern);
-		return intern->ops->write(intern, offset, value);
-	}
-
-	if (intern->type == TYPE_BITSET && !zend_is_true(value)) return SUCCESS;
-
-	/* Find insertion point to maintain order */
-	int ins = 0;
-	while (ins < (int)intern->counter && intern->linear_data[ins].key < j_index) ins++;
-
-	/* Shift and insert */
-	for (int i = (int)intern->counter; i > ins; i--) {
-		intern->linear_data[i] = intern->linear_data[i-1];
-	}
-
-	intern->linear_data[ins].key = j_index;
-	if (intern->type == TYPE_BITSET) {
-		intern->linear_data[ins].value = 1;
-	} else if (intern->is_mixed_value) {
-		zval *nv = emalloc(sizeof(zval));
-		ZVAL_COPY(nv, value);
-		intern->linear_data[ins].value = (Word_t)nv;
-	} else if (intern->is_packed_value) {
-		intern->linear_data[ins].value = (Word_t)judy_pack_value(value);
-	} else {
-		intern->linear_data[ins].value = (Word_t)zval_get_long(value);
-	}
-	intern->counter++;
-	return SUCCESS;
-}
-
-static int judy_linear_has(judy_object *intern, zval *offset, int check_empty)
-{
-	zval rv; ZVAL_UNDEF(&rv);
-	if (judy_linear_read(intern, offset, &rv)) {
-		if (!check_empty) return 1;
-		int res = zend_is_true(&rv);
-		zval_ptr_dtor(&rv);
-		return res;
-	}
-	return 0;
-}
-
-static int judy_linear_unset(judy_object *intern, zval *offset)
-{
-	zend_long index;
-	zval *pstring_key = NULL;
-	int error_flag = 0;
-	Word_t j_index;
-
-	CHECK_ARRAY_AND_ARG_TYPE(index, pstring_key, error_flag, return FAILURE);
-	if (error_flag) return FAILURE;
-
-	if (pstring_key) {
-		if (!judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), Z_STRLEN_P(pstring_key), &j_index)) return SUCCESS;
-	} else {
-		j_index = (Word_t)index;
-	}
-
-	int pos = judy_linear_find_key(intern, j_index);
-	if (pos >= 0) {
-		if (intern->is_mixed_value) {
-			zval *v = (zval *)intern->linear_data[pos].value;
-			zval_ptr_dtor(v);
-			efree(v);
-		} else if (intern->is_packed_value) {
-			efree((void *)intern->linear_data[pos].value);
-		}
-		for (int i = pos; i < (int)intern->counter - 1; i++) {
-			intern->linear_data[i] = intern->linear_data[i+1];
-		}
-		intern->counter--;
-	}
-	return SUCCESS;
-}
-
-static const judy_type_ops judy_linear_ops = {
-	judy_linear_read, judy_linear_write, judy_linear_has, judy_linear_unset
-};
-
-static void judy_object_promote_to_linear(judy_object *intern)
-{
-	Word_t keys[8], vals[8];
-	int count = (int)intern->counter;
-	memcpy(keys, intern->inline_keys, sizeof(keys));
-	memcpy(vals, intern->inline_values, sizeof(vals));
-
-	intern->counter = 0;
-	intern->storage_tier = 1;
-	intern->ops = &judy_linear_ops;
-	intern->linear_data = ecalloc(128, sizeof(judy_kv));
-
-	for (int i = 0; i < count; i++) {
-		zval k, v;
-		if (intern->is_string_keyed) {
-			ZVAL_STRINGL(&k, (char *)&keys[i], strlen((char *)&keys[i]));
-		} else {
-			ZVAL_LONG(&k, (zend_long)keys[i]);
-		}
-
-		if (intern->type == TYPE_BITSET) {
-			ZVAL_BOOL(&v, 1);
-		} else if (intern->is_mixed_value) {
-			ZVAL_COPY_VALUE(&v, (zval *)vals[i]);
-		} else if (intern->is_packed_value) {
-			judy_unpack_value((judy_packed_value *)vals[i], &v);
-			efree((void *)vals[i]);
-		} else {
-			ZVAL_LONG(&v, (zend_long)vals[i]);
-		}
-
-		judy_linear_write(intern, &k, &v);
-		zval_ptr_dtor(&k);
-		if (intern->is_mixed_value) {
-			efree((zval *)vals[i]);
-		} else {
-			zval_ptr_dtor(&v);
-		}
-	}
-}
-
-static int judy_inline_find_key(judy_object *intern, Word_t key)
-{
-	for (int i = 0; i < (int)intern->counter; i++) {
-		if (intern->inline_keys[i] == key) return i;
-	}
-	return -1;
-}
-
-static void judy_object_promote_to_full(judy_object *intern);
+/* --- Tier 0: Inline Storage --- */
 
 static zval *judy_inline_read(judy_object *intern, zval *offset, zval *rv)
 {
@@ -726,20 +482,21 @@ static int judy_inline_write(judy_object *intern, zval *offset, zval *value)
 		if (error_flag) return FAILURE;
 		if (pstring_key) {
 			if (!judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), Z_STRLEN_P(pstring_key), &j_index)) {
-				judy_object_promote_to_full(intern);
+				judy_ensure_full_tier(intern);
 				return intern->ops->write(intern, offset, value);
 			}
 		} else {
+			if (index <= -1) {
+				/* Negative index means auto-increment — delegate to full tier */
+				judy_ensure_full_tier(intern);
+				return intern->ops->write(intern, offset, value);
+			}
 			j_index = (Word_t)index;
 		}
 	} else {
-		/* Auto-increment or append */
-		if (intern->is_string_keyed) return FAILURE;
-		if (intern->counter > 0) {
-			j_index = intern->inline_keys[intern->counter - 1] + 1;
-		} else {
-			j_index = 0;
-		}
+		/* Append (offset=NULL) has complex auto-increment logic — delegate to full tier */
+		judy_ensure_full_tier(intern);
+		return intern->ops->write(intern, offset, value);
 	}
 
 	int pos = judy_inline_find_key(intern, j_index);
@@ -777,7 +534,7 @@ static int judy_inline_write(judy_object *intern, zval *offset, zval *value)
 
 	/* New element */
 	if (intern->counter >= 8) {
-		judy_object_promote_to_linear(intern);
+		judy_object_promote_to_full(intern);
 		return intern->ops->write(intern, offset, value);
 	}
 
@@ -854,20 +611,16 @@ static const judy_type_ops judy_inline_ops = {
 /* --- Full Judy Tier --- */
 
 static zval *judy_full_read(judy_object *intern, zval *offset, zval *rv) {
-	zval zv; ZVAL_OBJ(&zv, &intern->std);
-	return judy_object_read_dimension_helper(&zv, offset, rv);
+	return judy_object_read_internal(intern, offset, rv);
 }
 static int judy_full_write(judy_object *intern, zval *offset, zval *value) {
-	zval zv; ZVAL_OBJ(&zv, &intern->std);
-	return judy_object_write_dimension_helper(&zv, offset, value);
+	return judy_object_write_internal(intern, offset, value);
 }
 static int judy_full_has(judy_object *intern, zval *offset, int check_empty) {
-	zval zv; ZVAL_OBJ(&zv, &intern->std);
-	return judy_object_has_dimension_helper(&zv, offset, check_empty);
+	return judy_object_has_internal(intern, offset, check_empty);
 }
 static int judy_full_unset(judy_object *intern, zval *offset) {
-	zval zv; ZVAL_OBJ(&zv, &intern->std);
-	return judy_object_unset_dimension_helper(&zv, offset);
+	return judy_object_unset_internal(intern, offset);
 }
 
 static const judy_type_ops judy_full_ops = {
@@ -876,52 +629,57 @@ static const judy_type_ops judy_full_ops = {
 
 static void judy_object_promote_to_full(judy_object *intern)
 {
-	judy_kv *old_linear = intern->linear_data;
+	Word_t keys[8], vals[8];
 	int count = (int)intern->counter;
+	memcpy(keys, intern->inline_keys, count * sizeof(Word_t));
+	memcpy(vals, intern->inline_values, count * sizeof(Word_t));
 
 	intern->counter = 0;
 	intern->storage_tier = 2;
 	intern->ops = &judy_full_ops;
-	intern->linear_data = NULL;
 
 	for (int i = 0; i < count; i++) {
 		zval k, v;
 		if (intern->is_string_keyed) {
-			ZVAL_STRINGL(&k, (char *)&old_linear[i].key, strlen((char *)&old_linear[i].key));
+			ZVAL_STRINGL(&k, (char *)&keys[i], strlen((char *)&keys[i]));
 		} else {
-			ZVAL_LONG(&k, (zend_long)old_linear[i].key);
+			ZVAL_LONG(&k, (zend_long)keys[i]);
 		}
 
 		if (intern->type == TYPE_BITSET) {
 			ZVAL_BOOL(&v, 1);
 		} else if (intern->is_mixed_value) {
-			ZVAL_COPY_VALUE(&v, (zval *)old_linear[i].value);
+			ZVAL_COPY_VALUE(&v, (zval *)vals[i]);
 		} else if (intern->is_packed_value) {
-			judy_unpack_value((judy_packed_value *)old_linear[i].value, &v);
-			efree((void *)old_linear[i].value);
+			judy_unpack_value((judy_packed_value *)vals[i], &v);
+			efree((void *)vals[i]);
 		} else {
-			ZVAL_LONG(&v, (zend_long)old_linear[i].value);
+			ZVAL_LONG(&v, (zend_long)vals[i]);
 		}
 
 		judy_full_write(intern, &k, &v);
 		zval_ptr_dtor(&k);
 		if (intern->is_mixed_value) {
-			efree((zval *)old_linear[i].value);
+			efree((zval *)vals[i]);
 		} else {
 			zval_ptr_dtor(&v);
 		}
 	}
-
-	if (old_linear) efree(old_linear);
 }
 
-zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv) /* {{{ */
+void judy_ensure_full_tier(judy_object *intern)
+{
+	if (intern->storage_tier == 0) {
+		judy_object_promote_to_full(intern);
+	}
+}
+
+zval *judy_object_read_internal(judy_object *intern, zval *offset, zval *rv) /* {{{ */
 {
 	zend_long index = 0;
 	Word_t j_index;
 	Pvoid_t *PValue = NULL;
 	zval *pstring_key = NULL;
-	judy_object *intern = php_judy_object(Z_OBJ_P(object));
 	int error_flag = 0;
 
 	if (intern->array == NULL && intern->hs_array == NULL) {
@@ -995,11 +753,10 @@ static zval *judy_object_read_dimension(zend_object *obj, zval *offset, int type
 	return intern->ops->read(intern, offset, rv);
 }
 
-int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) /* {{{ */
+int judy_object_write_internal(judy_object *intern, zval *offset, zval *value) /* {{{ */
 {
 	zend_long index;
 	zval *pstring_key = NULL;
-	judy_object *intern = php_judy_object(Z_OBJ_P(object));
 	int error_flag = 0;
 
 	if (offset) {
@@ -1378,14 +1135,13 @@ static void judy_object_write_dimension(zend_object *obj, zval *offset, zval *va
 	intern->ops->write(intern, offset, value);
 }
 
-int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty) /* {{{ */
+int judy_object_has_internal(judy_object *intern, zval *offset, int check_empty) /* {{{ */
 {
 	int Rc_int = 0;
 	zend_long index = 0;
 	Word_t j_index;
 	Pvoid_t *PValue = NULL;
 	zval *pstring_key = NULL;
-	judy_object *intern = php_judy_object(Z_OBJ_P(object));
 	int error_flag = 0;
 
 	if (intern->array == NULL) {
@@ -1468,13 +1224,12 @@ static int judy_object_has_dimension(zend_object *obj, zval *offset, int check_e
 	return intern->ops->has(intern, offset, check_empty);
 }
 
-int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
+int judy_object_unset_internal(judy_object *intern, zval *offset) /* {{{ */
 {
 	int Rc_int = 0;
 	zend_long index = 0;
 	Word_t j_index;
 	zval *pstring_key = NULL;
-	judy_object *intern = php_judy_object(Z_OBJ_P(object));
 	int error_flag = 0;
 
 	if (intern->array == NULL) {
@@ -1619,30 +1374,8 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 
 static void judy_object_unset_dimension(zend_object *obj, zval *offset)
 {
-    zval object_zv;
-    ZVAL_OBJ(&object_zv, obj);
-    judy_object_unset_dimension_helper(&object_zv, offset);
-}
-
-static inline void judy_object_read_dimension_helper_zv(judy_object *intern, zval *offset, zval *rv)
-{
-	zval object_zv;
-	ZVAL_OBJ(&object_zv, &intern->std);
-	judy_object_read_dimension_helper(&object_zv, offset, rv);
-}
-
-static inline int judy_object_write_dimension_helper_zv(judy_object *intern, zval *offset, zval *value)
-{
-	zval object_zv;
-	ZVAL_OBJ(&object_zv, &intern->std);
-	return judy_object_write_dimension_helper(&object_zv, offset, value);
-}
-
-static inline int judy_object_unset_dimension_helper_zv(judy_object *intern, zval *offset)
-{
-	zval object_zv;
-	ZVAL_OBJ(&object_zv, &intern->std);
-	return judy_object_unset_dimension_helper(&object_zv, offset);
+	judy_object *intern = php_judy_object(obj);
+	intern->ops->unset(intern, offset);
 }
 
 /* {{{ PHP_MINIT_FUNCTION
@@ -1804,6 +1537,7 @@ PHP_METHOD(Judy, free)
 {
 	JUDY_METHOD_GET_OBJECT
 
+	judy_ensure_full_tier(intern);
 	RETURN_LONG(judy_free_array_internal(intern));
 }
 /* }}} */
@@ -1815,6 +1549,8 @@ PHP_METHOD(Judy, memoryUsage)
 	Word_t     Rc_word;
 
 	JUDY_METHOD_GET_OBJECT
+
+	judy_ensure_full_tier(intern);
 
 		switch (intern->type)
 		{
@@ -1839,6 +1575,8 @@ PHP_METHOD(Judy, memoryUsage)
 PHP_METHOD(Judy, size)
 {
 	JUDY_METHOD_GET_OBJECT
+
+	judy_ensure_full_tier(intern);
 
 		if (intern->type == TYPE_BITSET || intern->type == TYPE_INT_TO_INT
 				|| intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_INT_TO_PACKED) {
@@ -1888,6 +1626,8 @@ PHP_METHOD(Judy, byCount)
 
 	JUDY_METHOD_GET_OBJECT
 
+	judy_ensure_full_tier(intern);
+
 		if (intern->type == TYPE_BITSET || intern->type == TYPE_INT_TO_INT
 				|| intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_INT_TO_PACKED) {
 			zend_long       nth_index;
@@ -1920,6 +1660,8 @@ PHP_METHOD(Judy, first)
 {
 
 	JUDY_METHOD_GET_OBJECT
+
+	judy_ensure_full_tier(intern);
 
 	if (intern->type == TYPE_BITSET) {
 		zend_long       zl_index = 0;
@@ -2017,6 +1759,8 @@ PHP_METHOD(Judy, searchNext)
 
 	JUDY_METHOD_GET_OBJECT
 
+	judy_ensure_full_tier(intern);
+
 	if (intern->type == TYPE_BITSET) {
 		zend_long       zl_index;
 		Word_t          index;
@@ -2108,7 +1852,9 @@ PHP_METHOD(Judy, searchNext)
 PHP_METHOD(Judy, next)
 {
 	JUDY_METHOD_GET_OBJECT
-	
+
+	judy_ensure_full_tier(intern);
+
 	/* Clear current data */
 	zval_ptr_dtor(&intern->iterator_data);
 	ZVAL_UNDEF(&intern->iterator_data);
@@ -2218,7 +1964,9 @@ PHP_METHOD(Judy, next)
 PHP_METHOD(Judy, rewind)
 {
 	JUDY_METHOD_GET_OBJECT
-	
+
+	judy_ensure_full_tier(intern);
+
 	/* Clear current data */
 	zval_ptr_dtor(&intern->iterator_data);
 	ZVAL_UNDEF(&intern->iterator_data);
@@ -2356,6 +2104,8 @@ PHP_METHOD(Judy, last)
 
 	JUDY_METHOD_GET_OBJECT
 
+	judy_ensure_full_tier(intern);
+
 	if (intern->type == TYPE_BITSET) {
 		zend_long    zl_index = -1;
 		Word_t       index;
@@ -2448,6 +2198,8 @@ PHP_METHOD(Judy, prev)
 
 	JUDY_METHOD_GET_OBJECT
 
+	judy_ensure_full_tier(intern);
+
 	if (intern->type == TYPE_BITSET) {
 		zend_long    zl_index;
 		Word_t       index;
@@ -2537,6 +2289,8 @@ PHP_METHOD(Judy, firstEmpty)
 
 	JUDY_METHOD_GET_OBJECT
 
+	judy_ensure_full_tier(intern);
+
 	ZEND_PARSE_PARAMETERS_START(0, 1)
 		Z_PARAM_OPTIONAL
 		Z_PARAM_LONG(zl_index)
@@ -2572,6 +2326,8 @@ PHP_METHOD(Judy, lastEmpty)
 	int            Rc_int = 0;
 
 	JUDY_METHOD_GET_OBJECT
+
+	judy_ensure_full_tier(intern);
 
 	ZEND_PARSE_PARAMETERS_START(0, 1)
 		Z_PARAM_OPTIONAL
@@ -2609,6 +2365,8 @@ PHP_METHOD(Judy, nextEmpty)
 
 	JUDY_METHOD_GET_OBJECT
 
+	judy_ensure_full_tier(intern);
+
 	ZEND_PARSE_PARAMETERS_START(1, 1)
 		Z_PARAM_LONG(zl_index)
 	ZEND_PARSE_PARAMETERS_END();
@@ -2643,6 +2401,8 @@ PHP_METHOD(Judy, prevEmpty)
 	int            Rc_int = 0;
 
 	JUDY_METHOD_GET_OBJECT
+
+	judy_ensure_full_tier(intern);
 
 	ZEND_PARSE_PARAMETERS_START(1, 1)
 		Z_PARAM_LONG(zl_index)
@@ -2686,6 +2446,10 @@ static void judy_create_bitset_result(zval *return_value)
 	result->key_index = (Pvoid_t) NULL;
 	result->hs_array = (Pvoid_t) NULL;
 	judy_init_type_flags(result, TYPE_BITSET);
+	/* Callers populate result->array directly via J1S macros,
+	   so set tier 2 to bypass inline vtable paths. */
+	result->storage_tier = 2;
+	result->ops = &judy_full_ops;
 }
 /* }}} */
 
@@ -2721,6 +2485,9 @@ PHP_METHOD(Judy, union)
 	ZEND_PARSE_PARAMETERS_END();
 
 	other = php_judy_object(Z_OBJ_P(other_zval));
+
+	judy_ensure_full_tier(intern);
+	judy_ensure_full_tier(other);
 
 	if (judy_validate_set_operands(intern, other) == FAILURE) {
 		return;
@@ -2827,6 +2594,9 @@ PHP_METHOD(Judy, intersect)
 	ZEND_PARSE_PARAMETERS_END();
 
 	other = php_judy_object(Z_OBJ_P(other_zval));
+
+	judy_ensure_full_tier(intern);
+	judy_ensure_full_tier(other);
 
 	if (judy_validate_set_operands(intern, other) == FAILURE) {
 		return;
@@ -2954,8 +2724,8 @@ alloc_error_il:
 				zval zkey, zval_val;
 				ZVAL_STRING(&zkey, (const char *)key);
 				ZVAL_UNDEF(&zval_val);
-				judy_object_read_dimension_helper_zv(intern, &zkey, &zval_val);
-				judy_object_write_dimension_helper_zv(result, &zkey, &zval_val);
+				intern->ops->read(intern, &zkey, &zval_val);
+				result->ops->write(result, &zkey, &zval_val);
 				zval_ptr_dtor(&zval_val);
 				zval_ptr_dtor(&zkey);
 			}
@@ -2985,6 +2755,9 @@ PHP_METHOD(Judy, diff)
 	ZEND_PARSE_PARAMETERS_END();
 
 	other = php_judy_object(Z_OBJ_P(other_zval));
+
+	judy_ensure_full_tier(intern);
+	judy_ensure_full_tier(other);
 
 	if (judy_validate_set_operands(intern, other) == FAILURE) {
 		return;
@@ -3076,8 +2849,8 @@ alloc_error_il:
 				zval zkey, zval_val;
 				ZVAL_STRING(&zkey, (const char *)key);
 				ZVAL_UNDEF(&zval_val);
-				judy_object_read_dimension_helper_zv(intern, &zkey, &zval_val);
-				judy_object_write_dimension_helper_zv(result, &zkey, &zval_val);
+				intern->ops->read(intern, &zkey, &zval_val);
+				result->ops->write(result, &zkey, &zval_val);
 				zval_ptr_dtor(&zval_val);
 				zval_ptr_dtor(&zkey);
 			}
@@ -3107,6 +2880,9 @@ PHP_METHOD(Judy, xor)
 	ZEND_PARSE_PARAMETERS_END();
 
 	other = php_judy_object(Z_OBJ_P(other_zval));
+
+	judy_ensure_full_tier(intern);
+	judy_ensure_full_tier(other);
 
 	if (judy_validate_set_operands(intern, other) == FAILURE) {
 		return;
@@ -3228,8 +3004,8 @@ alloc_error_il:
 				zval zkey, zval_val;
 				ZVAL_STRING(&zkey, (const char *)key);
 				ZVAL_UNDEF(&zval_val);
-				judy_object_read_dimension_helper_zv(intern, &zkey, &zval_val);
-				judy_object_write_dimension_helper_zv(result, &zkey, &zval_val);
+				intern->ops->read(intern, &zkey, &zval_val);
+				result->ops->write(result, &zkey, &zval_val);
 				zval_ptr_dtor(&zval_val);
 				zval_ptr_dtor(&zkey);
 			}
@@ -3266,8 +3042,8 @@ alloc_error_il:
 				zval zkey, zval_val;
 				ZVAL_STRING(&zkey, (const char *)okey);
 				ZVAL_UNDEF(&zval_val);
-				judy_object_read_dimension_helper_zv(other, &zkey, &zval_val);
-				judy_object_write_dimension_helper_zv(result, &zkey, &zval_val);
+				other->ops->read(other, &zkey, &zval_val);
+				result->ops->write(result, &zkey, &zval_val);
 				zval_ptr_dtor(&zval_val);
 				zval_ptr_dtor(&zkey);
 			}
@@ -3294,6 +3070,10 @@ static judy_object *judy_create_result(zval *return_value, judy_type type)
 	result->key_index = (Pvoid_t) NULL;
 	result->hs_array = (Pvoid_t) NULL;
 	judy_init_type_flags(result, type);
+	/* Callers populate result->array directly via Judy macros,
+	   so set tier 2 to bypass inline vtable paths. */
+	result->storage_tier = 2;
+	result->ops = &judy_full_ops;
 	return result;
 }
 /* }}} */
@@ -3306,6 +3086,8 @@ PHP_METHOD(Judy, slice)
 	judy_object *result;
 
 	JUDY_METHOD_GET_OBJECT
+
+	judy_ensure_full_tier(intern);
 
 	ZEND_PARSE_PARAMETERS_START(2, 2)
 		Z_PARAM_ZVAL(zstart)
@@ -3558,64 +3340,13 @@ typedef enum {
    Used by jsonSerialize(), __serialize(), toArray(), keys(), and values(). */
 static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mode mode)
 {
+	/* Promote to full tier for consistent output format (sorted keys, correct BITSET format) */
+	judy_ensure_full_tier(intern);
+
 	if (intern->storage_tier == 0) {
 		for (int i = 0; i < (int)intern->counter; i++) {
 			Word_t k = intern->inline_keys[i];
 			Word_t v = intern->inline_values[i];
-
-			if (mode == JUDY_COLLECT_KEYS) {
-				if (intern->is_string_keyed) {
-					add_next_index_string(data, (const char *)&k);
-				} else {
-					add_next_index_long(data, (zend_long)k);
-				}
-			} else if (mode == JUDY_COLLECT_VALUES) {
-				if (intern->type == TYPE_BITSET) {
-					add_next_index_bool(data, 1);
-				} else if (intern->is_mixed_value) {
-					zval *zv = (zval *)v;
-					Z_TRY_ADDREF_P(zv);
-					add_next_index_zval(data, zv);
-				} else if (intern->is_packed_value) {
-					zval tmp;
-					judy_unpack_value((judy_packed_value *)v, &tmp);
-					add_next_index_zval(data, &tmp);
-				} else {
-					add_next_index_long(data, (zend_long)v);
-				}
-			} else { /* ALL */
-				if (intern->is_string_keyed) {
-					if (intern->is_mixed_value) {
-						zval *zv = (zval *)v;
-						Z_TRY_ADDREF_P(zv);
-						add_assoc_zval(data, (const char *)&k, zv);
-					} else {
-						add_assoc_long(data, (const char *)&k, (zend_long)v);
-					}
-				} else {
-					if (intern->type == TYPE_BITSET) {
-						add_index_bool(data, (zend_long)k, 1);
-					} else if (intern->is_mixed_value) {
-						zval *zv = (zval *)v;
-						Z_TRY_ADDREF_P(zv);
-						add_index_zval(data, (zend_long)k, zv);
-					} else if (intern->is_packed_value) {
-						zval tmp;
-						judy_unpack_value((judy_packed_value *)v, &tmp);
-						add_index_zval(data, (zend_long)k, &tmp);
-					} else {
-						add_index_long(data, (zend_long)k, (zend_long)v);
-					}
-				}
-			}
-		}
-		return;
-	}
-
-	if (intern->storage_tier == 1) {
-		for (int i = 0; i < (int)intern->counter; i++) {
-			Word_t k = intern->linear_data[i].key;
-			Word_t v = intern->linear_data[i].value;
 
 			if (mode == JUDY_COLLECT_KEYS) {
 				if (intern->is_string_keyed) {
@@ -3882,16 +3613,6 @@ PHP_METHOD(Judy, sumValues)
 		goto return_sum;
 	}
 
-	if (intern->storage_tier == 1) {
-		if (intern->type == TYPE_BITSET) {
-			RETURN_LONG(intern->counter);
-		}
-		for (int i = 0; i < (int)intern->counter; i++) {
-			sum += (double)intern->linear_data[i].value;
-		}
-		goto return_sum;
-	}
-
 	if (intern->type == TYPE_BITSET) {
 		Word_t Rc_word;
 		J1C(Rc_word, intern->array, 0, -1);
@@ -3904,7 +3625,7 @@ PHP_METHOD(Judy, sumValues)
 		return;
 	}
 
-	double sum = 0;
+	sum = 0;
 	if (intern->is_integer_keyed) {
 		Word_t index = 0;
 		Pvoid_t *PValue;
@@ -3998,16 +3719,6 @@ PHP_METHOD(Judy, averageValues)
 		goto return_avg;
 	}
 
-	if (intern->storage_tier == 1) {
-		if (intern->type == TYPE_BITSET) {
-			RETURN_DOUBLE(1.0);
-		}
-		for (int i = 0; i < (int)intern->counter; i++) {
-			sum += (double)intern->linear_data[i].value;
-		}
-		goto return_avg;
-	}
-
 	if (intern->type == TYPE_BITSET) {
 		/* For bitset, average is always 1 if count > 0 */
 		RETURN_DOUBLE(1.0);
@@ -4019,7 +3730,7 @@ PHP_METHOD(Judy, averageValues)
 		return;
 	}
 
-	double sum = 0;
+	sum = 0;
 	if (intern->is_integer_keyed) {
 		Word_t index = 0;
 		Pvoid_t *PValue;
@@ -4116,16 +3827,6 @@ PHP_METHOD(Judy, populationCount)
 		RETURN_LONG(Rc_word);
 	}
 
-	if (intern->storage_tier == 1) {
-		Rc_word = 0;
-		for (int i = 0; i < (int)intern->counter; i++) {
-			if (intern->linear_data[i].key >= idx1 && (idx2 == (Word_t)-1 || intern->linear_data[i].key <= idx2)) {
-				Rc_word++;
-			}
-		}
-		RETURN_LONG(Rc_word);
-	}
-
 	if (intern->type == TYPE_BITSET) {
 		J1C(Rc_word, intern->array, idx1, idx2);
 	} else {
@@ -4143,6 +3844,8 @@ PHP_METHOD(Judy, deleteRange)
 {
 	JUDY_METHOD_GET_OBJECT
 	zend_long deleted = 0;
+
+	judy_ensure_full_tier(intern);
 
 	if (intern->is_integer_keyed) {
 		zend_long zl_start, zl_end;
@@ -4333,6 +4036,9 @@ PHP_METHOD(Judy, equals)
 
 	other = php_judy_object(Z_OBJ_P(zother));
 
+	judy_ensure_full_tier(intern);
+	judy_ensure_full_tier(other);
+
 	if (intern == other) RETURN_TRUE;
 	if (intern->type != other->type) RETURN_FALSE;
 
@@ -4353,37 +4059,11 @@ PHP_METHOD(Judy, equals)
 	if (count1 != count2) RETURN_FALSE;
 	if (count1 == 0) RETURN_TRUE;
 
-	if (intern->storage_tier == other->storage_tier && intern->storage_tier == 1) {
+	/* Cross-tier comparison: iterate self (inline) and check other */
+	if (intern->storage_tier == 0) {
 		for (int i = 0; i < (int)intern->counter; i++) {
-			if (intern->linear_data[i].key != other->linear_data[i].key) RETURN_FALSE;
-			if (intern->type == TYPE_BITSET) continue;
-			
-			if (intern->is_mixed_value) {
-				if (!zend_is_identical((zval *)intern->linear_data[i].value, (zval *)other->linear_data[i].value)) RETURN_FALSE;
-			} else if (intern->is_packed_value) {
-				judy_packed_value *p1 = (judy_packed_value *)intern->linear_data[i].value;
-				judy_packed_value *p2 = (judy_packed_value *)other->linear_data[i].value;
-				if (p1 == p2) continue;
-				if (!p1 || !p2 || p1->tag != p2->tag) RETURN_FALSE;
-				zval v1, v2;
-				judy_unpack_value(p1, &v1);
-				judy_unpack_value(p2, &v2);
-				int same = zend_is_identical(&v1, &v2);
-				zval_ptr_dtor(&v1);
-				zval_ptr_dtor(&v2);
-				if (!same) RETURN_FALSE;
-			} else {
-				if (intern->linear_data[i].value != other->linear_data[i].value) RETURN_FALSE;
-			}
-		}
-		RETURN_TRUE;
-	}
-
-	/* Cross-tier comparison: iterate self and check other */
-	if (intern->storage_tier == 0 || intern->storage_tier == 1) {
-		for (int i = 0; i < (int)intern->counter; i++) {
-			Word_t k = (intern->storage_tier == 0) ? intern->inline_keys[i] : intern->linear_data[i].key;
-			Word_t v = (intern->storage_tier == 0) ? intern->inline_values[i] : intern->linear_data[i].value;
+			Word_t k = intern->inline_keys[i];
+			Word_t v = intern->inline_values[i];
 			
 			zval zk, rv;
 			if (intern->is_string_keyed) {
@@ -4549,6 +4229,8 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 	zval args[2];
 	zval retval;
 	int action_rc = SUCCESS;
+
+	judy_ensure_full_tier(intern);
 
 	if (intern->is_integer_keyed) {
 		Word_t index = 0;
@@ -4717,9 +4399,9 @@ static int action_filter(judy_object *intern, zval *key, zval *retval, void *dat
 		   because 'retval' is the callback result (bool), not the original value. */
 		zval value;
 		ZVAL_UNDEF(&value);
-		judy_object_read_dimension_helper_zv(intern, key, &value);
+		intern->ops->read(intern, key, &value);
 		if (!Z_ISUNDEF(value)) {
-			judy_object_write_dimension_helper_zv(result, key, &value);
+			result->ops->write(result, key, &value);
 			zval_ptr_dtor(&value);
 		}
 	}
@@ -4745,7 +4427,7 @@ PHP_METHOD(Judy, filter)
 static int action_map(judy_object *intern, zval *key, zval *retval, void *data) {
 	judy_object *result = (judy_object *)data;
 	/* retval is the mapped value. We put it into the result at the same key. */
-	judy_object_write_dimension_helper_zv(result, key, retval);
+	result->ops->write(result, key, retval);
 	return SUCCESS;
 }
 
@@ -4785,7 +4467,7 @@ static void judy_object_merge_with_helper(judy_object *intern, judy_object *othe
 					zval val, zidx;
 					ZVAL_BOOL(&val, 1);
 					ZVAL_LONG(&zidx, (zend_long)index);
-					judy_object_write_dimension_helper_zv(intern, &zidx, &val);
+					intern->ops->write(intern, &zidx, &val);
 				}
 				J1N(Rc_int, other->array, index);
 			}
@@ -4796,8 +4478,8 @@ static void judy_object_merge_with_helper(judy_object *intern, judy_object *othe
 				zval zidx, zval_val;
 				ZVAL_LONG(&zidx, (zend_long)index);
 				ZVAL_UNDEF(&zval_val);
-				judy_object_read_dimension_helper_zv(other, &zidx, &zval_val);
-				judy_object_write_dimension_helper_zv(intern, &zidx, &zval_val);
+				other->ops->read(other, &zidx, &zval_val);
+				intern->ops->write(intern, &zidx, &zval_val);
 				zval_ptr_dtor(&zval_val);
 				JLN(PValue, other->array, index);
 			}
@@ -4816,8 +4498,8 @@ static void judy_object_merge_with_helper(judy_object *intern, judy_object *othe
 			zval zkey, zval_val;
 			ZVAL_STRING(&zkey, (const char *)key);
 			ZVAL_UNDEF(&zval_val);
-			judy_object_read_dimension_helper_zv(other, &zkey, &zval_val);
-			judy_object_write_dimension_helper_zv(intern, &zkey, &zval_val);
+			other->ops->read(other, &zkey, &zval_val);
+			intern->ops->write(intern, &zkey, &zval_val);
 			zval_ptr_dtor(&zval_val);
 			zval_ptr_dtor(&zkey);
 
@@ -4844,6 +4526,9 @@ PHP_METHOD(Judy, mergeWith)
 	ZEND_PARSE_PARAMETERS_END();
 
 	other = php_judy_object(Z_OBJ_P(zother));
+
+	judy_ensure_full_tier(intern);
+	judy_ensure_full_tier(other);
 
 	if (intern == other) return;
 
@@ -4941,13 +4626,17 @@ PHP_METHOD(Judy, toArray)
 
 /* {{{ judy_populate_from_array — shared helper for fromArray(), putAll(), __unserialize().
    Type-specialized tight loops for integer-keyed types avoid per-element
-   write_dimension_helper dispatch. String-keyed types still use the helper
+   vtable dispatch. String-keyed types still use the vtable write path
    (key validation + embedded NUL checks + dual JudySL/JudyHS insert). */
 static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 	judy_object *intern = php_judy_object(Z_OBJ_P(judy_obj));
 	zval *entry;
 	zend_string *str_key;
 	zend_ulong num_key;
+
+	/* Promote to full tier — the fast paths below write directly to
+	   intern->array via Judy macros, which bypasses inline storage. */
+	judy_ensure_full_tier(intern);
 
 	switch (intern->type) {
 	case TYPE_BITSET:
@@ -5022,7 +4711,7 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 	}
 	default:
 	{
-		/* String-keyed types: keep write_dimension_helper for key validation */
+		/* String-keyed types: use vtable write for key validation */
 		zval offset;
 		ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
 			if (str_key) {
@@ -5030,7 +4719,7 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 			} else {
 				ZVAL_STR(&offset, zend_long_to_str((zend_long)num_key));
 			}
-			judy_object_write_dimension_helper(judy_obj, &offset, entry);
+			intern->ops->write(intern, &offset, entry);
 			zval_ptr_dtor(&offset);
 		} ZEND_HASH_FOREACH_END();
 		break;
@@ -5086,6 +4775,8 @@ PHP_METHOD(Judy, getAll)
 	zval *keys, *key_entry;
 
 	JUDY_METHOD_GET_OBJECT
+
+	judy_ensure_full_tier(intern);
 
 	ZEND_PARSE_PARAMETERS_START(1, 1)
 		Z_PARAM_ARRAY(keys)
@@ -5176,6 +4867,8 @@ PHP_METHOD(Judy, increment)
 	zend_long amount = 1;
 
 	JUDY_METHOD_GET_OBJECT
+
+	judy_ensure_full_tier(intern);
 
 	ZEND_PARSE_PARAMETERS_START(1, 2)
 		Z_PARAM_ZVAL(zkey)

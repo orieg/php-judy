@@ -119,6 +119,8 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 {
 	JUDY_ITERATOR_GET_OBJECT
 
+	judy_ensure_full_tier(object);
+
 	zval_ptr_dtor(&it->data);
 	ZVAL_UNDEF(&it->data);
 
@@ -289,6 +291,8 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 void judy_iterator_rewind(zend_object_iterator *iterator)
 {
 	JUDY_ITERATOR_GET_OBJECT
+
+	judy_ensure_full_tier(object);
 
 	zval_ptr_dtor(&it->data);
 	ZVAL_UNDEF(&it->data);

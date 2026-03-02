@@ -200,17 +200,11 @@ typedef struct _judy_type_ops {
 	int   (*unset)(judy_object *intern, zval *offset);
 } judy_type_ops;
 
-typedef struct _judy_kv {
-	Word_t key;
-	Word_t value;
-} judy_kv;
-
 struct _judy_object {
 	Pvoid_t         array;               /* 8 — hottest field */
 	Pvoid_t         key_index;           /* 8 */
 	Pvoid_t         hs_array;            /* 8 — for longer strings in ADAPTIVE type */
-	const judy_type_ops *ops;            /* 8 — vtable for Tiered Storage (2C) */
-	judy_kv         *linear_data;        /* 8 — Tier 1: Sorted Linear Array (6A) */
+	const judy_type_ops *ops;            /* 8 — vtable for Tiered Storage */
 	zend_long       counter;             /* 8 */
 	Word_t			next_empty;          /* 8 */
 	zend_long       type;                /* 8 */
@@ -257,13 +251,18 @@ static inline int judy_pack_short_string_internal(const char *str, size_t len, W
 zend_object *judy_object_new(zend_class_entry *ce);
 zend_object *judy_object_new_ex(zend_class_entry *ce, judy_object **ptr);
 
-zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv);
-int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value);
-int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty);
-int judy_object_unset_dimension_helper(zval *object, zval *offset);
+zval *judy_object_read_internal(judy_object *intern, zval *offset, zval *rv);
+int judy_object_write_internal(judy_object *intern, zval *offset, zval *value);
+int judy_object_has_internal(judy_object *intern, zval *offset, int check_empty);
+int judy_object_unset_internal(judy_object *intern, zval *offset);
 
 judy_packed_value *judy_pack_value(zval *value);
 int judy_unpack_value(judy_packed_value *packed, zval *rv);
+
+/* Promote tiered storage to full Judy tree (tier 2).
+   No-op if already at tier 2. Must be called before any direct Judy API
+   access on intern->array in code that isn't tier-aware. */
+void judy_ensure_full_tier(judy_object *intern);
 
 /* {{{ REGISTER_JUDY_CLASS_CONST_LONG */
 #define REGISTER_JUDY_CLASS_CONST_LONG(const_name, value) \
@@ -272,6 +271,7 @@ int judy_unpack_value(judy_packed_value *packed, zval *rv);
 
 ZEND_BEGIN_MODULE_GLOBALS(judy)
     unsigned long    max_length;
+    zend_bool        tiered_storage;
 ZEND_END_MODULE_GLOBALS(judy)
 
 ZEND_EXTERN_MODULE_GLOBALS(judy)

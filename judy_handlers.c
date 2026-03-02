@@ -26,6 +26,11 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 	judy_object *new_obj = NULL;
 	judy_object *old_obj = php_judy_object(this_ptr);
 
+	/* Promote old object to full Judy tier before cloning.
+	   Tier 0/1 data lives outside intern->array, but the clone
+	   code below iterates via Judy macros on intern->array. */
+	judy_ensure_full_tier(old_obj);
+
 	judy_object_new_ex(old_obj->std.ce, &new_obj);
 
 	/* new Judy array to populate */
@@ -175,11 +180,14 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 	new_obj->array = newJArray;
 	new_obj->type = old_obj->type;
 	new_obj->counter = old_obj->counter;
+	new_obj->storage_tier = 2;
+	new_obj->ops = old_obj->ops;
 	new_obj->is_integer_keyed = old_obj->is_integer_keyed;
 	new_obj->is_string_keyed = old_obj->is_string_keyed;
 	new_obj->is_mixed_value = old_obj->is_mixed_value;
 	new_obj->is_packed_value = old_obj->is_packed_value;
 	new_obj->is_hash_keyed = old_obj->is_hash_keyed;
+	new_obj->is_adaptive = old_obj->is_adaptive;
 
 	return &new_obj->std;
 }

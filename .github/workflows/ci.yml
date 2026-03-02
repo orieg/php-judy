@@ -77,7 +77,7 @@ jobs:
           PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-phase3-advanced.php 500000 5 2>&1 | tee advanced-benchmark-results.txt
           echo ""
           echo "=== TIERED STORAGE BENCHMARK ==="
-          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-tiered-storage.php 2>&1 | tee tiered-storage-benchmark-results.txt
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-tiered-storage.php 5 2>&1 | tee tiered-storage-benchmark-results.txt
 
       - name: Upload benchmark results
         if: always()
