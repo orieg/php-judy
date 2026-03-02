@@ -2984,8 +2984,9 @@ PHP_METHOD(Judy, deleteRange)
 					zval_ptr_dtor(value);
 					efree(value);
 				}
-				JSLD(Rc_del, intern->array, key);
-				if (Rc_del) {
+				int Rc_str_del;
+				JSLD(Rc_str_del, intern->array, key);
+				if (Rc_str_del) {
 					deleted++;
 					intern->counter--;
 				}
@@ -3003,7 +3004,7 @@ PHP_METHOD(Judy, deleteRange)
 PHP_METHOD(Judy, equals)
 {
 	zval *zother;
-	judy_object *intern, *other;
+	judy_object *other;
 
 	JUDY_METHOD_GET_OBJECT
 

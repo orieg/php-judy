@@ -131,7 +131,7 @@ ZEND_END_ARG_INFO()
 
 #define arginfo_class_Judy_values arginfo_class_Judy_keys
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_class_Judy_sumValues, 0, MAY_BE_LONG|MAY_BE_DOUBLE)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_class_Judy_sumValues, 0, 0, MAY_BE_LONG|MAY_BE_DOUBLE)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_populationCount, 0, 0, IS_LONG, 0)
