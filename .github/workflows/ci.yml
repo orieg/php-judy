@@ -404,6 +404,11 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: baselines
+
       - name: Download all test artifacts
         uses: actions/download-artifact@v4
         with:
@@ -852,6 +857,194 @@ jobs:
                   )
                   emit_tables(platform, p_latest)
                   lines.append("</details>\n")
+
+              # ── Cross-release baseline comparison ──
+              baseline_file = "baselines/latest.json"
+              if os.path.isfile(baseline_file):
+                  with open(baseline_file) as f:
+                      try:
+                          baseline = json.load(f)
+                      except json.JSONDecodeError:
+                          baseline = None
+              else:
+                  baseline = None
+
+              if baseline and baseline.get("benchmarks"):
+                  base_bm = baseline["benchmarks"]
+                  base_ver = baseline.get("metadata", {}).get(
+                      "judy_version", "?"
+                  )
+
+                  # Pick current data: primary platform, latest PHP
+                  cur_data = bench_json.get((primary, latest), {})
+                  cur_bm = cur_data.get("benchmarks", {})
+                  cur_ver = cur_data.get("metadata", {}).get(
+                      "judy_version", "?"
+                  )
+
+                  if cur_bm:
+                      threshold = 5.0
+                      all_ids = sorted(
+                          set(list(base_bm.keys()) + list(cur_bm.keys()))
+                      )
+
+                      comparisons = []
+                      new_entries = []
+                      removed_entries = []
+                      counts = {
+                          "faster": 0, "slower": 0, "same": 0,
+                          "new": 0, "removed": 0,
+                      }
+
+                      for bid in all_ids:
+                          # Only compare .judy entries (Judy's own perf)
+                          if not bid.endswith(".judy"):
+                              continue
+                          # Skip heap-only entries
+                          b_entry = base_bm.get(bid, {})
+                          c_entry = cur_bm.get(bid, {})
+                          if (b_entry.get("median_ms", 0) == 0
+                              and b_entry.get("heap_bytes")):
+                              continue
+                          if (c_entry.get("median_ms", 0) == 0
+                              and c_entry.get("heap_bytes")):
+                              continue
+
+                          b_ms = b_entry.get("median_ms")
+                          c_ms = c_entry.get("median_ms")
+
+                          # Short display name: strip .judy suffix
+                          name = bid[:-5]
+
+                          if b_ms is None and c_ms is not None:
+                              new_entries.append((name, c_ms))
+                              counts["new"] += 1
+                          elif b_ms is not None and c_ms is None:
+                              removed_entries.append((name, b_ms))
+                              counts["removed"] += 1
+                          elif b_ms is not None and c_ms is not None:
+                              if b_ms <= 0:
+                                  delta_pct = 0.0
+                                  status = "~same"
+                              else:
+                                  delta_pct = (
+                                      (c_ms - b_ms) / b_ms
+                                  ) * 100
+                                  if delta_pct < -threshold:
+                                      status = "FASTER"
+                                      counts["faster"] += 1
+                                  elif delta_pct > threshold:
+                                      status = "SLOWER"
+                                      counts["slower"] += 1
+                                  else:
+                                      status = "~same"
+                                      counts["same"] += 1
+                              comparisons.append(
+                                  (name, b_ms, c_ms, delta_pct, status)
+                              )
+
+                      # Emit section
+                      lines.append(
+                          f"### Release Comparison "
+                          f"({base_ver} \u2192 {cur_ver})\n"
+                      )
+                      lines.append(
+                          f"> Comparing {primary} PHP {latest} "
+                          f"benchmarks. Threshold: \u00b1{threshold:.0f}%.\n"
+                      )
+                      # Summary line
+                      parts = []
+                      if counts["faster"]:
+                          parts.append(
+                              f"{counts['faster']} faster"
+                          )
+                      if counts["slower"]:
+                          parts.append(
+                              f"\u26a0\ufe0f **{counts['slower']} "
+                              f"regressions**"
+                          )
+                      else:
+                          parts.append("0 regressions")
+                      if counts["same"]:
+                          parts.append(
+                              f"{counts['same']} unchanged"
+                          )
+                      if counts["new"]:
+                          parts.append(f"{counts['new']} new")
+                      if counts["removed"]:
+                          parts.append(
+                              f"{counts['removed']} removed"
+                          )
+                      lines.append(
+                          "**Summary**: " + ", ".join(parts) + "\n"
+                      )
+
+                      # Comparison table (only changed + same)
+                      if comparisons:
+                          lines.append(
+                              "| Benchmark | Baseline | Current "
+                              "| Delta | Status |"
+                          )
+                          lines.append(
+                              "|-----------|----------|---------|"
+                              "------:|--------|"
+                          )
+                          for name, b_ms, c_ms, delta, status in comparisons:
+                              b_str = fmt_ms(b_ms)
+                              c_str = fmt_ms(c_ms)
+                              if abs(delta) < 0.05:
+                                  d_str = "0.0%"
+                              elif delta > 0:
+                                  d_str = f"+{delta:.1f}%"
+                              else:
+                                  d_str = f"{delta:.1f}%"
+                              if status == "FASTER":
+                                  s_str = "\u2705 **FASTER**"
+                              elif status == "SLOWER":
+                                  s_str = "\u26a0\ufe0f **SLOWER**"
+                              else:
+                                  s_str = "~same"
+                              lines.append(
+                                  f"| {name} | {b_str} | {c_str} "
+                                  f"| {d_str} | {s_str} |"
+                              )
+                          lines.append("")
+
+                      # Collapsible: new benchmarks
+                      if new_entries:
+                          lines.append(
+                              f"<details><summary>"
+                              f"{counts['new']} new benchmarks "
+                              f"(not in baseline)</summary>\n"
+                          )
+                          lines.append(
+                              "| Benchmark | Current |"
+                          )
+                          lines.append("|-----------|---------|")
+                          for name, c_ms in new_entries:
+                              lines.append(
+                                  f"| {name} | {fmt_ms(c_ms)} |"
+                              )
+                          lines.append("")
+                          lines.append("</details>\n")
+
+                      # Collapsible: removed benchmarks
+                      if removed_entries:
+                          lines.append(
+                              f"<details><summary>"
+                              f"{counts['removed']} removed benchmarks"
+                              f"</summary>\n"
+                          )
+                          lines.append(
+                              "| Benchmark | Baseline |"
+                          )
+                          lines.append("|-----------|----------|")
+                          for name, b_ms in removed_entries:
+                              lines.append(
+                                  f"| {name} | {fmt_ms(b_ms)} |"
+                              )
+                          lines.append("")
+                          lines.append("</details>\n")
 
               # ── Collapsible raw benchmark output ──
               lines.append("<details><summary>Full benchmark output</summary>\n")
