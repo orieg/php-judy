@@ -1274,12 +1274,10 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		zend_long lval = zval_get_long(value);
 
 		if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
-			Pvoid_t *PExisting;
-			JLG(PExisting, intern->array, sso_idx);
 			JLI(PValue, intern->array, sso_idx);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (PExisting == NULL) {
-					/* Register in key_index for iteration */
+				if (*(Word_t *)PValue == 0) {
+					/* New key — register in key_index for iteration */
 					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
 					if (JUDY_UNLIKELY(KValue == PJERR)) {
 						JLD(res, intern->array, sso_idx);
@@ -1293,11 +1291,9 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 				res = FAILURE;
 			}
 		} else {
-			Pvoid_t *HExisting;
-			JHSG(HExisting, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			JHSI(PValue, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (HExisting == NULL) {
+				if (*(Word_t *)PValue == 0) {
 					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
 					if (JUDY_UNLIKELY(KValue == PJERR)) {
 						int Rc_tmp;
@@ -1325,11 +1321,9 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		Word_t sso_idx;
 
 		if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
-			Pvoid_t *PExisting;
-			JLG(PExisting, intern->array, sso_idx);
 			JLI(PValue, intern->array, sso_idx);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (PExisting != NULL) {
+				if (*(Pvoid_t *)PValue != NULL) {
 					zval *old_value = JUDY_MVAL_READ(PValue);
 					zval_ptr_dtor(old_value);
 					efree(old_value);
@@ -1349,11 +1343,9 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 				res = FAILURE;
 			}
 		} else {
-			Pvoid_t *HExisting;
-			JHSG(HExisting, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			JHSI(PValue, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (HExisting != NULL) {
+				if (*(Pvoid_t *)PValue != NULL) {
 					zval *old_value = JUDY_MVAL_READ(PValue);
 					zval_ptr_dtor(old_value);
 					efree(old_value);
