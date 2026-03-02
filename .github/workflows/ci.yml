@@ -47,17 +47,6 @@ jobs:
           path: junit.xml
           if-no-files-found: ignore
 
-      - name: Run benchmarks
-        run: |
-          JUDY_SO="$(pwd)/modules/judy.so"
-          mkdir -p /tmp/php-judy-ini
-          echo "extension=$JUDY_SO" > /tmp/php-judy-ini/judy.ini
-
-          # Unified benchmark: all suites, JSON output for cross-version comparison
-          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench.php \
-            --json bench.json --size 500000 --iterations 7 --suite all \
-            2>&1 | tee benchmark-output.txt
-
       - name: Install PIE
         if: matrix.php-version == '8.4'
         run: |
@@ -96,6 +85,17 @@ jobs:
             baseline-bench.json
             baseline-benchmark-output.txt
           if-no-files-found: ignore
+
+      - name: Run benchmarks
+        run: |
+          JUDY_SO="$(pwd)/modules/judy.so"
+          mkdir -p /tmp/php-judy-ini
+          echo "extension=$JUDY_SO" > /tmp/php-judy-ini/judy.ini
+
+          # Unified benchmark: all suites, JSON output for cross-version comparison
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench.php \
+            --json bench.json --size 500000 --iterations 7 --suite all \
+            2>&1 | tee benchmark-output.txt
 
       - name: Upload benchmark results
         if: always()
@@ -941,6 +941,7 @@ jobs:
 
                   if cur_bm:
                       threshold = 10.0
+                      min_ms = 2.0  # ignore sub-2ms timings (noise)
                       all_ids = sorted(
                           set(list(base_bm.keys()) + list(cur_bm.keys()))
                       )
@@ -983,6 +984,11 @@ jobs:
                               if b_ms <= 0:
                                   delta_pct = 0.0
                                   status = "~same"
+                              elif b_ms < min_ms and c_ms < min_ms:
+                                  # Sub-threshold: too small to compare
+                                  delta_pct = 0.0
+                                  status = "~same"
+                                  counts["same"] += 1
                               else:
                                   delta_pct = (
                                       (c_ms - b_ms) / b_ms
@@ -1010,9 +1016,9 @@ jobs:
                               f"> Baseline: v{base_ver} via "
                               f"`pie install` on **same CI "
                               f"runner**. "
-                              f"Comparing {primary} PHP {latest} "
-                              f"benchmarks. "
-                              f"Threshold: \u00b1{threshold:.0f}%.\n"
+                              f"Comparing {primary} PHP {latest}. "
+                              f"Threshold: \u00b1{threshold:.0f}% "
+                              f"(entries < {min_ms:.0f} ms ignored).\n"
                           )
                       else:
                           lines.append(
