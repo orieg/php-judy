@@ -497,18 +497,50 @@ jobs:
 
           # ── Benchmark Results (from JSON) ─────────────────────────
 
-          def format_ratio(judy_val, php_val):
-              """Ratio = Judy / PHP. Bold when Judy wins (ratio <= 0.95)."""
-              if judy_val is None or php_val is None or php_val == 0:
+          def fmt_ms(ms):
+              """Format milliseconds for display."""
+              if ms is None:
                   return "-"
-              ratio = judy_val / php_val
-              if ratio < 0.01:
-                  text = f"{ratio:.3f}x"
-              elif ratio < 1:
-                  text = f"{ratio:.2f}x"
+              if ms >= 1:
+                  return f"{ms:.1f} ms"
+              return f"{ms:.2f} ms"
+
+          def fmt_speedup(judy_ms, php_ms):
+              """Speedup = PHP / Judy. >1 = Judy faster.
+              Returns (judy_str, php_str, speedup_str)."""
+              if judy_ms is None or php_ms is None:
+                  return "-", "-", "-"
+              j_str = fmt_ms(judy_ms)
+              p_str = fmt_ms(php_ms)
+              if judy_ms <= 0:
+                  return j_str, p_str, "**\u221e**"
+              s = php_ms / judy_ms
+              if s >= 100:
+                  text = f"{s:.0f}x"
+              elif s >= 1.05:
+                  text = f"{s:.1f}x"
+              elif s >= 0.95:
+                  text = "~1.0x"
               else:
-                  text = f"{ratio:.1f}x"
-              return f"**{text}**" if ratio <= 0.95 else text
+                  text = f"{s:.1f}x"
+              return j_str, p_str, f"**{text}**" if s >= 1.05 else text
+
+          def fmt_speedup_only(judy_ms, php_ms):
+              """Compact speedup for cross-version tables."""
+              if judy_ms is None or php_ms is None:
+                  return "-"
+              if judy_ms <= 0:
+                  return "**\u221e**"
+              s = php_ms / judy_ms
+              if s >= 100:
+                  text = f"{s:.0f}x"
+              elif s >= 1.05:
+                  text = f"{s:.1f}x"
+              elif s >= 0.95:
+                  text = "~1.0x"
+              else:
+                  text = f"{s:.1f}x"
+              return f"**{text}**" if s >= 1.05 else text
 
           def fmt_bytes(b):
               if b is None or b <= 0:
@@ -519,11 +551,68 @@ jobs:
                   return f"{b / (1 << 10):.1f} KB"
               return f"{b} B"
 
+          def fmt_mem_savings(judy_bytes, php_bytes):
+              if judy_bytes is None or php_bytes is None:
+                  return "-"
+              if judy_bytes <= 0:
+                  return "**\u221e**"
+              ratio = php_bytes / judy_bytes
+              if ratio >= 1.05:
+                  return f"**{ratio:.1f}x less**"
+              elif ratio >= 0.95:
+                  return "~1.0x"
+              return f"{ratio:.1f}x"
+
           def get_metric(benchmarks, key, field="median_ms"):
               entry = benchmarks.get(key)
               if entry is None:
                   return None
               return entry.get(field)
+
+          # Type definitions with human-readable labels
+          all_types = [
+              ("bitset", "Bitset"),
+              ("int_to_int", "Int to Int"),
+              ("int_to_mixed", "Int to Mixed"),
+              ("int_to_packed", "Int to Packed"),
+              ("string_to_int", "String to Int"),
+              ("string_to_mixed", "String to Mixed"),
+              ("string_to_int_hash", "String to Int (Hash)"),
+              ("string_to_mixed_hash", "String to Mixed (Hash)"),
+              ("string_to_int_adaptive", "String to Int (Adaptive)"),
+              ("string_to_mixed_adaptive", "String to Mixed (Adaptive)"),
+          ]
+          # Representative subset for the main view
+          main_types = [
+              ("bitset", "Bitset"),
+              ("int_to_int", "Int to Int"),
+              ("int_to_mixed", "Int to Mixed"),
+              ("string_to_int", "String to Int"),
+              ("string_to_int_adaptive", "String to Int (Adaptive)"),
+          ]
+
+          api_ops = [
+              ("api.putAll.int_to_int", "putAll()"),
+              ("api.fromArray.int_to_int", "fromArray()"),
+              ("api.toArray.int_to_int", "toArray()"),
+              ("api.getAll.int_to_int", "getAll()"),
+              ("api.keys.int_to_int", "keys()"),
+              ("api.values.int_to_int", "values()"),
+              ("api.sumValues.int_to_int", "sumValues()"),
+              ("api.populationCount.int_to_int", "populationCount()"),
+              ("api.deleteRange.int_to_int", "deleteRange()"),
+              ("api.equals.int_to_int", "equals()"),
+              ("api.setop.union.bitset", "union() Bitset"),
+              ("api.setop.intersect.bitset", "intersect() Bitset"),
+              ("api.setop.diff.bitset", "diff() Bitset"),
+              ("api.setop.xor.bitset", "xor() Bitset"),
+              ("adv.forEach.int_to_int", "forEach() Int\u2192Int"),
+              ("adv.filter.int_to_int", "filter() Int\u2192Int"),
+              ("adv.map.int_to_int", "map() Int\u2192Int"),
+              ("adv.forEach.string_to_int", "forEach() Str\u2192Int"),
+              ("adv.filter.string_to_int", "filter() Str\u2192Int"),
+              ("adv.map.string_to_int", "map() Str\u2192Int"),
+          ]
 
           # Load JSON benchmark data per (platform, php_ver)
           bench_json = {}
@@ -551,142 +640,220 @@ jobs:
                       bench_text[(platform, php_ver)] = f.read().strip()
 
           if bench_json:
-              lines.append("")
-              lines.append("## Benchmark Summary\n")
-              lines.append(
-                  "Ratio = Judy median / PHP array median. "
-                  "**Bold** = Judy wins (\u22640.95x). "
-                  "Values are median of N iterations, 500K elements.\n"
-              )
-
-              # Group by platform
+              # Determine platforms and versions
               platforms = sorted(set(p for p, _ in bench_json.keys()))
-
-              # Core types to report
-              core_int_types = [
-                  ("bitset", "BITSET"),
-                  ("int_to_int", "INT_TO_INT"),
-                  ("int_to_mixed", "INT_TO_MIXED"),
-                  ("int_to_packed", "INT_TO_PACKED"),
-              ]
-              core_str_types = [
-                  ("string_to_int", "STR_TO_INT"),
-                  ("string_to_mixed", "STR_TO_MIX"),
-                  ("string_to_int_hash", "STR_INT_HASH"),
-                  ("string_to_mixed_hash", "STR_MIX_HASH"),
-                  ("string_to_int_adaptive", "STR_INT_ADPTV"),
-                  ("string_to_mixed_adaptive", "STR_MIX_ADPTV"),
-              ]
-
+              platform_versions = {}
               for platform in platforms:
-                  versions = sorted(
+                  platform_versions[platform] = sorted(
                       [v for p, v in bench_json.keys() if p == platform],
                       key=lambda v: [int(x) for x in v.split(".")]
                   )
-                  if not versions:
-                      continue
 
-                  ver_hdr = " | ".join(f"PHP {v}" for v in versions)
+              # Get metadata from the latest version of the primary platform
+              primary = "Linux" if "Linux" in platforms else platforms[0]
+              latest = platform_versions[primary][-1]
+              meta = bench_json.get((primary, latest), {}).get("metadata", {})
+              judy_ver = meta.get("judy_version", "?")
+              elem_size = meta.get("size", 500000)
+              iters = meta.get("iterations", 3)
 
-                  # Core types table: Write / Read / Memory ratios
-                  lines.append(f"### Core Types \u2014 {platform}\n")
-                  lines.append(f"| Type | Metric | {ver_hdr} |")
-                  lines.append("|---|---|" + "|".join("---" for _ in versions) + "|")
+              lines.append("")
+              lines.append("## Benchmark Results\n")
+              lines.append(
+                  f"> {elem_size:,} elements, {iters} iterations (median), "
+                  f"Judy {judy_ver}\n"
+              )
 
-                  for type_id, label in core_int_types + core_str_types:
-                      for metric, metric_label in [("write", "Write"), ("read", "Read"), ("iter", "Iter")]:
-                          cells = []
-                          for v in versions:
-                              data = bench_json.get((platform, v), {})
-                              bm = data.get("benchmarks", {})
-                              j_ms = get_metric(bm, f"core.{type_id}.{metric}.judy")
-                              p_ms = get_metric(bm, f"core.{type_id}.{metric}.php")
-                              cells.append(format_ratio(j_ms, p_ms))
-                          # Skip row if all cells are "-"
-                          if all(c == "-" for c in cells):
-                              continue
-                          lines.append(f"| {label} | {metric_label} | " + " | ".join(cells) + " |")
+              # ── Run Status grid ──
+              all_versions = sorted(
+                  set(v for _, v in bench_json.keys()),
+                  key=lambda v: [int(x) for x in v.split(".")]
+              )
+              lines.append("### Run Status\n")
+              ver_hdr = " | ".join(f"PHP {v}" for v in all_versions)
+              lines.append(f"| Platform | {ver_hdr} |")
+              lines.append("|---|" + "|".join("---" for _ in all_versions) + "|")
+              for platform in platforms:
+                  cells = []
+                  for v in all_versions:
+                      if (platform, v) in bench_json:
+                          cells.append("\u2705")
+                      else:
+                          cells.append("\u2014")
+                  lines.append(f"| {platform} | " + " | ".join(cells) + " |")
+              lines.append("")
 
-                      # Memory ratio
-                      cells = []
-                      for v in versions:
-                          data = bench_json.get((platform, v), {})
-                          bm = data.get("benchmarks", {})
-                          j_heap = get_metric(bm, f"core.{type_id}.heap.judy", "heap_bytes")
-                          p_heap = get_metric(bm, f"core.{type_id}.heap.php", "heap_bytes")
-                          cells.append(format_ratio(j_heap, p_heap))
-                      if not all(c == "-" for c in cells):
-                          lines.append(f"| {label} | Memory | " + " | ".join(cells) + " |")
+              # ── Helper to emit tables for a given platform/version ──
+              def emit_tables(platform, ver, heading_suffix=""):
+                  data = bench_json.get((platform, ver), {})
+                  bm = data.get("benchmarks", {})
+                  if not bm:
+                      return
 
+                  tag = f" ({platform}, PHP {ver})"
+
+                  # Memory Efficiency
+                  lines.append(f"### Memory Efficiency{tag}{heading_suffix}\n")
+                  lines.append("| Type | Judy | PHP array | Savings |")
+                  lines.append("|------|-----:|----------:|---------|")
+                  for type_id, label in all_types:
+                      j_heap = get_metric(bm, f"core.{type_id}.heap.judy", "heap_bytes")
+                      p_heap = get_metric(bm, f"core.{type_id}.heap.php", "heap_bytes")
+                      if j_heap is None and p_heap is None:
+                          continue
+                      lines.append(
+                          f"| {label} | {fmt_bytes(j_heap)} "
+                          f"| {fmt_bytes(p_heap)} "
+                          f"| {fmt_mem_savings(j_heap, p_heap)} |"
+                      )
                   lines.append("")
 
-                  # API highlights: show a few key speedups
-                  api_ops = [
-                      ("api.putAll.int_to_int", "putAll()"),
-                      ("api.fromArray.int_to_int", "fromArray()"),
-                      ("api.toArray.int_to_int", "toArray()"),
-                      ("api.getAll.int_to_int", "getAll()"),
-                      ("api.keys.int_to_int", "keys()"),
-                      ("api.values.int_to_int", "values()"),
-                      ("api.sumValues.int_to_int", "sumValues()"),
-                      ("api.deleteRange.int_to_int", "deleteRange()"),
-                      ("api.equals.int_to_int", "equals()"),
-                  ]
-                  set_ops = [
-                      ("api.setop.union.bitset", "union() BITSET"),
-                      ("api.setop.intersect.bitset", "intersect() BITSET"),
-                      ("api.setop.diff.bitset", "diff() BITSET"),
-                      ("api.setop.xor.bitset", "xor() BITSET"),
-                  ]
-                  adv_ops = [
-                      ("adv.forEach.int_to_int", "forEach() I2I"),
-                      ("adv.filter.int_to_int", "filter() I2I"),
-                      ("adv.map.int_to_int", "map() I2I"),
-                      ("adv.forEach.string_to_int", "forEach() S2I"),
-                      ("adv.filter.string_to_int", "filter() S2I"),
-                      ("adv.map.string_to_int", "map() S2I"),
-                  ]
-
-                  has_api = False
-                  for prefix, _ in api_ops + set_ops + adv_ops:
-                      for v in versions:
-                          data = bench_json.get((platform, v), {})
-                          bm = data.get("benchmarks", {})
-                          if f"{prefix}.judy" in bm:
-                              has_api = True
-                              break
-                      if has_api:
-                          break
-
+                  # API Speedups
+                  has_api = any(
+                      get_metric(bm, f"{prefix}.judy") is not None
+                      for prefix, _ in api_ops
+                  )
                   if has_api:
-                      lines.append(f"### API & Advanced \u2014 {platform}\n")
+                      lines.append(f"### API Speedups{tag}{heading_suffix}\n")
                       lines.append(
-                          "Speedup = PHP loop median / Judy C-level median.\n"
+                          "Speedup = PHP time / Judy time. "
+                          "**Bold** = Judy faster.\n"
                       )
-                      lines.append(f"| Operation | {ver_hdr} |")
-                      lines.append("|---|" + "|".join("---" for _ in versions) + "|")
+                      lines.append("| Operation | Judy | PHP | Speedup |")
+                      lines.append("|-----------|-----:|----:|---------|")
+                      for prefix, label in api_ops:
+                          j_ms = get_metric(bm, f"{prefix}.judy")
+                          p_ms = get_metric(bm, f"{prefix}.php")
+                          if j_ms is None:
+                              continue
+                          j_str, p_str, s_str = fmt_speedup(j_ms, p_ms)
+                          lines.append(
+                              f"| {label} | {j_str} | {p_str} | {s_str} |"
+                          )
+                      lines.append("")
 
-                      for prefix, label in api_ops + set_ops + adv_ops:
+                  # Core Types (representative in main, all in detail)
+                  def emit_core_table(type_list, detail_tag=""):
+                      lines.append(f"### Core Types{tag}{detail_tag}{heading_suffix}\n")
+                      lines.append(
+                          "Speedup = PHP time / Judy time. "
+                          "**Bold** = Judy faster.\n"
+                      )
+                      lines.append("| Type | Op | Judy | PHP array | Speedup |")
+                      lines.append("|------|----|-----:|----------:|---------|")
+                      for type_id, label in type_list:
+                          for metric, op_label in [
+                              ("write", "Write"), ("read", "Read"),
+                              ("iter", "Iter"), ("free", "Free"),
+                          ]:
+                              j_ms = get_metric(bm, f"core.{type_id}.{metric}.judy")
+                              p_ms = get_metric(bm, f"core.{type_id}.{metric}.php")
+                              if j_ms is None and p_ms is None:
+                                  continue
+                              j_str, p_str, s_str = fmt_speedup(j_ms, p_ms)
+                              lines.append(
+                                  f"| {label} | {op_label} "
+                                  f"| {j_str} | {p_str} | {s_str} |"
+                              )
+                      lines.append("")
+
+                  emit_core_table(main_types)
+
+                  # Collapsible: all types
+                  extra_types = [t for t in all_types if t not in main_types]
+                  has_extra = any(
+                      get_metric(bm, f"core.{tid}.write.judy") is not None
+                      for tid, _ in extra_types
+                  )
+                  if has_extra:
+                      lines.append(
+                          "<details><summary>All types detail"
+                          "</summary>\n"
+                      )
+                      emit_core_table(all_types, " \u2014 All")
+                      lines.append("</details>\n")
+
+              # ── Primary platform (Linux) ── shown expanded ──
+              emit_tables(primary, latest)
+
+              # ── Cross-version detail per platform ──
+              for platform in platforms:
+                  versions = platform_versions[platform]
+                  if len(versions) <= 1:
+                      continue
+                  lines.append(
+                      f"<details><summary>Cross-version detail "
+                      f"({platform})</summary>\n"
+                  )
+                  ver_hdr = " | ".join(f"PHP {v}" for v in versions)
+
+                  # Core cross-version table
+                  lines.append(f"#### Core Types \u2014 {platform}\n")
+                  lines.append(
+                      "Each cell: Judy ms (speedup vs PHP array).\n"
+                  )
+                  lines.append(f"| Type | Op | {ver_hdr} |")
+                  lines.append("|---|---|" + "|".join("---" for _ in versions) + "|")
+                  for type_id, label in all_types:
+                      for metric, op_label in [("write", "Write"), ("read", "Read")]:
                           cells = []
                           any_data = False
                           for v in versions:
                               data = bench_json.get((platform, v), {})
                               bm = data.get("benchmarks", {})
-                              j_ms = get_metric(bm, f"{prefix}.judy")
-                              p_ms = get_metric(bm, f"{prefix}.php")
-                              if j_ms and p_ms and j_ms > 0:
-                                  speedup = p_ms / j_ms
-                                  text = f"{speedup:.1f}x"
-                                  cells.append(f"**{text}**" if speedup >= 1.5 else text)
+                              j_ms = get_metric(bm, f"core.{type_id}.{metric}.judy")
+                              p_ms = get_metric(bm, f"core.{type_id}.{metric}.php")
+                              if j_ms is not None:
+                                  s = fmt_speedup_only(j_ms, p_ms)
+                                  cells.append(f"{fmt_ms(j_ms)} ({s})")
                                   any_data = True
                               else:
                                   cells.append("-")
                           if any_data:
-                              lines.append(f"| {label} | " + " | ".join(cells) + " |")
+                              lines.append(
+                                  f"| {label} | {op_label} | "
+                                  + " | ".join(cells) + " |"
+                              )
+                  lines.append("")
 
-                      lines.append("")
+                  # API cross-version table
+                  lines.append(f"#### API \u2014 {platform}\n")
+                  lines.append(f"| Operation | {ver_hdr} |")
+                  lines.append("|---|" + "|".join("---" for _ in versions) + "|")
+                  for prefix, label in api_ops:
+                      cells = []
+                      any_data = False
+                      for v in versions:
+                          data = bench_json.get((platform, v), {})
+                          bm = data.get("benchmarks", {})
+                          j_ms = get_metric(bm, f"{prefix}.judy")
+                          p_ms = get_metric(bm, f"{prefix}.php")
+                          if j_ms is not None:
+                              s = fmt_speedup_only(j_ms, p_ms)
+                              cells.append(f"{fmt_ms(j_ms)} ({s})")
+                              any_data = True
+                          else:
+                              cells.append("-")
+                      if any_data:
+                          lines.append(
+                              f"| {label} | " + " | ".join(cells) + " |"
+                          )
+                  lines.append("")
+                  lines.append("</details>\n")
 
-              # Collapsible raw benchmark output (latest PHP per platform)
+              # ── Secondary platforms (e.g. Windows) in collapsible ──
+              for platform in platforms:
+                  if platform == primary:
+                      continue
+                  p_latest = platform_versions[platform][-1]
+                  lines.append(
+                      f"<details><summary>{platform} results "
+                      f"(PHP {p_latest})</summary>\n"
+                  )
+                  emit_tables(platform, p_latest)
+                  lines.append("</details>\n")
+
+              # ── Collapsible raw benchmark output ──
               lines.append("<details><summary>Full benchmark output</summary>\n")
               for platform in platforms:
                   versions = sorted(
@@ -694,10 +861,10 @@ jobs:
                       key=lambda v: [int(x) for x in v.split(".")]
                   )
                   if versions:
-                      latest = versions[-1]
-                      text = bench_text.get((platform, latest), "")
+                      p_latest = versions[-1]
+                      text = bench_text.get((platform, p_latest), "")
                       if text:
-                          lines.append(f"#### {platform} \u2014 PHP {latest}\n")
+                          lines.append(f"#### {platform} \u2014 PHP {p_latest}\n")
                           lines.append("```")
                           lines.append(text)
                           lines.append("```\n")

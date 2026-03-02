@@ -484,6 +484,7 @@ $t_php = bench_median(function() use ($int_data) {
 }, $iterations);
 record('api.putAll.int_to_int.judy', $t_judy['median'], $t_judy['runs']);
 record('api.putAll.int_to_int.php',  $t_php['median'],  $t_php['runs']);
+$t_putall_php = $t_php; // save for fromArray comparison (same PHP-equivalent operation)
 printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n",
     'putAll()', sprintf('%.2f', $t_judy['median']),
     sprintf('%.2f', $t_php['median']), fmt_ratio($t_php['median'], $t_judy['median']));
@@ -493,9 +494,10 @@ $t_judy = bench_median(function() use ($int_data) {
     Judy::fromArray(Judy::INT_TO_INT, $int_data);
 }, $iterations);
 record('api.fromArray.int_to_int.judy', $t_judy['median'], $t_judy['runs']);
+record('api.fromArray.int_to_int.php',  $t_putall_php['median'],  $t_putall_php['runs']);
 printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n",
     'fromArray()', sprintf('%.2f', $t_judy['median']),
-    sprintf('%.2f', $t_php['median']), fmt_ratio($t_php['median'], $t_judy['median']));
+    sprintf('%.2f', $t_putall_php['median']), fmt_ratio($t_putall_php['median'], $t_judy['median']));
 
 // toArray
 $j_read = Judy::fromArray(Judy::INT_TO_INT, $int_data);
