@@ -11,12 +11,12 @@
  *
  * Usage:
  *   php examples/judy-bench-phase3-advanced.php [size] [iterations]
- *   php examples/judy-bench-phase3-advanced.php 200000 5
+ *   php examples/judy-bench-phase3-advanced.php 500000 5
  */
 
 ini_set('memory_limit', '2G');
 
-$size       = isset($argv[1]) ? (int)$argv[1] : 200000;
+$size       = isset($argv[1]) ? (int)$argv[1] : 500000;
 $iterations = isset($argv[2]) ? (int)$argv[2] : 5;
 
 // ── Helpers ────────────────────────────────────────────────────────────────

@@ -74,7 +74,7 @@ jobs:
           PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-phase2-api.php 500000 5 2>&1 | tee phase2-api-benchmark-results.txt
           echo ""
           echo "=== ADVANCED BENCHMARK ==="
-          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-phase3-advanced.php 200000 5 2>&1 | tee advanced-benchmark-results.txt
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-phase3-advanced.php 500000 5 2>&1 | tee advanced-benchmark-results.txt
 
       - name: Upload benchmark results
         if: always()
@@ -852,7 +852,7 @@ jobs:
               lines.append(
                   "C-level forEach/filter/map, string set operations, "
                   "and adaptive SSO type comparison "
-                  "(200K elements, 5 iterations median, Linux only).\n"
+                  "(500K elements, 5 iterations median, Linux only).\n"
               )
               latest_ver = sorted(
                   advanced_data.keys(),
