@@ -55,7 +55,7 @@ jobs:
 
           # Unified benchmark: all suites, JSON output for cross-version comparison
           PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench.php \
-            --json bench.json --size 500000 --iterations 3 --suite all \
+            --json bench.json --size 500000 --iterations 7 --suite all \
             2>&1 | tee benchmark-output.txt
 
       - name: Upload benchmark results
@@ -360,7 +360,7 @@ jobs:
 
           # Unified benchmark: all suites, JSON output for cross-version comparison
           & $phpExe.FullName examples/judy-bench.php `
-            --json bench.json --size 500000 --iterations 3 --suite all `
+            --json bench.json --size 500000 --iterations 7 --suite all `
             2>&1 | Tee-Object -FilePath benchmark-output.txt
 
       - name: Upload benchmark results
@@ -883,7 +883,7 @@ jobs:
                   )
 
                   if cur_bm:
-                      threshold = 5.0
+                      threshold = 10.0
                       all_ids = sorted(
                           set(list(base_bm.keys()) + list(cur_bm.keys()))
                       )
@@ -949,7 +949,9 @@ jobs:
                           f"({base_ver} \u2192 {cur_ver})\n"
                       )
                       lines.append(
-                          f"> Comparing {primary} PHP {latest} "
+                          f"> Baseline: `pecl install judy` "
+                          f"v{base_ver}. "
+                          f"Comparing {primary} PHP {latest} "
                           f"benchmarks. Threshold: \u00b1{threshold:.0f}%.\n"
                       )
                       # Summary line

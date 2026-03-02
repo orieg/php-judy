@@ -139,19 +139,9 @@ function record(string $id, float $median_ms, array $runs = [], ?int $heap = nul
 
 // ── Detect available types ──────────────────────────────────────────────────
 
-$has_packed = false;
-try {
-    $tmp = new Judy(Judy::INT_TO_PACKED);
-    unset($tmp);
-    $has_packed = true;
-} catch (Exception $e) {}
-
-$has_adaptive = false;
-try {
-    $tmp = new Judy(Judy::STRING_TO_INT_ADAPTIVE);
-    unset($tmp);
-    $has_adaptive = true;
-} catch (Exception $e) {}
+$has_packed  = defined('Judy::INT_TO_PACKED');
+$has_hash    = defined('Judy::STRING_TO_INT_HASH');
+$has_adaptive = defined('Judy::STRING_TO_INT_ADAPTIVE');
 
 // ── Header ──────────────────────────────────────────────────────────────────
 
@@ -437,10 +427,12 @@ bench_str_type('core.string_to_int', 'STRING_TO_INT', Judy::STRING_TO_INT,
     $str_int_data, $str_keys, $size, $iterations, $col);
 bench_str_type('core.string_to_mixed', 'STRING_TO_MIXED', Judy::STRING_TO_MIXED,
     $str_mixed_data, $str_mix_keys, $size, $iterations, $col);
-bench_str_type('core.string_to_int_hash', 'STR_TO_INT_HASH', Judy::STRING_TO_INT_HASH,
-    $str_int_data, $str_keys, $size, $iterations, $col);
-bench_str_type('core.string_to_mixed_hash', 'STR_TO_MIX_HASH', Judy::STRING_TO_MIXED_HASH,
-    $str_mixed_data, $str_mix_keys, $size, $iterations, $col);
+if ($has_hash) {
+    bench_str_type('core.string_to_int_hash', 'STR_TO_INT_HASH', Judy::STRING_TO_INT_HASH,
+        $str_int_data, $str_keys, $size, $iterations, $col);
+    bench_str_type('core.string_to_mixed_hash', 'STR_TO_MIX_HASH', Judy::STRING_TO_MIXED_HASH,
+        $str_mixed_data, $str_mix_keys, $size, $iterations, $col);
+}
 
 if ($has_adaptive) {
     bench_str_type('core.string_to_int_adaptive', 'STR_INT_ADAPTIVE', Judy::STRING_TO_INT_ADAPTIVE,

@@ -1,1325 +1,533 @@
 {
     "metadata": {
         "php_version": "8.1.34",
-        "judy_version": "2.4.0",
+        "judy_version": "2.3.0",
         "platform": "Linux aarch64",
-        "date": "2026-03-02T19:04:53+00:00",
+        "date": "2026-03-02T19:35:54+00:00",
         "size": 500000,
-        "iterations": 3,
-        "suite": "all"
+        "iterations": 7,
+        "suite": "core"
     },
     "benchmarks": {
         "core.bitset.write.judy": {
-            "median_ms": 20.3899,
+            "median_ms": 14.4574,
             "runs_ms": [
-                19.379,
-                20.3899,
-                21.6068
+                13.684,
+                13.9123,
+                14.1853,
+                14.4574,
+                14.6218,
+                15.6025,
+                16.8803
             ]
         },
         "core.bitset.write.php": {
-            "median_ms": 12.6588,
+            "median_ms": 7.0422,
             "runs_ms": [
-                9.6033,
-                12.6588,
-                14.1129
+                6.6351,
+                6.7017,
+                6.8533,
+                7.0422,
+                7.1894,
+                7.5897,
+                7.872
             ]
         },
         "core.bitset.read.judy": {
-            "median_ms": 12.1564,
+            "median_ms": 9.2592,
             "runs_ms": [
-                11.1432,
-                12.1564,
-                14.8875
+                9.164,
+                9.1989,
+                9.2173,
+                9.2592,
+                9.5914,
+                9.8002,
+                9.9044
             ]
         },
         "core.bitset.read.php": {
-            "median_ms": 6.8662,
+            "median_ms": 4.1493,
             "runs_ms": [
-                6.417,
-                6.8662,
-                10.4553
+                4.1175,
+                4.1199,
+                4.1225,
+                4.1493,
+                4.189,
+                4.413,
+                4.5252
             ]
         },
         "core.bitset.iter.judy": {
-            "median_ms": 35.9396,
+            "median_ms": 37.3025,
             "runs_ms": [
-                34.2431,
-                35.9396,
-                37.1648
+                35.9056,
+                36.0854,
+                36.4738,
+                37.3025,
+                37.6983,
+                37.8071,
+                39.5089
             ]
         },
         "core.bitset.iter.php": {
-            "median_ms": 2.8653,
+            "median_ms": 2.5512,
             "runs_ms": [
-                2.7341,
-                2.8653,
-                2.9816
+                2.543,
+                2.5478,
+                2.5511,
+                2.5512,
+                2.5576,
+                2.5785,
+                3.4816
             ]
         },
         "core.bitset.free.judy": {
-            "median_ms": 0.0104,
+            "median_ms": 0.0126,
             "runs_ms": [
-                0.0094,
-                0.0104,
-                0.0134
+                0.0115,
+                0.0115,
+                0.0118,
+                0.0126,
+                0.0133,
+                0.0145,
+                0.0162
             ]
         },
         "core.bitset.free.php": {
-            "median_ms": 0.3459,
+            "median_ms": 0.2575,
             "runs_ms": [
-                0.2963,
-                0.3459,
-                0.3474
+                0.2421,
+                0.2458,
+                0.257,
+                0.2575,
+                0.2622,
+                0.269,
+                0.2785
             ]
         },
         "core.bitset.heap.judy": {
             "median_ms": 0,
-            "heap_bytes": 65696
+            "heap_bytes": 128
         },
         "core.bitset.heap.php": {
             "median_ms": 0,
             "heap_bytes": 16781392
         },
         "core.int_to_int.write.judy": {
-            "median_ms": 25.0646,
+            "median_ms": 19.0829,
             "runs_ms": [
-                24.4486,
-                25.0646,
-                27.9498
+                18.5577,
+                18.7057,
+                18.7728,
+                19.0829,
+                19.2148,
+                19.3463,
+                19.3905
             ]
         },
         "core.int_to_int.write.php": {
-            "median_ms": 8.131,
+            "median_ms": 7.0103,
             "runs_ms": [
-                7.6181,
-                8.131,
-                8.244
+                6.8362,
+                6.8905,
+                6.9162,
+                7.0103,
+                7.0817,
+                7.8012,
+                8.7097
             ]
         },
         "core.int_to_int.read.judy": {
-            "median_ms": 12.229,
+            "median_ms": 9.9654,
             "runs_ms": [
-                11.817,
-                12.229,
-                12.6452
+                9.9214,
+                9.9339,
+                9.9368,
+                9.9654,
+                10.1204,
+                10.2743,
+                10.295
             ]
         },
         "core.int_to_int.read.php": {
-            "median_ms": 4.3566,
+            "median_ms": 4.4147,
             "runs_ms": [
-                4.1795,
-                4.3566,
-                4.8815
+                4.4096,
+                4.4108,
+                4.4133,
+                4.4147,
+                4.4153,
+                4.4166,
+                4.424
             ]
         },
         "core.int_to_int.iter.judy": {
-            "median_ms": 40.9961,
+            "median_ms": 38.2835,
             "runs_ms": [
-                38.9011,
-                40.9961,
-                41.635
+                37.8392,
+                37.8743,
+                38.004,
+                38.2835,
+                38.3672,
+                38.725,
+                40.626
             ]
         },
         "core.int_to_int.iter.php": {
-            "median_ms": 2.8678,
+            "median_ms": 2.6998,
             "runs_ms": [
-                2.6828,
-                2.8678,
-                3.0714
+                2.5373,
+                2.5442,
+                2.5811,
+                2.6998,
+                2.7465,
+                2.7663,
+                2.7808
             ]
         },
         "core.int_to_int.free.judy": {
-            "median_ms": 0.6546,
+            "median_ms": 0.4495,
             "runs_ms": [
-                0.6215,
-                0.6546,
-                0.7097
+                0.2353,
+                0.2374,
+                0.3895,
+                0.4495,
+                0.468,
+                0.6045,
+                0.6338
             ]
         },
         "core.int_to_int.free.php": {
-            "median_ms": 0.3044,
+            "median_ms": 0.255,
             "runs_ms": [
-                0.2777,
-                0.3044,
-                0.3427
+                0.2365,
+                0.2371,
+                0.2376,
+                0.255,
+                0.2918,
+                0.2991,
+                0.3134
             ]
         },
         "core.int_to_int.heap.judy": {
             "median_ms": 0,
-            "heap_bytes": 65696
+            "heap_bytes": 128
         },
         "core.int_to_int.heap.php": {
             "median_ms": 0,
             "heap_bytes": 16781392
         },
         "core.int_to_mixed.write.judy": {
-            "median_ms": 50.674,
+            "median_ms": 43.7694,
             "runs_ms": [
-                33.5738,
-                50.674,
-                52.9649
+                42.5449,
+                42.7918,
+                43.5528,
+                43.7694,
+                45.1858,
+                57.0685,
+                62.7388
             ]
         },
         "core.int_to_mixed.write.php": {
-            "median_ms": 11.1728,
+            "median_ms": 9.4098,
             "runs_ms": [
-                10.8403,
-                11.1728,
-                12.283
+                9.1744,
+                9.1977,
+                9.2362,
+                9.4098,
+                9.4571,
+                9.5459,
+                9.9424
             ]
         },
         "core.int_to_mixed.read.judy": {
-            "median_ms": 11.9815,
+            "median_ms": 12.031,
             "runs_ms": [
-                11.695,
-                11.9815,
-                12.0163
+                11.5318,
+                11.6258,
+                12.0163,
+                12.031,
+                12.2206,
+                12.3042,
+                12.3873
             ]
         },
         "core.int_to_mixed.read.php": {
-            "median_ms": 5.6568,
+            "median_ms": 6.3869,
             "runs_ms": [
-                5.5598,
-                5.6568,
-                6.0838
+                5.9938,
+                6.0621,
+                6.2166,
+                6.3869,
+                6.3877,
+                6.39,
+                8.0236
             ]
         },
         "core.int_to_mixed.iter.judy": {
-            "median_ms": 36.473,
+            "median_ms": 38.2012,
             "runs_ms": [
-                34.3895,
-                36.473,
-                46.4567
+                38.0727,
+                38.1602,
+                38.1965,
+                38.2012,
+                38.2419,
+                40.8425,
+                40.9261
             ]
         },
         "core.int_to_mixed.iter.php": {
-            "median_ms": 3.0769,
+            "median_ms": 3.1324,
             "runs_ms": [
-                3.0642,
-                3.0769,
-                3.093
+                3.1021,
+                3.1046,
+                3.1127,
+                3.1324,
+                3.1768,
+                3.2235,
+                3.2354
             ]
         },
         "core.int_to_mixed.free.judy": {
-            "median_ms": 15.3898,
+            "median_ms": 15.5431,
             "runs_ms": [
-                15.148,
-                15.3898,
-                17.259
+                15.3177,
+                15.3377,
+                15.5192,
+                15.5431,
+                15.7313,
+                15.9491,
+                16.539
             ]
         },
         "core.int_to_mixed.free.php": {
-            "median_ms": 8.447,
+            "median_ms": 7.0617,
             "runs_ms": [
-                6.6815,
-                8.447,
-                8.8968
+                6.8572,
+                6.9296,
+                7.0315,
+                7.0617,
+                7.1087,
+                7.3058,
+                7.5883
             ]
         },
         "core.int_to_mixed.heap.judy": {
             "median_ms": 0,
-            "heap_bytes": 8065696
+            "heap_bytes": 8000128
         },
         "core.int_to_mixed.heap.php": {
             "median_ms": 0,
             "heap_bytes": 16781392
         },
-        "core.int_to_packed.write.judy": {
-            "median_ms": 76.9503,
-            "runs_ms": [
-                53.7159,
-                76.9503,
-                88.4743
-            ]
-        },
-        "core.int_to_packed.write.php": {
-            "median_ms": 10.4979,
-            "runs_ms": [
-                10.2486,
-                10.4979,
-                10.914
-            ]
-        },
-        "core.int_to_packed.read.judy": {
-            "median_ms": 34.2533,
-            "runs_ms": [
-                31.9368,
-                34.2533,
-                37.985
-            ]
-        },
-        "core.int_to_packed.read.php": {
-            "median_ms": 7.8471,
-            "runs_ms": [
-                6.4779,
-                7.8471,
-                10.7763
-            ]
-        },
-        "core.int_to_packed.iter.judy": {
-            "median_ms": 92.9142,
-            "runs_ms": [
-                51.4958,
-                92.9142,
-                114.5864
-            ]
-        },
-        "core.int_to_packed.iter.php": {
-            "median_ms": 3.1675,
-            "runs_ms": [
-                3.1189,
-                3.1675,
-                3.4359
-            ]
-        },
-        "core.int_to_packed.free.judy": {
-            "median_ms": 8.8112,
-            "runs_ms": [
-                8.6468,
-                8.8112,
-                8.9413
-            ]
-        },
-        "core.int_to_packed.free.php": {
-            "median_ms": 8.472,
-            "runs_ms": [
-                8.1243,
-                8.472,
-                9.0287
-            ]
-        },
-        "core.int_to_packed.heap.judy": {
-            "median_ms": 0,
-            "heap_bytes": 13045496
-        },
-        "core.int_to_packed.heap.php": {
-            "median_ms": 0,
-            "heap_bytes": 16781392
-        },
         "core.string_to_int.write.judy": {
-            "median_ms": 97.6288,
+            "median_ms": 93.3434,
             "runs_ms": [
-                90.292,
-                97.6288,
-                116.6168
+                91.329,
+                91.4872,
+                92.2994,
+                93.3434,
+                96.3938,
+                98.347,
+                104.7163
             ]
         },
         "core.string_to_int.write.php": {
-            "median_ms": 14.2348,
+            "median_ms": 13.128,
             "runs_ms": [
-                12.4535,
-                14.2348,
-                19.452
+                12.5272,
+                12.7365,
+                12.8108,
+                13.128,
+                13.1854,
+                13.3795,
+                13.6166
             ]
         },
         "core.string_to_int.read.judy": {
-            "median_ms": 39.1114,
+            "median_ms": 42.7944,
             "runs_ms": [
-                37.7645,
-                39.1114,
-                39.694
+                40.5341,
+                42.0156,
+                42.7048,
+                42.7944,
+                46.5701,
+                50.3234,
+                63.9385
             ]
         },
         "core.string_to_int.read.php": {
-            "median_ms": 6.3504,
+            "median_ms": 7.5852,
             "runs_ms": [
-                6.174,
-                6.3504,
-                6.4095
+                6.6785,
+                6.9511,
+                6.9833,
+                7.5852,
+                8.0345,
+                9.731,
+                10.3797
             ]
         },
         "core.string_to_int.iter.judy": {
-            "median_ms": 72.2097,
+            "median_ms": 119.2311,
             "runs_ms": [
-                71.2595,
-                72.2097,
-                103.4509
+                105.868,
+                107.8273,
+                108.1449,
+                119.2311,
+                122.2735,
+                122.6443,
+                129.5609
             ]
         },
         "core.string_to_int.iter.php": {
-            "median_ms": 3.1254,
+            "median_ms": 3.4568,
             "runs_ms": [
-                3.0935,
-                3.1254,
-                3.2206
+                3.3442,
+                3.3545,
+                3.4477,
+                3.4568,
+                3.5407,
+                3.5655,
+                4.6372
             ]
         },
         "core.string_to_int.free.judy": {
-            "median_ms": 24.6007,
+            "median_ms": 26.6578,
             "runs_ms": [
-                23.7675,
-                24.6007,
-                29.5492
+                25.8015,
+                25.9691,
+                26.4243,
+                26.6578,
+                31.6061,
+                37.0537,
+                40.8349
             ]
         },
         "core.string_to_int.free.php": {
-            "median_ms": 1.0125,
+            "median_ms": 1.2039,
             "runs_ms": [
-                1.011,
-                1.0125,
-                1.112
+                1.0859,
+                1.1706,
+                1.1838,
+                1.2039,
+                1.2058,
+                1.4379,
+                2.7151
             ]
         },
         "core.string_to_int.heap.judy": {
             "median_ms": 0,
-            "heap_bytes": 65696
+            "heap_bytes": 128
         },
         "core.string_to_int.heap.php": {
             "median_ms": 0,
             "heap_bytes": 20971600
         },
         "core.string_to_mixed.write.judy": {
-            "median_ms": 117.9441,
+            "median_ms": 148.7111,
             "runs_ms": [
-                117.0141,
-                117.9441,
-                117.9448
+                140.2512,
+                146.3401,
+                148.6543,
+                148.7111,
+                153.4543,
+                154.5007,
+                203.4547
             ]
         },
         "core.string_to_mixed.write.php": {
-            "median_ms": 14.6102,
+            "median_ms": 17.7334,
             "runs_ms": [
-                13.8177,
-                14.6102,
-                22.8775
+                17.1428,
+                17.2393,
+                17.5296,
+                17.7334,
+                17.766,
+                17.955,
+                21.17
             ]
         },
         "core.string_to_mixed.read.judy": {
-            "median_ms": 40.1412,
+            "median_ms": 46.1207,
             "runs_ms": [
-                40.0758,
-                40.1412,
-                40.269
+                43.9682,
+                44.1279,
+                44.7458,
+                46.1207,
+                48.2474,
+                50.3406,
+                50.8584
             ]
         },
         "core.string_to_mixed.read.php": {
-            "median_ms": 7.2135,
+            "median_ms": 8.2277,
             "runs_ms": [
-                7.1824,
-                7.2135,
-                7.2894
+                7.9868,
+                8.063,
+                8.0998,
+                8.2277,
+                8.2461,
+                8.9645,
+                9.0455
             ]
         },
         "core.string_to_mixed.iter.judy": {
-            "median_ms": 73.8522,
+            "median_ms": 118.9376,
             "runs_ms": [
-                72.011,
-                73.8522,
-                79.263
+                113.5167,
+                116.058,
+                117.9197,
+                118.9376,
+                120.061,
+                120.2534,
+                129.4099
             ]
         },
         "core.string_to_mixed.iter.php": {
-            "median_ms": 3.9832,
+            "median_ms": 4.8345,
             "runs_ms": [
-                3.9342,
-                3.9832,
-                3.9933
+                4.6092,
+                4.7351,
+                4.753,
+                4.8345,
+                4.8923,
+                5.0029,
+                5.4336
             ]
         },
         "core.string_to_mixed.free.judy": {
-            "median_ms": 75.1141,
+            "median_ms": 90.2735,
             "runs_ms": [
-                74.4178,
-                75.1141,
-                76.8725
+                82.316,
+                86.0004,
+                86.5314,
+                90.2735,
+                98.4721,
+                108.1723,
+                166.1027
             ]
         },
         "core.string_to_mixed.free.php": {
-            "median_ms": 8.856,
+            "median_ms": 9.679,
             "runs_ms": [
-                8.7392,
-                8.856,
-                8.9115
+                9.2147,
+                9.2465,
+                9.2832,
+                9.679,
+                9.8681,
+                10.0642,
+                10.5913
             ]
         },
         "core.string_to_mixed.heap.judy": {
             "median_ms": 0,
-            "heap_bytes": 8065696
+            "heap_bytes": 8000128
         },
         "core.string_to_mixed.heap.php": {
             "median_ms": 0,
             "heap_bytes": 20971600
-        },
-        "core.string_to_int_hash.write.judy": {
-            "median_ms": 147.4722,
-            "runs_ms": [
-                143.0714,
-                147.4722,
-                164.8966
-            ]
-        },
-        "core.string_to_int_hash.write.php": {
-            "median_ms": 11.8225,
-            "runs_ms": [
-                11.7882,
-                11.8225,
-                12.007
-            ]
-        },
-        "core.string_to_int_hash.read.judy": {
-            "median_ms": 18.8873,
-            "runs_ms": [
-                18.8541,
-                18.8873,
-                19.0365
-            ]
-        },
-        "core.string_to_int_hash.read.php": {
-            "median_ms": 6.1852,
-            "runs_ms": [
-                6.1823,
-                6.1852,
-                6.2848
-            ]
-        },
-        "core.string_to_int_hash.iter.judy": {
-            "median_ms": 84.3434,
-            "runs_ms": [
-                84.2657,
-                84.3434,
-                84.511
-            ]
-        },
-        "core.string_to_int_hash.iter.php": {
-            "median_ms": 3.1005,
-            "runs_ms": [
-                3.0976,
-                3.1005,
-                3.1993
-            ]
-        },
-        "core.string_to_int_hash.free.judy": {
-            "median_ms": 61.7153,
-            "runs_ms": [
-                40.5215,
-                61.7153,
-                117.506
-            ]
-        },
-        "core.string_to_int_hash.free.php": {
-            "median_ms": 1.0702,
-            "runs_ms": [
-                0.9791,
-                1.0702,
-                1.6543
-            ]
-        },
-        "core.string_to_int_hash.heap.judy": {
-            "median_ms": 0,
-            "heap_bytes": 65696
-        },
-        "core.string_to_int_hash.heap.php": {
-            "median_ms": 0,
-            "heap_bytes": 20971600
-        },
-        "core.string_to_mixed_hash.write.judy": {
-            "median_ms": 215.3612,
-            "runs_ms": [
-                212.2816,
-                215.3612,
-                216.2196
-            ]
-        },
-        "core.string_to_mixed_hash.write.php": {
-            "median_ms": 14.8168,
-            "runs_ms": [
-                14.8005,
-                14.8168,
-                15.3777
-            ]
-        },
-        "core.string_to_mixed_hash.read.judy": {
-            "median_ms": 23.6567,
-            "runs_ms": [
-                22.3928,
-                23.6567,
-                24.1939
-            ]
-        },
-        "core.string_to_mixed_hash.read.php": {
-            "median_ms": 14.9003,
-            "runs_ms": [
-                10.1642,
-                14.9003,
-                17.2139
-            ]
-        },
-        "core.string_to_mixed_hash.iter.judy": {
-            "median_ms": 92.3175,
-            "runs_ms": [
-                91.5892,
-                92.3175,
-                148.0758
-            ]
-        },
-        "core.string_to_mixed_hash.iter.php": {
-            "median_ms": 4.1244,
-            "runs_ms": [
-                4.1158,
-                4.1244,
-                4.5052
-            ]
-        },
-        "core.string_to_mixed_hash.free.judy": {
-            "median_ms": 114.5742,
-            "runs_ms": [
-                112.6884,
-                114.5742,
-                115.3456
-            ]
-        },
-        "core.string_to_mixed_hash.free.php": {
-            "median_ms": 9.0175,
-            "runs_ms": [
-                8.6096,
-                9.0175,
-                9.1092
-            ]
-        },
-        "core.string_to_mixed_hash.heap.judy": {
-            "median_ms": 0,
-            "heap_bytes": 8065696
-        },
-        "core.string_to_mixed_hash.heap.php": {
-            "median_ms": 0,
-            "heap_bytes": 20971600
-        },
-        "core.string_to_int_adaptive.write.judy": {
-            "median_ms": 133.5128,
-            "runs_ms": [
-                131.0205,
-                133.5128,
-                136.6938
-            ]
-        },
-        "core.string_to_int_adaptive.write.php": {
-            "median_ms": 12.199,
-            "runs_ms": [
-                12.1842,
-                12.199,
-                12.4553
-            ]
-        },
-        "core.string_to_int_adaptive.read.judy": {
-            "median_ms": 18.3225,
-            "runs_ms": [
-                18.099,
-                18.3225,
-                19.3193
-            ]
-        },
-        "core.string_to_int_adaptive.read.php": {
-            "median_ms": 6.2377,
-            "runs_ms": [
-                6.1746,
-                6.2377,
-                6.2524
-            ]
-        },
-        "core.string_to_int_adaptive.iter.judy": {
-            "median_ms": 83.6824,
-            "runs_ms": [
-                83.5582,
-                83.6824,
-                84.6087
-            ]
-        },
-        "core.string_to_int_adaptive.iter.php": {
-            "median_ms": 3.1228,
-            "runs_ms": [
-                3.0961,
-                3.1228,
-                3.1353
-            ]
-        },
-        "core.string_to_int_adaptive.free.judy": {
-            "median_ms": 41.4162,
-            "runs_ms": [
-                40.552,
-                41.4162,
-                43.5999
-            ]
-        },
-        "core.string_to_int_adaptive.free.php": {
-            "median_ms": 1.091,
-            "runs_ms": [
-                0.9874,
-                1.091,
-                1.1348
-            ]
-        },
-        "core.string_to_int_adaptive.heap.judy": {
-            "median_ms": 0,
-            "heap_bytes": 65696
-        },
-        "core.string_to_int_adaptive.heap.php": {
-            "median_ms": 0,
-            "heap_bytes": 20971600
-        },
-        "core.string_to_mixed_adaptive.write.judy": {
-            "median_ms": 211.0834,
-            "runs_ms": [
-                206.782,
-                211.0834,
-                227.6762
-            ]
-        },
-        "core.string_to_mixed_adaptive.write.php": {
-            "median_ms": 14.5909,
-            "runs_ms": [
-                14.3735,
-                14.5909,
-                15.4864
-            ]
-        },
-        "core.string_to_mixed_adaptive.read.judy": {
-            "median_ms": 19.716,
-            "runs_ms": [
-                19.2931,
-                19.716,
-                19.8187
-            ]
-        },
-        "core.string_to_mixed_adaptive.read.php": {
-            "median_ms": 7.462,
-            "runs_ms": [
-                7.2583,
-                7.462,
-                7.4922
-            ]
-        },
-        "core.string_to_mixed_adaptive.iter.judy": {
-            "median_ms": 100.5737,
-            "runs_ms": [
-                98.9893,
-                100.5737,
-                106.0131
-            ]
-        },
-        "core.string_to_mixed_adaptive.iter.php": {
-            "median_ms": 4.0108,
-            "runs_ms": [
-                3.9745,
-                4.0108,
-                4.2394
-            ]
-        },
-        "core.string_to_mixed_adaptive.free.judy": {
-            "median_ms": 118.0729,
-            "runs_ms": [
-                116.0246,
-                118.0729,
-                165.321
-            ]
-        },
-        "core.string_to_mixed_adaptive.free.php": {
-            "median_ms": 10.1838,
-            "runs_ms": [
-                10.1493,
-                10.1838,
-                104.55
-            ]
-        },
-        "core.string_to_mixed_adaptive.heap.judy": {
-            "median_ms": 0,
-            "heap_bytes": 8065696
-        },
-        "core.string_to_mixed_adaptive.heap.php": {
-            "median_ms": 0,
-            "heap_bytes": 20971600
-        },
-        "api.putAll.int_to_int.judy": {
-            "median_ms": 21.7135,
-            "runs_ms": [
-                21.5765,
-                21.7135,
-                21.9147
-            ]
-        },
-        "api.putAll.int_to_int.php": {
-            "median_ms": 26.7184,
-            "runs_ms": [
-                26.6084,
-                26.7184,
-                26.7845
-            ]
-        },
-        "api.fromArray.int_to_int.judy": {
-            "median_ms": 21.242,
-            "runs_ms": [
-                21.1675,
-                21.242,
-                21.483
-            ]
-        },
-        "api.fromArray.int_to_int.php": {
-            "median_ms": 26.7184,
-            "runs_ms": [
-                26.6084,
-                26.7184,
-                26.7845
-            ]
-        },
-        "api.toArray.int_to_int.judy": {
-            "median_ms": 20.3643,
-            "runs_ms": [
-                20.3563,
-                20.3643,
-                20.6485
-            ]
-        },
-        "api.toArray.int_to_int.php": {
-            "median_ms": 50.2665,
-            "runs_ms": [
-                49.7685,
-                50.2665,
-                50.9271
-            ]
-        },
-        "api.getAll.int_to_int.judy": {
-            "median_ms": 1.3365,
-            "runs_ms": [
-                1.2701,
-                1.3365,
-                1.7077
-            ]
-        },
-        "api.getAll.int_to_int.php": {
-            "median_ms": 1.9481,
-            "runs_ms": [
-                1.7881,
-                1.9481,
-                2.3897
-            ]
-        },
-        "api.increment.int_to_int.judy": {
-            "median_ms": 21.0415,
-            "runs_ms": [
-                20.8709,
-                21.0415,
-                21.097
-            ]
-        },
-        "api.increment.int_to_int.php": {
-            "median_ms": 8.917,
-            "runs_ms": [
-                8.729,
-                8.917,
-                8.9476
-            ]
-        },
-        "api.keys.int_to_int.judy": {
-            "median_ms": 16.5593,
-            "runs_ms": [
-                14.8023,
-                16.5593,
-                16.6401
-            ]
-        },
-        "api.keys.int_to_int.php": {
-            "median_ms": 43.0958,
-            "runs_ms": [
-                42.913,
-                43.0958,
-                49.7539
-            ]
-        },
-        "api.values.int_to_int.judy": {
-            "median_ms": 14.0927,
-            "runs_ms": [
-                10.3473,
-                14.0927,
-                16.9375
-            ]
-        },
-        "api.values.int_to_int.php": {
-            "median_ms": 36.6906,
-            "runs_ms": [
-                36.6845,
-                36.6906,
-                37.7465
-            ]
-        },
-        "api.sumValues.int_to_int.judy": {
-            "median_ms": 7.3061,
-            "runs_ms": [
-                7.1298,
-                7.3061,
-                7.6241
-            ]
-        },
-        "api.sumValues.int_to_int.php": {
-            "median_ms": 30.0349,
-            "runs_ms": [
-                29.6699,
-                30.0349,
-                30.373
-            ]
-        },
-        "api.populationCount.int_to_int.judy": {
-            "median_ms": 0.0001,
-            "runs_ms": [
-                0.0001,
-                0.0001,
-                0.0007
-            ]
-        },
-        "api.populationCount.int_to_int.php": {
-            "median_ms": 33.2567,
-            "runs_ms": [
-                33.0615,
-                33.2567,
-                33.2864
-            ]
-        },
-        "api.deleteRange.int_to_int.judy": {
-            "median_ms": 40.9659,
-            "runs_ms": [
-                40.6981,
-                40.9659,
-                42.0487
-            ]
-        },
-        "api.deleteRange.int_to_int.php": {
-            "median_ms": 68.41,
-            "runs_ms": [
-                68.1543,
-                68.41,
-                69.3648
-            ]
-        },
-        "api.equals.int_to_int.judy": {
-            "median_ms": 11.8337,
-            "runs_ms": [
-                11.6769,
-                11.8337,
-                11.9521
-            ]
-        },
-        "api.equals.int_to_int.php": {
-            "median_ms": 71.0378,
-            "runs_ms": [
-                68.8783,
-                71.0378,
-                88.5509
-            ]
-        },
-        "api.setop.union.bitset.judy": {
-            "median_ms": 32.5058,
-            "runs_ms": [
-                32.3133,
-                32.5058,
-                32.837
-            ]
-        },
-        "api.setop.union.bitset.php": {
-            "median_ms": 5.2495,
-            "runs_ms": [
-                4.9858,
-                5.2495,
-                5.6886
-            ]
-        },
-        "api.setop.intersect.bitset.judy": {
-            "median_ms": 19.1578,
-            "runs_ms": [
-                18.0977,
-                19.1578,
-                22.1867
-            ]
-        },
-        "api.setop.intersect.bitset.php": {
-            "median_ms": 5.2517,
-            "runs_ms": [
-                4.183,
-                5.2517,
-                7.8097
-            ]
-        },
-        "api.setop.diff.bitset.judy": {
-            "median_ms": 20.1995,
-            "runs_ms": [
-                19.9277,
-                20.1995,
-                20.8342
-            ]
-        },
-        "api.setop.diff.bitset.php": {
-            "median_ms": 3.559,
-            "runs_ms": [
-                3.3805,
-                3.559,
-                3.9442
-            ]
-        },
-        "api.setop.xor.bitset.judy": {
-            "median_ms": 39.2225,
-            "runs_ms": [
-                36.833,
-                39.2225,
-                39.4338
-            ]
-        },
-        "api.setop.xor.bitset.php": {
-            "median_ms": 13.934,
-            "runs_ms": [
-                10.9696,
-                13.934,
-                14.8428
-            ]
-        },
-        "api.setop.union.int_to_int.judy": {
-            "median_ms": 46.2534,
-            "runs_ms": [
-                45.3629,
-                46.2534,
-                55.0089
-            ]
-        },
-        "api.setop.union.int_to_int.php": {
-            "median_ms": 118.8267,
-            "runs_ms": [
-                117.2868,
-                118.8267,
-                126.6863
-            ]
-        },
-        "api.setop.intersect.int_to_int.judy": {
-            "median_ms": 18.1442,
-            "runs_ms": [
-                18.1435,
-                18.1442,
-                18.2275
-            ]
-        },
-        "api.setop.intersect.int_to_int.php": {
-            "median_ms": 59.0284,
-            "runs_ms": [
-                58.1673,
-                59.0284,
-                59.5856
-            ]
-        },
-        "api.setop.diff.int_to_int.judy": {
-            "median_ms": 18.077,
-            "runs_ms": [
-                17.9746,
-                18.077,
-                18.2615
-            ]
-        },
-        "api.setop.diff.int_to_int.php": {
-            "median_ms": 60.4365,
-            "runs_ms": [
-                60.383,
-                60.4365,
-                61.1028
-            ]
-        },
-        "api.setop.xor.int_to_int.judy": {
-            "median_ms": 35.707,
-            "runs_ms": [
-                35.6011,
-                35.707,
-                35.8655
-            ]
-        },
-        "api.setop.xor.int_to_int.php": {
-            "median_ms": 119.9823,
-            "runs_ms": [
-                119.221,
-                119.9823,
-                270.0618
-            ]
-        },
-        "api.setop.union.string_to_int.judy": {
-            "median_ms": 283.1321,
-            "runs_ms": [
-                280.4248,
-                283.1321,
-                285.8402
-            ]
-        },
-        "api.setop.union.string_to_int.php": {
-            "median_ms": 344.8698,
-            "runs_ms": [
-                319.0925,
-                344.8698,
-                512.5763
-            ]
-        },
-        "api.setop.intersect.string_to_int.judy": {
-            "median_ms": 137.3165,
-            "runs_ms": [
-                113.5572,
-                137.3165,
-                153.5708
-            ]
-        },
-        "api.setop.intersect.string_to_int.php": {
-            "median_ms": 162.1862,
-            "runs_ms": [
-                148.5623,
-                162.1862,
-                173.5193
-            ]
-        },
-        "api.setop.diff.string_to_int.judy": {
-            "median_ms": 102.9532,
-            "runs_ms": [
-                98.3467,
-                102.9532,
-                129.5309
-            ]
-        },
-        "api.setop.diff.string_to_int.php": {
-            "median_ms": 133.0131,
-            "runs_ms": [
-                131.2417,
-                133.0131,
-                133.4835
-            ]
-        },
-        "adv.forEach.int_to_int.judy": {
-            "median_ms": 23.6175,
-            "runs_ms": [
-                21.3874,
-                23.6175,
-                47.2968
-            ]
-        },
-        "adv.forEach.int_to_int.php": {
-            "median_ms": 33.581,
-            "runs_ms": [
-                33.4623,
-                33.581,
-                34.0966
-            ]
-        },
-        "adv.forEach.string_to_int.judy": {
-            "median_ms": 70.2932,
-            "runs_ms": [
-                69.7549,
-                70.2932,
-                70.4546
-            ]
-        },
-        "adv.forEach.string_to_int.php": {
-            "median_ms": 73.8649,
-            "runs_ms": [
-                73.7466,
-                73.8649,
-                78.5064
-            ]
-        },
-        "adv.filter.int_to_int.judy": {
-            "median_ms": 48.4761,
-            "runs_ms": [
-                48.2018,
-                48.4761,
-                49.7047
-            ]
-        },
-        "adv.filter.int_to_int.php": {
-            "median_ms": 49.8339,
-            "runs_ms": [
-                49.0918,
-                49.8339,
-                55.2006
-            ]
-        },
-        "adv.filter.string_to_int.judy": {
-            "median_ms": 134.1405,
-            "runs_ms": [
-                132.3151,
-                134.1405,
-                217.6214
-            ]
-        },
-        "adv.filter.string_to_int.php": {
-            "median_ms": 122.3853,
-            "runs_ms": [
-                120.2753,
-                122.3853,
-                123.3134
-            ]
-        },
-        "adv.map.int_to_int.judy": {
-            "median_ms": 38.4097,
-            "runs_ms": [
-                38.1362,
-                38.4097,
-                38.9319
-            ]
-        },
-        "adv.map.int_to_int.php": {
-            "median_ms": 61.3608,
-            "runs_ms": [
-                59.656,
-                61.3608,
-                62.1558
-            ]
-        },
-        "adv.map.string_to_int.judy": {
-            "median_ms": 156.8847,
-            "runs_ms": [
-                154.1543,
-                156.8847,
-                166.174
-            ]
-        },
-        "adv.map.string_to_int.php": {
-            "median_ms": 166.0169,
-            "runs_ms": [
-                165.8925,
-                166.0169,
-                166.2129
-            ]
-        },
-        "adv.sso.insert_short.string_to_int": {
-            "median_ms": 64.201,
-            "runs_ms": [
-                64.106,
-                64.201,
-                64.2394
-            ]
-        },
-        "adv.sso.insert_short.string_to_int_hash": {
-            "median_ms": 113.707,
-            "runs_ms": [
-                109.7183,
-                113.707,
-                116.2474
-            ]
-        },
-        "adv.sso.insert_short.string_to_int_adaptive": {
-            "median_ms": 95.628,
-            "runs_ms": [
-                95.0406,
-                95.628,
-                99.3236
-            ]
-        },
-        "adv.sso.read_short.string_to_int": {
-            "median_ms": 13.8133,
-            "runs_ms": [
-                12.9488,
-                13.8133,
-                16.0276
-            ]
-        },
-        "adv.sso.read_short.string_to_int_hash": {
-            "median_ms": 159.2453,
-            "runs_ms": [
-                73.1044,
-                159.2453,
-                208.7864
-            ]
-        },
-        "adv.sso.read_short.string_to_int_adaptive": {
-            "median_ms": 17.0856,
-            "runs_ms": [
-                16.9692,
-                17.0856,
-                17.2716
-            ]
-        },
-        "adv.sso.iter_short.string_to_int": {
-            "median_ms": 54.558,
-            "runs_ms": [
-                54.3745,
-                54.558,
-                55.2259
-            ]
-        },
-        "adv.sso.iter_short.string_to_int_hash": {
-            "median_ms": 80.6975,
-            "runs_ms": [
-                80.479,
-                80.6975,
-                85.6217
-            ]
-        },
-        "adv.sso.iter_short.string_to_int_adaptive": {
-            "median_ms": 84.7719,
-            "runs_ms": [
-                75.9944,
-                84.7719,
-                86.4178
-            ]
-        },
-        "adv.sso.insert_long.string_to_int": {
-            "median_ms": 108.7961,
-            "runs_ms": [
-                105.1083,
-                108.7961,
-                112.0121
-            ]
-        },
-        "adv.sso.insert_long.string_to_int_hash": {
-            "median_ms": 170.6658,
-            "runs_ms": [
-                170.6547,
-                170.6658,
-                171.7345
-            ]
-        },
-        "adv.sso.insert_long.string_to_int_adaptive": {
-            "median_ms": 156.1575,
-            "runs_ms": [
-                155.2868,
-                156.1575,
-                156.3192
-            ]
-        },
-        "adv.sso.read_long.string_to_int": {
-            "median_ms": 39.9774,
-            "runs_ms": [
-                39.3022,
-                39.9774,
-                42.1948
-            ]
-        },
-        "adv.sso.read_long.string_to_int_hash": {
-            "median_ms": 34.8949,
-            "runs_ms": [
-                33.1987,
-                34.8949,
-                37.2753
-            ]
-        },
-        "adv.sso.read_long.string_to_int_adaptive": {
-            "median_ms": 38.8614,
-            "runs_ms": [
-                33.9898,
-                38.8614,
-                152.1356
-            ]
-        },
-        "adv.sso.iter_long.string_to_int": {
-            "median_ms": 87.7677,
-            "runs_ms": [
-                86.0901,
-                87.7677,
-                88.0884
-            ]
-        },
-        "adv.sso.iter_long.string_to_int_hash": {
-            "median_ms": 108.2847,
-            "runs_ms": [
-                106.4729,
-                108.2847,
-                179.348
-            ]
-        },
-        "adv.sso.iter_long.string_to_int_adaptive": {
-            "median_ms": 107.6158,
-            "runs_ms": [
-                105.9808,
-                107.6158,
-                112.0335
-            ]
         }
     }
 }
