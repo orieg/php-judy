@@ -1,6 +1,6 @@
 <?php
 /**
- * Benchmark: Phase 2 API Methods vs PHP Userland Equivalents
+ * Benchmark: Native Judy API Methods vs PHP Userland Equivalents
  *
  * Compares native C-level Judy methods against equivalent PHP foreach loops:
  *
@@ -45,7 +45,7 @@ $div  = str_repeat('━', 100);
 $dash = str_repeat('─', 100);
 
 echo "$div\n";
-echo "  Phase 2 API Benchmark — " . number_format($size) . " elements, $iterations iterations (median)\n";
+echo "  Native API Benchmark — " . number_format($size) . " elements, $iterations iterations (median)\n";
 echo "  PHP " . phpversion() . " | Judy ext " . judy_version() . "\n";
 echo "$div\n\n";
 
@@ -348,6 +348,6 @@ printf("  %-{$w[0]}s  %s  %s  %s\n", "STR_TO_INT equal", fmt($php_t), fmt($judy_
 echo "\n";
 
 echo "$div\n";
-echo "  Phase 2 API Benchmark complete — " . date('Y-m-d H:i:s') . "\n";
+echo "  Native API Benchmark complete — " . date('Y-m-d H:i:s') . "\n";
 echo "  All speedups = PHP_userland_time / Judy_native_time (higher = better)\n";
 echo "$div\n";

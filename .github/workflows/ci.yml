@@ -70,7 +70,7 @@ jobs:
           echo "=== ALL-TYPES COMPARISON BENCHMARK ==="
           PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-all-types.php 500000 3 2>&1 | tee all-types-benchmark-results.txt
           echo ""
-          echo "=== PHASE 2 API BENCHMARK ==="
+          echo "=== NATIVE API BENCHMARK ==="
           PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-phase2-api.php 500000 5 2>&1 | tee phase2-api-benchmark-results.txt
 
       - name: Upload benchmark results
@@ -799,7 +799,7 @@ jobs:
               lines.append("```\n")
               lines.append("</details>\n")
 
-          # ── Phase 2 API Benchmark ──────────────────────────────────
+          # ── Native API Benchmark ─────────────────────────────────
           phase2_data = {}
 
           for bench_dir in sorted(glob.glob("benchmarks/benchmark-linux-*")):
@@ -813,7 +813,7 @@ jobs:
                       phase2_data[php_ver] = f.read().strip()
 
           if phase2_data:
-              lines.append("## Phase 2 API Benchmark\n")
+              lines.append("## Native API Benchmark\n")
               lines.append(
                   "Native C-level API methods vs PHP userland equivalents "
                   "(500K elements, 5 iterations median, Linux only).\n"
@@ -823,7 +823,7 @@ jobs:
                   key=lambda v: [int(x) for x in v.split(".")],
               )[-1]
               lines.append(
-                  f"<details><summary>Phase 2 API Benchmark — PHP {latest_ver} (Linux)</summary>\n"
+                  f"<details><summary>Native API Benchmark — PHP {latest_ver} (Linux)</summary>\n"
               )
               lines.append("```")
               lines.append(phase2_data[latest_ver])
