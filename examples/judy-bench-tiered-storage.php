@@ -1,6 +1,6 @@
 <?php
 /**
- * Benchmark for Phase 4: Tiered Storage (Inline vs Linear vs Judy)
+ * Benchmark for Tiered Storage (Inline vs Linear vs Judy)
  * 
  * This script demonstrates the performance gains for small datasets (N < 128)
  * which are now handled by Tier 0 (Inline) and Tier 1 (Linear Sorted Array).
