@@ -19,7 +19,7 @@
 #ifndef PHP_JUDY_H
 #define PHP_JUDY_H
 
-#define PHP_JUDY_VERSION "2.3.0"
+#define PHP_JUDY_VERSION "2.4.0"
 #define PHP_JUDY_EXTNAME "judy"
 
 /* Windows x64 (LLP64): Force 64-bit Word_t to match libjudy ABI.

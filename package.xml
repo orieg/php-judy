@@ -16,11 +16,11 @@
       <email>nicolas@brousse.info</email>
       <active>yes</active>
    </lead>
-   <date>2026-02-27</date>
+   <date>2026-03-02</date>
    <time>00:00:00</time>
    <version>
-      <release>2.3.0</release>
-      <api>2.3.0</api>
+      <release>2.4.0</release>
+      <api>2.4.0</api>
    </version>
    <stability>
       <release>stable</release>
@@ -28,17 +28,43 @@
    </stability>
    <license uri="http://www.php.net/license">PHP</license>
    <notes>
-- NEW FEATURE: Windows PECL DLL builds now published with each release (PHP 8.1-8.5, x86/x64, TS/NTS)
-- NEW FEATURE: PHP 8.5 support added to CI matrix
-- FIX: PHP 8.1+ compile fix - ZVAL_DUP replaced with ZVAL_COPY throughout
-- FIX: free_obj memory leak resolved (Judy array, zvals, and iterator state now properly freed)
-- FIX: BITSET clone bug fixed (was iterating new array instead of source)
-- FIX: STRING_TO_INT counter no longer overcounts on value overwrite
-- FIX: E_ERROR replaced with exceptions in constructor and write_dimension
-- FIX: foreach-by-ref now throws a proper error instead of E_ERROR; fixed emalloc leak
-- FIX: long->zend_long throughout; JLF() iterator bug fixed; redundant JLG lookups removed
-- FIX: Removed -march=native and -flto from config.m4 for portability
-- IMPROVEMENT: CI workflow consolidated; Windows benchmarks added to CI reporting
+- NEW FEATURE: Fast ZPP (Zend Parameter Parsing) macros across all methods for improved performance
+- NEW FEATURE: Native zend_object_handlers (read/write/has/unset_dimension) bypass ArrayAccess overhead
+- NEW FEATURE: Native C iterators via get_iterator for zero-overhead foreach loops
+- NEW FEATURE: BITSET set operations -- union(), intersect(), diff(), xor() methods
+- NEW FEATURE: INT_TO_INT set operations -- union/intersect/diff/xor with left-wins value semantics
+- NEW FEATURE: slice($start, $end) for efficient range extraction on all array types
+- NEW FEATURE: JsonSerializable interface -- json_encode() works natively on Judy arrays
+- NEW FEATURE: __serialize()/__unserialize() for native PHP serialize/unserialize support
+- NEW FEATURE: Batch operations -- fromArray(), toArray(), putAll(), getAll(), increment()
+- NEW FEATURE: INT_TO_PACKED type (type 6) -- GC-free opaque value storage via php_var_serialize
+- NEW FEATURE: STRING_TO_MIXED_HASH type (type 7) -- JudyHS-backed O(1) string-to-mixed map
+- NEW FEATURE: STRING_TO_INT_HASH type (type 8) -- JudyHS-backed O(1) string-to-int map
+- NEW FEATURE: STRING_TO_MIXED_ADAPTIVE type (type 9) -- SSO short-string optimization via JudyL
+- NEW FEATURE: STRING_TO_INT_ADAPTIVE type (type 10) -- SSO for string-to-int
+- NEW FEATURE: .stub.php arginfo generation replaces hand-written C arginfo
+- NEW FEATURE: keys(), values() -- native C extraction of keys and values (2-3x faster)
+- NEW FEATURE: sumValues(), averageValues() -- C-level aggregation for integer-valued types
+- NEW FEATURE: populationCount(start, end) -- range counting via Judy internal population cache
+- NEW FEATURE: deleteRange(start, end) -- bulk deletion in a single C pass
+- NEW FEATURE: equals(Judy other) -- short-circuit identity comparison
+- NEW FEATURE: C-level forEach(), filter(), map() -- bypass PHP Iterator protocol
+- NEW FEATURE: mergeWith() -- in-place mutating merge
+- NEW FEATURE: String set operations -- union/intersect/diff/xor for STRING_TO_INT and STRING_TO_MIXED types
+- FIX: JudySL hang on Windows x64 -- cJU_MASKATSTATE 0xffL truncation at States 5-8 (issue #46)
+- FIX: Double-traversal elimination in adaptive types -- removes redundant JLG/JHSG before JLI/JHSI
+- FIX: hs_array NULL-check in judy_free_array_internal prevents memory leak in adaptive types
+- PERF: JLG+JLI elimination -- 50% fewer tree traversals in write paths for STRING types
+- PERF: Branch prediction hints (JUDY_LIKELY/JUDY_UNLIKELY) on hot lookup and validation paths
+- PERF: LTO and loop unrolling enabled in compiler flags
+- PERF: Memory layout repacked for cache-line alignment and reduced padding
+- PERF: Stack safety -- 64KB stack buffers replaced with heap-allocated key_scratch buffer (Fiber-safe)
+- PERF: foreach iterator overhaul -- valid flag, heap key buffer, zend_string reuse
+- PERF: tagged-union packed format for INT_TO_PACKED -- eliminates serialize for scalars
+- PERF: O(1) count() for all types -- counter on every insert/delete replaces O(n) scans
+- PERF: type-specialized bulk-insert loops in fromArray()/putAll()/__unserialize()
+- PERF: ecalloc to emalloc on 9 zval allocs; direct judy_free_array_internal in __destruct
+- IMPROVEMENT: 174 tests covering all features
    </notes>
    <contents>
       <dir name="/">
@@ -64,6 +90,9 @@
          <file name="examples/judy-bench-packed-vs-mixed.php" role="doc" />
          <file name="examples/judy-bench-all-types.php" role="doc" />
          <file name="examples/judy-bench-memory.php" role="doc" />
+         <file name="examples/benchmark_ordered_data_demo.php" role="doc" />
+         <file name="examples/judy-bench-phase2-api.php" role="doc" />
+         <file name="examples/judy-bench-phase3-advanced.php" role="doc" />
          <file md5sum="abc7eb31bb88857463ec941514e5f019" name="tests/001.phpt" role="test" />
          <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />
          <file md5sum="9f3363cc4c6d15cb52184351cf710fd7" name="tests/bitset_002.phpt" role="test" />
@@ -222,6 +251,22 @@
          <file md5sum="fc98800804890cf1e121d123107267fd" name="tests/foreach_with_vardump_int_to_int_001.phpt" role="test" />
          <file md5sum="cc7b8b87898284e32df206f2d13b0992" name="tests/strings_as_keys.phpt" role="test" />
          <file md5sum="8b18c913476fa203cf3d6d23bb3a1272" name="tests/strings_as_values.phpt" role="test" />
+         <file name="tests/bulk_insert_counter_001.phpt" role="test" />
+         <file name="tests/count_bitset_insert_delete_001.phpt" role="test" />
+         <file name="tests/count_int_to_int_overwrite_001.phpt" role="test" />
+         <file name="tests/count_int_to_mixed_overwrite_001.phpt" role="test" />
+         <file name="tests/count_int_to_packed_overwrite_001.phpt" role="test" />
+         <file name="tests/delete_range_001.phpt" role="test" />
+         <file name="tests/equals_001.phpt" role="test" />
+         <file name="tests/foreach_string_key_stress_001.phpt" role="test" />
+         <file name="tests/keys_values_001.phpt" role="test" />
+         <file name="tests/packed_complex_fallback_001.phpt" role="test" />
+         <file name="tests/packed_scalar_fastpath_001.phpt" role="test" />
+         <file name="tests/phase3_adaptive_001.phpt" role="test" />
+         <file name="tests/phase3_advanced_001.phpt" role="test" />
+         <file name="tests/population_count_001.phpt" role="test" />
+         <file name="tests/sum_values_001.phpt" role="test" />
+         <file name="tests/unserialize_counter_001.phpt" role="test" />
          <file md5sum="4b423ec936b0274bb518529660501c8b" name="config.m4" role="src" />
          <file md5sum="d78e29903e6fc36c24051fcc7b698147" name="config.w32" role="src" />
          <file name="Judy.stub.php" role="src" />
@@ -238,6 +283,7 @@
          <file md5sum="ce78496bc990b2d72cbbf427df52a495" name="README.md" role="doc" />
          <file md5sum="730470b2aca686ddbea82a2b2af03a1a" name="CREDITS" role="doc" />
          <file md5sum="55d570c350ac9ac2a368e98476e9d4f8" name="BENCHMARK.md" role="doc" />
+         <file name="OPTIMIZATION_PROPOSAL.md" role="doc" />
          <file md5sum="513b0c0813de66e8cba534d4fa1b0eb2" name="MIGRATION_2.2.0.md" role="doc" />
          <file md5sum="28a6dc45e4b4964008700bcac20fb850" name="Dockerfile" role="doc" />
       </dir>
