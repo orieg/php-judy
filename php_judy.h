@@ -153,7 +153,9 @@ typedef enum _judy_type {
     TYPE_STRING_TO_MIXED,
     TYPE_INT_TO_PACKED,
     TYPE_STRING_TO_MIXED_HASH, /* JudyHS: O(1) avg hash lookup, parallel JudySL key index for iteration */
-    TYPE_STRING_TO_INT_HASH    /* JudyHS: O(1) avg hash lookup for string→int, parallel JudySL key index */
+    TYPE_STRING_TO_INT_HASH,   /* JudyHS: O(1) avg hash lookup for string→int, parallel JudySL key index */
+    TYPE_STRING_TO_MIXED_ADAPTIVE, /* SSO: JudyL for <8 bytes, JudyHS for longer + parallel JudySL */
+    TYPE_STRING_TO_INT_ADAPTIVE    /* SSO for string→int */
 } judy_type;
 /* }}} */
 
@@ -164,7 +166,9 @@ typedef enum _judy_type {
                            && type != TYPE_STRING_TO_MIXED \
                            && type != TYPE_INT_TO_PACKED \
                            && type != TYPE_STRING_TO_MIXED_HASH \
-                           && type != TYPE_STRING_TO_INT_HASH) { \
+                           && type != TYPE_STRING_TO_INT_HASH \
+                           && type != TYPE_STRING_TO_MIXED_ADAPTIVE \
+                           && type != TYPE_STRING_TO_INT_ADAPTIVE) { \
         php_error_docref(NULL, E_WARNING, "Not a valid Judy type. Please check the documentation for valid Judy type constant."); \
         jtype = 0; \
     } else { \
@@ -185,10 +189,12 @@ typedef enum _judy_type {
 #define JUDY_IS_STRING_KEYED(intern) ((intern)->is_string_keyed)
 #define JUDY_IS_MIXED_VALUE(intern) ((intern)->is_mixed_value)
 #define JUDY_IS_PACKED_VALUE(intern) ((intern)->is_packed_value)
+#define JUDY_IS_ADAPTIVE(intern) ((intern)->is_adaptive)
 
 typedef struct _judy_object {
 	Pvoid_t         array;               /* 8 — hottest field */
 	Pvoid_t         key_index;           /* 8 */
+	Pvoid_t         hs_array;            /* 8 — for longer strings in ADAPTIVE type */
 	zend_long       counter;             /* 8 */
 	Word_t			next_empty;          /* 8 */
 	zend_long       type;                /* 8 */
@@ -196,7 +202,7 @@ typedef struct _judy_object {
 	zval            iterator_key;        /* 16 */
 	zval            iterator_data;       /* 16 */
 	uint8_t         *key_scratch;        /* 8 — heap-allocated PHP_JUDY_MAX_LENGTH buffer */
-	/* Pack all bools together (7 bytes + 1 padding) */
+	/* Pack all bools together (8 bytes) */
 	zend_bool       next_empty_is_valid;
 	zend_bool       iterator_initialized;
 	zend_bool       is_integer_keyed;
@@ -204,6 +210,7 @@ typedef struct _judy_object {
 	zend_bool       is_mixed_value;
 	zend_bool       is_packed_value;
 	zend_bool       is_hash_keyed;
+	zend_bool       is_adaptive;
 	zend_object     std;                 /* must be last */
 } judy_object;
 

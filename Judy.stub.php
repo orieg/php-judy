@@ -13,6 +13,17 @@ function judy_type($array): int {}
  */
 class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
 {
+    public const int BITSET = 1;
+    public const int INT_TO_INT = 2;
+    public const int INT_TO_MIXED = 3;
+    public const int STRING_TO_INT = 4;
+    public const int STRING_TO_MIXED = 5;
+    public const int INT_TO_PACKED = 6;
+    public const int STRING_TO_MIXED_HASH = 7;
+    public const int STRING_TO_INT_HASH = 8;
+    public const int STRING_TO_MIXED_ADAPTIVE = 9;
+    public const int STRING_TO_INT_ADAPTIVE = 10;
+
     /* ── Constructor / Destructor ─────────────────────────────── */
 
     public function __construct(int $type) {}
@@ -113,7 +124,15 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
 
     public function values(): array {}
 
+    public function forEach(callable $callback): void {}
+
+    public function filter(callable $predicate): Judy {}
+
+    public function map(callable $transform): Judy {}
+
     public function sumValues(): int|float {}
+
+    public function averageValues(): ?float {}
 
     public function populationCount(mixed $start = 0, mixed $end = -1): int {}
 
