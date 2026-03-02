@@ -106,4 +106,18 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
     public function key(): mixed {}
 
     public function next(): void {}
+
+    /* ── Phase 2: Expanded API ───────────────────────────────── */
+
+    public function keys(): array {}
+
+    public function values(): array {}
+
+    public function sumValues(): int|float {}
+
+    public function populationCount(mixed $start = 0, mixed $end = -1): int {}
+
+    public function deleteRange(mixed $start, mixed $end): int {}
+
+    public function equals(Judy $other): bool {}
 }
