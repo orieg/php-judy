@@ -1086,6 +1086,120 @@ jobs:
                               )
                           lines.append("")
 
+                      # ── Memory Comparison ──
+                      mem_rows = []
+                      mem_counts = {
+                          "better": 0, "worse": 0, "same": 0,
+                      }
+                      type_label_map = dict(all_types)
+
+                      for bid in all_ids:
+                          if not bid.endswith(".heap.judy"):
+                              continue
+                          bid_parts = bid.split(".")
+                          if len(bid_parts) < 4:
+                              continue
+                          b_heap = base_bm.get(
+                              bid, {}
+                          ).get("heap_bytes")
+                          c_heap = cur_bm.get(
+                              bid, {}
+                          ).get("heap_bytes")
+                          if (b_heap is None
+                                  or c_heap is None):
+                              continue
+                          tid = bid_parts[1]
+                          name = type_label_map.get(
+                              tid, tid
+                          )
+                          if b_heap <= 0:
+                              delta = 0.0
+                              status = "~same"
+                              mem_counts["same"] += 1
+                          else:
+                              delta = (
+                                  (c_heap - b_heap)
+                                  / b_heap
+                              ) * 100
+                              if delta < -1.0:
+                                  status = "BETTER"
+                                  mem_counts["better"] += 1
+                              elif delta > 1.0:
+                                  status = "WORSE"
+                                  mem_counts["worse"] += 1
+                              else:
+                                  status = "~same"
+                                  mem_counts["same"] += 1
+                          mem_rows.append(
+                              (name, b_heap, c_heap,
+                               delta, status)
+                          )
+
+                      if mem_rows:
+                          lines.append(
+                              "#### Memory Comparison\n"
+                          )
+                          mparts = []
+                          if mem_counts["better"]:
+                              mparts.append(
+                                  f"{mem_counts['better']} "
+                                  f"improved"
+                              )
+                          if mem_counts["worse"]:
+                              mparts.append(
+                                  f"\u26a0\ufe0f "
+                                  f"**{mem_counts['worse']} "
+                                  f"regressions**"
+                              )
+                          else:
+                              mparts.append(
+                                  "0 regressions"
+                              )
+                          if mem_counts["same"]:
+                              mparts.append(
+                                  f"{mem_counts['same']} "
+                                  f"unchanged"
+                              )
+                          lines.append(
+                              "**Memory**: "
+                              + ", ".join(mparts)
+                              + "\n"
+                          )
+                          lines.append(
+                              "| Type | Baseline | Current "
+                              "| Delta | Status |"
+                          )
+                          lines.append(
+                              "|------|----------|---------|"
+                              "------:|--------|"
+                          )
+                          for (name, b_heap, c_heap,
+                               delta, status) in mem_rows:
+                              b_str = fmt_bytes(b_heap)
+                              c_str = fmt_bytes(c_heap)
+                              if abs(delta) < 0.05:
+                                  d_str = "0.0%"
+                              elif delta > 0:
+                                  d_str = f"+{delta:.1f}%"
+                              else:
+                                  d_str = f"{delta:.1f}%"
+                              if status == "BETTER":
+                                  s_str = (
+                                      "\u2705 **BETTER**"
+                                  )
+                              elif status == "WORSE":
+                                  s_str = (
+                                      "\u26a0\ufe0f **WORSE**"
+                                  )
+                              else:
+                                  s_str = "~same"
+                              lines.append(
+                                  f"| {name} | {b_str} "
+                                  f"| {c_str} "
+                                  f"| {d_str} | {s_str} |"
+                              )
+                          lines.append("")
+
                       # Collapsible: new benchmarks
                       if new_entries:
                           lines.append(
