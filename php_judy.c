@@ -2641,11 +2641,9 @@ static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mo
 
 		J1F(Rc_int, intern->array, index);
 		while (Rc_int) {
-			if (mode == JUDY_COLLECT_VALUES) {
-				add_next_index_bool(data, 1);
-			} else {
-				add_next_index_long(data, (zend_long)index);
-			}
+			/* BITSET is a set of indices — the index IS the value.
+			   keys(), values(), and toArray() all return the same flat index list. */
+			add_next_index_long(data, (zend_long)index);
 			J1N(Rc_int, intern->array, index);
 		}
 
@@ -2958,7 +2956,6 @@ PHP_METHOD(Judy, deleteRange)
 		}
 
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR) && strcmp((const char *)key, str_end) <= 0) {
-			int Rc_del;
 			if (intern->is_hash_keyed) {
 				Pvoid_t *HValue;
 				JHSG(HValue, intern->array, key, (Word_t)strlen((char *)key));
@@ -2968,13 +2965,17 @@ PHP_METHOD(Judy, deleteRange)
 						zval_ptr_dtor(value);
 						efree(value);
 					}
+					int Rc_del;
 					JHSD(Rc_del, intern->array, key, (Word_t)strlen((char *)key));
+					(void)Rc_del; /* JUDYERROR_NOTEST: delete cannot partially fail */
 				}
 				/* Delete from key_index too */
 				int Rc_idx_del;
 				JSLD(Rc_idx_del, intern->key_index, key);
-				deleted++;
-				intern->counter--;
+				if (Rc_idx_del) {
+					deleted++;
+					intern->counter--;
+				}
 				/* We must use JSLF again because key_index was modified */
 				JSLF(PValue, intern->key_index, key);
 			} else {
