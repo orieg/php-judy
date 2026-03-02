@@ -126,6 +126,28 @@ ZEND_END_ARG_INFO()
 
 #define arginfo_class_Judy_next arginfo_class_Judy_rewind
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_keys, 0, 0, IS_ARRAY, 0)
+ZEND_END_ARG_INFO()
+
+#define arginfo_class_Judy_values arginfo_class_Judy_keys
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_class_Judy_sumValues, 0, MAY_BE_LONG|MAY_BE_DOUBLE)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_populationCount, 0, 0, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, start, IS_MIXED, 0, "0")
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, end, IS_MIXED, 0, "-1")
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_deleteRange, 0, 2, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO(0, start, IS_MIXED, 0)
+	ZEND_ARG_TYPE_INFO(0, end, IS_MIXED, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_equals, 0, 1, _IS_BOOL, 0)
+	ZEND_ARG_OBJ_INFO(0, other, Judy, 0)
+ZEND_END_ARG_INFO()
+
 
 ZEND_FUNCTION(judy_version);
 ZEND_FUNCTION(judy_type);
@@ -167,6 +189,12 @@ ZEND_METHOD(Judy, valid);
 ZEND_METHOD(Judy, current);
 ZEND_METHOD(Judy, key);
 ZEND_METHOD(Judy, next);
+ZEND_METHOD(Judy, keys);
+ZEND_METHOD(Judy, values);
+ZEND_METHOD(Judy, sumValues);
+ZEND_METHOD(Judy, populationCount);
+ZEND_METHOD(Judy, deleteRange);
+ZEND_METHOD(Judy, equals);
 
 
 static const zend_function_entry ext_functions[] = {
@@ -215,5 +243,11 @@ static const zend_function_entry class_Judy_methods[] = {
 	ZEND_ME(Judy, current, arginfo_class_Judy_current, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, key, arginfo_class_Judy_key, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, next, arginfo_class_Judy_next, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, keys, arginfo_class_Judy_keys, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, values, arginfo_class_Judy_values, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, sumValues, arginfo_class_Judy_sumValues, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, populationCount, arginfo_class_Judy_populationCount, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, deleteRange, arginfo_class_Judy_deleteRange, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, equals, arginfo_class_Judy_equals, ZEND_ACC_PUBLIC)
 	ZEND_FE_END
 };
