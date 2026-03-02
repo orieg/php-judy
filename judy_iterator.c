@@ -223,12 +223,12 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 	} else if (object->type == TYPE_STRING_TO_MIXED_HASH
 			|| object->type == TYPE_STRING_TO_INT_HASH) {
 
-		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		uint8_t      *key = it->key_scratch;
 		Pvoid_t      *KValue;
 
 		/* Navigate key_index (JudySL) for ordering */
 		if (Z_TYPE_P(&it->key) == IS_STRING) {
-			int key_len;
+			size_t key_len;
 			key_len = Z_STRLEN_P(&it->key) >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : Z_STRLEN_P(&it->key);
 			memcpy(key, Z_STRVAL_P(&it->key), key_len);
 			key[key_len] = '\0';
@@ -240,12 +240,21 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 		}
 
 		if (KValue != NULL && KValue != PJERR) {
-			zval_ptr_dtor(&it->key);
-			ZVAL_STRING(&it->key, (char *)key);
+			size_t new_len = strlen((char *)key);
+			/* 2D: Reuse zend_string buffer if possible */
+			if (Z_TYPE(it->key) == IS_STRING && !ZSTR_IS_INTERNED(Z_STR(it->key))
+				&& GC_REFCOUNT(Z_STR(it->key)) == 1
+				&& new_len <= ZSTR_LEN(Z_STR(it->key))) {
+				memcpy(ZSTR_VAL(Z_STR(it->key)), key, new_len + 1);
+				ZSTR_LEN(Z_STR(it->key)) = new_len;
+			} else {
+				zval_ptr_dtor(&it->key);
+				ZVAL_STRINGL(&it->key, (char *)key, new_len);
+			}
 
 			Pvoid_t *HValue;
-			JHSG(HValue, object->array, key, (Word_t)strlen((char *)key));
-			if (HValue != NULL && HValue != PJERR) {
+			JHSG(HValue, object->array, key, (Word_t)new_len);
+			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
 				if (object->type == TYPE_STRING_TO_INT_HASH) {
 					ZVAL_LONG(&it->data, JUDY_LVAL_READ(HValue));
 				} else {
@@ -339,7 +348,7 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 	} else if (object->type == TYPE_STRING_TO_MIXED_HASH
 			|| object->type == TYPE_STRING_TO_INT_HASH) {
 
-		uint8_t     key[PHP_JUDY_MAX_LENGTH];
+		uint8_t      *key = it->key_scratch;
 		Pvoid_t      *KValue;
 
 		/* Rewind via key_index (JudySL) for alphabetical ordering */
@@ -347,12 +356,13 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 		JSLF(KValue, object->key_index, key);
 
 		if (KValue != NULL && KValue != PJERR) {
+			size_t new_len = strlen((char *)key);
 			zval_ptr_dtor(&it->key);
-			ZVAL_STRING(&it->key, (const char *) key);
+			ZVAL_STRINGL(&it->key, (const char *) key, new_len);
 
 			Pvoid_t *HValue;
-			JHSG(HValue, object->array, key, (Word_t)strlen((char *)key));
-			if (HValue != NULL && HValue != PJERR) {
+			JHSG(HValue, object->array, key, (Word_t)new_len);
+			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
 				if (object->type == TYPE_STRING_TO_INT_HASH) {
 					ZVAL_LONG(&it->data, JUDY_LVAL_READ(HValue));
 				} else {

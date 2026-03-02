@@ -90,7 +90,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 		/* Cloning JudySL Array */
 
 		/* Key/index */
-		uint8_t kindex[PHP_JUDY_MAX_LENGTH];
+		uint8_t *kindex = old_obj->key_scratch;
 
 		/* Pointer to the old value */
 		Pvoid_t *PValue;
@@ -105,7 +105,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 		while(PValue != NULL && PValue != PJERR)
 		{
 			JSLI(newPValue, newJArray, kindex);
-			if (newPValue != NULL && newPValue != PJERR) {
+			if (JUDY_LIKELY(newPValue != NULL && newPValue != PJERR)) {
 				if (old_obj->type == TYPE_STRING_TO_MIXED) {
 					zval *value = emalloc(sizeof(zval));
 					ZVAL_COPY(value, JUDY_MVAL_READ(PValue));
@@ -119,27 +119,27 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 	} else if (old_obj->type == TYPE_STRING_TO_MIXED_HASH) {
 		/* Cloning JudyHS Array + parallel JudySL key_index */
 
-		uint8_t kindex[PHP_JUDY_MAX_LENGTH];
+		uint8_t *kindex = old_obj->key_scratch;
 		Pvoid_t *KValue;
 		Pvoid_t newKeyIndex = (Pvoid_t) NULL;
 
 		kindex[0] = '\0';
 		JSLF(KValue, old_obj->key_index, kindex);
-		while (KValue != NULL && KValue != PJERR) {
+		while (JUDY_LIKELY(KValue != NULL && KValue != PJERR)) {
 			Word_t klen = (Word_t)strlen((char *)kindex);
 			Pvoid_t *HValue;
 			JHSG(HValue, old_obj->array, kindex, klen);
-			if (HValue != NULL && HValue != PJERR) {
+			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
 				Pvoid_t *newHValue;
 				Pvoid_t *newKValue;
 				JHSI(newHValue, newJArray, kindex, klen);
-				if (newHValue != NULL && newHValue != PJERR) {
+				if (JUDY_LIKELY(newHValue != NULL && newHValue != PJERR)) {
 					zval *value = ecalloc(1, sizeof(zval));
 					ZVAL_COPY(value, JUDY_MVAL_READ(HValue));
 					JUDY_MVAL_WRITE(newHValue, value);
 				}
 				JSLI(newKValue, newKeyIndex, kindex);
-				if (newKValue == PJERR) break;
+				if (JUDY_UNLIKELY(newKValue == PJERR)) break;
 			}
 			JSLN(KValue, old_obj->key_index, kindex)
 		}
@@ -147,25 +147,25 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 	} else if (old_obj->type == TYPE_STRING_TO_INT_HASH) {
 		/* Cloning JudyHS Array (Word_t values) + parallel JudySL key_index */
 
-		uint8_t kindex[PHP_JUDY_MAX_LENGTH];
+		uint8_t *kindex = old_obj->key_scratch;
 		Pvoid_t *KValue;
 		Pvoid_t newKeyIndex = (Pvoid_t) NULL;
 
 		kindex[0] = '\0';
 		JSLF(KValue, old_obj->key_index, kindex);
-		while (KValue != NULL && KValue != PJERR) {
+		while (JUDY_LIKELY(KValue != NULL && KValue != PJERR)) {
 			Word_t klen = (Word_t)strlen((char *)kindex);
 			Pvoid_t *HValue;
 			JHSG(HValue, old_obj->array, kindex, klen);
-			if (HValue != NULL && HValue != PJERR) {
+			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
 				Pvoid_t *newHValue;
 				Pvoid_t *newKValue;
 				JHSI(newHValue, newJArray, kindex, klen);
-				if (newHValue != NULL && newHValue != PJERR) {
+				if (JUDY_LIKELY(newHValue != NULL && newHValue != PJERR)) {
 					JUDY_LVAL_WRITE(newHValue, JUDY_LVAL_READ(HValue));
 				}
 				JSLI(newKValue, newKeyIndex, kindex);
-				if (newKValue == PJERR) break;
+				if (JUDY_UNLIKELY(newKValue == PJERR)) break;
 			}
 			JSLN(KValue, old_obj->key_index, kindex)
 		}
