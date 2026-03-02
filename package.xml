@@ -49,8 +49,8 @@
 - NEW FEATURE: deleteRange(start, end) -- bulk deletion in a single C pass
 - NEW FEATURE: equals(Judy other) -- short-circuit identity comparison
 - NEW FEATURE: C-level forEach(), filter(), map() -- bypass PHP Iterator protocol
-- NEW FEATURE: mergeWith() -- in-place mutating merge
 - NEW FEATURE: String set operations -- union/intersect/diff/xor for STRING_TO_INT and STRING_TO_MIXED types
+- NEW FEATURE: mergeWith(Judy $other) -- in-place merge for accumulation patterns (avoids union() allocation)
 - FIX: JudySL hang on Windows x64 -- cJU_MASKATSTATE 0xffL truncation at States 5-8 (issue #46)
 - FIX: Double-traversal elimination in adaptive types -- removes redundant JLG/JHSG before JLI/JHSI
 - FIX: hs_array NULL-check in judy_free_array_internal prevents memory leak in adaptive types
@@ -262,7 +262,9 @@
          <file name="tests/delete_range_001.phpt" role="test" />
          <file name="tests/equals_001.phpt" role="test" />
          <file name="tests/foreach_string_key_stress_001.phpt" role="test" />
+         <file name="tests/adaptive_clone_isset_unset_empty_slice.phpt" role="test" />
          <file name="tests/keys_values_001.phpt" role="test" />
+         <file name="tests/merge_with.phpt" role="test" />
          <file name="tests/packed_complex_fallback_001.phpt" role="test" />
          <file name="tests/packed_scalar_fastpath_001.phpt" role="test" />
          <file name="tests/phase3_adaptive_001.phpt" role="test" />

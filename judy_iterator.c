@@ -54,7 +54,16 @@ zend_object_iterator *judy_get_iterator(zend_class_entry *ce, zval *object, int 
 	ZVAL_UNDEF(&it->key);
 	ZVAL_UNDEF(&it->data);
 	it->valid = 0;
-	it->key_scratch = emalloc(PHP_JUDY_MAX_LENGTH);
+
+	/* Only allocate key_scratch for string-keyed types */
+	{
+		judy_object *judy_obj = php_judy_object(Z_OBJ_P(object));
+		if (judy_obj->is_string_keyed) {
+			it->key_scratch = emalloc(PHP_JUDY_MAX_LENGTH);
+		} else {
+			it->key_scratch = NULL;
+		}
+	}
 
 	return &it->intern;
 }
@@ -79,7 +88,9 @@ void judy_iterator_dtor(zend_object_iterator *iterator)
 	judy_iterator   *it = (judy_iterator*) iterator;
 
 	judy_iterator_data_dtor(it);
-	efree(it->key_scratch);
+	if (it->key_scratch) {
+		efree(it->key_scratch);
+	}
 
 	zval_ptr_dtor(&it->intern.data);
 }

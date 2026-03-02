@@ -72,6 +72,8 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
 
     public function xor(Judy $other): Judy {}
 
+    public function mergeWith(Judy $other): void {}
+
     /* ── Slice ───────────────────────────────────────────────── */
 
     public function slice(mixed $start, mixed $end): Judy {}
