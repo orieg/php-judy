@@ -221,7 +221,9 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 			judy_iterator_data_dtor(it);
 		}
 	} else if (object->type == TYPE_STRING_TO_MIXED_HASH
-			|| object->type == TYPE_STRING_TO_INT_HASH) {
+			|| object->type == TYPE_STRING_TO_INT_HASH
+			|| object->type == TYPE_STRING_TO_MIXED_ADAPTIVE
+			|| object->type == TYPE_STRING_TO_INT_ADAPTIVE) {
 
 		uint8_t      *key = it->key_scratch;
 		Pvoid_t      *KValue;
@@ -252,13 +254,23 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 				ZVAL_STRINGL(&it->key, (char *)key, new_len);
 			}
 
-			Pvoid_t *HValue;
-			JHSG(HValue, object->array, key, (Word_t)new_len);
-			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
-				if (object->type == TYPE_STRING_TO_INT_HASH) {
-					ZVAL_LONG(&it->data, JUDY_LVAL_READ(HValue));
+			Pvoid_t *VValue = NULL;
+			if (object->type == TYPE_STRING_TO_MIXED_ADAPTIVE || object->type == TYPE_STRING_TO_INT_ADAPTIVE) {
+				Word_t sso_idx;
+				if (judy_pack_short_string_internal((char *)key, new_len, &sso_idx)) {
+					JLG(VValue, object->array, sso_idx);
 				} else {
-					zval *value = JUDY_MVAL_READ(HValue);
+					JHSG(VValue, object->hs_array, key, (Word_t)new_len);
+				}
+			} else {
+				JHSG(VValue, object->array, key, (Word_t)new_len);
+			}
+
+			if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
+				if (object->type == TYPE_STRING_TO_INT_HASH || object->type == TYPE_STRING_TO_INT_ADAPTIVE) {
+					ZVAL_LONG(&it->data, JUDY_LVAL_READ(VValue));
+				} else {
+					zval *value = JUDY_MVAL_READ(VValue);
 					ZVAL_COPY(&it->data, value);
 				}
 			} else {
@@ -346,7 +358,9 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			it->valid = 1;
 		}
 	} else if (object->type == TYPE_STRING_TO_MIXED_HASH
-			|| object->type == TYPE_STRING_TO_INT_HASH) {
+			|| object->type == TYPE_STRING_TO_INT_HASH
+			|| object->type == TYPE_STRING_TO_MIXED_ADAPTIVE
+			|| object->type == TYPE_STRING_TO_INT_ADAPTIVE) {
 
 		uint8_t      *key = it->key_scratch;
 		Pvoid_t      *KValue;
@@ -360,13 +374,23 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			zval_ptr_dtor(&it->key);
 			ZVAL_STRINGL(&it->key, (const char *) key, new_len);
 
-			Pvoid_t *HValue;
-			JHSG(HValue, object->array, key, (Word_t)new_len);
-			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
-				if (object->type == TYPE_STRING_TO_INT_HASH) {
-					ZVAL_LONG(&it->data, JUDY_LVAL_READ(HValue));
+			Pvoid_t *VValue = NULL;
+			if (object->type == TYPE_STRING_TO_MIXED_ADAPTIVE || object->type == TYPE_STRING_TO_INT_ADAPTIVE) {
+				Word_t sso_idx;
+				if (judy_pack_short_string_internal((char *)key, new_len, &sso_idx)) {
+					JLG(VValue, object->array, sso_idx);
 				} else {
-					zval *value = JUDY_MVAL_READ(HValue);
+					JHSG(VValue, object->hs_array, key, (Word_t)new_len);
+				}
+			} else {
+				JHSG(VValue, object->array, key, (Word_t)new_len);
+			}
+
+			if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
+				if (object->type == TYPE_STRING_TO_INT_HASH || object->type == TYPE_STRING_TO_INT_ADAPTIVE) {
+					ZVAL_LONG(&it->data, JUDY_LVAL_READ(VValue));
+				} else {
+					zval *value = JUDY_MVAL_READ(VValue);
 					ZVAL_COPY(&it->data, value);
 				}
 			} else {

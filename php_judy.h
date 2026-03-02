@@ -218,6 +218,14 @@ static inline judy_object *php_judy_object(zend_object *obj) {
 	return (judy_object *)((char*)(obj) - XtOffsetOf(judy_object, std));
 }
 
+static inline int judy_pack_short_string_internal(const char *str, size_t len, Word_t *index)
+{
+	if (len >= 8) return 0;
+	*index = 0;
+	memcpy(index, str, len);
+	return 1;
+}
+
 /* Max length, this must be a constant for it to work in
  * declarings as we cannot use runtime decided values at
  * compile time ofcourse

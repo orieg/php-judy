@@ -385,14 +385,6 @@ PHP_INI_END()
 			_return_;						\
 	}
 
-static inline int judy_pack_short_string(const char *str, size_t len, Word_t *index)
-{
-	if (len >= 8) return 0;
-	*index = 0;
-	memcpy(index, str, len);
-	return 1;
-}
-
 zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv) /* {{{ */
 {
 	zend_long index = 0;
@@ -423,7 +415,7 @@ zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv) /*
 
 	if (intern->is_adaptive && pstring_key) {
 		Word_t sso_idx;
-		if (judy_pack_short_string(Z_STRVAL_P(pstring_key), Z_STRLEN_P(pstring_key), &sso_idx)) {
+		if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), Z_STRLEN_P(pstring_key), &sso_idx)) {
 			JLG(PValue, intern->array, sso_idx);
 		} else {
 			JHSG(PValue, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), (Word_t)Z_STRLEN_P(pstring_key));
@@ -746,7 +738,7 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
 		Word_t sso_idx;
 
-		if (judy_pack_short_string(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
+		if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
 			JLI(PValue, intern->array, sso_idx);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 				if (*(Word_t *)PValue == 0) {
@@ -789,7 +781,7 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
 		Word_t sso_idx;
 
-		if (judy_pack_short_string(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
+		if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
 			JLI(PValue, intern->array, sso_idx);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 				if (*(Pvoid_t *)PValue != NULL) {
@@ -879,7 +871,7 @@ int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty
 	if (pstring_key) {
 		if (intern->is_adaptive) {
 			Word_t sso_idx;
-			if (judy_pack_short_string(Z_STRVAL_P(pstring_key), Z_STRLEN_P(pstring_key), &sso_idx)) {
+			if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), Z_STRLEN_P(pstring_key), &sso_idx)) {
 				JLG(PValue, intern->array, sso_idx);
 			} else {
 				JHSG(PValue, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), (Word_t)Z_STRLEN_P(pstring_key));
@@ -996,7 +988,7 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
 		Word_t sso_idx;
 
-		if (judy_pack_short_string((char *)key, key_len, &sso_idx)) {
+		if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
 			Pvoid_t *PValue;
 			JLG(PValue, intern->array, sso_idx);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
@@ -1089,6 +1081,27 @@ static void judy_object_unset_dimension(zend_object *obj, zval *offset)
     zval object_zv;
     ZVAL_OBJ(&object_zv, obj);
     judy_object_unset_dimension_helper(&object_zv, offset);
+}
+
+static inline void judy_object_read_dimension_helper_zv(judy_object *intern, zval *offset, zval *rv)
+{
+	zval object_zv;
+	ZVAL_OBJ(&object_zv, &intern->std);
+	judy_object_read_dimension_helper(&object_zv, offset, rv);
+}
+
+static inline int judy_object_write_dimension_helper_zv(judy_object *intern, zval *offset, zval *value)
+{
+	zval object_zv;
+	ZVAL_OBJ(&object_zv, &intern->std);
+	return judy_object_write_dimension_helper(&object_zv, offset, value);
+}
+
+static inline int judy_object_unset_dimension_helper_zv(judy_object *intern, zval *offset)
+{
+	zval object_zv;
+	ZVAL_OBJ(&object_zv, &intern->std);
+	return judy_object_unset_dimension_helper(&object_zv, offset);
 }
 
 /* {{{ PHP_MINIT_FUNCTION
@@ -3140,7 +3153,7 @@ static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mo
 				Word_t sso_idx;
 				Pvoid_t *VValue = NULL;
 
-				if (judy_pack_short_string((char *)key, key_len, &sso_idx)) {
+				if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
 					JLG(VValue, intern->array, sso_idx);
 				} else {
 					JHSG(VValue, intern->hs_array, key, key_len);
@@ -3241,7 +3254,7 @@ PHP_METHOD(Judy, sumValues)
 			Word_t sso_idx;
 			Pvoid_t *VValue = NULL;
 
-			if (judy_pack_short_string((char *)key, key_len, &sso_idx)) {
+			if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
 				JLG(VValue, intern->array, sso_idx);
 			} else {
 				JHSG(VValue, intern->hs_array, key, key_len);
@@ -3307,7 +3320,7 @@ PHP_METHOD(Judy, averageValues)
 			Word_t sso_idx;
 			Pvoid_t *VValue = NULL;
 
-			if (judy_pack_short_string((char *)key, key_len, &sso_idx)) {
+			if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
 				JLG(VValue, intern->array, sso_idx);
 			} else {
 				JHSG(VValue, intern->hs_array, key, key_len);
@@ -3465,7 +3478,7 @@ PHP_METHOD(Judy, deleteRange)
 			Word_t sso_idx;
 			int Rc_del;
 
-			if (judy_pack_short_string((char *)key, klen, &sso_idx)) {
+			if (judy_pack_short_string_internal((char *)key, klen, &sso_idx)) {
 				Pvoid_t *VValue;
 				JLG(VValue, intern->array, sso_idx);
 				if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
@@ -3652,14 +3665,14 @@ PHP_METHOD(Judy, equals)
 			Word_t sso_idx;
 			Pvoid_t *V1 = NULL, *V2 = NULL;
 
-			if (judy_pack_short_string((char *)key, klen, &sso_idx)) {
+			if (judy_pack_short_string_internal((char *)key, klen, &sso_idx)) {
 				JLG(V1, intern->array, sso_idx);
 			} else {
 				JHSG(V1, intern->hs_array, key, klen);
 			}
 
 			if (other->is_adaptive) {
-				if (judy_pack_short_string((char *)key, klen, &sso_idx)) {
+				if (judy_pack_short_string_internal((char *)key, klen, &sso_idx)) {
 					JLG(V2, other->array, sso_idx);
 				} else {
 					JHSG(V2, other->hs_array, key, klen);
@@ -3840,7 +3853,7 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 			Word_t sso_idx;
 			Pvoid_t *VValue = NULL;
 
-			if (judy_pack_short_string((char *)key, key_len, &sso_idx)) {
+			if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
 			JLG(VValue, intern->array, sso_idx);
 			} else {
 			JHSG(VValue, intern->hs_array, key, key_len);
@@ -3898,9 +3911,12 @@ static int action_filter(judy_object *intern, zval *key, zval *retval, void *dat
 		/* We need to re-fetch the value from 'intern' to put it into 'result'
 		   because 'retval' is the callback result (bool), not the original value. */
 		zval value;
+		ZVAL_UNDEF(&value);
 		judy_object_read_dimension_helper_zv(intern, key, &value);
-		judy_object_write_dimension_helper_zv(result, key, &value);
-		zval_ptr_dtor(&value);
+		if (!Z_ISUNDEF(value)) {
+			judy_object_write_dimension_helper_zv(result, key, &value);
+			zval_ptr_dtor(&value);
+		}
 	}
 	return SUCCESS;
 }
