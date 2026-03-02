@@ -2909,7 +2909,8 @@ PHP_METHOD(Judy, deleteRange)
 					deleted++;
 					intern->counter--;
 				}
-				J1N(Rc_int, intern->array, index);
+				/* Re-seek after mutation — J1F is safe after J1U */
+				J1F(Rc_int, intern->array, index);
 			}
 		} else {
 			Pvoid_t *PValue;
@@ -2929,7 +2930,8 @@ PHP_METHOD(Judy, deleteRange)
 					deleted++;
 					intern->counter--;
 				}
-				JLN(PValue, intern->array, index);
+				/* Re-seek after mutation — JLF is safe after JLD */
+				JLF(PValue, intern->array, index);
 			}
 		}
 	} else { /* is_string_keyed */
@@ -3087,8 +3089,9 @@ PHP_METHOD(Judy, equals)
 		while (JUDY_LIKELY(PVal1 != NULL && PVal1 != PJERR)) {
 			if (intern->is_hash_keyed) {
 				Pvoid_t *V1, *V2;
-				JHSG(V1, intern->array, key, (Word_t)strlen((char *)key));
-				JHSG(V2, other->array, key, (Word_t)strlen((char *)key));
+				Word_t key_len = (Word_t)strlen((char *)key);
+				JHSG(V1, intern->array, key, key_len);
+				JHSG(V2, other->array, key, key_len);
 				if (!V1 || !V2) RETURN_FALSE;
 				if (intern->type == TYPE_STRING_TO_INT_HASH) {
 					if (JUDY_LVAL_READ(V1) != JUDY_LVAL_READ(V2)) RETURN_FALSE;
