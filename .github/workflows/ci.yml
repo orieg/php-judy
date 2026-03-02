@@ -75,6 +75,9 @@ jobs:
           echo ""
           echo "=== ADVANCED BENCHMARK ==="
           PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-phase3-advanced.php 500000 5 2>&1 | tee advanced-benchmark-results.txt
+          echo ""
+          echo "=== TIERED STORAGE BENCHMARK ==="
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-tiered-storage.php 2>&1 | tee tiered-storage-benchmark-results.txt
 
       - name: Upload benchmark results
         if: always()
@@ -88,6 +91,7 @@ jobs:
             all-types-benchmark-results.txt
             phase2-api-benchmark-results.txt
             advanced-benchmark-results.txt
+            tiered-storage-benchmark-results.txt
           if-no-files-found: ignore
 
   validate-pecl:
@@ -863,6 +867,37 @@ jobs:
               )
               lines.append("```")
               lines.append(advanced_data[latest_ver])
+              lines.append("```\n")
+              lines.append("</details>\n")
+
+          # ── Tiered Storage Benchmark ────────────────────────────
+          tiered_data = {}
+
+          for bench_dir in sorted(glob.glob("benchmarks/benchmark-linux-*")):
+              m = re.match(r'^.*benchmark-linux-php([\d.]+)$', bench_dir)
+              if not m:
+                  continue
+              php_ver = m.group(1)
+              fpath = os.path.join(bench_dir, "tiered-storage-benchmark-results.txt")
+              if os.path.isfile(fpath):
+                  with open(fpath) as f:
+                      tiered_data[php_ver] = f.read().strip()
+
+          if tiered_data:
+              lines.append("## Tiered Storage Benchmark\n")
+              lines.append(
+                  "Small-N performance: inline (N=5), linear sorted (N=50), "
+                  "and full Judy tree (N=200) vs PHP array (Linux only).\n"
+              )
+              latest_ver = sorted(
+                  tiered_data.keys(),
+                  key=lambda v: [int(x) for x in v.split(".")],
+              )[-1]
+              lines.append(
+                  f"<details><summary>Tiered Storage Benchmark — PHP {latest_ver} (Linux)</summary>\n"
+              )
+              lines.append("```")
+              lines.append(tiered_data[latest_ver])
               lines.append("```\n")
               lines.append("</details>\n")
 
