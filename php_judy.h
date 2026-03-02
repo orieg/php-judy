@@ -191,18 +191,38 @@ typedef enum _judy_type {
 #define JUDY_IS_PACKED_VALUE(intern) ((intern)->is_packed_value)
 #define JUDY_IS_ADAPTIVE(intern) ((intern)->is_adaptive)
 
-typedef struct _judy_object {
+typedef struct _judy_object judy_object;
+
+typedef struct _judy_type_ops {
+	zval *(*read)(judy_object *intern, zval *offset, zval *rv);
+	int   (*write)(judy_object *intern, zval *offset, zval *value);
+	int   (*has)(judy_object *intern, zval *offset, int check_empty);
+	int   (*unset)(judy_object *intern, zval *offset);
+} judy_type_ops;
+
+typedef struct _judy_kv {
+	Word_t key;
+	Word_t value;
+} judy_kv;
+
+struct _judy_object {
 	Pvoid_t         array;               /* 8 — hottest field */
 	Pvoid_t         key_index;           /* 8 */
 	Pvoid_t         hs_array;            /* 8 — for longer strings in ADAPTIVE type */
+	const judy_type_ops *ops;            /* 8 — vtable for Tiered Storage (2C) */
+	judy_kv         *linear_data;        /* 8 — Tier 1: Sorted Linear Array (6A) */
 	zend_long       counter;             /* 8 */
 	Word_t			next_empty;          /* 8 */
 	zend_long       type;                /* 8 */
+	/* Tier 0: Inline Storage (6A) - 8 KV pairs */
+	Word_t          inline_keys[8];
+	Word_t          inline_values[8];
 	/* Iterator state for Iterator interface methods */
 	zval            iterator_key;        /* 16 */
 	zval            iterator_data;       /* 16 */
 	uint8_t         *key_scratch;        /* 8 — heap-allocated PHP_JUDY_MAX_LENGTH buffer */
 	/* Pack all bools together (8 bytes) */
+	uint8_t         storage_tier;        /* 0: Inline, 1: Linear, 2: Judy */
 	zend_bool       next_empty_is_valid;
 	zend_bool       iterator_initialized;
 	zend_bool       is_integer_keyed;
@@ -212,7 +232,7 @@ typedef struct _judy_object {
 	zend_bool       is_hash_keyed;
 	zend_bool       is_adaptive;
 	zend_object     std;                 /* must be last */
-} judy_object;
+};
 
 static inline judy_object *php_judy_object(zend_object *obj) {
 	return (judy_object *)((char*)(obj) - XtOffsetOf(judy_object, std));
