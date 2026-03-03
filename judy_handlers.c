@@ -170,16 +170,75 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			JSLN(KValue, old_obj->key_index, kindex)
 		}
 		new_obj->key_index = newKeyIndex;
+	} else if (old_obj->type == TYPE_STRING_TO_MIXED_ADAPTIVE
+			|| old_obj->type == TYPE_STRING_TO_INT_ADAPTIVE) {
+		/* Cloning Adaptive Array: JudyL (SSO) + JudyHS (long) + JudySL key_index */
+
+		uint8_t *kindex = old_obj->key_scratch;
+		Pvoid_t *KValue;
+		Pvoid_t newKeyIndex = (Pvoid_t) NULL;
+		Pvoid_t newHsArray = (Pvoid_t) NULL;
+
+		kindex[0] = '\0';
+		JSLF(KValue, old_obj->key_index, kindex);
+		while (JUDY_LIKELY(KValue != NULL && KValue != PJERR)) {
+			Word_t klen = (Word_t)strlen((char *)kindex);
+			Word_t sso_idx;
+
+			if (judy_pack_short_string_internal((char *)kindex, klen, &sso_idx)) {
+				/* Short key — stored in JudyL (intern->array) */
+				Pvoid_t *PValue;
+				JLG(PValue, old_obj->array, sso_idx);
+				if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+					Pvoid_t *newPValue;
+					JLI(newPValue, newJArray, sso_idx);
+					if (JUDY_LIKELY(newPValue != NULL && newPValue != PJERR)) {
+						if (old_obj->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
+							zval *value = emalloc(sizeof(zval));
+							ZVAL_COPY(value, JUDY_MVAL_READ(PValue));
+							JUDY_MVAL_WRITE(newPValue, value);
+						} else {
+							JUDY_LVAL_WRITE(newPValue, JUDY_LVAL_READ(PValue));
+						}
+					}
+				}
+			} else {
+				/* Long key — stored in JudyHS (intern->hs_array) */
+				Pvoid_t *HValue;
+				JHSG(HValue, old_obj->hs_array, kindex, klen);
+				if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
+					Pvoid_t *newHValue;
+					JHSI(newHValue, newHsArray, kindex, klen);
+					if (JUDY_LIKELY(newHValue != NULL && newHValue != PJERR)) {
+						if (old_obj->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
+							zval *value = emalloc(sizeof(zval));
+							ZVAL_COPY(value, JUDY_MVAL_READ(HValue));
+							JUDY_MVAL_WRITE(newHValue, value);
+						} else {
+							JUDY_LVAL_WRITE(newHValue, JUDY_LVAL_READ(HValue));
+						}
+					}
+				}
+			}
+
+			/* Clone key_index entry */
+			Pvoid_t *newKValue;
+			JSLI(newKValue, newKeyIndex, kindex);
+			if (JUDY_UNLIKELY(newKValue == PJERR)) break;
+
+			JSLN(KValue, old_obj->key_index, kindex)
+		}
+		new_obj->key_index = newKeyIndex;
+		new_obj->hs_array = newHsArray;
 	}
 
 	new_obj->array = newJArray;
-	new_obj->type = old_obj->type;
 	new_obj->counter = old_obj->counter;
-	new_obj->is_integer_keyed = old_obj->is_integer_keyed;
-	new_obj->is_string_keyed = old_obj->is_string_keyed;
-	new_obj->is_mixed_value = old_obj->is_mixed_value;
-	new_obj->is_packed_value = old_obj->is_packed_value;
-	new_obj->is_hash_keyed = old_obj->is_hash_keyed;
+	judy_init_type_flags(new_obj, old_obj->type);
+
+	if (new_obj->is_string_keyed && !new_obj->key_scratch) {
+		new_obj->key_scratch = emalloc(PHP_JUDY_MAX_LENGTH);
+	}
 
 	return &new_obj->std;
 }

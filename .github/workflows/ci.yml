@@ -47,34 +47,55 @@ jobs:
           path: junit.xml
           if-no-files-found: ignore
 
+      - name: Install PIE
+        if: matrix.php-version == '8.4'
+        run: |
+          curl -fsSL https://github.com/php/pie/releases/latest/download/pie.phar \
+            -o /usr/local/bin/pie
+          chmod +x /usr/local/bin/pie
+          pie --version
+
+      - name: Install v2.3.0 baseline via PIE
+        if: matrix.php-version == '8.4'
+        run: |
+          sudo pie install --skip-enable-extension orieg/judy:2.3.0 \
+            --with-judy=/usr
+          BASELINE_SO="$(php-config --extension-dir)/judy.so"
+          echo "BASELINE_SO=$BASELINE_SO" >> "$GITHUB_ENV"
+          php -d "extension=$BASELINE_SO" -r \
+            'echo "Baseline loaded: judy " . judy_version() . "\n";'
+
+      - name: Run baseline benchmarks
+        if: matrix.php-version == '8.4'
+        run: |
+          mkdir -p /tmp/php-judy-baseline-ini
+          echo "extension=$BASELINE_SO" > /tmp/php-judy-baseline-ini/judy.ini
+
+          # v2.3.0 only has the 5 core types (no hash/adaptive/packed/API)
+          PHP_INI_SCAN_DIR=/tmp/php-judy-baseline-ini php examples/judy-bench.php \
+            --json baseline-bench.json --size 500000 --iterations 7 --suite core \
+            2>&1 | tee baseline-benchmark-output.txt
+
+      - name: Upload baseline benchmark results
+        if: always() && matrix.php-version == '8.4'
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-baseline-linux-php${{ matrix.php-version }}
+          path: |
+            baseline-bench.json
+            baseline-benchmark-output.txt
+          if-no-files-found: ignore
+
       - name: Run benchmarks
         run: |
-          # Create a temporary PHP INI so the judy extension is auto-loaded
-          # in the main process AND in sub-processes spawned by shell_exec()
           JUDY_SO="$(pwd)/modules/judy.so"
           mkdir -p /tmp/php-judy-ini
           echo "extension=$JUDY_SO" > /tmp/php-judy-ini/judy.ini
 
-          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/run-benchmarks.php | tee benchmark-results.txt
-
-          # Run batch operations and set operations benchmarks (smaller sizes for CI)
-          echo ""
-          echo "=== BATCH OPERATIONS BENCHMARK ==="
-          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-batch-operations.php 2>&1 | tee batch-benchmark-results.txt
-          echo ""
-          echo "=== SET OPERATIONS BENCHMARK ==="
-          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-set-operations.php 2>&1 | tee set-benchmark-results.txt
-
-          # All-types comparison: all 6 Judy types + native PHP array (50K elements, 3 iterations for CI speed)
-          echo ""
-          echo "=== ALL-TYPES COMPARISON BENCHMARK ==="
-          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-all-types.php 500000 3 2>&1 | tee all-types-benchmark-results.txt
-          echo ""
-          echo "=== NATIVE API BENCHMARK ==="
-          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-phase2-api.php 500000 5 2>&1 | tee phase2-api-benchmark-results.txt
-          echo ""
-          echo "=== ADVANCED BENCHMARK ==="
-          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench-phase3-advanced.php 500000 5 2>&1 | tee advanced-benchmark-results.txt
+          # Unified benchmark: all suites, JSON output for cross-version comparison
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench.php \
+            --json bench.json --size 500000 --iterations 7 --suite all \
+            2>&1 | tee benchmark-output.txt
 
       - name: Upload benchmark results
         if: always()
@@ -82,12 +103,8 @@ jobs:
         with:
           name: benchmark-linux-php${{ matrix.php-version }}
           path: |
-            benchmark-results.txt
-            batch-benchmark-results.txt
-            set-benchmark-results.txt
-            all-types-benchmark-results.txt
-            phase2-api-benchmark-results.txt
-            advanced-benchmark-results.txt
+            bench.json
+            benchmark-output.txt
           if-no-files-found: ignore
 
   validate-pecl:
@@ -380,13 +397,10 @@ jobs:
           }
           Write-Host "Extension verified"
 
-          # Run benchmarks (same script as Linux)
-          & $phpExe.FullName examples/run-benchmarks.php 2>&1 | Tee-Object -FilePath benchmark-results.txt
-
-          # All-types comparison: all 6 Judy types + native PHP array
-          Write-Host ""
-          Write-Host "=== ALL-TYPES COMPARISON BENCHMARK ==="
-          & $phpExe.FullName examples/judy-bench-all-types.php 500000 3 2>&1 | Tee-Object -FilePath all-types-benchmark-results.txt
+          # Unified benchmark: all suites, JSON output for cross-version comparison
+          & $phpExe.FullName examples/judy-bench.php `
+            --json bench.json --size 500000 --iterations 7 --suite all `
+            2>&1 | Tee-Object -FilePath benchmark-output.txt
 
       - name: Upload benchmark results
         if: always()
@@ -394,8 +408,8 @@ jobs:
         with:
           name: benchmark-windows-php${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
           path: |
-            benchmark-results.txt
-            all-types-benchmark-results.txt
+            bench.json
+            benchmark-output.txt
           if-no-files-found: ignore
 
       - name: Debug on failure
@@ -429,6 +443,11 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: baselines
+
       - name: Download all test artifacts
         uses: actions/download-artifact@v4
         with:
@@ -454,8 +473,7 @@ jobs:
         run: |
           python3 << 'PYEOF'
           import xml.etree.ElementTree as ET
-          import os, glob, re
-          from collections import defaultdict
+          import os, glob, re, json
 
           # ── Test Results ──────────────────────────────────────────
           rows = []
@@ -521,349 +539,720 @@ jobs:
               f"| **{total_skip}** | |"
           )
 
-          # ── Benchmark Results ─────────────────────────────────────
-          def parse_benchmark(text):
-              """Parse benchmark text into {scenario: {subject: {write, read, memory}}}."""
-              data = {}
-              current = None
-              for line in text.splitlines():
-                  m = re.match(r'^## (.+)$', line)
-                  if m:
-                      current = m.group(1).strip()
-                      data[current] = {}
-                      continue
-                  if current and re.match(r'^-{4,}', line):
-                      continue
-                  if current and line.strip() and not line.strip().startswith("Subject"):
-                      m = re.match(
-                          r'^\s*(.+?)\s{2,}([\d.]+)s\s{2,}([\d.]+)s\s{2,}(.+?)\s*$',
-                          line
-                      )
-                      if m:
-                          subject = m.group(1).strip()
-                          data[current][subject] = {
-                              "write": float(m.group(2)),
-                              "read": float(m.group(3)),
-                              "memory_str": m.group(4).strip(),
-                          }
-              return data
+          # ── Benchmark Results (from JSON) ─────────────────────────
 
-          def scenario_sort_key(name):
-              """Sort by type (Sparse Int first, then String), then by numeric size."""
-              m = re.search(r'([\d,]+)\)', name)
-              size = int(m.group(1).replace(",", "")) if m else 0
-              prefix = 0 if "Integer" in name else 1
-              return (prefix, size)
-
-          def short_scenario(name):
-              """Shorten 'Sparse Integer Keys (1,000,000)' → 'Sparse Int 1M'."""
-              m = re.search(r'([\d,]+)\)', name)
-              if not m:
-                  return name
-              n = int(m.group(1).replace(",", ""))
-              if n >= 1_000_000:
-                  size = f"{n // 1_000_000}M"
-              elif n >= 1_000:
-                  size = f"{n // 1_000}K"
-              else:
-                  size = str(n)
-              if "Integer" in name:
-                  return f"Sparse Int {size}"
-              return f"String {size}"
-
-          def parse_memory(mem_str):
-              """Convert '9.3 mb' to bytes (float). Returns None on failure."""
-              m = re.match(r'^([\d.]+)\s*(b|kb|mb|gb|tb)$', mem_str.strip().lower())
-              if not m:
-                  return None
-              val = float(m.group(1))
-              mult = {'b': 1, 'kb': 1024, 'mb': 1024**2, 'gb': 1024**3, 'tb': 1024**4}
-              return val * mult.get(m.group(2), 1)
-
-          def format_ratio(judy_val, array_val):
-              """Ratio = Judy / Array. Bold when Judy wins (ratio <= 0.95)."""
-              if judy_val is None or array_val is None or array_val == 0:
+          def fmt_ms(ms):
+              """Format milliseconds for display."""
+              if ms is None:
                   return "-"
-              ratio = judy_val / array_val
-              if ratio < 0.01:
-                  text = f"{ratio:.3f}x"
-              elif ratio < 1:
-                  text = f"{ratio:.2f}x"
-              else:
-                  text = f"{ratio:.1f}x"
-              return f"**{text}**" if ratio <= 0.95 else text
+              if ms >= 1:
+                  return f"{ms:.1f} ms"
+              return f"{ms:.2f} ms"
 
-          # Collect benchmarks grouped by platform
-          # bench[platform][php_ver][scenario][subject] = {write, read, memory_str}
-          bench = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
+          def fmt_speedup(judy_ms, php_ms):
+              """Speedup = PHP / Judy. >1 = Judy faster.
+              Returns (judy_str, php_str, speedup_str)."""
+              if judy_ms is None or php_ms is None:
+                  return "-", "-", "-"
+              j_str = fmt_ms(judy_ms)
+              p_str = fmt_ms(php_ms)
+              if judy_ms <= 0:
+                  return j_str, p_str, "**\u221e**"
+              s = php_ms / judy_ms
+              if s >= 100:
+                  text = f"{s:.0f}x"
+              elif s >= 1.05:
+                  text = f"{s:.1f}x"
+              elif s >= 0.95:
+                  text = "~1.0x"
+              else:
+                  text = f"{s:.1f}x"
+              return j_str, p_str, f"**{text}**" if s >= 1.05 else text
+
+          def fmt_speedup_only(judy_ms, php_ms):
+              """Compact speedup for cross-version tables."""
+              if judy_ms is None or php_ms is None:
+                  return "-"
+              if judy_ms <= 0:
+                  return "**\u221e**"
+              s = php_ms / judy_ms
+              if s >= 100:
+                  text = f"{s:.0f}x"
+              elif s >= 1.05:
+                  text = f"{s:.1f}x"
+              elif s >= 0.95:
+                  text = "~1.0x"
+              else:
+                  text = f"{s:.1f}x"
+              return f"**{text}**" if s >= 1.05 else text
+
+          def fmt_bytes(b):
+              if b is None or b <= 0:
+                  return "-"
+              if b >= 1 << 20:
+                  return f"{b / (1 << 20):.1f} MB"
+              if b >= 1 << 10:
+                  return f"{b / (1 << 10):.1f} KB"
+              return f"{b} B"
+
+          def fmt_mem_savings(judy_bytes, php_bytes):
+              if judy_bytes is None or php_bytes is None:
+                  return "-"
+              if judy_bytes <= 0:
+                  return "**\u221e**"
+              ratio = php_bytes / judy_bytes
+              if ratio >= 1.05:
+                  return f"**{ratio:.1f}x less**"
+              elif ratio >= 0.95:
+                  return "~1.0x"
+              return f"{ratio:.1f}x"
+
+          def get_metric(benchmarks, key, field="median_ms"):
+              entry = benchmarks.get(key)
+              if entry is None:
+                  return None
+              return entry.get(field)
+
+          # Type definitions with human-readable labels
+          all_types = [
+              ("bitset", "Bitset"),
+              ("int_to_int", "Int to Int"),
+              ("int_to_mixed", "Int to Mixed"),
+              ("int_to_packed", "Int to Packed"),
+              ("string_to_int", "String to Int"),
+              ("string_to_mixed", "String to Mixed"),
+              ("string_to_int_hash", "String to Int (Hash)"),
+              ("string_to_mixed_hash", "String to Mixed (Hash)"),
+              ("string_to_int_adaptive", "String to Int (Adaptive)"),
+              ("string_to_mixed_adaptive", "String to Mixed (Adaptive)"),
+          ]
+          # Representative subset for the main view
+          main_types = [
+              ("bitset", "Bitset"),
+              ("int_to_int", "Int to Int"),
+              ("int_to_mixed", "Int to Mixed"),
+              ("string_to_int", "String to Int"),
+              ("string_to_int_adaptive", "String to Int (Adaptive)"),
+          ]
+
+          api_ops = [
+              ("api.putAll.int_to_int", "putAll()"),
+              ("api.fromArray.int_to_int", "fromArray()"),
+              ("api.toArray.int_to_int", "toArray()"),
+              ("api.getAll.int_to_int", "getAll()"),
+              ("api.keys.int_to_int", "keys()"),
+              ("api.values.int_to_int", "values()"),
+              ("api.sumValues.int_to_int", "sumValues()"),
+              ("api.populationCount.int_to_int", "populationCount()"),
+              ("api.deleteRange.int_to_int", "deleteRange()"),
+              ("api.equals.int_to_int", "equals()"),
+              ("api.setop.union.bitset", "union() Bitset"),
+              ("api.setop.intersect.bitset", "intersect() Bitset"),
+              ("api.setop.diff.bitset", "diff() Bitset"),
+              ("api.setop.xor.bitset", "xor() Bitset"),
+              ("api.mergeWith.int_to_int", "mergeWith() Int\u2192Int"),
+              ("api.mergeWith.string_to_int", "mergeWith() Str\u2192Int"),
+              ("adv.forEach.int_to_int", "forEach() Int\u2192Int"),
+              ("adv.filter.int_to_int", "filter() Int\u2192Int"),
+              ("adv.map.int_to_int", "map() Int\u2192Int"),
+              ("adv.forEach.string_to_int", "forEach() Str\u2192Int"),
+              ("adv.filter.string_to_int", "filter() Str\u2192Int"),
+              ("adv.map.string_to_int", "map() Str\u2192Int"),
+          ]
+
+          # Load JSON benchmark data per (platform, php_ver)
+          bench_json = {}
+          bench_text = {}
 
           for bench_dir in sorted(glob.glob("benchmarks/benchmark-*")):
-              bench_file = os.path.join(bench_dir, "benchmark-results.txt")
-              if not os.path.isfile(bench_file):
-                  continue
               dir_name = os.path.basename(bench_dir)
               m = re.match(r'^benchmark-(linux|windows)-php([\d.]+)', dir_name)
               if not m:
                   continue
               platform = m.group(1).capitalize()
               php_ver = m.group(2)
-              with open(bench_file) as f:
-                  data = parse_benchmark(f.read())
-              for scenario, subjects in data.items():
-                  for subject, metrics in subjects.items():
-                      bench[platform][php_ver][scenario][subject] = metrics
 
-          if bench:
+              json_file = os.path.join(bench_dir, "bench.json")
+              if os.path.isfile(json_file):
+                  with open(json_file) as f:
+                      try:
+                          bench_json[(platform, php_ver)] = json.load(f)
+                      except json.JSONDecodeError:
+                          pass
+
+              text_file = os.path.join(bench_dir, "benchmark-output.txt")
+              if os.path.isfile(text_file):
+                  with open(text_file) as f:
+                      bench_text[(platform, php_ver)] = f.read().strip()
+
+          if bench_json:
+              # Determine platforms and versions
+              platforms = sorted(set(p for p, _ in bench_json.keys()))
+              platform_versions = {}
+              for platform in platforms:
+                  platform_versions[platform] = sorted(
+                      [v for p, v in bench_json.keys() if p == platform],
+                      key=lambda v: [int(x) for x in v.split(".")]
+                  )
+
+              # Get metadata from the latest version of the primary platform
+              primary = "Linux" if "Linux" in platforms else platforms[0]
+              latest = platform_versions[primary][-1]
+              meta = bench_json.get((primary, latest), {}).get("metadata", {})
+              judy_ver = meta.get("judy_version", "?")
+              elem_size = meta.get("size", 500000)
+              iters = meta.get("iterations", 3)
+
               lines.append("")
-              lines.append("## Benchmark Summary (Judy vs PHP Array)\n")
+              lines.append("## Benchmark Results\n")
               lines.append(
-                  "Ratio = Judy / Array. "
-                  "**Bold** = Judy wins (\u22640.95x). "
-                  "Plain = Array is faster/smaller.\n"
+                  f"> {elem_size:,} elements, {iters} iterations (median), "
+                  f"Judy {judy_ver}\n"
               )
 
-              for platform in sorted(bench.keys()):
-                  versions = sorted(
-                      bench[platform].keys(),
-                      key=lambda v: [int(x) for x in v.split(".")]
-                  )
-                  all_scenarios = set()
-                  for v in versions:
-                      all_scenarios.update(bench[platform][v].keys())
-                  scenarios = sorted(all_scenarios, key=scenario_sort_key)
-                  if not scenarios:
-                      continue
+              # ── Run Status grid ──
+              all_versions = sorted(
+                  set(v for _, v in bench_json.keys()),
+                  key=lambda v: [int(x) for x in v.split(".")]
+              )
+              lines.append("### Run Status\n")
+              ver_hdr = " | ".join(f"PHP {v}" for v in all_versions)
+              lines.append(f"| Platform | {ver_hdr} |")
+              lines.append("|---|" + "|".join("---" for _ in all_versions) + "|")
+              for platform in platforms:
+                  cells = []
+                  for v in all_versions:
+                      if (platform, v) in bench_json:
+                          cells.append("\u2705")
+                      else:
+                          cells.append("\u2014")
+                  lines.append(f"| {platform} | " + " | ".join(cells) + " |")
+              lines.append("")
 
-                  hdr = " | ".join(f"PHP {v}" for v in versions)
+              # ── Helper to emit tables for a given platform/version ──
+              def emit_tables(platform, ver, heading_suffix=""):
+                  data = bench_json.get((platform, ver), {})
+                  bm = data.get("benchmarks", {})
+                  if not bm:
+                      return
 
-                  # Time summary: Write / Read ratios
-                  lines.append(f"### Time (Write / Read) \u2014 {platform}\n")
-                  lines.append(f"| Scenario | {hdr} |")
-                  lines.append("|---|" + "|".join("---" for _ in versions) + "|")
+                  tag = f" ({platform}, PHP {ver})"
 
-                  for scenario in scenarios:
-                      short = short_scenario(scenario)
-                      cells = []
-                      for v in versions:
-                          sd = bench[platform][v].get(scenario, {})
-                          j = sd.get("Judy")
-                          a = sd.get("PHP Array")
-                          if j and a:
-                              wr = format_ratio(j["write"], a["write"])
-                              rr = format_ratio(j["read"], a["read"])
-                              cells.append(f"{wr} / {rr}")
-                          else:
-                              cells.append("-")
-                      lines.append(f"| {short} | " + " | ".join(cells) + " |")
-
+                  # Memory Efficiency
+                  lines.append(f"### Memory Efficiency{tag}{heading_suffix}\n")
+                  lines.append("| Type | Judy | PHP array | Savings |")
+                  lines.append("|------|-----:|----------:|---------|")
+                  for type_id, label in all_types:
+                      j_heap = get_metric(bm, f"core.{type_id}.heap.judy", "heap_bytes")
+                      p_heap = get_metric(bm, f"core.{type_id}.heap.php", "heap_bytes")
+                      if j_heap is None and p_heap is None:
+                          continue
+                      lines.append(
+                          f"| {label} | {fmt_bytes(j_heap)} "
+                          f"| {fmt_bytes(p_heap)} "
+                          f"| {fmt_mem_savings(j_heap, p_heap)} |"
+                      )
                   lines.append("")
 
-                  # Memory summary
-                  lines.append(f"### Memory \u2014 {platform}\n")
-                  lines.append(f"| Scenario | {hdr} |")
-                  lines.append("|---|" + "|".join("---" for _ in versions) + "|")
-
-                  for scenario in scenarios:
-                      short = short_scenario(scenario)
-                      cells = []
-                      for v in versions:
-                          sd = bench[platform][v].get(scenario, {})
-                          j = sd.get("Judy")
-                          a = sd.get("PHP Array")
-                          if j and a:
-                              jm = parse_memory(j["memory_str"])
-                              am = parse_memory(a["memory_str"])
-                              cells.append(format_ratio(jm, am))
-                          else:
-                              cells.append("-")
-                      lines.append(f"| {short} | " + " | ".join(cells) + " |")
-
-                  lines.append("")
-
-              # Collapsible raw data
-              lines.append("<details><summary>Raw benchmark data</summary>\n")
-
-              for platform in sorted(bench.keys()):
-                  versions = sorted(
-                      bench[platform].keys(),
-                      key=lambda v: [int(x) for x in v.split(".")]
+                  # API Speedups
+                  has_api = any(
+                      get_metric(bm, f"{prefix}.judy") is not None
+                      for prefix, _ in api_ops
                   )
-                  all_scenarios = set()
-                  for v in versions:
-                      all_scenarios.update(bench[platform][v].keys())
-                  scenarios = sorted(all_scenarios, key=scenario_sort_key)
-                  hdr = " | ".join(f"PHP {v}" for v in versions)
-
-                  for metric, label, fmt in [
-                      ("write", "Write Time", lambda x: f"{x:.4f}s"),
-                      ("read", "Read Time", lambda x: f"{x:.4f}s"),
-                      ("memory_str", "Memory", str),
-                  ]:
-                      lines.append(f"#### {label} \u2014 {platform}\n")
-                      lines.append(f"| Scenario | Subject | {hdr} |")
-                      lines.append("|---|---|" + "|".join("---" for _ in versions) + "|")
-
-                      for scenario in scenarios:
-                          short = short_scenario(scenario)
-                          for subject in ["Judy", "PHP Array"]:
-                              cells = []
-                              for v in versions:
-                                  sd = bench[platform][v].get(scenario, {})
-                                  subj = sd.get(subject)
-                                  if subj and metric in subj:
-                                      cells.append(fmt(subj[metric]))
-                                  else:
-                                      cells.append("-")
-                              lines.append(
-                                  f"| {short} | {subject} | "
-                                  + " | ".join(cells) + " |"
-                              )
-
+                  if has_api:
+                      lines.append(f"### API Speedups{tag}{heading_suffix}\n")
+                      lines.append(
+                          "Speedup = PHP time / Judy time. "
+                          "**Bold** = Judy faster.\n"
+                      )
+                      lines.append("| Operation | Judy | PHP | Speedup |")
+                      lines.append("|-----------|-----:|----:|---------|")
+                      for prefix, label in api_ops:
+                          j_ms = get_metric(bm, f"{prefix}.judy")
+                          p_ms = get_metric(bm, f"{prefix}.php")
+                          if j_ms is None:
+                              continue
+                          j_str, p_str, s_str = fmt_speedup(j_ms, p_ms)
+                          lines.append(
+                              f"| {label} | {j_str} | {p_str} | {s_str} |"
+                          )
                       lines.append("")
 
-              lines.append("</details>\n")
-
-          # ── Batch & Set Operations Benchmarks ──────────────────────
-          batch_data = defaultdict(dict)  # {php_ver: text}
-          set_data = defaultdict(dict)
-
-          for bench_dir in sorted(glob.glob("benchmarks/benchmark-linux-*")):
-              m = re.match(r'^.*benchmark-linux-php([\d.]+)$', bench_dir)
-              if not m:
-                  continue
-              php_ver = m.group(1)
-              for fname, store in [
-                  ("batch-benchmark-results.txt", batch_data),
-                  ("set-benchmark-results.txt", set_data),
-              ]:
-                  fpath = os.path.join(bench_dir, fname)
-                  if os.path.isfile(fpath):
-                      with open(fpath) as f:
-                          store[php_ver] = f.read().strip()
-
-          if batch_data or set_data:
-              lines.append("## Batch & Set Operations Benchmarks\n")
-              lines.append(
-                  "Benchmarks for `putAll()`, `fromArray()`, `getAll()`, "
-                  "`toArray()`, `increment()`, and BITSET set operations "
-                  "(`union`, `intersect`, `diff`, `xor`).\n"
-              )
-              # Pick the latest PHP version with results
-              all_vers = sorted(
-                  set(list(batch_data.keys()) + list(set_data.keys())),
-                  key=lambda v: [int(x) for x in v.split(".")]
-              )
-              if all_vers:
-                  latest = all_vers[-1]
-                  if latest in batch_data:
+                  # Core Types (representative in main, all in detail)
+                  def emit_core_table(type_list, detail_tag=""):
+                      lines.append(f"### Core Types{tag}{detail_tag}{heading_suffix}\n")
                       lines.append(
-                          f"<details><summary>Batch Operations — PHP {latest} (Linux)</summary>\n"
+                          "Speedup = PHP time / Judy time. "
+                          "**Bold** = Judy faster.\n"
                       )
-                      lines.append("```")
-                      lines.append(batch_data[latest])
-                      lines.append("```\n")
-                      lines.append("</details>\n")
-                  if latest in set_data:
+                      lines.append("| Type | Op | Judy | PHP array | Speedup |")
+                      lines.append("|------|----|-----:|----------:|---------|")
+                      for type_id, label in type_list:
+                          for metric, op_label in [
+                              ("write", "Write"), ("read", "Read"),
+                              ("iter", "Iter"), ("free", "Free"),
+                          ]:
+                              j_ms = get_metric(bm, f"core.{type_id}.{metric}.judy")
+                              p_ms = get_metric(bm, f"core.{type_id}.{metric}.php")
+                              if j_ms is None and p_ms is None:
+                                  continue
+                              j_str, p_str, s_str = fmt_speedup(j_ms, p_ms)
+                              lines.append(
+                                  f"| {label} | {op_label} "
+                                  f"| {j_str} | {p_str} | {s_str} |"
+                              )
+                      lines.append("")
+
+                  emit_core_table(main_types)
+
+                  # Collapsible: all types
+                  extra_types = [t for t in all_types if t not in main_types]
+                  has_extra = any(
+                      get_metric(bm, f"core.{tid}.write.judy") is not None
+                      for tid, _ in extra_types
+                  )
+                  if has_extra:
                       lines.append(
-                          f"<details><summary>Set Operations — PHP {latest} (Linux)</summary>\n"
+                          "<details><summary>All types detail"
+                          "</summary>\n"
                       )
-                      lines.append("```")
-                      lines.append(set_data[latest])
-                      lines.append("```\n")
+                      emit_core_table(all_types, " \u2014 All")
                       lines.append("</details>\n")
 
-          # ── All-Types Comparison Benchmark ─────────────────────────
-          all_types_data = {}
+              # ── Primary platform (Linux) ── shown expanded ──
+              emit_tables(primary, latest)
 
-          for bench_dir in sorted(glob.glob("benchmarks/benchmark-linux-*")):
-              m = re.match(r'^.*benchmark-linux-php([\d.]+)$', bench_dir)
-              if not m:
-                  continue
-              php_ver = m.group(1)
-              fpath = os.path.join(bench_dir, "all-types-benchmark-results.txt")
-              if os.path.isfile(fpath):
-                  with open(fpath) as f:
-                      all_types_data[php_ver] = f.read().strip()
+              # ── Cross-version detail per platform ──
+              for platform in platforms:
+                  versions = platform_versions[platform]
+                  if len(versions) <= 1:
+                      continue
+                  lines.append(
+                      f"<details><summary>Cross-version detail "
+                      f"({platform})</summary>\n"
+                  )
+                  ver_hdr = " | ".join(f"PHP {v}" for v in versions)
 
-          if all_types_data:
-              lines.append("## All-Types Comparison Benchmark\n")
-              lines.append(
-                  "Side-by-side comparison of all six Judy types and native PHP array "
-                  "(50K elements, 3 iterations, Linux only).\n"
-              )
-              latest_ver = sorted(
-                  all_types_data.keys(),
-                  key=lambda v: [int(x) for x in v.split(".")]
-              )[-1]
-              lines.append(
-                  f"<details><summary>All-Types Benchmark — PHP {latest_ver} (Linux)</summary>\n"
-              )
-              lines.append("```")
-              lines.append(all_types_data[latest_ver])
-              lines.append("```\n")
-              lines.append("</details>\n")
+                  # Core cross-version table
+                  lines.append(f"#### Core Types \u2014 {platform}\n")
+                  lines.append(
+                      "Each cell: Judy ms (speedup vs PHP array).\n"
+                  )
+                  lines.append(f"| Type | Op | {ver_hdr} |")
+                  lines.append("|---|---|" + "|".join("---" for _ in versions) + "|")
+                  for type_id, label in all_types:
+                      for metric, op_label in [("write", "Write"), ("read", "Read")]:
+                          cells = []
+                          any_data = False
+                          for v in versions:
+                              data = bench_json.get((platform, v), {})
+                              bm = data.get("benchmarks", {})
+                              j_ms = get_metric(bm, f"core.{type_id}.{metric}.judy")
+                              p_ms = get_metric(bm, f"core.{type_id}.{metric}.php")
+                              if j_ms is not None:
+                                  s = fmt_speedup_only(j_ms, p_ms)
+                                  cells.append(f"{fmt_ms(j_ms)} ({s})")
+                                  any_data = True
+                              else:
+                                  cells.append("-")
+                          if any_data:
+                              lines.append(
+                                  f"| {label} | {op_label} | "
+                                  + " | ".join(cells) + " |"
+                              )
+                  lines.append("")
 
-          # ── Native API Benchmark ─────────────────────────────────
-          phase2_data = {}
+                  # API cross-version table
+                  lines.append(f"#### API \u2014 {platform}\n")
+                  lines.append(f"| Operation | {ver_hdr} |")
+                  lines.append("|---|" + "|".join("---" for _ in versions) + "|")
+                  for prefix, label in api_ops:
+                      cells = []
+                      any_data = False
+                      for v in versions:
+                          data = bench_json.get((platform, v), {})
+                          bm = data.get("benchmarks", {})
+                          j_ms = get_metric(bm, f"{prefix}.judy")
+                          p_ms = get_metric(bm, f"{prefix}.php")
+                          if j_ms is not None:
+                              s = fmt_speedup_only(j_ms, p_ms)
+                              cells.append(f"{fmt_ms(j_ms)} ({s})")
+                              any_data = True
+                          else:
+                              cells.append("-")
+                      if any_data:
+                          lines.append(
+                              f"| {label} | " + " | ".join(cells) + " |"
+                          )
+                  lines.append("")
+                  lines.append("</details>\n")
 
-          for bench_dir in sorted(glob.glob("benchmarks/benchmark-linux-*")):
-              m = re.match(r'^.*benchmark-linux-php([\d.]+)$', bench_dir)
-              if not m:
-                  continue
-              php_ver = m.group(1)
-              fpath = os.path.join(bench_dir, "phase2-api-benchmark-results.txt")
-              if os.path.isfile(fpath):
-                  with open(fpath) as f:
-                      phase2_data[php_ver] = f.read().strip()
+              # ── Secondary platforms (e.g. Windows) in collapsible ──
+              for platform in platforms:
+                  if platform == primary:
+                      continue
+                  p_latest = platform_versions[platform][-1]
+                  lines.append(
+                      f"<details><summary>{platform} results "
+                      f"(PHP {p_latest})</summary>\n"
+                  )
+                  emit_tables(platform, p_latest)
+                  lines.append("</details>\n")
 
-          if phase2_data:
-              lines.append("## Native API Benchmark\n")
-              lines.append(
-                  "Native C-level API methods vs PHP userland equivalents "
-                  "(500K elements, 5 iterations median, Linux only).\n"
-              )
-              latest_ver = sorted(
-                  phase2_data.keys(),
-                  key=lambda v: [int(x) for x in v.split(".")],
-              )[-1]
-              lines.append(
-                  f"<details><summary>Native API Benchmark — PHP {latest_ver} (Linux)</summary>\n"
-              )
-              lines.append("```")
-              lines.append(phase2_data[latest_ver])
-              lines.append("```\n")
-              lines.append("</details>\n")
+              # ── Cross-release baseline comparison ──
+              # Prefer CI-generated baseline (same runner = no arch noise)
+              baseline = None
+              baseline_source = None
 
-          # ── Advanced Benchmark ──────────────────────────────────
-          advanced_data = {}
+              for bdir in sorted(glob.glob(
+                  "benchmarks/benchmark-baseline-*"
+              )):
+                  bf = os.path.join(bdir, "baseline-bench.json")
+                  if os.path.isfile(bf):
+                      with open(bf) as f:
+                          try:
+                              baseline = json.load(f)
+                              baseline_source = "same-runner"
+                          except json.JSONDecodeError:
+                              pass
+                      break
 
-          for bench_dir in sorted(glob.glob("benchmarks/benchmark-linux-*")):
-              m = re.match(r'^.*benchmark-linux-php([\d.]+)$', bench_dir)
-              if not m:
-                  continue
-              php_ver = m.group(1)
-              fpath = os.path.join(bench_dir, "advanced-benchmark-results.txt")
-              if os.path.isfile(fpath):
-                  with open(fpath) as f:
-                      advanced_data[php_ver] = f.read().strip()
+              # Fallback: committed baseline file
+              if baseline is None:
+                  fallback = "baselines/latest.json"
+                  if os.path.isfile(fallback):
+                      with open(fallback) as f:
+                          try:
+                              baseline = json.load(f)
+                              baseline_source = "committed"
+                          except json.JSONDecodeError:
+                              pass
 
-          if advanced_data:
-              lines.append("## Advanced Benchmark\n")
-              lines.append(
-                  "C-level forEach/filter/map, string set operations, "
-                  "and adaptive SSO type comparison "
-                  "(500K elements, 5 iterations median, Linux only).\n"
-              )
-              latest_ver = sorted(
-                  advanced_data.keys(),
-                  key=lambda v: [int(x) for x in v.split(".")],
-              )[-1]
-              lines.append(
-                  f"<details><summary>Advanced Benchmark — PHP {latest_ver} (Linux)</summary>\n"
-              )
-              lines.append("```")
-              lines.append(advanced_data[latest_ver])
-              lines.append("```\n")
+              if baseline and baseline.get("benchmarks"):
+                  base_bm = baseline["benchmarks"]
+                  base_ver = baseline.get("metadata", {}).get(
+                      "judy_version", "?"
+                  )
+
+                  # Pick current data: primary platform, latest PHP
+                  cur_data = bench_json.get((primary, latest), {})
+                  cur_bm = cur_data.get("benchmarks", {})
+                  cur_ver = cur_data.get("metadata", {}).get(
+                      "judy_version", "?"
+                  )
+
+                  if cur_bm:
+                      threshold = 10.0
+                      min_ms = 2.0  # ignore sub-2ms timings (noise)
+                      all_ids = sorted(
+                          set(list(base_bm.keys()) + list(cur_bm.keys()))
+                      )
+
+                      comparisons = []
+                      new_entries = []
+                      removed_entries = []
+                      counts = {
+                          "faster": 0, "slower": 0, "same": 0,
+                          "new": 0, "removed": 0,
+                      }
+
+                      for bid in all_ids:
+                          # Only compare .judy entries (Judy's own perf)
+                          if not bid.endswith(".judy"):
+                              continue
+                          # Skip heap-only entries
+                          b_entry = base_bm.get(bid, {})
+                          c_entry = cur_bm.get(bid, {})
+                          if (b_entry.get("median_ms", 0) == 0
+                              and b_entry.get("heap_bytes")):
+                              continue
+                          if (c_entry.get("median_ms", 0) == 0
+                              and c_entry.get("heap_bytes")):
+                              continue
+
+                          b_ms = b_entry.get("median_ms")
+                          c_ms = c_entry.get("median_ms")
+
+                          # Short display name: strip .judy suffix
+                          name = bid[:-5]
+
+                          if b_ms is None and c_ms is not None:
+                              new_entries.append((name, c_ms))
+                              counts["new"] += 1
+                          elif b_ms is not None and c_ms is None:
+                              removed_entries.append((name, b_ms))
+                              counts["removed"] += 1
+                          elif b_ms is not None and c_ms is not None:
+                              if b_ms <= 0:
+                                  delta_pct = 0.0
+                                  status = "~same"
+                              elif b_ms < min_ms and c_ms < min_ms:
+                                  # Sub-threshold: too small to compare
+                                  delta_pct = 0.0
+                                  status = "~same"
+                                  counts["same"] += 1
+                              else:
+                                  delta_pct = (
+                                      (c_ms - b_ms) / b_ms
+                                  ) * 100
+                                  if delta_pct < -threshold:
+                                      status = "FASTER"
+                                      counts["faster"] += 1
+                                  elif delta_pct > threshold:
+                                      status = "SLOWER"
+                                      counts["slower"] += 1
+                                  else:
+                                      status = "~same"
+                                      counts["same"] += 1
+                              comparisons.append(
+                                  (name, b_ms, c_ms, delta_pct, status)
+                              )
+
+                      # Emit section
+                      lines.append(
+                          f"### Release Comparison "
+                          f"({base_ver} \u2192 {cur_ver})\n"
+                      )
+                      if baseline_source == "same-runner":
+                          lines.append(
+                              f"> Baseline: v{base_ver} via "
+                              f"`pie install` on **same CI "
+                              f"runner**. "
+                              f"Comparing {primary} PHP {latest}. "
+                              f"Threshold: \u00b1{threshold:.0f}% "
+                              f"(entries < {min_ms:.0f} ms ignored).\n"
+                          )
+                      else:
+                          lines.append(
+                              f"> \u26a0\ufe0f Baseline: v{base_ver} "
+                              f"from committed file "
+                              f"(cross-architecture — deltas may "
+                              f"be unreliable). "
+                              f"Threshold: \u00b1{threshold:.0f}%.\n"
+                          )
+                      # Summary line
+                      parts = []
+                      if counts["faster"]:
+                          parts.append(
+                              f"{counts['faster']} faster"
+                          )
+                      if counts["slower"]:
+                          parts.append(
+                              f"\u26a0\ufe0f **{counts['slower']} "
+                              f"regressions**"
+                          )
+                      else:
+                          parts.append("0 regressions")
+                      if counts["same"]:
+                          parts.append(
+                              f"{counts['same']} unchanged"
+                          )
+                      if counts["new"]:
+                          parts.append(f"{counts['new']} new")
+                      if counts["removed"]:
+                          parts.append(
+                              f"{counts['removed']} removed"
+                          )
+                      lines.append(
+                          "**Summary**: " + ", ".join(parts) + "\n"
+                      )
+
+                      # Comparison table (only changed + same)
+                      if comparisons:
+                          lines.append(
+                              "| Benchmark | Baseline | Current "
+                              "| Delta | Status |"
+                          )
+                          lines.append(
+                              "|-----------|----------|---------|"
+                              "------:|--------|"
+                          )
+                          for name, b_ms, c_ms, delta, status in comparisons:
+                              b_str = fmt_ms(b_ms)
+                              c_str = fmt_ms(c_ms)
+                              if abs(delta) < 0.05:
+                                  d_str = "0.0%"
+                              elif delta > 0:
+                                  d_str = f"+{delta:.1f}%"
+                              else:
+                                  d_str = f"{delta:.1f}%"
+                              if status == "FASTER":
+                                  s_str = "\u2705 **FASTER**"
+                              elif status == "SLOWER":
+                                  s_str = "\u26a0\ufe0f **SLOWER**"
+                              else:
+                                  s_str = "~same"
+                              lines.append(
+                                  f"| {name} | {b_str} | {c_str} "
+                                  f"| {d_str} | {s_str} |"
+                              )
+                          lines.append("")
+
+                      # ── Memory Comparison ──
+                      mem_rows = []
+                      mem_counts = {
+                          "better": 0, "worse": 0, "same": 0,
+                      }
+                      type_label_map = dict(all_types)
+
+                      for bid in all_ids:
+                          if not bid.endswith(".heap.judy"):
+                              continue
+                          bid_parts = bid.split(".")
+                          if len(bid_parts) < 4:
+                              continue
+                          b_heap = base_bm.get(
+                              bid, {}
+                          ).get("heap_bytes")
+                          c_heap = cur_bm.get(
+                              bid, {}
+                          ).get("heap_bytes")
+                          if (b_heap is None
+                                  or c_heap is None):
+                              continue
+                          tid = bid_parts[1]
+                          name = type_label_map.get(
+                              tid, tid
+                          )
+                          if b_heap <= 0:
+                              delta = 0.0
+                              status = "~same"
+                              mem_counts["same"] += 1
+                          else:
+                              delta = (
+                                  (c_heap - b_heap)
+                                  / b_heap
+                              ) * 100
+                              if delta < -1.0:
+                                  status = "BETTER"
+                                  mem_counts["better"] += 1
+                              elif delta > 1.0:
+                                  status = "WORSE"
+                                  mem_counts["worse"] += 1
+                              else:
+                                  status = "~same"
+                                  mem_counts["same"] += 1
+                          mem_rows.append(
+                              (name, b_heap, c_heap,
+                               delta, status)
+                          )
+
+                      if mem_rows:
+                          lines.append(
+                              "#### Memory Comparison\n"
+                          )
+                          mparts = []
+                          if mem_counts["better"]:
+                              mparts.append(
+                                  f"{mem_counts['better']} "
+                                  f"improved"
+                              )
+                          if mem_counts["worse"]:
+                              mparts.append(
+                                  f"\u26a0\ufe0f "
+                                  f"**{mem_counts['worse']} "
+                                  f"regressions**"
+                              )
+                          else:
+                              mparts.append(
+                                  "0 regressions"
+                              )
+                          if mem_counts["same"]:
+                              mparts.append(
+                                  f"{mem_counts['same']} "
+                                  f"unchanged"
+                              )
+                          lines.append(
+                              "**Memory**: "
+                              + ", ".join(mparts)
+                              + "\n"
+                          )
+                          lines.append(
+                              "| Type | Baseline | Current "
+                              "| Delta | Status |"
+                          )
+                          lines.append(
+                              "|------|----------|---------|"
+                              "------:|--------|"
+                          )
+                          for (name, b_heap, c_heap,
+                               delta, status) in mem_rows:
+                              b_str = fmt_bytes(b_heap)
+                              c_str = fmt_bytes(c_heap)
+                              if abs(delta) < 0.05:
+                                  d_str = "0.0%"
+                              elif delta > 0:
+                                  d_str = f"+{delta:.1f}%"
+                              else:
+                                  d_str = f"{delta:.1f}%"
+                              if status == "BETTER":
+                                  s_str = (
+                                      "\u2705 **BETTER**"
+                                  )
+                              elif status == "WORSE":
+                                  s_str = (
+                                      "\u26a0\ufe0f **WORSE**"
+                                  )
+                              else:
+                                  s_str = "~same"
+                              lines.append(
+                                  f"| {name} | {b_str} "
+                                  f"| {c_str} "
+                                  f"| {d_str} | {s_str} |"
+                              )
+                          lines.append("")
+
+                      # Collapsible: new benchmarks
+                      if new_entries:
+                          lines.append(
+                              f"<details><summary>"
+                              f"{counts['new']} new benchmarks "
+                              f"(not in baseline)</summary>\n"
+                          )
+                          lines.append(
+                              "| Benchmark | Current |"
+                          )
+                          lines.append("|-----------|---------|")
+                          for name, c_ms in new_entries:
+                              lines.append(
+                                  f"| {name} | {fmt_ms(c_ms)} |"
+                              )
+                          lines.append("")
+                          lines.append("</details>\n")
+
+                      # Collapsible: removed benchmarks
+                      if removed_entries:
+                          lines.append(
+                              f"<details><summary>"
+                              f"{counts['removed']} removed benchmarks"
+                              f"</summary>\n"
+                          )
+                          lines.append(
+                              "| Benchmark | Baseline |"
+                          )
+                          lines.append("|-----------|----------|")
+                          for name, b_ms in removed_entries:
+                              lines.append(
+                                  f"| {name} | {fmt_ms(b_ms)} |"
+                              )
+                          lines.append("")
+                          lines.append("</details>\n")
+
+              # ── Collapsible raw benchmark output ──
+              lines.append("<details><summary>Full benchmark output</summary>\n")
+              for platform in platforms:
+                  versions = sorted(
+                      [v for p, v in bench_text.keys() if p == platform],
+                      key=lambda v: [int(x) for x in v.split(".")]
+                  )
+                  if versions:
+                      p_latest = versions[-1]
+                      text = bench_text.get((platform, p_latest), "")
+                      if text:
+                          lines.append(f"#### {platform} \u2014 PHP {p_latest}\n")
+                          lines.append("```")
+                          lines.append(text)
+                          lines.append("```\n")
               lines.append("</details>\n")
 
           report = "\n".join(lines) + "\n"

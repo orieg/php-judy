@@ -64,6 +64,10 @@ ZEND_END_ARG_INFO()
 
 #define arginfo_class_Judy_xor arginfo_class_Judy_union
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_mergeWith, 0, 1, IS_VOID, 0)
+	ZEND_ARG_OBJ_INFO(0, other, Judy, 0)
+ZEND_END_ARG_INFO()
+
 ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_Judy_slice, 0, 2, Judy, 0)
 	ZEND_ARG_TYPE_INFO(0, start, IS_MIXED, 0)
 	ZEND_ARG_TYPE_INFO(0, end, IS_MIXED, 0)
@@ -186,6 +190,7 @@ ZEND_METHOD(Judy, union);
 ZEND_METHOD(Judy, intersect);
 ZEND_METHOD(Judy, diff);
 ZEND_METHOD(Judy, xor);
+ZEND_METHOD(Judy, mergeWith);
 ZEND_METHOD(Judy, slice);
 ZEND_METHOD(Judy, offsetExists);
 ZEND_METHOD(Judy, offsetGet);
@@ -244,6 +249,7 @@ static const zend_function_entry class_Judy_methods[] = {
 	ZEND_ME(Judy, intersect, arginfo_class_Judy_intersect, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, diff, arginfo_class_Judy_diff, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, xor, arginfo_class_Judy_xor, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, mergeWith, arginfo_class_Judy_mergeWith, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, slice, arginfo_class_Judy_slice, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, offsetExists, arginfo_class_Judy_offsetExists, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, offsetGet, arginfo_class_Judy_offsetGet, ZEND_ACC_PUBLIC)

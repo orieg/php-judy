@@ -19,7 +19,7 @@
 #ifndef PHP_JUDY_H
 #define PHP_JUDY_H
 
-#define PHP_JUDY_VERSION "2.3.0"
+#define PHP_JUDY_VERSION "2.4.0"
 #define PHP_JUDY_EXTNAME "judy"
 
 /* Windows x64 (LLP64): Force 64-bit Word_t to match libjudy ABI.
@@ -224,6 +224,17 @@ static inline int judy_pack_short_string_internal(const char *str, size_t len, W
 	*index = 0;
 	memcpy(index, str, len);
 	return 1;
+}
+
+static inline void judy_init_type_flags(judy_object *intern, zend_long jtype)
+{
+	intern->type = jtype;
+	intern->is_integer_keyed = (jtype == TYPE_BITSET || jtype == TYPE_INT_TO_INT || jtype == TYPE_INT_TO_MIXED || jtype == TYPE_INT_TO_PACKED);
+	intern->is_string_keyed = (jtype == TYPE_STRING_TO_INT || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_INT_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
+	intern->is_mixed_value = (jtype == TYPE_INT_TO_MIXED || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE);
+	intern->is_packed_value = (jtype == TYPE_INT_TO_PACKED);
+	intern->is_hash_keyed = (jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_INT_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
+	intern->is_adaptive = (jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
 }
 
 /* Max length, this must be a constant for it to work in

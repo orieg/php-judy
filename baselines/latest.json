@@ -1,0 +1,533 @@
+{
+    "metadata": {
+        "php_version": "8.4.18",
+        "judy_version": "2.3.0",
+        "platform": "Linux aarch64",
+        "date": "2026-03-02T19:48:28+00:00",
+        "size": 500000,
+        "iterations": 7,
+        "suite": "core"
+    },
+    "benchmarks": {
+        "core.bitset.write.judy": {
+            "median_ms": 14.3552,
+            "runs_ms": [
+                13.5188,
+                13.539,
+                14.3055,
+                14.3552,
+                14.5601,
+                14.6493,
+                15.5263
+            ]
+        },
+        "core.bitset.write.php": {
+            "median_ms": 6.4259,
+            "runs_ms": [
+                6.1517,
+                6.2998,
+                6.3658,
+                6.4259,
+                6.4658,
+                6.5068,
+                6.5555
+            ]
+        },
+        "core.bitset.read.judy": {
+            "median_ms": 9.97,
+            "runs_ms": [
+                8.9659,
+                9.0216,
+                9.4578,
+                9.97,
+                10.0061,
+                11.6288,
+                13.3332
+            ]
+        },
+        "core.bitset.read.php": {
+            "median_ms": 5.2802,
+            "runs_ms": [
+                4.3058,
+                4.4141,
+                4.6624,
+                5.2802,
+                5.4472,
+                6.4143,
+                6.5953
+            ]
+        },
+        "core.bitset.iter.judy": {
+            "median_ms": 37.4788,
+            "runs_ms": [
+                36.3704,
+                36.9226,
+                37.0883,
+                37.4788,
+                37.6605,
+                38.5694,
+                39.0424
+            ]
+        },
+        "core.bitset.iter.php": {
+            "median_ms": 2.7123,
+            "runs_ms": [
+                2.5288,
+                2.5388,
+                2.7106,
+                2.7123,
+                2.7265,
+                2.7321,
+                2.8833
+            ]
+        },
+        "core.bitset.free.judy": {
+            "median_ms": 0.0073,
+            "runs_ms": [
+                0.0065,
+                0.0066,
+                0.0068,
+                0.0073,
+                0.0105,
+                0.0122,
+                0.0136
+            ]
+        },
+        "core.bitset.free.php": {
+            "median_ms": 0.2669,
+            "runs_ms": [
+                0.2603,
+                0.2625,
+                0.2665,
+                0.2669,
+                0.2692,
+                0.2852,
+                0.2865
+            ]
+        },
+        "core.bitset.heap.judy": {
+            "median_ms": 0,
+            "heap_bytes": 128
+        },
+        "core.bitset.heap.php": {
+            "median_ms": 0,
+            "heap_bytes": 8392784
+        },
+        "core.int_to_int.write.judy": {
+            "median_ms": 38.5381,
+            "runs_ms": [
+                24.4724,
+                24.8123,
+                32.6781,
+                38.5381,
+                40.105,
+                41.2604,
+                43.409
+            ]
+        },
+        "core.int_to_int.write.php": {
+            "median_ms": 10.2438,
+            "runs_ms": [
+                8.6521,
+                9.0013,
+                9.2092,
+                10.2438,
+                10.6076,
+                12.2865,
+                12.9969
+            ]
+        },
+        "core.int_to_int.read.judy": {
+            "median_ms": 14.9886,
+            "runs_ms": [
+                11.1841,
+                12.6234,
+                13.0322,
+                14.9886,
+                15.0801,
+                16.8514,
+                19.0433
+            ]
+        },
+        "core.int_to_int.read.php": {
+            "median_ms": 4.3251,
+            "runs_ms": [
+                4.3201,
+                4.322,
+                4.3223,
+                4.3251,
+                4.3265,
+                4.9946,
+                5.0425
+            ]
+        },
+        "core.int_to_int.iter.judy": {
+            "median_ms": 40.5198,
+            "runs_ms": [
+                37.5427,
+                37.8753,
+                38.0355,
+                40.5198,
+                40.6738,
+                41.2052,
+                55.0365
+            ]
+        },
+        "core.int_to_int.iter.php": {
+            "median_ms": 2.5382,
+            "runs_ms": [
+                2.5314,
+                2.5365,
+                2.5369,
+                2.5382,
+                2.5524,
+                2.5577,
+                3.1885
+            ]
+        },
+        "core.int_to_int.free.judy": {
+            "median_ms": 0.2014,
+            "runs_ms": [
+                0.1356,
+                0.1391,
+                0.149,
+                0.2014,
+                0.2736,
+                0.3342,
+                0.571
+            ]
+        },
+        "core.int_to_int.free.php": {
+            "median_ms": 0.2724,
+            "runs_ms": [
+                0.2659,
+                0.266,
+                0.2705,
+                0.2724,
+                0.2735,
+                0.2807,
+                0.296
+            ]
+        },
+        "core.int_to_int.heap.judy": {
+            "median_ms": 0,
+            "heap_bytes": 128
+        },
+        "core.int_to_int.heap.php": {
+            "median_ms": 0,
+            "heap_bytes": 8392784
+        },
+        "core.int_to_mixed.write.judy": {
+            "median_ms": 45.908,
+            "runs_ms": [
+                42.7592,
+                45.7939,
+                45.8965,
+                45.908,
+                46.7279,
+                50.4333,
+                54.0696
+            ]
+        },
+        "core.int_to_mixed.write.php": {
+            "median_ms": 8.883,
+            "runs_ms": [
+                8.6013,
+                8.6388,
+                8.8714,
+                8.883,
+                8.9893,
+                9.0286,
+                9.135
+            ]
+        },
+        "core.int_to_mixed.read.judy": {
+            "median_ms": 11.9173,
+            "runs_ms": [
+                11.4189,
+                11.626,
+                11.7533,
+                11.9173,
+                12.2098,
+                12.5574,
+                13.0705
+            ]
+        },
+        "core.int_to_mixed.read.php": {
+            "median_ms": 7.5837,
+            "runs_ms": [
+                5.6811,
+                6.0792,
+                7.0604,
+                7.5837,
+                10.13,
+                12.1567,
+                13.8361
+            ]
+        },
+        "core.int_to_mixed.iter.judy": {
+            "median_ms": 40.9434,
+            "runs_ms": [
+                37.5075,
+                37.8102,
+                40.8054,
+                40.9434,
+                42.2258,
+                43.3374,
+                49.8087
+            ]
+        },
+        "core.int_to_mixed.iter.php": {
+            "median_ms": 3.5417,
+            "runs_ms": [
+                3.3137,
+                3.3512,
+                3.4734,
+                3.5417,
+                3.7627,
+                3.7977,
+                5.3615
+            ]
+        },
+        "core.int_to_mixed.free.judy": {
+            "median_ms": 13.0765,
+            "runs_ms": [
+                12.6833,
+                12.7949,
+                12.9523,
+                13.0765,
+                13.4106,
+                13.8335,
+                15.6199
+            ]
+        },
+        "core.int_to_mixed.free.php": {
+            "median_ms": 4.675,
+            "runs_ms": [
+                3.6835,
+                3.7988,
+                4.556,
+                4.675,
+                4.8958,
+                5.4102,
+                6.0147
+            ]
+        },
+        "core.int_to_mixed.heap.judy": {
+            "median_ms": 0,
+            "heap_bytes": 8000128
+        },
+        "core.int_to_mixed.heap.php": {
+            "median_ms": 0,
+            "heap_bytes": 8392784
+        },
+        "core.string_to_int.write.judy": {
+            "median_ms": 92.9135,
+            "runs_ms": [
+                90.5189,
+                91.4618,
+                91.6512,
+                92.9135,
+                94.091,
+                94.389,
+                94.8238
+            ]
+        },
+        "core.string_to_int.write.php": {
+            "median_ms": 12.6437,
+            "runs_ms": [
+                12.2072,
+                12.4048,
+                12.6234,
+                12.6437,
+                13.1453,
+                13.2292,
+                13.2649
+            ]
+        },
+        "core.string_to_int.read.judy": {
+            "median_ms": 37.8756,
+            "runs_ms": [
+                37.5526,
+                37.6312,
+                37.6653,
+                37.8756,
+                38.2652,
+                38.5122,
+                41.3379
+            ]
+        },
+        "core.string_to_int.read.php": {
+            "median_ms": 6.3706,
+            "runs_ms": [
+                6.248,
+                6.251,
+                6.2614,
+                6.3706,
+                6.7192,
+                6.9359,
+                7.3715
+            ]
+        },
+        "core.string_to_int.iter.judy": {
+            "median_ms": 100.3655,
+            "runs_ms": [
+                98.4865,
+                98.4936,
+                99.0934,
+                100.3655,
+                102.0609,
+                108.365,
+                113.6201
+            ]
+        },
+        "core.string_to_int.iter.php": {
+            "median_ms": 3.2269,
+            "runs_ms": [
+                3.1814,
+                3.1888,
+                3.202,
+                3.2269,
+                3.2479,
+                3.3093,
+                3.4664
+            ]
+        },
+        "core.string_to_int.free.judy": {
+            "median_ms": 23.9342,
+            "runs_ms": [
+                23.2158,
+                23.5083,
+                23.7404,
+                23.9342,
+                25.0246,
+                25.4859,
+                27.6696
+            ]
+        },
+        "core.string_to_int.free.php": {
+            "median_ms": 0.9333,
+            "runs_ms": [
+                0.9045,
+                0.9253,
+                0.9284,
+                0.9333,
+                0.9862,
+                1.0462,
+                1.0659
+            ]
+        },
+        "core.string_to_int.heap.judy": {
+            "median_ms": 0,
+            "heap_bytes": 128
+        },
+        "core.string_to_int.heap.php": {
+            "median_ms": 0,
+            "heap_bytes": 20971600
+        },
+        "core.string_to_mixed.write.judy": {
+            "median_ms": 131.7121,
+            "runs_ms": [
+                130.132,
+                131.198,
+                131.4519,
+                131.7121,
+                137.9628,
+                138.0309,
+                209.9128
+            ]
+        },
+        "core.string_to_mixed.write.php": {
+            "median_ms": 14.5963,
+            "runs_ms": [
+                14.4959,
+                14.5275,
+                14.5875,
+                14.5963,
+                14.6551,
+                14.7793,
+                14.9028
+            ]
+        },
+        "core.string_to_mixed.read.judy": {
+            "median_ms": 40.2552,
+            "runs_ms": [
+                39.4431,
+                40.0715,
+                40.0933,
+                40.2552,
+                40.5467,
+                41.7418,
+                52.1838
+            ]
+        },
+        "core.string_to_mixed.read.php": {
+            "median_ms": 7.4283,
+            "runs_ms": [
+                7.3115,
+                7.3159,
+                7.3625,
+                7.4283,
+                7.4697,
+                7.4725,
+                7.7319
+            ]
+        },
+        "core.string_to_mixed.iter.judy": {
+            "median_ms": 106.3569,
+            "runs_ms": [
+                101.568,
+                102.3742,
+                103.639,
+                106.3569,
+                109.2615,
+                110.5508,
+                119.6636
+            ]
+        },
+        "core.string_to_mixed.iter.php": {
+            "median_ms": 4.2073,
+            "runs_ms": [
+                4.1003,
+                4.1115,
+                4.128,
+                4.2073,
+                4.4064,
+                4.7018,
+                5.1683
+            ]
+        },
+        "core.string_to_mixed.free.judy": {
+            "median_ms": 74.3804,
+            "runs_ms": [
+                73.5249,
+                73.6963,
+                74.0313,
+                74.3804,
+                75.1205,
+                75.8777,
+                82.3025
+            ]
+        },
+        "core.string_to_mixed.free.php": {
+            "median_ms": 7.0532,
+            "runs_ms": [
+                6.8532,
+                6.8803,
+                6.983,
+                7.0532,
+                7.2294,
+                7.248,
+                7.3318
+            ]
+        },
+        "core.string_to_mixed.heap.judy": {
+            "median_ms": 0,
+            "heap_bytes": 8000128
+        },
+        "core.string_to_mixed.heap.php": {
+            "median_ms": 0,
+            "heap_bytes": 20971600
+        }
+    }
+}
