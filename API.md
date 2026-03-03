@@ -574,7 +574,7 @@ Returns the Judy type constant of the given Judy array.
 
 Summary of which methods are available for each type. Methods not listed here work with all 10 types.
 
-| Method                     | BITSET | INT_TO_INT | INT_TO_MIXED | INT_TO_PACKED | STRING_TO_INT | STRING_TO_MIXED | STR_INT_HASH | STR_MIX_HASH | STR_INT_ADAPT | STR_MIX_ADAPT |
+| Method                     | BITSET | INT_TO_INT | INT_TO_MIXED | INT_TO_PACKED | STR_INT       | STR_MIXED       | STR_INT_HASH | STR_MIX_HASH | STR_INT_ADAPT | STR_MIX_ADAPT |
 | -------------------------- | ------ | ---------- | ------------ | ------------- | ------------- | --------------- | ------------ | ------------ | ------------- | ------------- |
 | `memoryUsage()`            | int    | int        | int          | int           | null          | null            | null         | null         | null          | null          |
 | `union/intersect/diff/xor` | yes    | yes        | -            | -             | yes           | -               | yes          | -            | -             | -             |
