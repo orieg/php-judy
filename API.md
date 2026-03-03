@@ -565,7 +565,7 @@ Returns the version of the PHP Judy extension.
 ### judy_type()
 
 ```php
-function judy_type($array): int
+function judy_type(mixed $array): int
 ```
 
 Returns the Judy type constant of the given Judy array.

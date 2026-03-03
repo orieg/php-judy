@@ -10,7 +10,7 @@ function judy_version(): string {}
  *
  * @param mixed $array
  */
-function judy_type($array): int {}
+function judy_type(mixed $array): int {}
 
 /**
  * @generate-class-entries

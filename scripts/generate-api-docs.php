@@ -290,6 +290,11 @@ if (!empty($errors)) {
 
 $out = '';
 
+// Helper: multibyte-safe string length (falls back to strlen if mbstring unavailable)
+function str_width(string $s): int {
+    return function_exists('mb_strlen') ? mb_strlen($s) : strlen($s);
+}
+
 // Helper: emit a method signature in a fenced code block
 function formatSignature(array $entry): string {
     return "```php\n{$entry['signature']}\n```\n";
@@ -297,7 +302,7 @@ function formatSignature(array $entry): string {
 
 // Helper: pad a string to a given width
 function pad(string $s, int $width): string {
-    $len = mb_strlen($s);
+    $len = str_width($s);
     return $s . str_repeat(' ', max(0, $width - $len));
 }
 
@@ -306,11 +311,11 @@ function markdownTable(array $headers, array $rows): string {
     // Compute column widths
     $widths = [];
     foreach ($headers as $ci => $h) {
-        $widths[$ci] = mb_strlen($h);
+        $widths[$ci] = str_width($h);
     }
     foreach ($rows as $row) {
         foreach ($row as $ci => $cell) {
-            $widths[$ci] = max($widths[$ci] ?? 0, mb_strlen($cell));
+            $widths[$ci] = max($widths[$ci] ?? 0, str_width($cell));
         }
     }
 
