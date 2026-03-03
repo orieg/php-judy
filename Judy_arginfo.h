@@ -1,11 +1,11 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: e1cf1a00811b2ae2bd9502cb30fe573f640ecf73 */
+ * Stub hash: 2c3d6e08ad8d66c9985ad460a5b801aecb4e3398 */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_version, 0, 0, IS_STRING, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_type, 0, 1, IS_LONG, 0)
-	ZEND_ARG_INFO(0, array)
+	ZEND_ARG_TYPE_INFO(0, array, IS_MIXED, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Judy___construct, 0, 0, 1)
@@ -130,10 +130,9 @@ ZEND_END_ARG_INFO()
 
 #define arginfo_class_Judy_next arginfo_class_Judy_rewind
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_keys, 0, 0, IS_ARRAY, 0)
-ZEND_END_ARG_INFO()
+#define arginfo_class_Judy_keys arginfo_class_Judy___serialize
 
-#define arginfo_class_Judy_values arginfo_class_Judy_keys
+#define arginfo_class_Judy_values arginfo_class_Judy___serialize
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_forEach, 0, 1, IS_VOID, 0)
 	ZEND_ARG_TYPE_INFO(0, callback, IS_CALLABLE, 0)
@@ -147,10 +146,10 @@ ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_Judy_map, 0, 1, Judy, 0)
 	ZEND_ARG_TYPE_INFO(0, transform, IS_CALLABLE, 0)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_averageValues, 0, 0, IS_DOUBLE, 1)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_class_Judy_sumValues, 0, 0, MAY_BE_LONG|MAY_BE_DOUBLE)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_MASK_EX(arginfo_class_Judy_sumValues, 0, 0, MAY_BE_LONG|MAY_BE_DOUBLE)
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_averageValues, 0, 0, IS_DOUBLE, 1)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_populationCount, 0, 0, IS_LONG, 0)
@@ -166,7 +165,6 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_equals, 0, 1, _IS_BOOL, 0)
 	ZEND_ARG_OBJ_INFO(0, other, Judy, 0)
 ZEND_END_ARG_INFO()
-
 
 ZEND_FUNCTION(judy_version);
 ZEND_FUNCTION(judy_type);
@@ -220,13 +218,11 @@ ZEND_METHOD(Judy, populationCount);
 ZEND_METHOD(Judy, deleteRange);
 ZEND_METHOD(Judy, equals);
 
-
 static const zend_function_entry ext_functions[] = {
 	ZEND_FE(judy_version, arginfo_judy_version)
 	ZEND_FE(judy_type, arginfo_judy_type)
 	ZEND_FE_END
 };
-
 
 static const zend_function_entry class_Judy_methods[] = {
 	ZEND_ME(Judy, __construct, arginfo_class_Judy___construct, ZEND_ACC_PUBLIC)

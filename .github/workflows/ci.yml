@@ -47,6 +47,10 @@ jobs:
           path: junit.xml
           if-no-files-found: ignore
 
+      - name: Verify API.md is up to date
+        if: matrix.php-version == '8.4'
+        run: php scripts/generate-api-docs.php --check
+
       - name: Install PIE
         if: matrix.php-version == '8.4'
         run: |
