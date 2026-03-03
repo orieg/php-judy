@@ -14,7 +14,7 @@
 3. [Installation](#installation)
 4. [Usage Examples](#usage-examples)
 5. [Reporting Bugs](#reporting-bugs)
-6. [Todo](#todo)
+6. [Roadmap](#roadmap)
 
 ## Introduction
 
@@ -37,18 +37,17 @@ For a detailed performance comparison with native PHP arrays, please see the [BE
 ## Directory Contents
 
 ```
-README.md          This file
-LICENSE           The PHP License used by this project
-EXPERIMENTAL      Note about the status of this package
-BENCHMARK.md      Performance benchmarks and analysis
-MIGRATION_2.2.0.md Migration guide for version 2.2.0
+README.md            This file
+API.md               Complete API reference
+BENCHMARK.md         Performance benchmarks and analysis
+MIGRATION_2.2.0.md   Migration guide for version 2.2.0
+LICENSE              The PHP License used by this project
 
-lib/              Header and source libraries used by the package
-libjudy/          Bundled libJudy
-tests/            Unit tests
-examples/         PHP test/example scripts
-*.c, *.h          Header and source files used to build the package
-*.php             PHP test/examples scripts
+tests/               Unit tests (176 tests)
+examples/            Benchmark and example scripts
+libjudy/             Bundled libJudy
+*.c, *.h             C source and header files
+Judy.stub.php        PHP stub for IDE autocompletion
 ```
 
 ## Installation
@@ -175,9 +174,11 @@ make install
 
 Judy arrays can be used like usual PHP arrays. The difference will be in the type of key/values that you can use. Judy arrays are optimized for memory usage but it forces some limitations in the PHP API.
 
-There are currently 6 types of PHP Judy Arrays:
+There are 10 types of PHP Judy Arrays, organized into three families:
 
-### 1. Judy::BITSET
+### Integer-Keyed Types
+
+#### 1. Judy::BITSET
 
 A Judy array with only 1 bit per index. It can be used to store boolean values.
 
@@ -192,7 +193,7 @@ if ($judy[100]) {
 }
 ```
 
-### 2. Judy::INT_TO_INT
+#### 2. Judy::INT_TO_INT
 
 A Judy array with integer keys and integer values.
 
@@ -205,7 +206,7 @@ $judy[3] = 300;
 echo $judy[2]; // Outputs: 200
 ```
 
-### 3. Judy::INT_TO_MIXED
+#### 3. Judy::INT_TO_MIXED
 
 A Judy array with integer keys and mixed values (strings, integers, etc.).
 
@@ -218,33 +219,7 @@ $judy[3] = [1, 2, 3];
 echo $judy[1]; // Outputs: Hello
 ```
 
-### 4. Judy::STRING_TO_INT
-
-A Judy array with string keys and integer values.
-
-```php
-$judy = new Judy(Judy::STRING_TO_INT);
-$judy["apple"] = 1;
-$judy["banana"] = 2;
-$judy["cherry"] = 3;
-
-echo $judy["banana"]; // Outputs: 2
-```
-
-### 5. Judy::STRING_TO_MIXED
-
-A Judy array with string keys and mixed values.
-
-```php
-$judy = new Judy(Judy::STRING_TO_MIXED);
-$judy["name"] = "John Doe";
-$judy["age"] = 30;
-$judy["scores"] = [85, 92, 78];
-
-echo $judy["name"]; // Outputs: John Doe
-```
-
-### 6. Judy::INT_TO_PACKED
+#### 4. Judy::INT_TO_PACKED
 
 A Judy array with integer keys and serialized ("packed") values. Values are stored as opaque byte buffers outside PHP's garbage collector using `php_var_serialize`/`php_var_unserialize`. This trades serialize/deserialize CPU cost for reduced GC pressure, making it suitable for large datasets where GC pauses are a concern.
 
@@ -265,6 +240,94 @@ $arr = $judy[2]; // Returns [1, 2, 3]
 **When to use INT_TO_PACKED vs INT_TO_MIXED:**
 - Use `INT_TO_MIXED` for small-to-medium arrays or when read/write speed is critical
 - Use `INT_TO_PACKED` for large arrays (100K+ elements) where GC pause reduction matters more than individual read/write latency
+
+### String-Keyed Types (Trie-Based)
+
+Trie-based types use JudySL internally. Keys are stored in sorted lexicographic order, making iteration ordered and range queries efficient. Lookup is O(key-length).
+
+#### 5. Judy::STRING_TO_INT
+
+A Judy array with string keys and integer values.
+
+```php
+$judy = new Judy(Judy::STRING_TO_INT);
+$judy["apple"] = 1;
+$judy["banana"] = 2;
+$judy["cherry"] = 3;
+
+echo $judy["banana"]; // Outputs: 2
+```
+
+#### 6. Judy::STRING_TO_MIXED
+
+A Judy array with string keys and mixed values.
+
+```php
+$judy = new Judy(Judy::STRING_TO_MIXED);
+$judy["name"] = "John Doe";
+$judy["age"] = 30;
+$judy["scores"] = [85, 92, 78];
+
+echo $judy["name"]; // Outputs: John Doe
+```
+
+### String-Keyed Types (Hash-Based)
+
+Hash-based types use JudyHS for O(1) average-case lookups, with a parallel JudySL key index that maintains sorted iteration order. Best for workloads dominated by random key access where you still need ordered iteration.
+
+#### 7. Judy::STRING_TO_INT_HASH
+
+A hash-backed Judy array with string keys and integer values.
+
+```php
+$judy = new Judy(Judy::STRING_TO_INT_HASH);
+$judy["session_abc"] = 1;
+$judy["session_xyz"] = 2;
+
+echo $judy["session_abc"]; // Outputs: 1
+
+// Iteration is still sorted (via the key index)
+foreach ($judy as $key => $value) {
+    echo "$key => $value\n";
+}
+```
+
+#### 8. Judy::STRING_TO_MIXED_HASH
+
+A hash-backed Judy array with string keys and mixed values.
+
+```php
+$judy = new Judy(Judy::STRING_TO_MIXED_HASH);
+$judy["config_a"] = ["enabled" => true];
+$judy["config_b"] = 42;
+```
+
+### String-Keyed Types (Adaptive / SSO)
+
+Adaptive types use Short-String Optimization (SSO): keys of 7 bytes or fewer are packed into a 64-bit integer and stored in a JudyL array, avoiding hashing overhead entirely. Longer keys fall back to JudyHS. A JudySL key index maintains sorted iteration. Best for mixed-length key workloads with many short keys.
+
+#### 9. Judy::STRING_TO_INT_ADAPTIVE
+
+An adaptive Judy array with string keys and integer values.
+
+```php
+$judy = new Judy(Judy::STRING_TO_INT_ADAPTIVE);
+$judy["us"] = 1;       // SSO: packed into JudyL (2 bytes)
+$judy["uk"] = 2;       // SSO: packed into JudyL (2 bytes)
+$judy["a_very_long_country_name"] = 3;  // Falls back to JudyHS
+echo $judy["us"]; // Outputs: 1
+```
+
+#### 10. Judy::STRING_TO_MIXED_ADAPTIVE
+
+An adaptive Judy array with string keys and mixed values.
+
+```php
+$judy = new Judy(Judy::STRING_TO_MIXED_ADAPTIVE);
+$judy["id"] = 12345;
+$judy["name"] = "Alice";
+$judy["metadata"] = ["role" => "admin"];
+```
 
 ### Iterator Interface (PHP 8+)
 
@@ -295,8 +358,9 @@ while ($judy->valid()) {
 
 - **Memory Efficiency**: Judy arrays use 2-4x less memory than PHP arrays
 - **Sequential Access**: Excellent performance for ordered iteration
-- **Range Queries**: Native support for range operations
-- **Random Access**: Slower than PHP arrays (O(log n) vs O(1))
+- **Range Queries**: Native support via `slice()`, `deleteRange()`, and `populationCount()`
+- **Random Access**: Trie types are slower than PHP arrays (O(log n) vs O(1)); Hash types offer O(1) average-case lookups for string keys
+- **String Lookups**: Use `STRING_TO_*_HASH` or `STRING_TO_*_ADAPTIVE` types for faster string key access when sorted traversal is not the primary use case
 
 ### Batch Operations and Conversion
 
@@ -318,7 +382,7 @@ $values = $judy->getAll([0, 5, 99]); // [0 => 100, 5 => 200, 99 => null]
 
 ### Atomic Increment
 
-For `INT_TO_INT` and `STRING_TO_INT` types, `increment()` performs an efficient counter update. For `INT_TO_INT`, it uses a single traversal via `JLI`. For `STRING_TO_INT`, it requires two traversals (`JSLG` + `JSLI`) to correctly track the element counter:
+For `INT_TO_INT`, `STRING_TO_INT`, and `STRING_TO_INT_HASH` types, `increment()` performs an efficient counter update:
 
 ```php
 $counters = new Judy(Judy::STRING_TO_INT);
@@ -332,31 +396,33 @@ $counters->increment("page_views", -3);   // returns 9
 
 For detailed performance analysis, see [BENCHMARK.md](BENCHMARK.md).
 
+### Expanded API
+
+Beyond basic array access, Judy provides a rich API including:
+
+- **Set operations**: `union()`, `intersect()`, `diff()`, `xor()`, `mergeWith()`
+- **Functional iteration**: `forEach()`, `filter()`, `map()` (C-level, bypasses Iterator overhead)
+- **Range operations**: `slice()`, `deleteRange()`, `populationCount()`
+- **Aggregation**: `sumValues()`, `averageValues()`
+- **Batch operations**: `putAll()`, `getAll()`, `keys()`, `values()`, `toArray()`, `fromArray()`
+- **Serialization**: `serialize()`/`unserialize()`, `json_encode()`
+- **Comparison**: `equals()`
+
+For complete method signatures, parameter details, and type compatibility, see [API.md](API.md).
+
 ## Reporting Bugs
 
 Please report bugs and issues on the GitHub repository:
 
 [https://github.com/orieg/php-judy/issues](https://github.com/orieg/php-judy/issues)
 
-## Todo
+## Roadmap
 
-- [ ] Additional performance optimizations
-- [ ] More comprehensive test coverage
-- [ ] Additional documentation and examples
-- [ ] Integration with more PHP frameworks
-- [x] **Performance**: Implement `zend_object_handlers` (read/write_dimension) to bypass ArrayAccess overhead.
-- [x] **Performance**: Upgrade to Fast ZPP (Zend Parameter Parsing) macros.
-- [x] **Performance**: Optimize `get_iterator` to use native C iterators.
-- [x] **Core Features**: Implement `slice($start, $end)` for efficient range queries.
-- [x] **Set Operations**: Add native methods for Union, Intersection, and Difference (especially for BITSET).
-- [x] **Serialization**: Implement `__serialize`/`__unserialize` for optimized binary persistence.
-- [x] **Interoperability**: Implement `JsonSerializable` interface.
-- [ ] **Testing**: More comprehensive test coverage.
-- [ ] **Documentation**: Document memory usage patterns vs standard arrays.
-- [x] **Performance**: Batch API (`putAll`, `getAll`, `toArray`, `fromArray`) to reduce function call overhead.
-- [x] **Performance**: Atomic `increment` method for `INT_TO_INT` and `STRING_TO_INT`.
-- [ ] **Feature**: Support `JudyHS` (Hash Array) for faster string lookups when sorting is not required.
-- [x] **Performance**: Implement "Opaque" storage (`INT_TO_PACKED`) to bypass GC scanning for large datasets.
+- Eliminate redundant JLG+JLI double traversal in write hot paths for MIXED/PACKED types
+- C-level `forEach()`/`filter()`/`map()` performance tuning (vtable dispatch)
+- Binary serialization format for faster `__serialize`/`__unserialize`
+- Extend set operations (`union`/`intersect`/`diff`/`xor`) to adaptive types
+- Extend `increment()` to adaptive types
 
 ## License
 
@@ -368,6 +434,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Support
 
-- **Documentation**: [BENCHMARK.md](BENCHMARK.md) for performance analysis
+- **API Reference**: [API.md](API.md) for complete method documentation
+- **Benchmarks**: [BENCHMARK.md](BENCHMARK.md) for performance analysis
 - **Migration Guide**: [MIGRATION_2.2.0.md](MIGRATION_2.2.0.md) for version 2.2.0 changes
 - **Examples**: Check the `examples/` directory for usage examples

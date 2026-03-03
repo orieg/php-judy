@@ -42,7 +42,7 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 
 - **Hardware**: Tests run on modern x86_64 systems with sufficient RAM to avoid memory pressure
 - **Operating System**: Linux (Docker containers for consistency)
-- **PHP Version**: 8.x with Judy extension 2.2.0
+- **PHP Version**: 8.x with Judy extension 2.4.0
 - **Test Methodology**: Multiple iterations with statistical analysis (min/max/median/percentiles)
 - **Memory Measurement**: Using `memory_get_usage(true)` and `Judy::memoryUsage()`
 
@@ -55,11 +55,12 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 - ✅ Large datasets (> 1M elements) where memory efficiency matters
 - ✅ Sequential access patterns and ordered iteration
 - ✅ Range queries and ordered operations
+- ✅ String key random access with Hash or Adaptive types (O(1) avg lookup)
 
 **Use PHP Arrays When:**
-- ❌ Random access patterns (2-9x faster than Judy - see O(log n) vs O(1) explanation)
+- ❌ Random access patterns with integer keys (2-9x faster than Judy trie types)
 - ❌ Small datasets (< 100k elements)
-- ❌ Performance-critical random operations
+- ❌ Performance-critical random operations on integer keys
 - ❌ Memory is not a constraint
 
 ---
@@ -86,23 +87,23 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 
 ### **Table 1: Memory Efficiency & Performance Trade-offs**
 
-| Dataset Size | Memory Savings | Performance Impact | Best Use Case | Recommendation |
-|--------------|----------------|-------------------|---------------|----------------|
-| **100k**     | 12.5x less     | 4.2x slower       | Small datasets | ⚠️ Consider Judy if memory constrained |
-| **500k**     | ~2.2x less     | ~2-3x slower      | Medium datasets | ⚠️ Consider Judy |
-| **1M**       | ~2.2x less     | ~3x slower        | Large datasets | ✅ Use Judy |
-| **10M**      | ~3.5x less     | ~3-9x slower      | Very large datasets | ✅ Use Judy |
+| Dataset Size | Memory Savings | Performance Impact | Best Use Case       | Recommendation                        |
+| ------------ | -------------- | ------------------ | ------------------- | ------------------------------------- |
+| **100k**     | 12.5x less     | 4.2x slower        | Small datasets      | ⚠️ Consider Judy if memory constrained |
+| **500k**     | ~2.2x less     | ~2-3x slower       | Medium datasets     | ⚠️ Consider Judy                       |
+| **1M**       | ~2.2x less     | ~3x slower         | Large datasets      | ✅ Use Judy                            |
+| **10M**      | ~3.5x less     | ~3-9x slower       | Very large datasets | ✅ Use Judy                            |
 
 **Key Insight**: Judy becomes more attractive as dataset size increases due to memory efficiency gains.
 
 ### **Table 2: Access Pattern Performance (100K elements)**
 
-| Access Pattern | Judy Performance | PHP Performance | Judy vs PHP | Use Case |
-|----------------|------------------|-----------------|-------------|----------|
-| **Random Access** | 6.55ms | 0.87ms | 7.5x slower | ❌ Avoid Judy |
-| **Sequential Access** | 3.62ms | 0.87ms | 4.2x slower | ⚠️ Consider Judy |
-| **Judy Iterator** | 20.13ms | 1.79ms | 11.2x slower | ⚠️ Consider Judy for large datasets |
-| **Range Queries** | ~3.2ms | ~2.8ms | 1.1x slower | ✅ Judy strength |
+| Access Pattern        | Judy Performance | PHP Performance | Judy vs PHP  | Use Case                           |
+| --------------------- | ---------------- | --------------- | ------------ | ---------------------------------- |
+| **Random Access**     | 6.55ms           | 0.87ms          | 7.5x slower  | ❌ Avoid Judy                       |
+| **Sequential Access** | 3.62ms           | 0.87ms          | 4.2x slower  | ⚠️ Consider Judy                    |
+| **Judy Iterator**     | 20.13ms          | 1.79ms          | 11.2x slower | ⚠️ Consider Judy for large datasets |
+| **Range Queries**     | ~3.2ms           | ~2.8ms          | 1.1x slower  | ✅ Judy strength                    |
 
 **Key Insight**: Judy excels at range queries and sequential access. Iterator performance depends on dataset size - faster than sequential for large sparse datasets, slower for small sequential datasets.
 
@@ -112,54 +113,54 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 
 ### **Table 3: Real-world Data Patterns**
 
-| Pattern Type | Judy Performance | Memory Efficiency | Use Case | Recommendation |
-|--------------|------------------|-------------------|----------|----------------|
-| **Database Keys** | Good | 2-3x less | Primary key storage | ✅ Use Judy |
-| **Log Data** | Excellent | 3-4x less | Timestamp-based data | ✅ Use Judy |
-| **Analytics** | Good | 2-3x less | Time-clustered data | ✅ Use Judy |
-| **Session Data** | Good | 2-3x less | User-clustered data | ✅ Use Judy |
+| Pattern Type      | Judy Performance | Memory Efficiency | Use Case             | Recommendation |
+| ----------------- | ---------------- | ----------------- | -------------------- | -------------- |
+| **Database Keys** | Good             | 2-3x less         | Primary key storage  | ✅ Use Judy     |
+| **Log Data**      | Excellent        | 3-4x less         | Timestamp-based data | ✅ Use Judy     |
+| **Analytics**     | Good             | 2-3x less         | Time-clustered data  | ✅ Use Judy     |
+| **Session Data**  | Good             | 2-3x less         | User-clustered data  | ✅ Use Judy     |
 
 **Key Insight**: Judy performs well with real-world data patterns that have locality.
 
 ### **Table 4: Batch Operations — Bulk Add (100K elements)**
 
-| Method | INT_TO_INT | STRING_TO_INT | Notes |
-|--------|-----------|---------------|-------|
-| **PHP array** (foreach assign) | 2.2 ms | 2.5 ms | Baseline |
-| **Judy individual** `$j[$k] = $v` | 4.7 ms | 19.3 ms | 2.1x / 7.7x slower than PHP |
-| **Judy putAll()** | 5.5 ms | 18.6 ms | ~1.0x vs individual |
-| **Judy::fromArray()** | 3.5 ms | 18.0 ms | 1.3x faster than individual (INT) |
+| Method                            | INT_TO_INT | STRING_TO_INT | Notes                             |
+| --------------------------------- | ---------- | ------------- | --------------------------------- |
+| **PHP array** (foreach assign)    | 2.2 ms     | 2.5 ms        | Baseline                          |
+| **Judy individual** `$j[$k] = $v` | 4.7 ms     | 19.3 ms       | 2.1x / 7.7x slower than PHP       |
+| **Judy putAll()**                 | 5.5 ms     | 18.6 ms       | ~1.0x vs individual               |
+| **Judy::fromArray()**             | 3.5 ms     | 18.0 ms       | 1.3x faster than individual (INT) |
 
 **Key Insight**: `fromArray()` provides a meaningful speedup for integer-keyed types by avoiding per-element PHP method dispatch. For string-keyed types, the Judy tree traversal cost dominates.
 
 ### **Table 5: Batch Operations — Bulk Get (10K lookups on 100K elements)**
 
-| Method | INT_TO_INT | STRING_TO_INT | Notes |
-|--------|-----------|---------------|-------|
-| **PHP array** (`$a[$k] ?? null`) | 0.23 ms | 0.26 ms | Baseline |
-| **Judy individual** `$j[$k]` | 0.30 ms | 0.89 ms | 1.3x / 3.4x slower than PHP |
-| **Judy getAll()** | 0.16 ms | 0.80 ms | **1.9x / 1.1x faster than individual** |
+| Method                           | INT_TO_INT | STRING_TO_INT | Notes                                  |
+| -------------------------------- | ---------- | ------------- | -------------------------------------- |
+| **PHP array** (`$a[$k] ?? null`) | 0.23 ms    | 0.26 ms       | Baseline                               |
+| **Judy individual** `$j[$k]`     | 0.30 ms    | 0.89 ms       | 1.3x / 3.4x slower than PHP            |
+| **Judy getAll()**                | 0.16 ms    | 0.80 ms       | **1.9x / 1.1x faster than individual** |
 
 **Key Insight**: `getAll()` is significantly faster than individual lookups for integer keys (1.9x speedup) because it avoids per-element ArrayAccess overhead. For string keys the benefit is smaller but still measurable.
 
 ### **Table 6: Conversion — toArray() vs Manual Foreach (100K elements)**
 
-| Method | INT_TO_INT | STRING_TO_INT | Notes |
-|--------|-----------|---------------|-------|
-| **Judy toArray()** | 4.2 ms | 13.2 ms | Native C iteration |
-| **Judy manual foreach** | 11.8 ms | 41.0 ms | PHP Iterator overhead |
-| **Speedup** | **2.8x** | **3.1x** | toArray() avoids Iterator dispatch |
+| Method                  | INT_TO_INT | STRING_TO_INT | Notes                              |
+| ----------------------- | ---------- | ------------- | ---------------------------------- |
+| **Judy toArray()**      | 4.2 ms     | 13.2 ms       | Native C iteration                 |
+| **Judy manual foreach** | 11.8 ms    | 41.0 ms       | PHP Iterator overhead              |
+| **Speedup**             | **2.8x**   | **3.1x**      | toArray() avoids Iterator dispatch |
 
 **Key Insight**: `toArray()` is 2-3x faster than building an array via `foreach` because it uses native C iteration internally, bypassing the PHP Iterator interface overhead.
 
 ### **Table 7: Atomic Increment (100K operations, 1K unique keys)**
 
-| Method | INT_TO_INT | STRING_TO_INT | Notes |
-|--------|-----------|---------------|-------|
-| **PHP array** `$a[$k]++` | 1.7 ms | 2.8 ms | Baseline |
-| **Judy manual** `$j[$k] = $j[$k] + 1` | 4.7 ms | 12.8 ms | Two traversals (read + write) |
-| **Judy increment()** | 3.0 ms | 10.1 ms | Single traversal for INT (JLI); two for STRING (JSLG+JSLI) |
-| **increment() vs manual** | **1.6x faster** | **1.3x faster** | Eliminates redundant lookup |
+| Method                                | INT_TO_INT      | STRING_TO_INT   | Notes                                                      |
+| ------------------------------------- | --------------- | --------------- | ---------------------------------------------------------- |
+| **PHP array** `$a[$k]++`              | 1.7 ms          | 2.8 ms          | Baseline                                                   |
+| **Judy manual** `$j[$k] = $j[$k] + 1` | 4.7 ms          | 12.8 ms         | Two traversals (read + write)                              |
+| **Judy increment()**                  | 3.0 ms          | 10.1 ms         | Single traversal for INT (JLI); two for STRING (JSLG+JSLI) |
+| **increment() vs manual**             | **1.6x faster** | **1.3x faster** | Eliminates redundant lookup                                |
 
 **Key Insight**: For `INT_TO_INT`, `increment()` achieves a true single-traversal update via `JLI`'s insert-or-get semantics (1.6x speedup). For `STRING_TO_INT`, two traversals are needed (`JSLG` to check existence for counter tracking + `JSLI` to insert/update), still providing a 1.3x speedup by keeping all logic in C rather than PHP.
 
@@ -291,13 +292,18 @@ The `memoryUsage()` method reports internal Judy C library memory consumption fo
 
 ### Return Values by Type
 
-| Judy Type | Underlying C Type | C Macro | `memoryUsage()` Return |
-|-----------|-------------------|---------|------------------------|
-| `BITSET` | Judy1 | `Judy1MemUsed` (J1MU) | `int` — bytes used |
-| `INT_TO_INT` | JudyL | `JudyLMemUsed` (JLMU) | `int` — bytes used |
-| `INT_TO_MIXED` | JudyL | `JudyLMemUsed` (JLMU) | `int` — bytes used (Judy storage only, excludes PHP zvals) |
-| `STRING_TO_INT` | JudySL | *(no macro)* | `NULL` |
-| `STRING_TO_MIXED` | JudySL | *(no macro)* | `NULL` |
+| Judy Type                  | Underlying C Type       | C Macro               | `memoryUsage()` Return                                          |
+| -------------------------- | ----------------------- | --------------------- | --------------------------------------------------------------- |
+| `BITSET`                   | Judy1                   | `Judy1MemUsed` (J1MU) | `int` — bytes used                                              |
+| `INT_TO_INT`               | JudyL                   | `JudyLMemUsed` (JLMU) | `int` — bytes used                                              |
+| `INT_TO_MIXED`             | JudyL                   | `JudyLMemUsed` (JLMU) | `int` — bytes used (Judy storage only, excludes PHP zvals)      |
+| `INT_TO_PACKED`            | JudyL                   | `JudyLMemUsed` (JLMU) | `int` — bytes used (Judy storage only, excludes packed buffers) |
+| `STRING_TO_INT`            | JudySL                  | *(no macro)*          | `NULL`                                                          |
+| `STRING_TO_MIXED`          | JudySL                  | *(no macro)*          | `NULL`                                                          |
+| `STRING_TO_INT_HASH`       | JudyHS + JudySL         | *(no macro)*          | `NULL`                                                          |
+| `STRING_TO_MIXED_HASH`     | JudyHS + JudySL         | *(no macro)*          | `NULL`                                                          |
+| `STRING_TO_INT_ADAPTIVE`   | JudyL + JudyHS + JudySL | *(no macro)*          | `NULL`                                                          |
+| `STRING_TO_MIXED_ADAPTIVE` | JudyL + JudyHS + JudySL | *(no macro)*          | `NULL`                                                          |
 
 **Why STRING types return NULL**: The Judy C library does not provide a `JudySLMemUsed` macro. JudySL is internally a chain of JudyL arrays (one per byte of the key), making a single memory total impractical at the C level. Use `memory_get_usage()` deltas as an alternative for string-keyed types.
 
@@ -391,5 +397,5 @@ php examples/run-benchmarks-robust.php
 
 Our methodology and insights are informed by the [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which demonstrates Judy's strengths in ordered access patterns and memory efficiency.
 
-**Judy Extension Version**: 2.2.0
-**Last Updated**: August 2025
+**Judy Extension Version**: 2.4.0
+**Last Updated**: March 2026

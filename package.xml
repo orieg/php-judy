@@ -272,25 +272,25 @@
          <file name="tests/population_count_001.phpt" role="test" />
          <file name="tests/sum_values_001.phpt" role="test" />
          <file name="tests/unserialize_counter_001.phpt" role="test" />
-         <file md5sum="4b423ec936b0274bb518529660501c8b" name="config.m4" role="src" />
-         <file md5sum="d78e29903e6fc36c24051fcc7b698147" name="config.w32" role="src" />
+         <file md5sum="f4c1dde3511c574eef8fbf6a99f9d27b" name="config.m4" role="src" />
+         <file md5sum="14c238115fee50dfe70b13bc8da311d3" name="config.w32" role="src" />
          <file name="Judy.stub.php" role="src" />
          <file name="Judy_arginfo.h" role="src" />
-         <file md5sum="27b93d365b2b7cde97ac4bb819e445b3" name="judy_arrayaccess.c" role="src" />
+         <file md5sum="d2db6f34b06e04705912c6ab02aff958" name="judy_arrayaccess.c" role="src" />
          <file md5sum="f2e35cd52cb1ed5cb00eae5431680d33" name="judy_arrayaccess.h" role="src" />
-         <file md5sum="75d1e492e98c9121bd8689447e41a93e" name="judy_handlers.c" role="src" />
+         <file md5sum="b45195c3ebc5e792d26df470d88e2adc" name="judy_handlers.c" role="src" />
          <file md5sum="1379842978d355e87b6cdbcaec243ce2" name="judy_handlers.h" role="src" />
-         <file md5sum="21f7aeaa85d97a73e318a35f0cf38fc6" name="judy_iterator.c" role="src" />
-         <file md5sum="f8df1590b3cbd5af6c0429d9a335142e" name="judy_iterator.h" role="src" />
-         <file md5sum="7c9788275842cc11d056367d8e96f0ba" name="php_judy.c" role="src" />
-         <file md5sum="0ba187e2db7a35df61e299ff48a38d9b" name="php_judy.h" role="src" />
+         <file md5sum="4f714ed619b7d80dfa1e2273b3b2d218" name="judy_iterator.c" role="src" />
+         <file md5sum="b7fd5a5f6171278dce6b789277581f8e" name="judy_iterator.h" role="src" />
+         <file md5sum="4edcdb4a149ff8faeff5dd66a0e58743" name="php_judy.c" role="src" />
+         <file md5sum="acf914eb36f749100fd39dccb8b76165" name="php_judy.h" role="src" />
          <file md5sum="cb564efdf78cce8ea6e4b5a4f7c05d97" name="LICENSE" role="doc" />
-         <file md5sum="ce78496bc990b2d72cbbf427df52a495" name="README.md" role="doc" />
+         <file md5sum="302250a837e8e489f3e465bdfd488f32" name="README.md" role="doc" />
          <file md5sum="730470b2aca686ddbea82a2b2af03a1a" name="CREDITS" role="doc" />
-         <file md5sum="55d570c350ac9ac2a368e98476e9d4f8" name="BENCHMARK.md" role="doc" />
-         <file name="OPTIMIZATION_PROPOSAL.md" role="doc" />
+         <file md5sum="af4d88a4da7b16aaf4f92d7fe619e6be" name="BENCHMARK.md" role="doc" />
+         <file name="API.md" role="doc" />
          <file md5sum="513b0c0813de66e8cba534d4fa1b0eb2" name="MIGRATION_2.2.0.md" role="doc" />
-         <file md5sum="28a6dc45e4b4964008700bcac20fb850" name="Dockerfile" role="doc" />
+         <file md5sum="366b0129d18f1e9b38f1712590805903" name="Dockerfile" role="doc" />
       </dir>
    </contents>
    <dependencies>
