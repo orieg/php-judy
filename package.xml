@@ -289,6 +289,8 @@
          <file md5sum="730470b2aca686ddbea82a2b2af03a1a" name="CREDITS" role="doc" />
          <file md5sum="af4d88a4da7b16aaf4f92d7fe619e6be" name="BENCHMARK.md" role="doc" />
          <file name="API.md" role="doc" />
+         <file name="scripts/api-metadata.php" role="doc" />
+         <file name="scripts/generate-api-docs.php" role="doc" />
          <file md5sum="513b0c0813de66e8cba534d4fa1b0eb2" name="MIGRATION_2.2.0.md" role="doc" />
          <file md5sum="366b0129d18f1e9b38f1712590805903" name="Dockerfile" role="doc" />
       </dir>

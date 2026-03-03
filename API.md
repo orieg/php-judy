@@ -64,6 +64,8 @@ Adaptive types use Short-String Optimization (SSO): keys of 7 bytes or fewer are
 
 ## Constructor
 
+### __construct()
+
 ```php
 public function __construct(int $type)
 ```
@@ -563,7 +565,7 @@ Returns the version of the PHP Judy extension.
 ### judy_type()
 
 ```php
-function judy_type(mixed $array): int
+function judy_type($array): int
 ```
 
 Returns the Judy type constant of the given Judy array.
@@ -574,16 +576,16 @@ Returns the Judy type constant of the given Judy array.
 
 Summary of which methods are available for each type. Methods not listed here work with all 10 types.
 
-| Method                     | BITSET | INT_TO_INT | INT_TO_MIXED | INT_TO_PACKED | STR_INT       | STR_MIXED       | STR_INT_HASH | STR_MIX_HASH | STR_INT_ADAPT | STR_MIX_ADAPT |
-| -------------------------- | ------ | ---------- | ------------ | ------------- | ------------- | --------------- | ------------ | ------------ | ------------- | ------------- |
-| `memoryUsage()`            | int    | int        | int          | int           | null          | null            | null         | null         | null          | null          |
-| `union/intersect/diff/xor` | yes    | yes        | -            | -             | yes           | -               | yes          | -            | -             | -             |
-| `populationCount()`        | yes    | yes        | yes          | yes           | -             | -               | -            | -            | -             | -             |
-| `sumValues()`              | yes    | yes        | -            | -             | yes           | -               | yes          | -            | yes           | -             |
-| `averageValues()`          | yes    | yes        | -            | -             | yes           | -               | yes          | -            | yes           | -             |
-| `increment()`              | -      | yes        | -            | -             | yes           | -               | yes          | -            | -             | -             |
-| `byCount()`                | yes    | yes        | yes          | yes           | null          | null            | null         | null         | null          | null          |
-| `firstEmpty()` etc.        | yes    | yes        | yes          | yes           | null          | null            | null         | null         | null          | null          |
+| Method                     | BITSET | INT_TO_INT | INT_TO_MIXED | INT_TO_PACKED | STR_INT | STR_MIXED | STR_INT_HASH | STR_MIX_HASH | STR_INT_ADAPT | STR_MIX_ADAPT |
+| -------------------------- | ------ | ---------- | ------------ | ------------- | ------- | --------- | ------------ | ------------ | ------------- | ------------- |
+| `memoryUsage()`            | int    | int        | int          | int           | null    | null      | null         | null         | null          | null          |
+| `union/intersect/diff/xor` | yes    | yes        | -            | -             | yes     | -         | yes          | -            | -             | -             |
+| `populationCount()`        | yes    | yes        | yes          | yes           | -       | -         | -            | -            | -             | -             |
+| `sumValues()`              | yes    | yes        | -            | -             | yes     | -         | yes          | -            | yes           | -             |
+| `averageValues()`          | yes    | yes        | -            | -             | yes     | -         | yes          | -            | yes           | -             |
+| `increment()`              | -      | yes        | -            | -             | yes     | -         | yes          | -            | -             | -             |
+| `byCount()`                | yes    | yes        | yes          | yes           | null    | null      | null         | null         | null          | null          |
+| `firstEmpty()` etc.        | yes    | yes        | yes          | yes           | null    | null      | null         | null         | null          | null          |
 
 **Legend**: `yes` = supported, `-` = throws exception, `null` = silently returns null, `int` = returns integer value.
 
