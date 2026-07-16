@@ -215,7 +215,7 @@ typedef struct _judy_object {
 } judy_object;
 
 static inline judy_object *php_judy_object(zend_object *obj) {
-	return (judy_object *)((char*)(obj) - XtOffsetOf(judy_object, std));
+	return (judy_object *)((char*)(obj) - offsetof(judy_object, std));
 }
 
 static inline int judy_pack_short_string_internal(const char *str, size_t len, Word_t *index)
