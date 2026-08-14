@@ -33,33 +33,38 @@
    </notes>
    <contents>
       <dir name="/">
-         <file md5sum="690c7ced5ee7cc15b4b65848a7923559" name="examples/judy-bench-bitset.php" role="doc" />
-         <file md5sum="a776ae79a1c693820703aeae6d06f03a" name="examples/judy-bench-int_to_int.php" role="doc" />
-         <file md5sum="2f00c9172ede879378efc2a2cdd666fc" name="examples/judy-bench-string_to_int.php" role="doc" />
-         <file md5sum="750f7d90e353b4b6c90f6f6f9583fc6d" name="examples/judy.php" role="doc" />
-         <file md5sum="6c4c579f24ef6956826e9c173e355558" name="examples/run-benchmarks.php" role="doc" />
-         <file md5sum="2a5a48b2f897a6efbe8d02c33752a634" name="examples/judy-bench-realistic-php-array.php" role="doc" />
-         <file md5sum="08a3d9cf6e52783164deef825d4c9442" name="examples/judy-bench-realistic-judy.php" role="doc" />
-         <file md5sum="893674b8c8c37036d57e1a675b2d4966" name="examples/benchmark_ordered_data.php" role="doc" />
-         <file md5sum="74b6a36aa4a9882e9ea70f7a37787c15" name="examples/benchmark_range_queries.php" role="doc" />
-         <file md5sum="6116bd190781742fdcc37e833a090348" name="examples/benchmark_real_world_patterns.php" role="doc" />
-         <file md5sum="2b4c82262b50a9a496558feaa0b5eb11" name="examples/run_comprehensive_benchmarks.php" role="doc" />
-         <file md5sum="47967fd47f778d3385cc36b0640ec4b9" name="examples/debug_iterator_performance.php" role="doc" />
-         <file md5sum="4e68cc38b6ea44b75024a7563ea5d56f" name="examples/iterator-vs-sequential-test.php" role="doc" />
-         <file md5sum="89438abbecf3617c9b077527e59ec102" name="examples/judy-read-performance-test.php" role="doc" />
-         <file md5sum="9531f74e337528d75dd9b5ff66437351" name="examples/run-benchmarks-robust.php" role="doc" />
-         <file md5sum="163369b8ada5a8bf7bc9853ae7cc4522" name="examples/iterator_performance_analysis.md" role="doc" />
-         <file name="examples/judy-bench-set-operations.php" role="doc" />
-         <file name="examples/judy-bench-batch-operations.php" role="doc" />
-         <file name="examples/judy-bench-memory-patterns.php" role="doc" />
-         <file name="examples/judy-bench-packed-vs-mixed.php" role="doc" />
-         <file name="examples/judy-bench-all-types.php" role="doc" />
-         <file name="examples/judy-bench-memory.php" role="doc" />
-         <file name="examples/benchmark_ordered_data_demo.php" role="doc" />
-         <file name="examples/judy-bench-phase2-api.php" role="doc" />
-         <file name="examples/judy-bench-phase3-advanced.php" role="doc" />
-         <file name="examples/judy-bench.php" role="doc" />
-         <file name="examples/judy-bench-compare.php" role="doc" />
+         <file name="examples/README.md" role="doc" />
+         <file name="examples/quickstart.php" role="doc" />
+         <file name="examples/dedup-large-stream.php" role="doc" />
+         <file name="examples/autocomplete-trie.php" role="doc" />
+         <file name="examples/worker-counters.php" role="doc" />
+         <file name="examples/ip-range-lookup.php" role="doc" />
+         <file name="examples/benchmarks/benchmark_ordered_data.php" role="doc" />
+         <file name="examples/benchmarks/benchmark_ordered_data_demo.php" role="doc" />
+         <file name="examples/benchmarks/benchmark_range_queries.php" role="doc" />
+         <file name="examples/benchmarks/benchmark_real_world_patterns.php" role="doc" />
+         <file name="examples/benchmarks/debug_iterator_performance.php" role="doc" />
+         <file name="examples/benchmarks/iterator-vs-sequential-test.php" role="doc" />
+         <file name="examples/benchmarks/iterator_performance_analysis.md" role="doc" />
+         <file name="examples/benchmarks/judy-bench-all-types.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-batch-operations.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-bitset.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-compare.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-int_to_int.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-memory-patterns.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-memory.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-packed-vs-mixed.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-phase2-api.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-phase3-advanced.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-realistic-judy.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-realistic-php-array.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-set-operations.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-string_to_int.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench.php" role="doc" />
+         <file name="examples/benchmarks/judy-read-performance-test.php" role="doc" />
+         <file name="examples/benchmarks/run-benchmarks-robust.php" role="doc" />
+         <file name="examples/benchmarks/run-benchmarks.php" role="doc" />
+         <file name="examples/benchmarks/run_comprehensive_benchmarks.php" role="doc" />
          <file name="baselines/latest.json" role="doc" />
          <file md5sum="abc7eb31bb88857463ec941514e5f019" name="tests/001.phpt" role="test" />
          <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />

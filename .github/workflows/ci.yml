@@ -108,7 +108,7 @@ jobs:
 
           # v2.4.1 has all types + API, so run the full suite for a complete
           # release-over-release comparison.
-          PHP_INI_SCAN_DIR=/tmp/php-judy-baseline-ini php examples/judy-bench.php \
+          PHP_INI_SCAN_DIR=/tmp/php-judy-baseline-ini php examples/benchmarks/judy-bench.php \
             --json baseline-bench.json --size 500000 --iterations 7 --suite all \
             2>&1 | tee baseline-benchmark-output.txt
 
@@ -129,7 +129,7 @@ jobs:
           echo "extension=$JUDY_SO" > /tmp/php-judy-ini/judy.ini
 
           # Unified benchmark: all suites, JSON output for cross-version comparison
-          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/judy-bench.php \
+          PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/benchmarks/judy-bench.php \
             --json bench.json --size 500000 --iterations 7 --suite all \
             2>&1 | tee benchmark-output.txt
 
@@ -443,7 +443,7 @@ jobs:
           Write-Host "Extension verified"
 
           # Unified benchmark: all suites, JSON output for cross-version comparison
-          & $phpExe.FullName examples/judy-bench.php `
+          & $phpExe.FullName examples/benchmarks/judy-bench.php `
             --json bench.json --size 500000 --iterations 7 --suite all `
             2>&1 | Tee-Object -FilePath benchmark-output.txt
 
