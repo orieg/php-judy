@@ -67,7 +67,7 @@ release checklist.
 
 ## Benchmarks
 
-Benchmark scripts live in `examples/`. CI compares each PR against the
+Benchmark scripts live in `examples/benchmarks/`. CI compares each PR against the
 committed baseline in `baselines/latest.json`. If your change legitimately
 shifts performance, mention it in the PR description; do not update the
 baseline in a feature PR.

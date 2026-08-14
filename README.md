@@ -59,7 +59,7 @@ MIGRATION_2.2.0.md   Migration guide for version 2.2.0
 LICENSE              The PHP License used by this project
 
 tests/               Unit and regression tests (.phpt)
-examples/            Benchmark and example scripts
+examples/            Runnable demos (see examples/README.md) + benchmark suite
 scripts/             API-doc generation helpers
 *.c, *.h             C source and header files
 Judy.stub.php        PHP stub for IDE autocompletion
@@ -73,11 +73,11 @@ package.xml          PECL package definition
 PHP PIE (PHP Extension Installer) is the easiest way to install PHP Judy on supported platforms:
 
 ```sh
-# Install PHP PIE if you don't have it
-curl -sSL https://pie.dev/installer | php
+# Install PHP PIE if you don't have it (see https://php.github.io/pie/ for options)
+curl -fsSL https://github.com/php/pie/releases/latest/download/pie.phar -o pie.phar
 
 # Install PHP Judy using PIE
-pie install orieg/judy
+php pie.phar install orieg/judy
 ```
 
 **Note**: PHP PIE automatically handles dependencies and builds the extension for your specific PHP version and platform. The package is listed on [Packagist](https://packagist.org/packages/orieg/judy) among the [PIE-installable extensions](https://packagist.org/extensions).
@@ -91,6 +91,22 @@ FROM php:8.4-cli
 ADD --chmod=0755 https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
 RUN install-php-extensions judy
 ```
+
+### A3. CI (GitHub Actions)
+
+```yaml
+- uses: shivammathur/setup-php@v2
+  with:
+    php-version: '8.4'
+- name: Install PHP Judy
+  run: |
+    sudo apt-get update && sudo apt-get install -y libjudy-dev
+    curl -fsSL https://github.com/php/pie/releases/latest/download/pie.phar \
+      -o /usr/local/bin/pie && chmod +x /usr/local/bin/pie
+    sudo pie install orieg/judy --with-judy=/usr
+```
+
+This is the same pattern this repository's own CI uses.
 
 ### B. Using PECL
 
@@ -167,11 +183,14 @@ The recommended way to install `php-judy` on Mac OS X is by using `pie` or `pecl
 #### Using PHP PIE (Recommended)
 
 ```sh
-# Install PHP PIE if you don't have it
-curl -sSL https://pie.dev/installer | php
+# First, install the Judy C library
+brew install judy
+
+# Install PHP PIE if you don't have it (see https://php.github.io/pie/ for options)
+curl -fsSL https://github.com/php/pie/releases/latest/download/pie.phar -o pie.phar
 
 # Install PHP Judy using PIE
-pie install judy
+php pie.phar install orieg/judy --with-judy=/opt/homebrew
 ```
 
 #### Using PECL
@@ -478,4 +497,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - **API Reference**: [API.md](API.md) for complete method documentation
 - **Benchmarks**: [BENCHMARK.md](BENCHMARK.md) for performance analysis
 - **Migration Guide**: [MIGRATION_2.2.0.md](MIGRATION_2.2.0.md) for version 2.2.0 changes
-- **Examples**: Check the `examples/` directory for usage examples
+- **Examples**: Check the [examples/](examples/README.md) directory for runnable demos (dedup, autocomplete, counters, range lookup)

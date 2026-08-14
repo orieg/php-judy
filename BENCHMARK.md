@@ -70,10 +70,10 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 Our benchmark suite tests multiple scenarios to provide realistic performance data:
 
 ### **Benchmark Scripts**
-- `examples/benchmark_ordered_data.php` - Sequential, clustered, and random key patterns
-- `examples/benchmark_range_queries.php` - Range queries and ordered operations
-- `examples/benchmark_real_world_patterns.php` - Database, log, analytics patterns
-- `examples/run_comprehensive_benchmarks.php` - Complete benchmark suite
+- `examples/benchmarks/benchmark_ordered_data.php` - Sequential, clustered, and random key patterns
+- `examples/benchmarks/benchmark_range_queries.php` - Range queries and ordered operations
+- `examples/benchmarks/benchmark_real_world_patterns.php` - Database, log, analytics patterns
+- `examples/benchmarks/run_comprehensive_benchmarks.php` - Complete benchmark suite
 
 ### **Test Scenarios**
 1. **Ordered Data Performance**: Sequential keys, clustered keys, random keys
@@ -354,7 +354,7 @@ $j->memoryUsage(); // 0 — freed
 Run the memory patterns benchmark to see results on your hardware:
 
 ```bash
-php examples/judy-bench-memory-patterns.php
+php examples/benchmarks/judy-bench-memory-patterns.php
 ```
 
 This script compares Judy vs PHP arrays at 1K, 10K, 100K, and 1M elements across INT_TO_INT, BITSET, and STRING_TO_INT types, including sparse key scenarios.
@@ -366,18 +366,18 @@ This script compares Judy vs PHP arrays at 1K, 10K, 100K, and 1M elements across
 ### **Quick Benchmarks**
 ```bash
 # Run comprehensive benchmark suite (recommended)
-php examples/run_comprehensive_benchmarks.php
+php examples/benchmarks/run_comprehensive_benchmarks.php
 
 # Run individual benchmark phases
-php examples/benchmark_ordered_data.php
-php examples/benchmark_range_queries.php
-php examples/benchmark_real_world_patterns.php
+php examples/benchmarks/benchmark_ordered_data.php
+php examples/benchmarks/benchmark_range_queries.php
+php examples/benchmarks/benchmark_real_world_patterns.php
 
 # Run batch operations and increment benchmarks
-php examples/judy-bench-batch-operations.php
+php examples/benchmarks/judy-bench-batch-operations.php
 
 # Run memory usage pattern comparison
-php examples/judy-bench-memory-patterns.php
+php examples/benchmarks/judy-bench-memory-patterns.php
 ```
 
 **Note**: All benchmarks use proper Iterator interface methods and run without deprecated warnings.
@@ -385,10 +385,10 @@ php examples/judy-bench-memory-patterns.php
 ### **Legacy Benchmarks**
 ```bash
 # Run original benchmarks (single iteration)
-php examples/run-benchmarks.php
+php examples/benchmarks/run-benchmarks.php
 
 # Run robust benchmarks (multiple iterations)
-php examples/run-benchmarks-robust.php
+php examples/benchmarks/run-benchmarks-robust.php
 ```
 
 ---

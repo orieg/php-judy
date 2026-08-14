@@ -1,0 +1,37 @@
+# PHP Judy
+
+> PHP extension (PHP 8.1+) wrapping the Judy C library: memory-efficient,
+> ordered, sparse dynamic arrays. 2-4x less memory than native PHP arrays for
+> large integer-keyed datasets, ordered-key navigation, set operations, and
+> atomic increments. Install: `pie install orieg/judy` or
+> `install-php-extensions judy` (Docker).
+
+Key facts: class `Judy` implements ArrayAccess, Countable, Iterator,
+JsonSerializable. Ten type constants across integer-keyed, sorted string-keyed
+(trie), and unsorted string-keyed (hash) families. The ordered search method is
+`searchNext()` — `next()` is the Iterator method (old v1.x docs on php.net
+show a removed API; trust the docs below instead).
+
+## Docs
+
+- [AGENTS.md](https://github.com/orieg/php-judy/blob/main/AGENTS.md): fast
+  reference for coding agents — type decision table, core usage, pitfalls
+- [API.md](https://github.com/orieg/php-judy/blob/main/API.md): complete API
+  reference, generated from the canonical stub
+- [BENCHMARK.md](https://github.com/orieg/php-judy/blob/main/BENCHMARK.md):
+  measured performance, memory numbers, when (not) to use Judy
+- [README.md](https://github.com/orieg/php-judy/blob/main/README.md):
+  install paths for Linux/macOS/Windows/Docker, usage examples per type
+
+## Examples
+
+- [examples/README.md](https://github.com/orieg/php-judy/blob/main/examples/README.md):
+  runnable demos — dedup seen-sets, autocomplete prefix search, worker
+  counters, IP-range floor lookup
+
+## Contributing
+
+- [CONTRIBUTING.md](https://github.com/orieg/php-judy/blob/main/CONTRIBUTING.md):
+  C-extension build/test workflow
+- [SECURITY.md](https://github.com/orieg/php-judy/blob/main/SECURITY.md):
+  private vulnerability reporting
