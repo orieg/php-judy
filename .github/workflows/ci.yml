@@ -48,11 +48,15 @@ jobs:
 
       - name: Fail on compiler warnings
         run: |
-          if grep -E 'warning:' /tmp/build.log; then
-            echo "::error::Compiler warnings detected — see log above"
+          # Only gate on real compiler warnings in our own source files
+          # (form "<file>.c:<line>:<col>: warning:"). Ignore unrelated noise
+          # such as autoconf's AC_PROG_LIBTOOL-obsolete and the LTO
+          # lto-wrapper "serial compilation" notes.
+          if grep -E '(php_judy|judy_handlers|judy_arrayaccess|judy_iterator)\.[ch]:[0-9]+:[0-9]+: warning:' /tmp/build.log; then
+            echo "::error::Compiler warnings detected in extension sources — see log above"
             exit 1
           fi
-          echo "No compiler warnings."
+          echo "No compiler warnings in extension sources."
 
       - name: Run tests
         run: make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1 TEST_PHP_JUNIT=junit.xml
