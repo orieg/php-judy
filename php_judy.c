@@ -1208,13 +1208,6 @@ static inline int judy_object_write_dimension_helper_zv(judy_object *intern, zva
 	return judy_object_write_dimension_helper(&object_zv, offset, value);
 }
 
-static inline int judy_object_unset_dimension_helper_zv(judy_object *intern, zval *offset)
-{
-	zval object_zv;
-	ZVAL_OBJ(&object_zv, &intern->std);
-	return judy_object_unset_dimension_helper(&object_zv, offset);
-}
-
 /* {{{ PHP_MINIT_FUNCTION
 */
 PHP_MINIT_FUNCTION(judy)
