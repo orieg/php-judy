@@ -16,11 +16,11 @@
       <email>nicolas@brousse.info</email>
       <active>yes</active>
    </lead>
-   <date>2026-03-02</date>
+   <date>2026-08-13</date>
    <time>00:00:00</time>
    <version>
-      <release>2.4.0</release>
-      <api>2.4.0</api>
+      <release>2.4.1</release>
+      <api>2.4.1</api>
    </version>
    <stability>
       <release>stable</release>
@@ -28,43 +28,8 @@
    </stability>
    <license uri="http://www.php.net/license">PHP</license>
    <notes>
-- NEW FEATURE: Fast ZPP (Zend Parameter Parsing) macros across all methods for improved performance
-- NEW FEATURE: Native zend_object_handlers (read/write/has/unset_dimension) bypass ArrayAccess overhead
-- NEW FEATURE: Native C iterators via get_iterator for zero-overhead foreach loops
-- NEW FEATURE: BITSET set operations -- union(), intersect(), diff(), xor() methods
-- NEW FEATURE: INT_TO_INT set operations -- union/intersect/diff/xor with left-wins value semantics
-- NEW FEATURE: slice($start, $end) for efficient range extraction on all array types
-- NEW FEATURE: JsonSerializable interface -- json_encode() works natively on Judy arrays
-- NEW FEATURE: __serialize()/__unserialize() for native PHP serialize/unserialize support
-- NEW FEATURE: Batch operations -- fromArray(), toArray(), putAll(), getAll(), increment()
-- NEW FEATURE: INT_TO_PACKED type (type 6) -- GC-free opaque value storage via php_var_serialize
-- NEW FEATURE: STRING_TO_MIXED_HASH type (type 7) -- JudyHS-backed O(1) string-to-mixed map
-- NEW FEATURE: STRING_TO_INT_HASH type (type 8) -- JudyHS-backed O(1) string-to-int map
-- NEW FEATURE: STRING_TO_MIXED_ADAPTIVE type (type 9) -- SSO short-string optimization via JudyL
-- NEW FEATURE: STRING_TO_INT_ADAPTIVE type (type 10) -- SSO for string-to-int
-- NEW FEATURE: .stub.php arginfo generation replaces hand-written C arginfo
-- NEW FEATURE: keys(), values() -- native C extraction of keys and values (2-3x faster)
-- NEW FEATURE: sumValues(), averageValues() -- C-level aggregation for integer-valued types
-- NEW FEATURE: populationCount(start, end) -- range counting via Judy internal population cache
-- NEW FEATURE: deleteRange(start, end) -- bulk deletion in a single C pass
-- NEW FEATURE: equals(Judy other) -- short-circuit identity comparison
-- NEW FEATURE: C-level forEach(), filter(), map() -- bypass PHP Iterator protocol
-- NEW FEATURE: String set operations -- union/intersect/diff/xor for STRING_TO_INT and STRING_TO_MIXED types
-- NEW FEATURE: mergeWith(Judy $other) -- in-place merge for accumulation patterns (avoids union() allocation)
-- FIX: JudySL hang on Windows x64 -- cJU_MASKATSTATE 0xffL truncation at States 5-8 (issue #46)
-- FIX: Double-traversal elimination in adaptive types -- removes redundant JLG/JHSG before JLI/JHSI
-- FIX: hs_array NULL-check in judy_free_array_internal prevents memory leak in adaptive types
-- PERF: JLG+JLI elimination -- 50% fewer tree traversals in write paths for STRING types
-- PERF: Branch prediction hints (JUDY_LIKELY/JUDY_UNLIKELY) on hot lookup and validation paths
-- PERF: LTO and loop unrolling enabled in compiler flags
-- PERF: Memory layout repacked for cache-line alignment and reduced padding
-- PERF: Stack safety -- 64KB stack buffers replaced with heap-allocated key_scratch buffer (Fiber-safe)
-- PERF: foreach iterator overhaul -- valid flag, heap key buffer, zend_string reuse
-- PERF: tagged-union packed format for INT_TO_PACKED -- eliminates serialize for scalars
-- PERF: O(1) count() for all types -- counter on every insert/delete replaces O(n) scans
-- PERF: type-specialized bulk-insert loops in fromArray()/putAll()/__unserialize()
-- PERF: ecalloc to emalloc on 9 zval allocs; direct judy_free_array_internal in __destruct
-- IMPROVEMENT: 174 tests covering all features
+- FIX: PHP 8.6 build -- XtOffsetOf() alias removed in PHP 8.6.0alpha2; use
+  standard C offsetof() instead (thanks Remi Collet, PR #65)
    </notes>
    <contents>
       <dir name="/">
@@ -310,6 +275,56 @@
       <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
    </extsrcrelease>
    <changelog>
+      <release>
+         <date>2026-03-02</date>
+         <version>
+            <release>2.4.0</release>
+            <api>2.4.0</api>
+         </version>
+         <stability>
+            <release>stable</release>
+            <api>stable</api>
+         </stability>
+         <notes>
+- NEW FEATURE: Fast ZPP (Zend Parameter Parsing) macros across all methods for improved performance
+- NEW FEATURE: Native zend_object_handlers (read/write/has/unset_dimension) bypass ArrayAccess overhead
+- NEW FEATURE: Native C iterators via get_iterator for zero-overhead foreach loops
+- NEW FEATURE: BITSET set operations -- union(), intersect(), diff(), xor() methods
+- NEW FEATURE: INT_TO_INT set operations -- union/intersect/diff/xor with left-wins value semantics
+- NEW FEATURE: slice($start, $end) for efficient range extraction on all array types
+- NEW FEATURE: JsonSerializable interface -- json_encode() works natively on Judy arrays
+- NEW FEATURE: __serialize()/__unserialize() for native PHP serialize/unserialize support
+- NEW FEATURE: Batch operations -- fromArray(), toArray(), putAll(), getAll(), increment()
+- NEW FEATURE: INT_TO_PACKED type (type 6) -- GC-free opaque value storage via php_var_serialize
+- NEW FEATURE: STRING_TO_MIXED_HASH type (type 7) -- JudyHS-backed O(1) string-to-mixed map
+- NEW FEATURE: STRING_TO_INT_HASH type (type 8) -- JudyHS-backed O(1) string-to-int map
+- NEW FEATURE: STRING_TO_MIXED_ADAPTIVE type (type 9) -- SSO short-string optimization via JudyL
+- NEW FEATURE: STRING_TO_INT_ADAPTIVE type (type 10) -- SSO for string-to-int
+- NEW FEATURE: .stub.php arginfo generation replaces hand-written C arginfo
+- NEW FEATURE: keys(), values() -- native C extraction of keys and values (2-3x faster)
+- NEW FEATURE: sumValues(), averageValues() -- C-level aggregation for integer-valued types
+- NEW FEATURE: populationCount(start, end) -- range counting via Judy internal population cache
+- NEW FEATURE: deleteRange(start, end) -- bulk deletion in a single C pass
+- NEW FEATURE: equals(Judy other) -- short-circuit identity comparison
+- NEW FEATURE: C-level forEach(), filter(), map() -- bypass PHP Iterator protocol
+- NEW FEATURE: String set operations -- union/intersect/diff/xor for STRING_TO_INT and STRING_TO_MIXED types
+- NEW FEATURE: mergeWith(Judy $other) -- in-place merge for accumulation patterns (avoids union() allocation)
+- FIX: JudySL hang on Windows x64 -- cJU_MASKATSTATE 0xffL truncation at States 5-8 (issue #46)
+- FIX: Double-traversal elimination in adaptive types -- removes redundant JLG/JHSG before JLI/JHSI
+- FIX: hs_array NULL-check in judy_free_array_internal prevents memory leak in adaptive types
+- PERF: JLG+JLI elimination -- 50% fewer tree traversals in write paths for STRING types
+- PERF: Branch prediction hints (JUDY_LIKELY/JUDY_UNLIKELY) on hot lookup and validation paths
+- PERF: LTO and loop unrolling enabled in compiler flags
+- PERF: Memory layout repacked for cache-line alignment and reduced padding
+- PERF: Stack safety -- 64KB stack buffers replaced with heap-allocated key_scratch buffer (Fiber-safe)
+- PERF: foreach iterator overhaul -- valid flag, heap key buffer, zend_string reuse
+- PERF: tagged-union packed format for INT_TO_PACKED -- eliminates serialize for scalars
+- PERF: O(1) count() for all types -- counter on every insert/delete replaces O(n) scans
+- PERF: type-specialized bulk-insert loops in fromArray()/putAll()/__unserialize()
+- PERF: ecalloc to emalloc on 9 zval allocs; direct judy_free_array_internal in __destruct
+- IMPROVEMENT: 174 tests covering all features
+         </notes>
+      </release>
       <release>
          <date>2026-02-27</date>
          <version>
