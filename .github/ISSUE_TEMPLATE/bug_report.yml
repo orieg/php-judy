@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a crash, wrong result, memory issue, or build failure
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: PHP Judy version
+      description: "`php -r 'echo judy_version();'`"
+      placeholder: "2.4.1"
+    validations:
+      required: true
+  - type: input
+    id: php
+    attributes:
+      label: PHP version
+      description: "`php -v` (include NTS/ZTS)"
+      placeholder: "8.4.1 NTS"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Installation method
+      options:
+        - PIE
+        - PECL
+        - install-php-extensions (Docker)
+        - Manual build from source
+        - Distro package
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: "Ubuntu 24.04 x86_64 / macOS 15 arm64 / Windows 11 x64"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction script
+      description: The smallest PHP script that shows the problem.
+      render: php
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Crash output / valgrind report (if any)
+      description: For crashes, a backtrace or `USE_ZEND_ALLOC=0 valgrind php ...` output helps a lot.

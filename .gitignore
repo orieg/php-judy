@@ -45,3 +45,6 @@ go-pear.phar
 judy-*/
 test-package/
 temp_update/
+
+# Claude Code session files
+.claude/
