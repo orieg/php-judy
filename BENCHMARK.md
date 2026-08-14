@@ -42,7 +42,7 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 
 - **Hardware**: Tests run on modern x86_64 systems with sufficient RAM to avoid memory pressure
 - **Operating System**: Linux (Docker containers for consistency)
-- **PHP Version**: 8.x with Judy extension 2.4.1
+- **PHP Version**: 8.x with Judy extension 2.4.2
 - **Test Methodology**: Multiple iterations with statistical analysis (min/max/median/percentiles)
 - **Memory Measurement**: Using `memory_get_usage(true)` and `Judy::memoryUsage()`
 
@@ -397,5 +397,5 @@ php examples/run-benchmarks-robust.php
 
 Our methodology and insights are informed by the [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which demonstrates Judy's strengths in ordered access patterns and memory efficiency.
 
-**Judy Extension Version**: 2.4.1
+**Judy Extension Version**: 2.4.2
 **Last Updated**: August 2026
