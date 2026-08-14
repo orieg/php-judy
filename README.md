@@ -15,12 +15,13 @@
 2. [Directory Contents](#directory-contents)
 3. [Installation](#installation)
 4. [Usage Examples](#usage-examples)
-5. [Reporting Bugs](#reporting-bugs)
-6. [Roadmap](#roadmap)
-7. [Releasing](#releasing)
-8. [License](#license)
-9. [Contributing](#contributing)
-10. [Support](#support)
+5. [Ecosystem](#ecosystem)
+6. [Reporting Bugs](#reporting-bugs)
+7. [Roadmap](#roadmap)
+8. [Releasing](#releasing)
+9. [License](#license)
+10. [Contributing](#contributing)
+11. [Support](#support)
 
 ## Introduction
 
@@ -454,6 +455,19 @@ Beyond basic array access, Judy provides a rich API including:
 - **Comparison**: `equals()`
 
 For complete method signatures, parameter details, and type compatibility, see [API.md](API.md).
+
+## Ecosystem
+
+- **[orieg/judy-polyfill](https://github.com/orieg/judy-polyfill)** — pure-PHP
+  fallback providing the `Judy` class API when the extension is absent.
+  Library authors: depend on the polyfill (`composer require
+  orieg/judy-polyfill`) and suggest `ext-judy`; users who install the
+  extension get native performance transparently. Parity with the extension
+  is CI-verified on every PHP version.
+- **[orieg/judy-cache](https://github.com/orieg/judy-cache)** — PSR-16 cache
+  (plus a Symfony Cache adapter) backed by Judy's sorted trie, with O(range)
+  prefix invalidation for long-running PHP (Octane, Swoole, RoadRunner,
+  FrankenPHP workers).
 
 ## Reporting Bugs
 

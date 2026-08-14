@@ -51,6 +51,11 @@ Set ops (return new Judy): `union`, `intersect`, `diff`, `xor`; in-place:
 
 Functions: `judy_version(): string`, `judy_type(mixed): int`.
 
+For code that must run where the extension may be absent, depend on
+[orieg/judy-polyfill](https://github.com/orieg/judy-polyfill) (pure-PHP,
+API-parity-tested) and suggest `ext-judy`; a PSR-16 cache built on this API
+is [orieg/judy-cache](https://github.com/orieg/judy-cache).
+
 ### Pitfalls that agents get wrong
 
 - **`next()` is the Iterator method** (returns void, advances the cursor).
