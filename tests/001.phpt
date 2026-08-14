@@ -3,19 +3,19 @@ Check for Judy presence
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
-<?php 
+<?php
 echo "judy extension is available\n";
+
+// Version reported three ways must agree and be a valid semver, without
+// hard-coding the number here (so a release only touches php_judy.h and
+// package.xml, not this test).
 $version = judy_version();
-var_dump($version);
-
-// judy_version() is an alias of phpversion('judy')
-var_dump(phpversion('judy'));
-
-// Test constant
-var_dump(JUDY_VERSION);
+var_dump($version === JUDY_VERSION);           // judy_version() == constant
+var_dump(phpversion('judy') === JUDY_VERSION); // alias == constant
+var_dump((bool) preg_match('/^\d+\.\d+\.\d+/', JUDY_VERSION)); // semver shape
 ?>
---EXPECTF--
+--EXPECT--
 judy extension is available
-string(5) "2.4.1"
-string(5) "2.4.1"
-string(5) "2.4.1"
+bool(true)
+bool(true)
+bool(true)

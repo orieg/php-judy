@@ -4,7 +4,7 @@
 
 [![PECL](https://img.shields.io/badge/PECL-Judy-blue.svg)](https://pecl.php.net/package/Judy)
 [![Packagist](https://img.shields.io/badge/Packagist-orieg/judy-orange.svg)](https://packagist.org/packages/orieg/judy)
-[![PHP Version](https://img.shields.io/badge/PHP-8.0+-green.svg)](https://php.net)
+[![PHP Version](https://img.shields.io/badge/PHP-8.1+-green.svg)](https://php.net)
 [![License](https://img.shields.io/badge/License-PHP-blue.svg)](LICENSE)
 
 ## Table of Contents
@@ -15,10 +15,14 @@
 4. [Usage Examples](#usage-examples)
 5. [Reporting Bugs](#reporting-bugs)
 6. [Roadmap](#roadmap)
+7. [Releasing](#releasing)
+8. [License](#license)
+9. [Contributing](#contributing)
+10. [Support](#support)
 
 ## Introduction
 
-**php-judy** is an extension by Nicolas Brousse for the Judy C library. It is compatible with PHP 8.0 and newer.
+**php-judy** is an extension by Nicolas Brousse for the Judy C library. It is tested in CI against PHP 8.1–8.5 (and, experimentally, PHP 8.6). The package metadata still declares a minimum of PHP 8.0, but 8.0 is no longer covered by CI.
 
 - **PECL Package**: [http://pecl.php.net/package/Judy](http://pecl.php.net/package/Judy)
 - **Packagist Package**: [https://packagist.org/packages/orieg/judy](https://packagist.org/packages/orieg/judy)
@@ -43,11 +47,12 @@ BENCHMARK.md         Performance benchmarks and analysis
 MIGRATION_2.2.0.md   Migration guide for version 2.2.0
 LICENSE              The PHP License used by this project
 
-tests/               Unit tests (176 tests)
+tests/               Unit and regression tests (.phpt)
 examples/            Benchmark and example scripts
-libjudy/             Bundled libJudy
+scripts/             API-doc generation helpers
 *.c, *.h             C source and header files
 Judy.stub.php        PHP stub for IDE autocompletion
+package.xml          PECL package definition
 ```
 
 ## Installation
@@ -418,11 +423,26 @@ Please report bugs and issues on the GitHub repository:
 
 ## Roadmap
 
-- Eliminate redundant JLG+JLI double traversal in write hot paths for MIXED/PACKED types
+- Eliminate redundant JLG+JLI double traversal in write hot paths for `INT_TO_INT`, `STRING_TO_INT`, and `STRING_TO_INT_HASH` types
 - C-level `forEach()`/`filter()`/`map()` performance tuning (vtable dispatch)
 - Binary serialization format for faster `__serialize`/`__unserialize`
-- Extend set operations (`union`/`intersect`/`diff`/`xor`) to adaptive types
 - Extend `increment()` to adaptive types
+
+## Releasing
+
+A release touches two version files, which must stay in lockstep (CI enforces both):
+
+1. `php_judy.h` — `#define PHP_JUDY_VERSION "X.Y.Z"`
+2. `package.xml` — `<release>`/`<api>` and `<date>`; move the previous release's `<notes>` into `<changelog>`, then add the new `<notes>`
+
+Then:
+
+3. Refresh `BENCHMARK.md` version/date stamps.
+4. Bump the CI performance baseline in `.github/workflows/ci.yml` (the `pie install orieg/judy:X.Y.Z` step) to the previous release, so benchmark comparisons stay apples-to-apples.
+5. Tag and publish the GitHub release as `vX.Y.Z`. The `Publish Release` workflow validates the tag against `package.xml`, builds the Windows DLLs, and attaches them plus the PECL `.tgz`.
+6. Upload the `.tgz` to pecl.php.net (manual, requires a PECL account).
+
+`Dockerfile.validate` can smoke-test an already-built `.tgz` via `pecl install`.
 
 ## License
 
