@@ -50,7 +50,10 @@ static Word_t judy_free_array_internal(judy_object *intern)
 {
 	Word_t Rc_word = 0;
 
-	if (intern->array == NULL && intern->hs_array == NULL) {
+	/* key_index must be in the guard too: a partially-failed clone can leave
+	 * key_index non-NULL while array/hs_array are NULL, and skipping the free
+	 * here would leak the JudySL key_index. */
+	if (intern->array == NULL && intern->hs_array == NULL && intern->key_index == NULL) {
 		return 0;
 	}
 
@@ -296,6 +299,74 @@ static void judy_object_free_storage(zend_object *object)
 	}
 
 	zend_object_std_dtor(&intern->std);
+}
+/* }}} */
+
+static inline Pvoid_t *judy_string_value_slot(judy_object *intern, const uint8_t *key, Word_t klen);
+
+/* {{{ judy_object_get_gc — expose stored zvals to the cycle collector.
+   Only the MIXED value types hold refcounted zval*; without this handler a
+   reference cycle passing through a Judy MIXED value (e.g. $j[0] = [$j])
+   could never be collected until request shutdown. Also exposes the embedded
+   iterator_key/iterator_data zvals. Uses a private cursor buffer rather than
+   intern->key_scratch, because GC may run while a manual rewind()/next()
+   iteration is holding that shared buffer. */
+static HashTable *judy_object_get_gc(zend_object *object, zval **table, int *n)
+{
+	judy_object *intern = php_judy_object(object);
+	zend_get_gc_buffer *gc_buffer = zend_get_gc_buffer_create();
+
+	if (Z_REFCOUNTED(intern->iterator_key)) {
+		zend_get_gc_buffer_add_zval(gc_buffer, &intern->iterator_key);
+	}
+	if (Z_REFCOUNTED(intern->iterator_data)) {
+		zend_get_gc_buffer_add_zval(gc_buffer, &intern->iterator_data);
+	}
+
+	if (intern->type == TYPE_INT_TO_MIXED) {
+		Word_t index = 0;
+		Word_t *PValue;
+		JLF(PValue, intern->array, index);
+		while (PValue != NULL && PValue != PJERR) {
+			zval *value = JUDY_MVAL_READ(PValue);
+			if (value) {
+				zend_get_gc_buffer_add_zval(gc_buffer, value);
+			}
+			JLN(PValue, intern->array, index);
+		}
+	} else if (intern->type == TYPE_STRING_TO_MIXED
+			|| intern->type == TYPE_STRING_TO_MIXED_HASH
+			|| intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
+		/* String-keyed MIXED: enumerate keys and fetch each value slot.
+		 * A private cursor keeps GC re-entrancy off the shared key_scratch. */
+		uint8_t *cursor = emalloc(PHP_JUDY_MAX_LENGTH);
+		Word_t *PValue;
+		Pvoid_t index_array =
+			(intern->type == TYPE_STRING_TO_MIXED) ? intern->array : intern->key_index;
+
+		cursor[0] = '\0';
+		JSLF(PValue, index_array, cursor);
+		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+			zval *value = NULL;
+			if (intern->type == TYPE_STRING_TO_MIXED) {
+				value = JUDY_MVAL_READ(PValue);
+			} else {
+				Pvoid_t *HValue = judy_string_value_slot(intern, cursor,
+					(Word_t)strlen((char *)cursor));
+				if (HValue != NULL) {
+					value = JUDY_MVAL_READ(HValue);
+				}
+			}
+			if (value) {
+				zend_get_gc_buffer_add_zval(gc_buffer, value);
+			}
+			JSLN(PValue, index_array, cursor);
+		}
+		efree(cursor);
+	}
+
+	zend_get_gc_buffer_use(gc_buffer, table, n);
+	return zend_std_get_properties(object);
 }
 /* }}} */
 
@@ -1168,6 +1239,7 @@ PHP_MINIT_FUNCTION(judy)
 	judy_handlers.has_dimension = judy_object_has_dimension;
 	judy_handlers.dtor_obj = zend_objects_destroy_object;
 	judy_handlers.free_obj = judy_object_free_storage;
+	judy_handlers.get_gc = judy_object_get_gc;
 	judy_handlers.offset = offsetof(judy_object, std);
 
 	/* implements some interface to provide access to judy object as an array */
@@ -3003,6 +3075,10 @@ PHP_METHOD(Judy, slice)
 					JSLI(KNew, result->key_index, key);
 					if (KNew == PJERR) {
 						int jhsd_rc;
+						/* Free the copied zval before removing the slot,
+						 * otherwise it is orphaned from key_index and leaks. */
+						zval_ptr_dtor(new_value);
+						efree(new_value);
 						JHSD(jhsd_rc, result->array, key, klen);
 						goto alloc_error;
 					}
@@ -3086,18 +3162,21 @@ PHP_METHOD(Judy, slice)
 				Word_t klen = (Word_t)strlen((char *)key);
 				Word_t sso_idx;
 				Pvoid_t *SrcValue = NULL;
+				int is_sso = 0;        /* which store to roll back on key failure */
+				zval *copied = NULL;   /* MIXED: the zval to free on rollback */
 
 				if (judy_pack_short_string_internal((char *)key, klen, &sso_idx)) {
 					/* Short key — stored in JudyL */
+					is_sso = 1;
 					JLG(SrcValue, intern->array, sso_idx);
 					if (SrcValue != NULL && SrcValue != PJERR) {
 						Pvoid_t *PNew;
 						JLI(PNew, result->array, sso_idx);
 						if (PNew == PJERR) goto alloc_error;
 						if (intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
-							zval *new_value = emalloc(sizeof(zval));
-							ZVAL_COPY(new_value, JUDY_MVAL_READ(SrcValue));
-							JUDY_MVAL_WRITE(PNew, new_value);
+							copied = emalloc(sizeof(zval));
+							ZVAL_COPY(copied, JUDY_MVAL_READ(SrcValue));
+							JUDY_MVAL_WRITE(PNew, copied);
 						} else {
 							JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(SrcValue));
 						}
@@ -3110,9 +3189,9 @@ PHP_METHOD(Judy, slice)
 						JHSI(PNew, result->hs_array, key, klen);
 						if (PNew == PJERR) goto alloc_error;
 						if (intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
-							zval *new_value = emalloc(sizeof(zval));
-							ZVAL_COPY(new_value, JUDY_MVAL_READ(SrcValue));
-							JUDY_MVAL_WRITE(PNew, new_value);
+							copied = emalloc(sizeof(zval));
+							ZVAL_COPY(copied, JUDY_MVAL_READ(SrcValue));
+							JUDY_MVAL_WRITE(PNew, copied);
 						} else {
 							JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(SrcValue));
 						}
@@ -3122,7 +3201,21 @@ PHP_METHOD(Judy, slice)
 				if (SrcValue != NULL && SrcValue != PJERR) {
 					Pvoid_t *KNew;
 					JSLI(KNew, result->key_index, key);
-					if (KNew == PJERR) goto alloc_error;
+					if (KNew == PJERR) {
+						/* Roll back the value just written so it is not
+						 * orphaned from key_index (which the free path walks). */
+						int rc;
+						if (copied) {
+							zval_ptr_dtor(copied);
+							efree(copied);
+						}
+						if (is_sso) {
+							JLD(rc, result->array, sso_idx);
+						} else {
+							JHSD(rc, result->hs_array, key, klen);
+						}
+						goto alloc_error;
+					}
 					result->counter++;
 				}
 				JSLN(KValue, intern->key_index, key);
