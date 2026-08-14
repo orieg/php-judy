@@ -490,11 +490,14 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 				if (!offset && intern->next_empty_is_valid) {
 					index = intern->next_empty++;
 				} else {
-					index = -1;
-					J1L(Rc_int, intern->array, index);
+					/* Find the highest set index (search from Word_t max).
+					 * J1L takes the index by address as Word_t*, so use a
+					 * Word_t rather than the signed `index`. */
+					Word_t last_idx = (Word_t)-1;
+					J1L(Rc_int, intern->array, last_idx);
 
 					if (Rc_int == 1) {
-						index += 1;
+						index = (zend_long)last_idx + 1;
 						if (!offset) {
 							intern->next_empty = index + 1;
 							intern->next_empty_is_valid = 1;
@@ -533,11 +536,14 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 				if (!offset && intern->next_empty_is_valid) {
 					index = intern->next_empty++;
 				} else {
-					index = -1;
-					JLL(PValue, intern->array, index);
+					/* Find the highest present index (search from Word_t max).
+					 * JLL takes the index by address as Word_t*, so use a
+					 * Word_t rather than the signed `index`. */
+					Word_t last_idx = (Word_t)-1;
+					JLL(PValue, intern->array, last_idx);
 
 					if (PValue != NULL && PValue != PJERR) {
-						index += 1;
+						index = (zend_long)last_idx + 1;
 						if (!offset) {
 							intern->next_empty = index + 1;
 							intern->next_empty_is_valid = 1;
