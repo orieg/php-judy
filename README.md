@@ -2,10 +2,12 @@
 
 **PHP Judy** - Extension for creating and accessing dynamic arrays
 
+[![CI](https://github.com/orieg/php-judy/actions/workflows/ci.yml/badge.svg)](https://github.com/orieg/php-judy/actions/workflows/ci.yml)
+[![Packagist Version](https://img.shields.io/packagist/v/orieg/judy)](https://packagist.org/packages/orieg/judy)
+[![Packagist Downloads](https://img.shields.io/packagist/dt/orieg/judy)](https://packagist.org/packages/orieg/judy/stats)
+[![PHP Version](https://img.shields.io/packagist/dependency-v/orieg/judy/php?label=php)](https://packagist.org/packages/orieg/judy)
+[![License](https://img.shields.io/packagist/l/orieg/judy)](LICENSE)
 [![PECL](https://img.shields.io/badge/PECL-Judy-blue.svg)](https://pecl.php.net/package/Judy)
-[![Packagist](https://img.shields.io/badge/Packagist-orieg/judy-orange.svg)](https://packagist.org/packages/orieg/judy)
-[![PHP Version](https://img.shields.io/badge/PHP-8.1+-green.svg)](https://php.net)
-[![License](https://img.shields.io/badge/License-PHP-blue.svg)](LICENSE)
 
 ## Table of Contents
 
@@ -22,7 +24,7 @@
 
 ## Introduction
 
-**php-judy** is an extension by Nicolas Brousse for the Judy C library. It is tested in CI against PHP 8.1–8.5 (and, experimentally, PHP 8.6). The package metadata still declares a minimum of PHP 8.0, but 8.0 is no longer covered by CI.
+**php-judy** is an extension by Nicolas Brousse for the Judy C library. It is compatible with PHP 8.1 and newer, tested in CI against PHP 8.1–8.5 (and, experimentally, PHP 8.6).
 
 - **PECL Package**: [http://pecl.php.net/package/Judy](http://pecl.php.net/package/Judy)
 - **Packagist Package**: [https://packagist.org/packages/orieg/judy](https://packagist.org/packages/orieg/judy)
@@ -31,6 +33,15 @@
 A Judy array is a complex but very fast associative array data structure for storing and looking up values using integer or string keys. Unlike normal arrays, Judy arrays may be sparse; that is, they may have large ranges of unassigned indices.
 
 - **Wikipedia**: [http://en.wikipedia.org/wiki/Judy_array](http://en.wikipedia.org/wiki/Judy_array)
+
+### Why PHP Judy?
+
+- **2-4x less memory** than native PHP arrays for large integer-keyed datasets, and **~10x less** for presence tracking with `BITSET` (1M elements)
+- **Faster bulk operations**: `getAll()`, `toArray()`, and `fromArray()` run in native C, 1.3-3x faster than element-by-element loops; atomic `increment()` avoids the read-modify-write round trip
+- **Ordered keys for free**: range queries, `first()`/`next()` navigation, and neighbor lookups that hash tables can't do
+- **Honest trade-off**: for random access on small dense datasets, native PHP arrays are faster. See [BENCHMARK.md](BENCHMARK.md) for full numbers and a decision guide on when (not) to use Judy.
+
+Judy shines in long-running PHP processes (CLI tools, queue workers, Swoole/RoadRunner/FrankenPHP/Octane workers) that hold large sparse keysets in memory.
 
 The PHP extension is based on the Judy C library that implements a dynamic array. A Judy array consumes memory only when populated yet can grow to take advantage of all available memory. Judy's key benefits are: scalability, performance, memory efficiency, and ease of use. Judy arrays are designed to grow without tuning into the peta-element range, scaling near O(log-base-256) -- 1 more RAM access at 256 X population.
 
@@ -66,10 +77,20 @@ PHP PIE (PHP Extension Installer) is the easiest way to install PHP Judy on supp
 curl -sSL https://pie.dev/installer | php
 
 # Install PHP Judy using PIE
-pie install judy
+pie install orieg/judy
 ```
 
-**Note**: PHP PIE automatically handles dependencies and builds the extension for your specific PHP version and platform.
+**Note**: PHP PIE automatically handles dependencies and builds the extension for your specific PHP version and platform. The package is listed on [Packagist](https://packagist.org/packages/orieg/judy) among the [PIE-installable extensions](https://packagist.org/extensions).
+
+### A2. Docker
+
+In Docker images based on the official `php` images, the simplest path is [`install-php-extensions`](https://github.com/mlocati/docker-php-extension-installer), which supports Judy on PHP 8.1+:
+
+```dockerfile
+FROM php:8.4-cli
+ADD --chmod=0755 https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
+RUN install-php-extensions judy
+```
 
 ### B. Using PECL
 
