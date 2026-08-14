@@ -13,9 +13,16 @@ permissions:
 jobs:
   build-linux:
     runs-on: ubuntu-latest
+    # Experimental (pre-release) PHP versions may fail without blocking CI.
+    continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       matrix:
         php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+        include:
+          # PHP 8.6 is pre-release (nightly build via setup-php); make it
+          # required once 8.6 reaches RC/GA.
+          - php-version: "8.6"
+            experimental: true
 
     steps:
       - name: Checkout code
@@ -157,12 +164,21 @@ jobs:
 
   build-windows:
     runs-on: windows-latest
+    # Experimental (pre-release) PHP versions may fail without blocking CI.
+    continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
       matrix:
         php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
         arch: ["x64"]
         ts: ["nts"]
+        include:
+          # PHP 8.6 is pre-release (QA build via php-windows-builder); make
+          # it required once 8.6 reaches RC/GA.
+          - php-version: "8.6"
+            arch: "x64"
+            ts: "nts"
+            experimental: true
 
     steps:
       - name: Checkout code
@@ -470,7 +486,11 @@ jobs:
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
-          files: "artifacts/**/*.xml"
+          # Exclude experimental (pre-release) PHP versions from the
+          # pass/fail check; they still appear in the consolidated report.
+          files: |
+            artifacts/**/*.xml
+            !artifacts/junit-*8.6*/**
           check_name: "Test Results"
           comment_mode: "off"
           job_summary: false
@@ -482,6 +502,9 @@ jobs:
           import os, glob, re, json
 
           # ── Test Results ──────────────────────────────────────────
+          # Pre-release PHP versions: failures shown but don't affect
+          # the overall verdict (their CI jobs are continue-on-error).
+          EXPERIMENTAL = {"8.6"}
           rows = []
           for xml_file in sorted(glob.glob("artifacts/junit-*/*.xml")):
               dir_name = os.path.basename(os.path.dirname(xml_file))
@@ -508,6 +531,8 @@ jobs:
                   time_val = float(ts_elem.get("time", 0))
                   passed = tests - failures - errors - skipped
                   status = "\u2705" if failures == 0 and errors == 0 else "\u274c"
+                  if php in EXPERIMENTAL:
+                      status += " \U0001F9EA"
               except Exception:
                   tests = failures = errors = skipped = passed = 0
                   time_val = 0.0
@@ -537,7 +562,9 @@ jobs:
           total_pass = sum(r["passed"] for r in rows)
           total_fail = sum(r["failures"] for r in rows)
           total_skip = sum(r["skipped"] for r in rows)
-          all_pass = total_fail == 0 and all(r["errors"] == 0 for r in rows)
+          required = [r for r in rows if r["php"] not in EXPERIMENTAL]
+          all_pass = (all(r["failures"] == 0 and r["errors"] == 0 for r in required)
+                      if required else total_fail == 0)
           icon = "\u2705" if all_pass else "\u274c"
           lines.append(
               f"| {icon} | **Total** | | | "
