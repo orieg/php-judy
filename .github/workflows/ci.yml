@@ -85,15 +85,9 @@ jobs:
         if: matrix.php-version == '8.4'
         run: |
           # Compare against the most recent stable release (release-over-
-          # release regression detection). Bump this on each release — see
-          # the release checklist in README. v2.3.0 was misleading: it
-          # predates the v2.4.0 Fiber-safety change that moved the 64 KB
-          # key_scratch buffer from the stack to a per-object heap allocation,
-          # so every run reported a bogus ~51000% string-key "memory
-          # regression" that was really an intentional, already-shipped
-          # change. v2.4.1 has the heap key_scratch, so the comparison is
-          # apples-to-apples.
-          sudo pie install --skip-enable-extension orieg/judy:2.4.1 \
+          # release regression detection). Bump this to the just-published
+          # release on each release — see the "Releasing" section in README.
+          sudo pie install --skip-enable-extension orieg/judy:2.4.2 \
             --with-judy=/usr
           BASELINE_SO="$(php-config --extension-dir)/judy.so"
           echo "BASELINE_SO=$BASELINE_SO" >> "$GITHUB_ENV"
