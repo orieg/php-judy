@@ -1138,7 +1138,7 @@ PHP_MINIT_FUNCTION(judy)
 	judy_handlers.has_dimension = judy_object_has_dimension;
 	judy_handlers.dtor_obj = zend_objects_destroy_object;
 	judy_handlers.free_obj = judy_object_free_storage;
-	judy_handlers.offset = XtOffsetOf(judy_object, std);
+	judy_handlers.offset = offsetof(judy_object, std);
 
 	/* implements some interface to provide access to judy object as an array */
 	zend_class_implements(judy_ce, 4, zend_ce_arrayaccess, zend_ce_countable, zend_ce_iterator, php_json_serializable_ce);
