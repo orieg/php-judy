@@ -595,7 +595,9 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			J1U(Rc_int, intern->array, index);
 			if (Rc_int == 1) intern->counter--;
 		}
-		return Rc_int ? SUCCESS : FAILURE;
+		/* JERR (-1) is truthy, so `Rc_int ?` would report an allocation
+		 * failure as SUCCESS. Only a real change (1) or no-op is success. */
+		return Rc_int == JERR ? FAILURE : SUCCESS;
 	} else if (intern->type == TYPE_INT_TO_INT
 			|| intern->type == TYPE_INT_TO_MIXED
 			|| intern->type == TYPE_INT_TO_PACKED) {
@@ -1179,7 +1181,9 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 			}
 		}
 	}
-	return Rc_int ? SUCCESS : FAILURE;
+	/* Only an allocation failure (JERR) is a failure; a no-op delete of an
+	 * absent key is success. Guards against JERR (-1) reporting as SUCCESS. */
+	return Rc_int == JERR ? FAILURE : SUCCESS;
 }
 /* }}} */
 
@@ -3993,6 +3997,13 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 	zval retval;
 	int action_rc = SUCCESS;
 
+	/* Private cursor for string-keyed iteration. The user callback may
+	 * re-enter an operation that writes intern->key_scratch (first/last/
+	 * toArray/keys/a nested forEach on the same object), which would corrupt
+	 * a shared cursor mid-loop. Integer-keyed types use a local Word_t index
+	 * and need no buffer. */
+	uint8_t *cursor = intern->is_integer_keyed ? NULL : emalloc(PHP_JUDY_MAX_LENGTH);
+
 	if (intern->is_integer_keyed) {
 		Word_t index = 0;
 		if (intern->type == TYPE_BITSET) {
@@ -4043,7 +4054,7 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 			}
 		}
 	} else if (intern->is_adaptive) {
-		uint8_t *key = intern->key_scratch;
+		uint8_t *key = cursor;
 		Pvoid_t *PValue;
 		key[0] = '\0';
 		JSLF(PValue, intern->key_index, key);
@@ -4087,7 +4098,7 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 		}
 
 	} else { /* string keyed */
-		uint8_t *key = intern->key_scratch;
+		uint8_t *key = cursor;
 		Pvoid_t *PValue;
 		key[0] = '\0';
 		if (intern->is_hash_keyed) {
@@ -4132,6 +4143,10 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 				}
 			}
 		}
+	}
+
+	if (cursor) {
+		efree(cursor);
 	}
 }
 static int action_foreach(judy_object *intern, zval *key, zval *retval, void *data) {
@@ -4230,6 +4245,7 @@ static void judy_object_merge_with_helper(judy_object *intern, judy_object *othe
 					ZVAL_LONG(&zidx, (zend_long)index);
 					judy_object_write_dimension_helper_zv(intern, &zidx, &val);
 				}
+				if (UNEXPECTED(EG(exception))) break;
 				J1N(Rc_int, other->array, index);
 			}
 		} else {
@@ -4242,11 +4258,14 @@ static void judy_object_merge_with_helper(judy_object *intern, judy_object *othe
 				judy_object_read_dimension_helper_zv(other, &zidx, &zval_val);
 				judy_object_write_dimension_helper_zv(intern, &zidx, &zval_val);
 				zval_ptr_dtor(&zval_val);
+				if (UNEXPECTED(EG(exception))) break;
 				JLN(PValue, other->array, index);
 			}
 		}
 	} else { /* string keyed */
-		uint8_t *key = other->key_scratch;
+		/* Private cursor: writing into `intern` can run a MIXED value's
+		 * destructor, which could re-enter and corrupt other->key_scratch. */
+		uint8_t *key = emalloc(PHP_JUDY_MAX_LENGTH);
 		Pvoid_t *PValue;
 		key[0] = '\0';
 		if (other->is_hash_keyed) {
@@ -4263,6 +4282,7 @@ static void judy_object_merge_with_helper(judy_object *intern, judy_object *othe
 			judy_object_write_dimension_helper_zv(intern, &zkey, &zval_val);
 			zval_ptr_dtor(&zval_val);
 			zval_ptr_dtor(&zkey);
+			if (UNEXPECTED(EG(exception))) break;
 
 			if (other->is_hash_keyed) {
 				JSLN(PValue, other->key_index, key);
@@ -4270,6 +4290,7 @@ static void judy_object_merge_with_helper(judy_object *intern, judy_object *othe
 				JSLN(PValue, other->array, key);
 			}
 		}
+		efree(key);
 	}
 }
 
@@ -4509,6 +4530,12 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 			}
 			judy_object_write_dimension_helper(judy_obj, &offset, entry);
 			zval_ptr_dtor(&offset);
+			/* Stop on the first thrown key (embedded NUL / oversize): keep the
+			 * partial result up to the error rather than plowing on with an
+			 * exception pending. */
+			if (UNEXPECTED(EG(exception))) {
+				break;
+			}
 		} ZEND_HASH_FOREACH_END();
 		break;
 	}
