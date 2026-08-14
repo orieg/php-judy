@@ -1499,8 +1499,9 @@ PHP_METHOD(Judy, first)
 		JSLF(PValue, intern->array, key);
 		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR))
 			RETURN_STRING((char *)key);
-	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH
-			|| intern->type == TYPE_STRING_TO_INT_HASH) {
+	} else if (intern->is_hash_keyed) {
+		/* HASH and ADAPTIVE types both keep every key in the JudySL
+		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
 		char        *str;
 		size_t       str_length = 0;
 
@@ -1592,8 +1593,9 @@ PHP_METHOD(Judy, searchNext)
 		JSLN(PValue, intern->array, key);
 		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR))
 			RETURN_STRING((char *)key);
-	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH
-			|| intern->type == TYPE_STRING_TO_INT_HASH) {
+	} else if (intern->is_hash_keyed) {
+		/* HASH and ADAPTIVE types both keep every key in the JudySL
+		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
 		char        *str;
 		size_t       str_length;
 
@@ -1917,8 +1919,9 @@ PHP_METHOD(Judy, last)
 		JSLL(PValue, intern->array, key);
 		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR))
 			RETURN_STRING((char *)key);
-	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH
-			|| intern->type == TYPE_STRING_TO_INT_HASH) {
+	} else if (intern->is_hash_keyed) {
+		/* HASH and ADAPTIVE types both keep every key in the JudySL
+		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
 		char        *str;
 		size_t       str_length = 0;
 
@@ -2005,8 +2008,9 @@ PHP_METHOD(Judy, prev)
 		JSLP(PValue, intern->array, key);
 		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR))
 			RETURN_STRING((char *)key);
-	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH
-			|| intern->type == TYPE_STRING_TO_INT_HASH) {
+	} else if (intern->is_hash_keyed) {
+		/* HASH and ADAPTIVE types both keep every key in the JudySL
+		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
 		char        *str;
 		size_t       str_length;
 
@@ -4258,10 +4262,12 @@ PHP_METHOD(Judy, __unserialize)
 		return;
 	}
 
-	intern->array = (Pvoid_t) NULL;
+	/* __unserialize is a public method and may be invoked on an already-
+	 * populated object; free any existing contents (using the current type's
+	 * layout) before re-initialising, otherwise the old tree and its zvals
+	 * leak. judy_free_array_internal() NULLs array/key_index/hs_array. */
+	judy_free_array_internal(intern);
 	intern->counter = 0;
-	intern->key_index = (Pvoid_t) NULL;
-	intern->hs_array = (Pvoid_t) NULL;
 	judy_init_type_flags(intern, jtype);
 
 	if (intern->is_string_keyed && !intern->key_scratch) {
@@ -4316,6 +4322,12 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 	{
 		Pvoid_t *PValue;
 		ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
+			if (UNEXPECTED(str_key != NULL)) {
+				php_error_docref(NULL, E_WARNING,
+					"Judy integer-keyed type ignores non-integer array key \"%s\"",
+					ZSTR_VAL(str_key));
+				continue;
+			}
 			Word_t index = (Word_t)num_key;
 			zend_long lval = zval_get_long(entry); /* evaluate before JLI to prevent UAF via callbacks */
 			Pvoid_t *PExisting;
@@ -4332,19 +4344,28 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 	{
 		Pvoid_t *PValue;
 		ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
+			if (UNEXPECTED(str_key != NULL)) {
+				php_error_docref(NULL, E_WARNING,
+					"Judy integer-keyed type ignores non-integer array key \"%s\"",
+					ZSTR_VAL(str_key));
+				continue;
+			}
 			Word_t index = (Word_t)num_key;
 			JLI(PValue, intern->array, index);
 			if (PValue != NULL && PValue != PJERR) {
-				if (*(Pvoid_t *)PValue != NULL) {
-					zval *old_value = JUDY_MVAL_READ(PValue);
+				zval *old_value = JUDY_MVAL_READ(PValue);
+				zval *new_value = emalloc(sizeof(zval));
+				ZVAL_COPY(new_value, entry);
+				/* Publish new value before destroying old: old_value's
+				 * destructor may re-enter and invalidate PValue (same UAF
+				 * guard as the write_dimension MIXED paths). */
+				JUDY_MVAL_WRITE(PValue, new_value);
+				if (old_value != NULL) {
 					zval_ptr_dtor(old_value);
 					efree(old_value);
 				} else {
 					intern->counter++;
 				}
-				zval *new_value = emalloc(sizeof(zval));
-				ZVAL_COPY(new_value, entry);
-				JUDY_MVAL_WRITE(PValue, new_value);
 			}
 		} ZEND_HASH_FOREACH_END();
 		break;
@@ -4353,6 +4374,12 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 	{
 		Pvoid_t *PValue;
 		ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(arr), num_key, str_key, entry) {
+			if (UNEXPECTED(str_key != NULL)) {
+				php_error_docref(NULL, E_WARNING,
+					"Judy integer-keyed type ignores non-integer array key \"%s\"",
+					ZSTR_VAL(str_key));
+				continue;
+			}
 			Word_t index = (Word_t)num_key;
 			judy_packed_value *packed = judy_pack_value(entry);
 			if (!packed) continue;
