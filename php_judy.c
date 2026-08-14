@@ -2285,8 +2285,9 @@ static void judy_create_bitset_result(zval *return_value)
 /* {{{ Helper to validate that both operands support set operations and have the same type */
 static int judy_validate_set_operands(judy_object *self, judy_object *other)
 {
-	if (self->type != TYPE_BITSET && self->type != TYPE_INT_TO_INT && 
-		self->type != TYPE_STRING_TO_INT && self->type != TYPE_STRING_TO_INT_HASH) {
+	if (self->type != TYPE_BITSET && self->type != TYPE_INT_TO_INT &&
+		self->type != TYPE_STRING_TO_INT && self->type != TYPE_STRING_TO_INT_HASH &&
+		self->type != TYPE_STRING_TO_INT_ADAPTIVE) {
 		zend_throw_exception(NULL, "Set operations are only supported on BITSET and integer-valued arrays", 0);
 		return FAILURE;
 	}
@@ -2535,13 +2536,12 @@ alloc_error_il:
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 			int exists = 0;
 			Pvoid_t *VOther = NULL;
-			if (intern->is_hash_keyed) {
-				JHSG(VOther, other->array, key, (Word_t)strlen((char *)key));
-				if (VOther != NULL) exists = 1;
-			} else {
-				JSLG(VOther, other->array, key);
-				if (VOther != NULL) exists = 1;
-			}
+			/* Dispatch across other's layout (plain JudySL, JudyHS, or
+			 * adaptive SSO/JudyHS). Previously JHSG was run on other->array
+			 * unconditionally for is_hash_keyed, which is wrong for adaptive
+			 * (its short keys live in a JudyL). */
+			VOther = judy_string_value_slot(other, key, (Word_t)strlen((char *)key));
+			if (VOther != NULL) exists = 1;
 
 			if (exists) {
 				zval zkey, zval_val;
@@ -2657,13 +2657,12 @@ alloc_error_il:
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 			int exists = 0;
 			Pvoid_t *VOther = NULL;
-			if (intern->is_hash_keyed) {
-				JHSG(VOther, other->array, key, (Word_t)strlen((char *)key));
-				if (VOther != NULL) exists = 1;
-			} else {
-				JSLG(VOther, other->array, key);
-				if (VOther != NULL) exists = 1;
-			}
+			/* Dispatch across other's layout (plain JudySL, JudyHS, or
+			 * adaptive SSO/JudyHS). Previously JHSG was run on other->array
+			 * unconditionally for is_hash_keyed, which is wrong for adaptive
+			 * (its short keys live in a JudyL). */
+			VOther = judy_string_value_slot(other, key, (Word_t)strlen((char *)key));
+			if (VOther != NULL) exists = 1;
 
 			if (!exists) {
 				zval zkey, zval_val;
@@ -2807,15 +2806,8 @@ alloc_error_il:
 
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 			int exists = 0;
-			if (intern->is_hash_keyed) {
-				Pvoid_t *HExists;
-				JHSG(HExists, other->array, key, (Word_t)strlen((char *)key));
-				if (HExists != NULL) exists = 1;
-			} else {
-				Pvoid_t *SExists;
-				JSLG(SExists, other->array, key);
-				if (SExists != NULL) exists = 1;
-			}
+			Pvoid_t *VOther = judy_string_value_slot(other, key, (Word_t)strlen((char *)key));
+			if (VOther != NULL) exists = 1;
 
 			if (!exists) {
 				zval zkey, zval_val;
@@ -2845,15 +2837,8 @@ alloc_error_il:
 
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 			int exists = 0;
-			if (intern->is_hash_keyed) {
-				Pvoid_t *HExists;
-				JHSG(HExists, intern->array, okey, (Word_t)strlen((char *)okey));
-				if (HExists != NULL) exists = 1;
-			} else {
-				Pvoid_t *SExists;
-				JSLG(SExists, intern->array, okey);
-				if (SExists != NULL) exists = 1;
-			}
+			Pvoid_t *VSelf = judy_string_value_slot(intern, okey, (Word_t)strlen((char *)okey));
+			if (VSelf != NULL) exists = 1;
 
 			if (!exists) {
 				zval zkey, zval_val;
