@@ -45,7 +45,12 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 		J1F(Rc_int, old_obj->array, kindex);
 		while (Rc_int == 1)
 		{
-			J1S(Rc_int, newJArray, kindex);
+			int Rc_ins;
+			J1S(Rc_ins, newJArray, kindex);
+			/* Check the insert before J1N clobbers Rc_int: on allocation
+			 * failure (JERR) stop rather than silently dropping the bit and
+			 * producing a partial clone. */
+			if (Rc_ins == JERR) break;
 			J1N(Rc_int, old_obj->array, kindex);
 		}
 	} else if (old_obj->type == TYPE_INT_TO_INT || old_obj->type == TYPE_INT_TO_MIXED
