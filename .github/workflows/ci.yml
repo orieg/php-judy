@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Judy library
         run: sudo apt-get update && sudo apt-get install -y libjudy-dev
@@ -48,7 +48,7 @@ jobs:
 
       - name: Upload JUnit results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: junit-linux-${{ matrix.php-version }}
           path: junit.xml
@@ -89,7 +89,7 @@ jobs:
 
       - name: Upload baseline benchmark results
         if: always() && matrix.php-version == '8.4'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-baseline-linux-php${{ matrix.php-version }}
           path: |
@@ -110,7 +110,7 @@ jobs:
 
       - name: Upload benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-linux-php${{ matrix.php-version }}
           path: |
@@ -122,7 +122,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Verify PHP_JUDY_VERSION matches package.xml
         run: |
@@ -182,7 +182,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -365,7 +365,7 @@ jobs:
 
       - name: Upload JUnit results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: junit-windows-${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
           path: ${{ runner.temp }}\junit.xml
@@ -424,7 +424,7 @@ jobs:
 
       - name: Upload benchmark results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: benchmark-windows-php${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
           path: |
@@ -464,18 +464,18 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           sparse-checkout: baselines
 
       - name: Download all test artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: junit-*
           path: artifacts
 
       - name: Download benchmark artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: benchmark-*
           path: benchmarks
@@ -1304,7 +1304,7 @@ jobs:
         # report-posting issues never fail the run after tests pass.
         if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         continue-on-error: true
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
