@@ -16,11 +16,11 @@
       <email>nicolas@brousse.info</email>
       <active>yes</active>
    </lead>
-   <date>2026-08-13</date>
+   <date>2026-08-14</date>
    <time>00:00:00</time>
    <version>
-      <release>2.4.1</release>
-      <api>2.4.1</api>
+      <release>2.4.2</release>
+      <api>2.4.2</api>
    </version>
    <stability>
       <release>stable</release>
@@ -28,8 +28,28 @@
    </stability>
    <license uri="http://www.php.net/license">PHP</license>
    <notes>
-- FIX: PHP 8.6 build -- XtOffsetOf() alias removed in PHP 8.6.0alpha2; use
-  standard C offsetof() instead (thanks Remi Collet, PR #65)
+- SECURITY: fix use-after-free write on *_TO_MIXED overwrite/unset when a stored
+  value's destructor re-enters and mutates the same array (write-before-dtor /
+  delete-before-free)
+- SECURITY: fix type confusion (UB) in getAll()/next()/rewind() for adaptive
+  types, which queried a JudyHS operation against the JudyL (SSO) store
+- FIX: add get_gc handler so reference cycles through MIXED values are collectable
+  (previously leaked until request shutdown)
+- FIX: STRING_TO_*_ADAPTIVE counter no longer double-counts when the value 0 is
+  re-stored (size/count/equals/averageValues were affected)
+- FIX: $j[] = append after clone/fromArray/putAll no longer overwrites index 0
+- FIX: first()/last()/searchNext()/prev() now work on adaptive types
+- FIX: fromArray()/putAll() reject non-integer keys on integer-keyed types instead
+  of inserting at the string's hash
+- FIX: __unserialize() on a populated object frees prior contents (no leak)
+- FIX: forEach()/filter()/map() callbacks may re-enter without corrupting iteration
+- FIX: equals() on INT_TO_PACKED no longer risks an infinite loop
+- FIX: allocation failure (JERR) during write/unset is reported as failure, not success
+- FIX: bulk operations stop on the first thrown key instead of continuing with a
+  pending exception; clone/slice no longer leak zvals or diverge on OOM paths
+- FEATURE: set operations (intersect/diff/xor) now supported for STRING_TO_INT_ADAPTIVE
+- BUILD: extension compiles warning-free; CI now fails on any new compiler warning
+- BUILD: minimum PHP raised to 8.1 (PHP 8.0 is no longer tested in CI)
    </notes>
    <contents>
       <dir name="/">
@@ -275,6 +295,21 @@
       <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
    </extsrcrelease>
    <changelog>
+      <release>
+         <date>2026-08-13</date>
+         <version>
+            <release>2.4.1</release>
+            <api>2.4.1</api>
+         </version>
+         <stability>
+            <release>stable</release>
+            <api>stable</api>
+         </stability>
+         <notes>
+- FIX: PHP 8.6 build -- XtOffsetOf() alias removed in PHP 8.6.0alpha2; use
+  standard C offsetof() instead (thanks Remi Collet, PR #65)
+         </notes>
+      </release>
       <release>
          <date>2026-03-02</date>
          <version>
