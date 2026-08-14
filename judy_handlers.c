@@ -136,15 +136,24 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			JHSG(HValue, old_obj->array, kindex, klen);
 			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
 				Pvoid_t *newHValue;
-				Pvoid_t *newKValue;
 				JHSI(newHValue, newJArray, kindex, klen);
 				if (JUDY_LIKELY(newHValue != NULL && newHValue != PJERR)) {
 					zval *value = ecalloc(1, sizeof(zval));
 					ZVAL_COPY(value, JUDY_MVAL_READ(HValue));
 					JUDY_MVAL_WRITE(newHValue, value);
+					/* Register the key only after the value is in place, so
+					 * the value store and key_index never diverge. Roll the
+					 * value back (freeing the zval) if the key insert fails. */
+					Pvoid_t *newKValue;
+					JSLI(newKValue, newKeyIndex, kindex);
+					if (JUDY_UNLIKELY(newKValue == PJERR)) {
+						int rc;
+						zval_ptr_dtor(value);
+						efree(value);
+						JHSD(rc, newJArray, kindex, klen);
+						break;
+					}
 				}
-				JSLI(newKValue, newKeyIndex, kindex);
-				if (JUDY_UNLIKELY(newKValue == PJERR)) break;
 			}
 			JSLN(KValue, old_obj->key_index, kindex)
 		}
@@ -164,13 +173,18 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			JHSG(HValue, old_obj->array, kindex, klen);
 			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
 				Pvoid_t *newHValue;
-				Pvoid_t *newKValue;
 				JHSI(newHValue, newJArray, kindex, klen);
 				if (JUDY_LIKELY(newHValue != NULL && newHValue != PJERR)) {
 					JUDY_LVAL_WRITE(newHValue, JUDY_LVAL_READ(HValue));
+					/* Register the key only after the value is in place. */
+					Pvoid_t *newKValue;
+					JSLI(newKValue, newKeyIndex, kindex);
+					if (JUDY_UNLIKELY(newKValue == PJERR)) {
+						int rc;
+						JHSD(rc, newJArray, kindex, klen);
+						break;
+					}
 				}
-				JSLI(newKValue, newKeyIndex, kindex);
-				if (JUDY_UNLIKELY(newKValue == PJERR)) break;
 			}
 			JSLN(KValue, old_obj->key_index, kindex)
 		}
@@ -189,9 +203,13 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 		while (JUDY_LIKELY(KValue != NULL && KValue != PJERR)) {
 			Word_t klen = (Word_t)strlen((char *)kindex);
 			Word_t sso_idx;
+			int value_ok = 0;      /* value slot successfully written */
+			int is_sso = 0;        /* which store to roll back on key failure */
+			zval *copied = NULL;   /* MIXED: the zval to free on rollback */
 
 			if (judy_pack_short_string_internal((char *)kindex, klen, &sso_idx)) {
 				/* Short key — stored in JudyL (intern->array) */
+				is_sso = 1;
 				Pvoid_t *PValue;
 				JLG(PValue, old_obj->array, sso_idx);
 				if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
@@ -199,12 +217,13 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 					JLI(newPValue, newJArray, sso_idx);
 					if (JUDY_LIKELY(newPValue != NULL && newPValue != PJERR)) {
 						if (old_obj->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
-							zval *value = emalloc(sizeof(zval));
-							ZVAL_COPY(value, JUDY_MVAL_READ(PValue));
-							JUDY_MVAL_WRITE(newPValue, value);
+							copied = emalloc(sizeof(zval));
+							ZVAL_COPY(copied, JUDY_MVAL_READ(PValue));
+							JUDY_MVAL_WRITE(newPValue, copied);
 						} else {
 							JUDY_LVAL_WRITE(newPValue, JUDY_LVAL_READ(PValue));
 						}
+						value_ok = 1;
 					}
 				}
 			} else {
@@ -216,20 +235,36 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 					JHSI(newHValue, newHsArray, kindex, klen);
 					if (JUDY_LIKELY(newHValue != NULL && newHValue != PJERR)) {
 						if (old_obj->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
-							zval *value = emalloc(sizeof(zval));
-							ZVAL_COPY(value, JUDY_MVAL_READ(HValue));
-							JUDY_MVAL_WRITE(newHValue, value);
+							copied = emalloc(sizeof(zval));
+							ZVAL_COPY(copied, JUDY_MVAL_READ(HValue));
+							JUDY_MVAL_WRITE(newHValue, copied);
 						} else {
 							JUDY_LVAL_WRITE(newHValue, JUDY_LVAL_READ(HValue));
 						}
+						value_ok = 1;
 					}
 				}
 			}
 
-			/* Clone key_index entry */
-			Pvoid_t *newKValue;
-			JSLI(newKValue, newKeyIndex, kindex);
-			if (JUDY_UNLIKELY(newKValue == PJERR)) break;
+			/* Register the key only after its value is in place; on key-insert
+			 * failure roll the value back so the stores never diverge. */
+			if (value_ok) {
+				Pvoid_t *newKValue;
+				JSLI(newKValue, newKeyIndex, kindex);
+				if (JUDY_UNLIKELY(newKValue == PJERR)) {
+					int rc;
+					if (copied) {
+						zval_ptr_dtor(copied);
+						efree(copied);
+					}
+					if (is_sso) {
+						JLD(rc, newJArray, sso_idx);
+					} else {
+						JHSD(rc, newHsArray, kindex, klen);
+					}
+					break;
+				}
+			}
 
 			JSLN(KValue, old_obj->key_index, kindex)
 		}
