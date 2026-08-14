@@ -572,17 +572,21 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		} else if (intern->type == TYPE_INT_TO_MIXED) {
 			JLI(PValue, intern->array, index);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				zval *old_value, *new_value;
-				if (JUDY_MVAL_READ(PValue) != NULL) {
-					old_value = JUDY_MVAL_READ(PValue);
+				zval *old_value = JUDY_MVAL_READ(PValue);
+				zval *new_value = emalloc(sizeof(zval));
+				ZVAL_COPY(new_value, value);
+				/* Publish the new value into the slot BEFORE destroying the
+				 * old one: old_value's destructor can run arbitrary PHP that
+				 * re-enters and restructures this array, invalidating PValue.
+				 * Writing first keeps the slot consistent no matter what the
+				 * destructor does. */
+				JUDY_MVAL_WRITE(PValue, new_value);
+				if (old_value != NULL) {
 					zval_ptr_dtor(old_value);
 					efree(old_value);
 				} else {
 					intern->counter++;
 				}
-				new_value = emalloc(sizeof(zval));
-				ZVAL_COPY(new_value, value);
-				JUDY_MVAL_WRITE(PValue, new_value);
 				return SUCCESS;
 			}
 			return FAILURE;
@@ -631,17 +635,18 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 
 		JSLI(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
 		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-			zval *old_value, *new_value;
-			if (JUDY_MVAL_READ(PValue) != NULL) {
-				old_value = JUDY_MVAL_READ(PValue);
+			zval *old_value = JUDY_MVAL_READ(PValue);
+			zval *new_value = emalloc(sizeof(zval));
+			ZVAL_COPY(new_value, value);
+			/* Write new value before destroying old (see INT_TO_MIXED note):
+			 * old_value's destructor may re-enter and invalidate PValue. */
+			JUDY_MVAL_WRITE(PValue, new_value);
+			if (old_value != NULL) {
 				zval_ptr_dtor(old_value);
 				efree(old_value);
 			} else {
 				intern->counter++;
 			}
-			new_value = emalloc(sizeof(zval));
-			ZVAL_COPY(new_value, value);
-			JUDY_MVAL_WRITE(PValue, new_value);
 			res = SUCCESS;
 		} else {
 			res = FAILURE;
@@ -662,12 +667,8 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 
 		JHSI(HValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 		if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
-			zval *old_value, *new_value;
-			if (JUDY_MVAL_READ(HValue) != NULL) {
-				old_value = JUDY_MVAL_READ(HValue);
-				zval_ptr_dtor(old_value);
-				efree(old_value);
-			} else {
+			zval *old_value = JUDY_MVAL_READ(HValue);
+			if (old_value == NULL) {
 				/* Register key in JudySL key_index for iteration support */
 				JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
 				if (JUDY_UNLIKELY(KValue == PJERR)) {
@@ -678,9 +679,14 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 				}
 				intern->counter++;
 			}
-			new_value = ecalloc(1, sizeof(zval));
+			zval *new_value = ecalloc(1, sizeof(zval));
 			ZVAL_COPY(new_value, value);
+			/* Write new value before destroying old (see INT_TO_MIXED note). */
 			JUDY_MVAL_WRITE(HValue, new_value);
+			if (old_value != NULL) {
+				zval_ptr_dtor(old_value);
+				efree(old_value);
+			}
 			res = SUCCESS;
 		} else {
 			res = FAILURE;
@@ -727,6 +733,7 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			return FAILURE;
 		}
 		Pvoid_t *PValue;
+		Pvoid_t *PExisting;
 		Pvoid_t *KValue;
 		int res;
 		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
@@ -735,9 +742,12 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		zend_long lval = zval_get_long(value);
 
 		if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
+			/* Probe existence before insert: value 0 is a legal stored value,
+			 * so a zero slot must not be mistaken for a brand-new key. */
+			JLG(PExisting, intern->array, sso_idx);
 			JLI(PValue, intern->array, sso_idx);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (*(Word_t *)PValue == 0) {
+				if (PExisting == NULL) {
 					/* New key — register in key_index for iteration */
 					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
 					if (JUDY_UNLIKELY(KValue == PJERR)) {
@@ -752,9 +762,10 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 				res = FAILURE;
 			}
 		} else {
+			JHSG(PExisting, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			JHSI(PValue, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (*(Word_t *)PValue == 0) {
+				if (PExisting == NULL) {
 					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
 					if (JUDY_UNLIKELY(KValue == PJERR)) {
 						int Rc_tmp;
@@ -784,11 +795,8 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
 			JLI(PValue, intern->array, sso_idx);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (*(Pvoid_t *)PValue != NULL) {
-					zval *old_value = JUDY_MVAL_READ(PValue);
-					zval_ptr_dtor(old_value);
-					efree(old_value);
-				} else {
+				zval *old_value = JUDY_MVAL_READ(PValue);
+				if (old_value == NULL) {
 					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
 					if (JUDY_UNLIKELY(KValue == PJERR)) {
 						JLD(res, intern->array, sso_idx);
@@ -798,7 +806,12 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 				}
 				zval *new_value = emalloc(sizeof(zval));
 				ZVAL_COPY(new_value, value);
+				/* Write new value before destroying old (see INT_TO_MIXED note). */
 				JUDY_MVAL_WRITE(PValue, new_value);
+				if (old_value != NULL) {
+					zval_ptr_dtor(old_value);
+					efree(old_value);
+				}
 				res = SUCCESS;
 			} else {
 				res = FAILURE;
@@ -806,11 +819,8 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		} else {
 			JHSI(PValue, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (*(Pvoid_t *)PValue != NULL) {
-					zval *old_value = JUDY_MVAL_READ(PValue);
-					zval_ptr_dtor(old_value);
-					efree(old_value);
-				} else {
+				zval *old_value = JUDY_MVAL_READ(PValue);
+				if (old_value == NULL) {
 					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
 					if (JUDY_UNLIKELY(KValue == PJERR)) {
 						int Rc_tmp;
@@ -821,7 +831,12 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 				}
 				zval *new_value = emalloc(sizeof(zval));
 				ZVAL_COPY(new_value, value);
+				/* Write new value before destroying old (see INT_TO_MIXED note). */
 				JUDY_MVAL_WRITE(PValue, new_value);
+				if (old_value != NULL) {
+					zval_ptr_dtor(old_value);
+					efree(old_value);
+				}
 				res = SUCCESS;
 			} else {
 				res = FAILURE;
@@ -977,9 +992,12 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 			JLG(PValue, intern->array, j_index);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 				zval *value = JUDY_MVAL_READ(PValue);
+				/* Remove the slot before running the value's destructor:
+				 * the destructor can re-enter and unset the same key, which
+				 * would otherwise re-read this slot and double-free `value`. */
+				JLD(Rc_int, intern->array, j_index);
 				zval_ptr_dtor(value);
 				efree(value);
-				JLD(Rc_int, intern->array, j_index);
 			}
 		}
 		if (Rc_int == 1) {
@@ -994,12 +1012,15 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 			Pvoid_t *PValue;
 			JLG(PValue, intern->array, sso_idx);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
-					zval *value = JUDY_MVAL_READ(PValue);
+				/* Capture the value, remove the slot, then destroy the value
+				 * (delete-before-free guards against destructor re-entrancy). */
+				zval *value = (intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE)
+					? JUDY_MVAL_READ(PValue) : NULL;
+				JLD(Rc_int, intern->array, sso_idx);
+				if (value != NULL) {
 					zval_ptr_dtor(value);
 					efree(value);
 				}
-				JLD(Rc_int, intern->array, sso_idx);
 				if (Rc_int == 1) {
 					int Rc_idx_del;
 					JSLD(Rc_idx_del, intern->key_index, key);
@@ -1012,12 +1033,13 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 			Pvoid_t *HValue;
 			JHSG(HValue, intern->hs_array, key, key_len);
 			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
-				if (intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
-					zval *value = JUDY_MVAL_READ(HValue);
+				zval *value = (intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE)
+					? JUDY_MVAL_READ(HValue) : NULL;
+				JHSD(Rc_int, intern->hs_array, key, key_len);
+				if (value != NULL) {
 					zval_ptr_dtor(value);
 					efree(value);
 				}
-				JHSD(Rc_int, intern->hs_array, key, key_len);
 				if (Rc_int == 1) {
 					int Rc_idx_del;
 					JSLD(Rc_idx_del, intern->key_index, key);
@@ -1035,9 +1057,10 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 			JSLG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 				zval *value = JUDY_MVAL_READ(PValue);
+				/* Delete before free (destructor re-entrancy guard). */
+				JSLD(Rc_int, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
 				zval_ptr_dtor(value);
 				efree(value);
-				JSLD(Rc_int, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
 			}
 		}
 		if (Rc_int == 1) {
@@ -1050,9 +1073,10 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 		JHSG(HValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 		if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
 			zval *value = JUDY_MVAL_READ(HValue);
+			/* Delete before free (destructor re-entrancy guard). */
+			JHSD(Rc_int, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			zval_ptr_dtor(value);
 			efree(value);
-			JHSD(Rc_int, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
 			if (Rc_int == 1) {
 				int Rc_del = 0;
 				JSLD(Rc_del, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
@@ -1384,6 +1408,37 @@ PHP_METHOD(Judy, byCount)
 }
 /* }}} */
 
+/* {{{ judy_string_value_slot — fetch the value slot for a string key.
+   Dispatches across the storage layouts so callers never query the wrong
+   structure: plain JudySL (value lives in `array`), JudyHS-backed *_HASH
+   (value in `array`), and adaptive types (SSO short keys live in the JudyL
+   `array`, long keys in the JudyHS `hs_array`). Returns NULL when the key is
+   absent (including the PJERR sentinel). This is the one correct place for
+   the dispatch — several iteration paths previously called JHSG on the JudyL
+   `array` for adaptive types, which is a type confusion (see issue: adaptive
+   getAll/next/rewind). */
+static inline Pvoid_t *judy_string_value_slot(judy_object *intern, const uint8_t *key, Word_t klen)
+{
+	Pvoid_t *slot = NULL;
+	if (intern->is_adaptive) {
+		Word_t sso_idx;
+		if (judy_pack_short_string_internal((const char *)key, (size_t)klen, &sso_idx)) {
+			JLG(slot, intern->array, sso_idx);
+		} else {
+			JHSG(slot, intern->hs_array, (uint8_t *)key, klen);
+		}
+	} else if (intern->is_hash_keyed) {
+		JHSG(slot, intern->array, (uint8_t *)key, klen);
+	} else {
+		JSLG(slot, intern->array, (uint8_t *)key);
+	}
+	if (slot == PJERR) {
+		return NULL;
+	}
+	return slot;
+}
+/* }}} */
+
 /* {{{ proto mixed Judy::first([mixed index])
    Search (inclusive) for the first index present that is equal to or greater than the passed Index */
 PHP_METHOD(Judy, first)
@@ -1658,22 +1713,13 @@ PHP_METHOD(Judy, next)
 			zval_ptr_dtor(&intern->iterator_key);
 			ZVAL_STRING(&intern->iterator_key, (char *)key);
 
-			if (intern->is_hash_keyed) {
-				Pvoid_t *HValue;
-				JHSG(HValue, intern->array, key, (Word_t)strlen((char *)key));
-				if (HValue != NULL && HValue != PJERR) {
-					if (intern->type == TYPE_STRING_TO_INT_HASH) {
-						ZVAL_LONG(&intern->iterator_data, JUDY_LVAL_READ(HValue));
-					} else {
-						zval *value = JUDY_MVAL_READ(HValue);
-						ZVAL_COPY(&intern->iterator_data, value);
-					}
+			Pvoid_t *VValue = judy_string_value_slot(intern, key, (Word_t)strlen((char *)key));
+			if (VValue != NULL) {
+				if (JUDY_IS_MIXED_VALUE(intern)) {
+					ZVAL_COPY(&intern->iterator_data, JUDY_MVAL_READ(VValue));
+				} else {
+					ZVAL_LONG(&intern->iterator_data, JUDY_LVAL_READ(VValue));
 				}
-			} else if (JUDY_IS_MIXED_VALUE(intern)) {
-				zval *value = JUDY_MVAL_READ(PValue);
-				ZVAL_COPY(&intern->iterator_data, value);
-			} else {
-				ZVAL_LONG(&intern->iterator_data, JUDY_LVAL_READ(PValue));
 			}
 			intern->iterator_initialized = 1;
 		} else {
@@ -1751,22 +1797,13 @@ PHP_METHOD(Judy, rewind)
 		if (PValue != NULL && PValue != PJERR) {
 			zval_ptr_dtor(&intern->iterator_key);
 			ZVAL_STRING(&intern->iterator_key, (const char *) key);
-			if (intern->is_hash_keyed) {
-				Pvoid_t *HValue;
-				JHSG(HValue, intern->array, key, (Word_t)strlen((char *)key));
-				if (HValue != NULL && HValue != PJERR) {
-					if (intern->type == TYPE_STRING_TO_INT_HASH) {
-						ZVAL_LONG(&intern->iterator_data, JUDY_LVAL_READ(HValue));
-					} else {
-						zval *value = JUDY_MVAL_READ(HValue);
-						ZVAL_COPY(&intern->iterator_data, value);
-					}
+			Pvoid_t *VValue = judy_string_value_slot(intern, key, (Word_t)strlen((char *)key));
+			if (VValue != NULL) {
+				if (JUDY_IS_MIXED_VALUE(intern)) {
+					ZVAL_COPY(&intern->iterator_data, JUDY_MVAL_READ(VValue));
+				} else {
+					ZVAL_LONG(&intern->iterator_data, JUDY_LVAL_READ(VValue));
 				}
-			} else if (JUDY_IS_MIXED_VALUE(intern)) {
-				zval *value = JUDY_MVAL_READ(PValue);
-				ZVAL_COPY(&intern->iterator_data, value);
-			} else {
-				ZVAL_LONG(&intern->iterator_data, JUDY_LVAL_READ(PValue));
 			}
 			intern->iterator_initialized = 1;
 		} else {
@@ -3742,17 +3779,22 @@ PHP_METHOD(Judy, equals)
 				} else if (intern->type == TYPE_INT_TO_PACKED) {
 					judy_packed_value *p1 = JUDY_PVAL_READ(PVal1);
 					judy_packed_value *p2 = JUDY_PVAL_READ(PVal2);
-					if (p1 == p2) continue;
-					if (!p1 || !p2) RETURN_FALSE;
-					if (p1->tag != p2->tag) RETURN_FALSE;
-					/* Simplified comparison for packed values */
-					zval v1, v2;
-					judy_unpack_value(p1, &v1);
-					judy_unpack_value(p2, &v2);
-					int same = zend_is_identical(&v1, &v2);
-					zval_ptr_dtor(&v1);
-					zval_ptr_dtor(&v2);
-					if (!same) RETURN_FALSE;
+					/* Only compare when the slots differ; when identical
+					 * (including both NULL) they are equal. Must not `continue`
+					 * here — that would skip the JLN advance below and loop
+					 * forever on equal NULL-packed slots. */
+					if (p1 != p2) {
+						if (!p1 || !p2) RETURN_FALSE;
+						if (p1->tag != p2->tag) RETURN_FALSE;
+						/* Simplified comparison for packed values */
+						zval v1, v2;
+						judy_unpack_value(p1, &v1);
+						judy_unpack_value(p2, &v2);
+						int same = zend_is_identical(&v1, &v2);
+						zval_ptr_dtor(&v1);
+						zval_ptr_dtor(&v2);
+						if (!same) RETURN_FALSE;
+					}
 				}
 				JLN(PVal1, intern->array, index);
 			}
@@ -4253,6 +4295,11 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 	zend_string *str_key;
 	zend_ulong num_key;
 
+	/* Bulk-insert paths write via raw JLI/J1S and never advance the append
+	 * watermark. Invalidate it so a later `$j[] =` recomputes the true empty
+	 * slot instead of appending at the stale index 0. */
+	intern->next_empty_is_valid = 0;
+
 	switch (intern->type) {
 	case TYPE_BITSET:
 	{
@@ -4433,36 +4480,18 @@ PHP_METHOD(Judy, getAll)
 			}
 		} else { /* is_string_keyed */
 			zend_string *skey = zval_get_string(key_entry);
-			if (intern->is_hash_keyed) {
-				Pvoid_t *HValue;
-				JHSG(HValue, intern->array, (uint8_t *)ZSTR_VAL(skey), (Word_t)ZSTR_LEN(skey));
-				if (JUDY_UNLIKELY(HValue == NULL || HValue == PJERR)) {
-					add_assoc_null(return_value, ZSTR_VAL(skey));
-				} else if (intern->type == TYPE_STRING_TO_INT_HASH) {
-					add_assoc_long(return_value, ZSTR_VAL(skey), JUDY_LVAL_READ(HValue));
-				} else if (JUDY_LIKELY(JUDY_MVAL_READ(HValue) != NULL)) {
-					zval *value = JUDY_MVAL_READ(HValue);
-					Z_TRY_ADDREF_P(value);
-					add_assoc_zval(return_value, ZSTR_VAL(skey), value);
-				} else {
-					add_assoc_null(return_value, ZSTR_VAL(skey));
-				}
+			Pvoid_t *VValue = judy_string_value_slot(intern,
+				(uint8_t *)ZSTR_VAL(skey), (Word_t)ZSTR_LEN(skey));
+			if (VValue == NULL) {
+				add_assoc_null(return_value, ZSTR_VAL(skey));
+			} else if (!JUDY_IS_MIXED_VALUE(intern)) {
+				add_assoc_long(return_value, ZSTR_VAL(skey), JUDY_LVAL_READ(VValue));
+			} else if (JUDY_LIKELY(JUDY_MVAL_READ(VValue) != NULL)) {
+				zval *value = JUDY_MVAL_READ(VValue);
+				Z_TRY_ADDREF_P(value);
+				add_assoc_zval(return_value, ZSTR_VAL(skey), value);
 			} else {
-				Pvoid_t *PValue;
-				JSLG(PValue, intern->array, (uint8_t *)ZSTR_VAL(skey));
-				if (JUDY_UNLIKELY(PValue == NULL || PValue == PJERR)) {
-					add_assoc_null(return_value, ZSTR_VAL(skey));
-				} else if (intern->type == TYPE_STRING_TO_INT) {
-					add_assoc_long(return_value, ZSTR_VAL(skey), JUDY_LVAL_READ(PValue));
-				} else { /* TYPE_STRING_TO_MIXED */
-					if (JUDY_LIKELY(JUDY_MVAL_READ(PValue) != NULL)) {
-						zval *value = JUDY_MVAL_READ(PValue);
-						Z_TRY_ADDREF_P(value);
-						add_assoc_zval(return_value, ZSTR_VAL(skey), value);
-					} else {
-						add_assoc_null(return_value, ZSTR_VAL(skey));
-					}
-				}
+				add_assoc_null(return_value, ZSTR_VAL(skey));
 			}
 			zend_string_release(skey);
 		}

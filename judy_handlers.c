@@ -234,6 +234,10 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 
 	new_obj->array = newJArray;
 	new_obj->counter = old_obj->counter;
+	/* Do not trust a copied append watermark: force the next `$j[] =` to
+	 * recompute the empty slot, otherwise a cloned array would append at
+	 * index 0 and overwrite an existing element. */
+	new_obj->next_empty_is_valid = 0;
 	judy_init_type_flags(new_obj, old_obj->type);
 
 	if (new_obj->is_string_keyed && !new_obj->key_scratch) {
