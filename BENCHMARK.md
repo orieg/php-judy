@@ -227,9 +227,10 @@ php -d apc.enable_cli=1 -d apc.shm_size=2048M \
 > RoadRunner, FrankenPHP, queue consumers, CLI pipelines — or where the
 > structure is **built and consumed inside one request**. Shared, cross-worker,
 > read-mostly caching is what APCu is for, and php-judy does not offer it
-> today. See issue #83 and `spike/shm-arena/FINDINGS.md` for the feasibility
-> spike, which concluded that a shared-memory Judy arena is a concurrency and
-> failure-recovery subsystem rather than a feature.
+> today. See [issue #83](https://github.com/orieg/php-judy/issues/83) for the
+> feasibility spike on a shared-memory Judy arena, which concluded that it is a
+> concurrency and failure-recovery subsystem rather than a feature. The spike's
+> prototypes and findings live on the research branch linked from that issue.
 >
 > Because each CLI process gets its own APCu segment, the numbers below are
 > single-process on **both** sides. That makes them a fair latency comparison —
