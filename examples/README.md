@@ -39,6 +39,9 @@ Entry points:
 ```sh
 php examples/benchmarks/run-benchmarks.php
 php examples/benchmarks/run_comprehensive_benchmarks.php
+
+# Judy vs APCu / SplFixedArray / sorted arrays, rather than vs a PHP array
+php examples/benchmarks/judy-bench-alternatives.php
 ```
 
 CI runs these against the committed baseline in `baselines/latest.json` to
