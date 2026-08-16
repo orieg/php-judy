@@ -50,6 +50,9 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 
 ## 🎯 **Quick Decision Guide**
 
+> Choosing between Judy and **APCu, `SplFixedArray`, or a sorted array** rather
+> than a PHP array? Skip to [Versus the Alternatives](#versus-the-alternatives-apcu-splfixedarray-sorted-arrays).
+
 **Use Judy Arrays When:**
 - ✅ Memory is constrained (2-4x less memory usage)
 - ✅ Large datasets (> 1M elements) where memory efficiency matters
@@ -74,6 +77,7 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 - `examples/benchmarks/benchmark_range_queries.php` - Range queries and ordered operations
 - `examples/benchmarks/benchmark_real_world_patterns.php` - Database, log, analytics patterns
 - `examples/benchmarks/run_comprehensive_benchmarks.php` - Complete benchmark suite
+- `examples/benchmarks/judy-bench-alternatives.php` - Judy vs APCu / SplFixedArray / sorted arrays (see [Versus the Alternatives](#versus-the-alternatives-apcu-splfixedarray-sorted-arrays))
 
 ### **Test Scenarios**
 1. **Ordered Data Performance**: Sequential keys, clustered keys, random keys
@@ -187,6 +191,268 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 - **Log Data**: Excellent for timestamp-based sequential data
 - **Analytics**: Good for time-clustered data patterns
 - **Session Data**: Effective for user-clustered data
+
+---
+
+## Versus the Alternatives (APCu, SplFixedArray, sorted arrays)
+
+Everything above compares Judy against a native PHP array. That is the right
+guide for *when not to use Judy*, but it is not the choice most people are
+actually making. Nobody picks Judy instead of an array — they pick it instead
+of **APCu**, **`SplFixedArray`**, or a **hand-rolled sorted-array index**.
+This section measures those four head-to-heads.
+
+Harness: [`examples/benchmarks/judy-bench-alternatives.php`](examples/benchmarks/judy-bench-alternatives.php).
+Self-contained; skips the APCu rows with a notice when `ext-apcu` is absent.
+
+```bash
+php examples/benchmarks/judy-bench-alternatives.php            # all workloads
+php examples/benchmarks/judy-bench-alternatives.php prefix 9   # one workload, 9 runs
+php -d apc.enable_cli=1 -d apc.shm_size=2048M \
+    examples/benchmarks/judy-bench-alternatives.php            # with APCu rows
+```
+
+### ⚠️ APCu is shared across FPM workers. Judy is not.
+
+> **This is the single most important line in this section, and no latency
+> number below changes it.**
+>
+> APCu lives in a shared memory segment that every PHP-FPM worker in the pool
+> reads and writes. A Judy array lives in one process's heap: every worker
+> builds its own copy, pays its own memory, and loses it at the end of the
+> request under classic FPM. Quoting an invalidation speedup as a reason to
+> replace APCu would be comparing two things that do not do the same job.
+>
+> Judy fits where the data lives in a **long-lived process** — Swoole,
+> RoadRunner, FrankenPHP, queue consumers, CLI pipelines — or where the
+> structure is **built and consumed inside one request**. Shared, cross-worker,
+> read-mostly caching is what APCu is for, and php-judy does not offer it
+> today. See issue #83 and `spike/shm-arena/FINDINGS.md` for the feasibility
+> spike, which concluded that a shared-memory Judy arena is a concurrency and
+> failure-recovery subsystem rather than a feature.
+>
+> Because each CLI process gets its own APCu segment, the numbers below are
+> single-process on **both** sides. That makes them a fair latency comparison —
+> and it is precisely the setting in which APCu's real advantage is invisible.
+
+**Redis and Memcached are deliberately absent.** Their numbers would include
+IPC or network round-trips measured against an in-process data structure.
+Presenting that as a head-to-head would be dishonest, and breaking the
+round-trip out separately would still not make it one.
+
+### Environment and contention
+
+All figures below are `(measured)`; nothing in this section is projected.
+
+- **Where**: Docker `php:8.4-cli` (Debian bookworm), Linux aarch64, PHP 8.4.18,
+  ext-judy 2.4.2, APCu 5.1.28. Container limits: 4 CPUs, 5.9 GB. Host: Apple M1,
+  8 cores, 16 GB. Linux-in-container was chosen over the macOS host because it
+  is closer to both the deployment target and to where CI would run this.
+- **Statistics**: 9 runs per cell, each in a fresh child process. Reported as
+  **median with a 95% percentile-bootstrap CI**. A delta is only stated when the
+  two CIs do not overlap; otherwise the result is reported as *no measured
+  separation*.
+- **Memory**: peak RSS from `getrusage()['ru_maxrss']` in a child process, not
+  `memory_get_usage()` — Judy allocates outside PHP's memory manager and
+  `memory_get_usage()` cannot see it. An empty-interpreter baseline is measured
+  and subtracted in the "over floor" column.
+- **⚠️ Load was not clean.** Host load average during the run had a median of
+  **4.60 and a peak of 8.04** against the cores/2 = 4.0 threshold; 9 of 15
+  samples exceeded it, with a non-target process at 114% CPU. **Every timing
+  here is an upper bound.** The prefix-invalidation shape was reproduced across
+  two independent sweeps taken under different load, and its ratios are large
+  enough that contention cannot account for them — but a 20% difference
+  anywhere in this section would not be trustworthy.
+
+### 1. Prefix invalidation — a complexity-class difference
+
+Drop one 10-key group (`user.<uid>.*`) from a store of *n* entries. **The group
+being dropped is the same size at every *n***, so any growth in this column is
+growth in the cost of *finding* the group, not of deleting it.
+
+| n (total entries) | judy `STRING_TO_MIXED` (µs) | judy `*_HASH` (µs)        | PHP array (µs)      | APCu (µs)            |
+| ----------------- | --------------------------- | ------------------------- | ------------------- | -------------------- |
+| 10,000            | **8.5** [7.1..33.0]         | 1,027 [981..1,068]        | 165 [155..180]      | 2,083 [1,973..2,276] |
+| 30,000            | **11.8** [10.9..13.3]       | 4,045 [3,944..4,336]      | 513 [500..561]      | 2,889 [2,856..3,151] |
+| 100,000           | **10.1** [9.4..12.2]        | 14,049 [13,988..14,233]   | 1,852 [1,773..1,948]| 7,028 [6,994..7,173] |
+| 300,000           | **13.0** [10.3..13.5]       | 44,554 [44,123..51,844]   | 7,590 [7,453..7,879]| 21,047 [19,098..22,084] |
+| 1,000,000         | **11.2** [10.0..13.7]       | 157,787 [151,156..166,728]| 26,044 [25,149..27,967] | 66,209 [64,457..76,622] |
+
+```
+n = 10,000        judy         #                                              8.5 µs
+                  array        ##############                                 165 µs
+                  apcu         ##########################                     2,083 µs
+                  judy-hash    ######################                         1,027 µs
+
+n = 100,000       judy         #                                              10.1 µs
+                  array        #########################                      1,852 µs
+                  apcu         ###############################                7,028 µs
+                  judy-hash    ###################################            14,049 µs
+
+n = 1,000,000     judy         #                                              11.2 µs
+                  array        ######################################         26,044 µs
+                  apcu         ##########################################     66,209 µs
+                  judy-hash    ############################################## 157,787 µs
+
+                  (log scale, 8.5 µs .. 157,787 µs)
+```
+
+**Scaling across the sweep** (*n* grew 100x from 10k to 1M):
+
+| Backend                  | Growth | Shape                                     |
+| ------------------------ | ------ | ----------------------------------------- |
+| judy `STRING_TO_MIXED`   | 1.3x   | **flat** — cost follows the slice dropped |
+| APCu (`APCuIterator`)    | 31.8x  | linear in cache size, plus ~1.5 ms fixed cost |
+| PHP array (key scan)     | 157.7x | linear in cache size                      |
+| judy `STRING_TO_MIXED_HASH` | 153.6x | linear — no key ordering, so no adjacency |
+
+**The CIs separate at every size in the sweep**, for every rival. This is the
+one place in this document where the difference is a change of complexity
+class rather than a constant factor: Judy's ordered keys put a namespace's keys
+adjacent to each other, so `first($prefix)` + `searchNext()` walks the slice and
+stops. A hash table has no adjacency, so it must test every key — which is why
+APCu's regex invalidation costs 66 ms on a 1M-entry cache while the ordered trie
+costs 11 µs.
+
+Two caveats that keep this honest:
+
+- **`judy-hash` is in the table on purpose.** It is the same extension, and it
+  loses as badly as APCu does. The advantage belongs to *ordered keys*, not to
+  Judy — choosing `STRING_TO_MIXED_HASH` for a prefix-invalidation workload
+  gets you the hash-table scaling.
+- **Tag-based invalidation is a third option** and is not measured here.
+  Symfony's `TagAwareAdapter` maintains per-entry tag bookkeeping, which buys
+  cheap group invalidation at the cost of write-path overhead and memory. If
+  you can enumerate a group's keys, `apcu_delete(array)` is O(group) and this
+  workload does not apply to you at all. The scan is what you pay when you
+  cannot.
+
+This is the pattern behind
+[orieg/judy-cache](https://github.com/orieg/judy-cache)'s `deletePrefix()` and
+[`examples/prefix-invalidation.php`](examples/prefix-invalidation.php).
+
+### 2. Presence / dedup sets at scale
+
+Membership tracking over 1M-10M IDs. "Dense" means IDs 0..n-1; "sparse" means
+*n* IDs drawn from a keyspace 8x larger. Density is reported as a dimension
+because it is the variable that decides this workload.
+
+| Cell       | Impl       | Peak RSS (MB) | Over floor | Insert (kops/s) | Lookup (kops/s) |
+| ---------- | ---------- | ------------- | ---------- | --------------- | --------------- |
+| 1M dense   | **judy `BITSET`** | 35     | **0.2 MB** | 20,852 [20,191..20,997] | **31,132** [30,753..31,300] |
+| 1M dense   | PHP array  | 52            | 18.1 MB    | **23,513** [23,093..24,137] | 13,636 [13,162..13,749] |
+| 1M dense   | SplFixedArray | 50         | 15.4 MB    | **24,280** [24,037..24,646] | 12,293 [11,184..12,909] |
+| 1M dense   | APCu       | 194           | 160.1 MB   | 5,699 [5,157..5,786] | 2,129 [1,654..2,253] |
+| 1M sparse  | **judy `BITSET`** | 36     | **2.1 MB** | **9,254** [8,349..9,375] | **13,921** [12,681..14,464] |
+| 1M sparse  | PHP array  | 74            | 40.1 MB    | 5,448 [5,333..5,676] | 5,600 [5,227..5,842] |
+| 1M sparse  | SplFixedArray | 156        | 122.1 MB   | 5,380 [4,283..5,911] | 6,589 [6,097..7,306] |
+| 1M sparse  | APCu       | 185           | 150.6 MB   | 2,545 [2,396..2,715] | 2,871 [2,732..2,946] |
+| 10M dense  | **judy `BITSET`** | 35     | **0.8 MB** | 20,452 [15,205..20,860] | **30,557** [29,114..30,959] |
+| 10M dense  | PHP array  | 188           | 154.1 MB   | 20,062 [16,287..23,527] | 7,277 [6,329..7,574] |
+| 10M dense  | SplFixedArray | 187        | 152.6 MB   | **23,595** [21,286..24,418] | 6,680 [6,286..7,359] |
+
+- **Memory is the headline: 190x.** 10M dense IDs cost `BITSET` 0.8 MB against
+  154 MB for a PHP array and 153 MB for `SplFixedArray`. A bitset stores one bit
+  per key; the other two store a 16-byte `zval`.
+- **`SplFixedArray` is not a memory optimization for sparse IDs.** It must
+  allocate the whole key space, so it tracks *density*, not element count — at
+  1M sparse it is the worst row in the table (122 MB over floor) and it cannot
+  represent IDs above its allocated size at all.
+- **Lookup throughput favors Judy at scale** (2.3x over a PHP array at 1M
+  dense, 4.2x at 10M dense) because 1 MB of bitset stays in cache while 154 MB
+  of hash table does not. **Insert favors the PHP array and `SplFixedArray`**
+  at 1M dense — Judy wins insert only in the sparse cell.
+- **APCu is the slowest and largest on every cell here.** That is expected and
+  not a criticism: it is paying for a shared segment and a serialization
+  boundary that the in-process structures do not have. Re-read the warning
+  above before quoting this row.
+
+See [`examples/dedup-large-stream.php`](examples/dedup-large-stream.php) for
+the string-keyed version of this pattern.
+
+### 3. Sliding-window eviction — flat, but there is a crossover
+
+10,000 expired buckets are dropped in every cell; only the **retained** set
+grows. A cost that rises with the retained column is a cost paid for data the
+program is keeping.
+
+| Retained  | judy `deleteRange()` (µs) | array key-scan (µs) | `array_filter()` (µs) |
+| --------- | ------------------------- | ------------------- | --------------------- |
+| 10,000    | 911 [899..973]            | **207** [193..213]  | 1,038 [955..1,152]    |
+| 100,000   | 1,104 [1,053..1,751]      | **844** [780..999]  | 6,127 [5,965..6,445]  |
+| 1,000,000 | **1,160** [1,100..2,572]  | 6,972 [6,643..7,362]| 52,400 [50,247..59,493] |
+
+**Judy does not win this workload at every size, and the plan predicted it
+would.** `deleteRange()` is flat (911 → 1,160 µs, a 1.3x rise across a 100x
+growth in retained set) because it only touches the expired slice. But its
+per-key constant is higher than a PHP array's, so:
+
+- At **10k and 100k retained, the naive array key-scan wins** (CIs separate) —
+  it visits more keys but each visit is cheaper.
+- At **1M retained, Judy wins by 6x** (CIs separate), and the gap keeps
+  widening because only one of the two curves is growing.
+- `array_filter()` loses to Judy from 100k up, and shows **no measured
+  separation** at 10k.
+
+The practical read: `deleteRange()` is the right choice when the retained
+window is large (≳100k-1M buckets) or when eviction runs on a hot path where
+worst-case latency matters. Below that, a plain array scan is fine and simpler.
+See [`examples/sliding-window-rate-limit.php`](examples/sliding-window-rate-limit.php).
+
+### 4. Floor / CIDR lookup — Judy wins updates, not lookups
+
+Resolve an address to its range: the greatest range-start ≤ address. Judy does
+it with `last()`; the honest alternative is a sorted array of starts plus a
+userland binary search.
+
+| Ranges    | Impl         | Lookup (ns/op)     | Build (ms)          | Insert (µs/range)          |
+| --------- | ------------ | ------------------ | ------------------- | -------------------------- |
+| 10,000    | judy         | **198** [170..220] | 1.1 [0.94..1.14]    | **0.15** [0.14..0.17]      |
+| 10,000    | sorted-array | 372 [334..412]     | **0.7** [0.68..0.95]| 193 [179..383]             |
+| 100,000   | judy         | 710 [469..947]     | 15.7 [11.0..35.8]   | **0.34** [0.26..0.42]      |
+| 100,000   | sorted-array | 584 [474..1,023]   | 12.7 [9.6..19.0]    | 1,987 [1,534..2,218]       |
+| 1,000,000 | judy         | 701 [662..784]     | 88.3 [85..101]      | **0.33** [0.31..0.38]      |
+| 1,000,000 | sorted-array | 909 [802..1,064]   | 156 [147..167]      | 18,086 [17,139..19,971]    |
+
+**Lookup: report this as a draw, not a Judy win.** At 10k ranges Judy is
+roughly 2x faster and the CIs separate. Above that the result **does not
+replicate**: at 100k the CIs overlap, and at 1M three independent sweeps
+disagreed (one showed Judy ahead, one showed overlap, and a macOS run showed
+the sorted array ahead). The defensible claim is that **Judy's `last()` is
+competitive with a userland binary search and not slower** — nothing stronger.
+Binary search over a packed sorted array is genuinely good at this, exactly as
+expected; a 20-iteration PHP loop is the reason Judy stays in contention at all.
+
+**Update cost is where they actually diverge, by ~55,000x at 1M ranges.**
+Inserting a range costs Judy 0.33 µs regardless of table size; the sorted array
+must `array_splice()` its parallel arrays, which is O(n) memmove — 18 ms per
+insert at 1M ranges. Build cost also favors Judy at 1M (88 ms vs 156 ms,
+because the array must sort).
+
+So the decision is about **churn, not lookups**:
+
+- **Static table, loaded once, queried forever** (a compiled GeoIP database, a
+  fixed tariff schedule): use a sorted array. Judy buys you nothing measurable,
+  and the array is simpler and dependency-free.
+- **Table that changes while it is being queried** (live CIDR blocklists,
+  feature-flag ranges, dynamic shard maps): use Judy. This is the only
+  reasonable choice — a sorted array would spend its life splicing. A batched
+  rebuild-and-re-sort is a middle path if updates arrive in large batches.
+
+See [`examples/ip-range-lookup.php`](examples/ip-range-lookup.php).
+
+### Summary
+
+| Workload                | Winner                | Margin (measured)                    | Caveat |
+| ----------------------- | --------------------- | ------------------------------------ | ------ |
+| Prefix invalidation     | **Judy (ordered)**    | 11 µs vs 66 ms (APCu) at 1M entries  | Different complexity class; needs an *ordered* type, not `*_HASH` |
+| Presence / dedup memory | **Judy `BITSET`**     | 0.8 MB vs 154 MB at 10M dense        | Insert throughput is slightly behind arrays when dense |
+| Sliding-window eviction | **Judy above ~1M retained** | 6x at 1M; loses below ~100k    | Real crossover — array scan wins on small windows |
+| Floor / CIDR lookup     | **Draw on lookup; Judy on updates** | ~55,000x on insert at 1M | Static tables: use a sorted array |
+
+**What this section does not show**: cross-process sharing (APCu's actual
+purpose), persistence, eviction policies, TTLs, or anything about Redis and
+Memcached. It measures in-process data-structure behavior only.
 
 ---
 
@@ -378,6 +644,11 @@ php examples/benchmarks/judy-bench-batch-operations.php
 
 # Run memory usage pattern comparison
 php examples/benchmarks/judy-bench-memory-patterns.php
+
+# Compare against the real alternatives (APCu, SplFixedArray, sorted arrays)
+php examples/benchmarks/judy-bench-alternatives.php
+php -d apc.enable_cli=1 -d apc.shm_size=2048M \
+    examples/benchmarks/judy-bench-alternatives.php   # includes APCu rows
 ```
 
 **Note**: All benchmarks use proper Iterator interface methods and run without deprecated warnings.
