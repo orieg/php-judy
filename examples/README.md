@@ -16,6 +16,8 @@ php examples/quickstart.php
 | [autocomplete-trie.php](autocomplete-trie.php) | Prefix search / autocomplete via ordered keys — `first()` + `searchNext()` | `STRING_TO_MIXED` |
 | [worker-counters.php](worker-counters.php) | Metrics accumulators in long-running workers with atomic `increment()` | `STRING_TO_INT_HASH`, `INT_TO_INT` |
 | [ip-range-lookup.php](ip-range-lookup.php) | Floor lookup (`last()`) over range tables — IPs, tariffs, time buckets | `INT_TO_MIXED` |
+| [sliding-window-rate-limit.php](sliding-window-rate-limit.php) | Sliding-window rate limiting / rolling metrics — `deleteRange()` expiry that visits only aged-out buckets | `INT_TO_INT` |
+| [prefix-invalidation.php](prefix-invalidation.php) | Namespace invalidation (`user:123:*`) walking only the matching key slice, with a keys-visited comparison against a hash table | `STRING_TO_MIXED` |
 
 ## Choosing a type
 
