@@ -92,4 +92,12 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   must match; see the Releasing section in README.md.
 - **Benchmarks**: suite in `examples/benchmarks/`; CI compares PRs against
   `baselines/latest.json`. Don't update the baseline in a feature PR.
-- **Runnable demos**: `examples/` (see `examples/README.md`).
+- **Runnable demos**: `examples/` (index + type-per-demo table in
+  `examples/README.md`). Reach for these before writing a pattern from
+  scratch — each is the idiomatic shape for its problem:
+  `dedup-large-stream.php` (membership/seen-sets, `BITSET` memory story),
+  `ip-range-lookup.php` (floor lookup via `last()` — CIDR, tariff bands),
+  `sliding-window-rate-limit.php` (time-bucket expiry via `deleteRange()`),
+  `prefix-invalidation.php` (namespace drop via `first()` + `searchNext()`),
+  `autocomplete-trie.php` (prefix search), `worker-counters.php` (atomic
+  `increment()`), `quickstart.php` (API tour).

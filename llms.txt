@@ -25,9 +25,27 @@ show a removed API; trust the docs below instead).
 
 ## Examples
 
+Runnable, self-contained scripts — one per pattern Judy is chosen for.
+
 - [examples/README.md](https://github.com/orieg/php-judy/blob/main/examples/README.md):
-  runnable demos — dedup seen-sets, autocomplete prefix search, worker
-  counters, IP-range floor lookup
+  index of all demos, with the Judy type each one uses
+- [quickstart.php](https://github.com/orieg/php-judy/blob/main/examples/quickstart.php):
+  the essentials — array access, iteration, navigation, bulk ops
+- [dedup-large-stream.php](https://github.com/orieg/php-judy/blob/main/examples/dedup-large-stream.php):
+  "have I seen this ID?" membership over millions of keys (crawler frontiers,
+  queue dedup) with a peak-RSS comparison of array vs Judy vs `BITSET`
+- [ip-range-lookup.php](https://github.com/orieg/php-judy/blob/main/examples/ip-range-lookup.php):
+  floor lookup via `last()` — IP-to-CIDR matching, tariff bands, ID shards
+- [sliding-window-rate-limit.php](https://github.com/orieg/php-judy/blob/main/examples/sliding-window-rate-limit.php):
+  sliding-window rate limiting and rolling metrics; `deleteRange()` expires
+  aged-out time buckets without scanning the retained set
+- [prefix-invalidation.php](https://github.com/orieg/php-judy/blob/main/examples/prefix-invalidation.php):
+  namespace invalidation (`user:123:*`) walking only the matching key slice,
+  with a keys-visited comparison against a hash table
+- [autocomplete-trie.php](https://github.com/orieg/php-judy/blob/main/examples/autocomplete-trie.php):
+  prefix search / typeahead via `first()` + `searchNext()`
+- [worker-counters.php](https://github.com/orieg/php-judy/blob/main/examples/worker-counters.php):
+  metrics accumulators in long-running workers with atomic `increment()`
 
 ## Contributing
 
