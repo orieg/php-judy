@@ -44,6 +44,21 @@ A Judy array is a complex but very fast associative array data structure for sto
 
 Judy shines in long-running PHP processes (CLI tools, queue workers, Swoole/RoadRunner/FrankenPHP/Octane workers) that hold large sparse keysets in memory.
 
+### What people use it for
+
+Each pattern below is a runnable script in [examples/](examples/README.md):
+
+| Problem | Why Judy | Demo |
+| ------- | -------- | ---- |
+| "Have I seen this ID?" over millions of items — crawler frontiers, queue dedup, processed-ID sets | `BITSET` uses ~10x less memory than a PHP array at 1M elements | [dedup-large-stream.php](examples/dedup-large-stream.php) |
+| Which CIDR/tariff/shard does this value fall in? | `last()` resolves the greatest key ≤ N in one call; hash tables must scan | [ip-range-lookup.php](examples/ip-range-lookup.php) |
+| Rate limiting and rolling metrics over a time window | `deleteRange()` expires aged-out buckets without touching the retained set | [sliding-window-rate-limit.php](examples/sliding-window-rate-limit.php) |
+| Invalidate every cache key under `user:123:*` | Ordered keys make a namespace one contiguous slice — cost follows the slice, not the cache size | [prefix-invalidation.php](examples/prefix-invalidation.php) |
+| Autocomplete / typeahead over a string keyset | `first()` + `searchNext()` walk a prefix in sorted order | [autocomplete-trie.php](examples/autocomplete-trie.php) |
+| Per-metric counters in a long-running worker | Atomic `increment()` skips the read-modify-write round trip | [worker-counters.php](examples/worker-counters.php) |
+
+New to the extension? Start with [quickstart.php](examples/quickstart.php).
+
 The PHP extension is based on the Judy C library that implements a dynamic array. A Judy array consumes memory only when populated yet can grow to take advantage of all available memory. Judy's key benefits are: scalability, performance, memory efficiency, and ease of use. Judy arrays are designed to grow without tuning into the peta-element range, scaling near O(log-base-256) -- 1 more RAM access at 256 X population.
 
 - **Judy C Library**: [http://judy.sourceforge.net](http://judy.sourceforge.net)
@@ -511,4 +526,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - **API Reference**: [API.md](API.md) for complete method documentation
 - **Benchmarks**: [BENCHMARK.md](BENCHMARK.md) for performance analysis
 - **Migration Guide**: [MIGRATION_2.2.0.md](MIGRATION_2.2.0.md) for version 2.2.0 changes
-- **Examples**: Check the [examples/](examples/README.md) directory for runnable demos (dedup, autocomplete, counters, range lookup)
+- **Examples**: Check the [examples/](examples/README.md) directory for runnable demos (dedup, range lookup, rate limiting, prefix invalidation, autocomplete, counters) — indexed by problem under [What people use it for](#what-people-use-it-for)

@@ -59,6 +59,8 @@
          <file name="examples/autocomplete-trie.php" role="doc" />
          <file name="examples/worker-counters.php" role="doc" />
          <file name="examples/ip-range-lookup.php" role="doc" />
+         <file name="examples/sliding-window-rate-limit.php" role="doc" />
+         <file name="examples/prefix-invalidation.php" role="doc" />
          <file name="examples/benchmarks/benchmark_ordered_data.php" role="doc" />
          <file name="examples/benchmarks/benchmark_ordered_data_demo.php" role="doc" />
          <file name="examples/benchmarks/benchmark_range_queries.php" role="doc" />
@@ -67,6 +69,7 @@
          <file name="examples/benchmarks/iterator-vs-sequential-test.php" role="doc" />
          <file name="examples/benchmarks/iterator_performance_analysis.md" role="doc" />
          <file name="examples/benchmarks/judy-bench-all-types.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-alternatives.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-batch-operations.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-bitset.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-compare.php" role="doc" />
@@ -283,6 +286,7 @@
          <file name="scripts/generate-api-docs.php" role="doc" />
          <file md5sum="513b0c0813de66e8cba534d4fa1b0eb2" name="MIGRATION_2.2.0.md" role="doc" />
          <file md5sum="366b0129d18f1e9b38f1712590805903" name="Dockerfile" role="doc" />
+         <file name="Dockerfile.alpine" role="doc" />
       </dir>
    </contents>
    <dependencies>
