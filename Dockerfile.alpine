@@ -1,0 +1,33 @@
+# Alpine/musl build — most containerized PHP runs on Alpine, and musl differs
+# from glibc enough (allocator, stack size, locale handling) that a clean
+# Debian build does not imply a clean Alpine one. Built in CI to keep it that
+# way.
+#
+#   docker build -f Dockerfile.alpine -t php-judy-alpine .
+#   docker run --rm -w /usr/src/php-judy php-judy-alpine \
+#       make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
+
+FROM php:8.4-cli-alpine
+
+RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS judy-dev \
+    && apk add --no-cache judy
+
+COPY . /usr/src/php-judy
+WORKDIR /usr/src/php-judy
+
+RUN find . -name "*.lo" -delete && find . -name "*.dep" -delete \
+    && rm -f Makefile Makefile.objects Makefile.fragments \
+    && phpize \
+    && ./configure --with-judy=/usr \
+    && make 2>&1 | tee /tmp/build.log \
+    && make install \
+    && docker-php-ext-enable judy
+
+# Same warning gate as the Linux CI job: a musl-only warning is a real
+# portability signal.
+RUN if grep -E '(php_judy|judy_handlers|judy_arrayaccess|judy_iterator)\.[ch]:[0-9]+:[0-9]+: warning:' /tmp/build.log; then \
+        echo "Compiler warnings detected in extension sources"; exit 1; \
+    fi; \
+    echo "No compiler warnings in extension sources."
+
+RUN php -m | grep -i judy && php -r 'echo "judy_version=", judy_version(), PHP_EOL;'

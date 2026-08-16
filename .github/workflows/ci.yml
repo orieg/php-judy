@@ -137,6 +137,27 @@ jobs:
             benchmark-output.txt
           if-no-files-found: ignore
 
+  build-alpine:
+    # Most containerized PHP runs on Alpine. musl differs from glibc enough
+    # (allocator, default stack size, locale handling) that a clean Debian
+    # build does not imply a clean musl one.
+    #
+    # Built through Docker on a glibc runner rather than as a `container:`
+    # job: GitHub's node runtime for JS actions (actions/checkout) is
+    # glibc-linked and does not execute inside an Alpine container.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Build the extension on Alpine/musl
+        run: docker build -f Dockerfile.alpine -t php-judy-alpine .
+
+      - name: Run tests on Alpine/musl
+        run: |
+          docker run --rm -w /usr/src/php-judy php-judy-alpine \
+            make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
+
   validate-pecl:
     runs-on: ubuntu-latest
     steps:
