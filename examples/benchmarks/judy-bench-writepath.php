@@ -32,17 +32,26 @@
  * by round (ABBA), and compare per-round ratios rather than two aggregate
  * numbers. Sequential arms minutes apart is the exact shape that produced the
  * false regressions in issue #87. `scripts/bench-compare.php` implements that
- * treatment — including the bootstrap CIs and the instability guard — for the
- * judy-bench.php groups; reuse its methodology rather than eyeballing medians.
+ * treatment — including the bootstrap CIs and the instability guard — so this
+ * script speaks that driver's contract (`--group`, `--json`, a `benchmarks`
+ * map of `median_ms`) and is driven through it rather than by hand:
+ *
+ *   php scripts/bench-compare.php \
+ *       --bench examples/benchmarks/judy-bench-writepath.php \
+ *       --groups write --baseline-so <a>/judy.so --current-so <b>/judy.so
+ *
+ * `--group` is accepted for that contract and ignored: every case here belongs
+ * to the one write-path group.
  *
  * Timings are only meaningful from an idle machine: check load average before
  * and between runs and treat anything above cores/2 as contaminated.
  */
 
-$opts = getopt('', ['size:', 'iterations:', 'keylen:']);
+$opts = getopt('', ['size:', 'iterations:', 'keylen:', 'json:', 'group:']);
 $size = (int)($opts['size'] ?? 200000);
 $iters = (int)($opts['iterations'] ?? 5);
 $keylen = (int)($opts['keylen'] ?? 16);
+$json_out = $opts['json'] ?? null;
 
 if (!extension_loaded('judy')) {
     fwrite(STDERR, "judy not loaded\n");
@@ -62,20 +71,31 @@ for ($i = 0; $i < $size; $i++) {
     $short[] = base_convert((string)$i, 10, 36);
 }
 
-/** Run $body $iters times, returning the median ns/op. $setup runs untimed. */
+/**
+ * Run $body $iters times. $setup runs untimed before each.
+ *
+ * Reports both shapes: ns/op for reading by eye, and the wall-clock ms per run
+ * that scripts/bench-compare.php pairs and bootstraps.
+ */
 function bench(string $name, int $ops, callable $setup, callable $body, int $iters): array {
-    $runs = [];
+    $runs_ns = [];
+    $runs_ms = [];
     for ($r = 0; $r < $iters; $r++) {
         $state = $setup();
         $t0 = hrtime(true);
         $body($state);
-        $runs[] = (hrtime(true) - $t0) / $ops;
+        $ns = hrtime(true) - $t0;
+        $runs_ns[] = $ns / $ops;
+        $runs_ms[] = $ns / 1e6;
     }
-    sort($runs);
+    sort($runs_ns);
+    sort($runs_ms);
     return [
-        'ns' => $runs[intdiv(count($runs), 2)],
-        'min' => $runs[0],
-        'max' => $runs[count($runs) - 1],
+        'ns' => $runs_ns[intdiv(count($runs_ns), 2)],
+        'min' => $runs_ns[0],
+        'max' => $runs_ns[count($runs_ns) - 1],
+        'median_ms' => round($runs_ms[intdiv(count($runs_ms), 2)], 4),
+        'runs_ms' => array_map(fn($v) => round($v, 4), $runs_ms),
     ];
 }
 
@@ -177,10 +197,38 @@ record('int_int.increment_hot', bench('int_int.increment_hot', $size,
         for ($i = 0; $i < $size; $i++) { $j->increment($i); }
     }, $iters));
 
-echo json_encode([
+$benchmarks = [];
+foreach ($results as $name => $entry) {
+    $benchmarks["$name.judy"] = $entry;
+}
+
+$document = [
+    'metadata' => [
+        'php_version'  => phpversion(),
+        'judy_version' => judy_version(),
+        'platform'     => PHP_OS . ' ' . php_uname('m'),
+        'date'         => date('Y-m-d\TH:i:sP'),
+        'size'         => $size,
+        'keylen'       => $keylen,
+        'iterations'   => $iters,
+        'groups'       => ['write'],
+    ],
+    // The map bench-compare.php reads. It selects on a `.judy` suffix (the
+    // other half of its convention, `.php`, is for PHP-array control work,
+    // which this script has none of). Each entry carries median_ms/runs_ms for
+    // the driver and ns/min/max for a human reading the file directly.
+    'benchmarks' => $benchmarks,
+    // Retained so `judy_version` and `results` keep working for anything that
+    // read the pre-driver shape.
     'version' => judy_version(),
     'size' => $size,
     'keylen' => $keylen,
     'iterations' => $iters,
     'results' => $results,
-], JSON_PRETTY_PRINT), "\n";
+];
+
+if ($json_out !== null) {
+    file_put_contents($json_out, json_encode($document, JSON_PRETTY_PRINT) . "\n");
+} else {
+    echo json_encode($document, JSON_PRETTY_PRINT), "\n";
+}
