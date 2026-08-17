@@ -70,6 +70,7 @@
          <file name="examples/benchmarks/iterator_performance_analysis.md" role="doc" />
          <file name="examples/benchmarks/judy-bench-all-types.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-alternatives.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-writepath.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-batch-operations.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-bitset.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-compare.php" role="doc" />
