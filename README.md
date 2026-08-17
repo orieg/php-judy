@@ -441,7 +441,17 @@ $judy->putAll([20 => 400, 30 => 500]);
 
 // Retrieve multiple values at once (missing keys return null)
 $values = $judy->getAll([0, 5, 99]); // [0 => 100, 5 => 200, 99 => null]
+
+// Read only part of the key space: keys(), values() and toArray() all take an
+// inclusive range, with null leaving that side unbounded
+$judy->keys(5, 20);      // [5, 10, 20]
+$judy->toArray(5, 10);   // [5 => 200, 10 => 300]
+$judy->values(null, 5);  // [100, 200]
 ```
+
+A bounded read is one traversal writing straight into the returned PHP array,
+so prefer it to `slice($lo, $hi)->keys()`, which first copies the range into a
+new Judy array and then traverses that copy.
 
 ### Atomic Increment
 
@@ -465,7 +475,8 @@ Beyond basic array access, Judy provides a rich API including:
 
 - **Set operations**: `union()`, `intersect()`, `diff()`, `xor()`, `mergeWith()`
 - **Functional iteration**: `forEach()`, `filter()`, `map()` (C-level, bypasses Iterator overhead)
-- **Range operations**: `slice()`, `deleteRange()`, `populationCount()`
+- **Range operations**: `slice()`, `deleteRange()`, `populationCount()`, and the
+  bounded forms of `keys()`, `values()`, `toArray()`
 - **Aggregation**: `sumValues()`, `averageValues()`
 - **Batch operations**: `putAll()`, `getAll()`, `keys()`, `values()`, `toArray()`, `fromArray()`
 - **Serialization**: `serialize()`/`unserialize()`, `json_encode()`

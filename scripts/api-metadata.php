@@ -242,7 +242,16 @@ PHP,
             'example' => '$judy = Judy::fromArray(Judy::INT_TO_INT, [0 => 100, 5 => 200, 10 => 300]);',
         ],
         'toArray' => [
-            'description' => 'Converts the Judy array to a PHP array. Uses native C iteration internally, 2-3x faster than manual `foreach`.',
+            'description' => 'Converts the Judy array to a PHP array. Uses native C iteration internally, 2-3x faster than manual `foreach`. With `$start` and/or `$end`, only the inclusive `[$start, $end]` key range is returned; `null` leaves that side unbounded.',
+            'supported_types' => 'All types. String-keyed types require string bounds and compare them lexicographically.',
+            'example' => <<<'PHP'
+$judy = Judy::fromArray(Judy::INT_TO_INT, [1 => 10, 5 => 50, 10 => 100]);
+
+$judy->toArray();          // [1 => 10, 5 => 50, 10 => 100]
+$judy->toArray(5, 10);     // [5 => 50, 10 => 100]
+$judy->toArray(5);         // [5 => 50, 10 => 100]  (unbounded end)
+$judy->toArray(null, 5);   // [1 => 10, 5 => 50]    (unbounded start)
+PHP,
         ],
         'putAll' => [
             'description' => 'Bulk-inserts all key-value pairs from the given PHP array.',
@@ -256,10 +265,27 @@ $values = $judy->getAll([0, 2, 99]);
 PHP,
         ],
         'keys' => [
-            'description' => 'Returns all keys as a PHP array.',
+            'description' => "Returns all keys as a PHP array. With `\$start` and/or `\$end`, only the inclusive `[\$start, \$end]` key range is returned; `null` leaves that side unbounded.\n\nA bounded read is a single traversal writing straight into the returned array, so prefer it to `slice(\$lo, \$hi)->keys()`, which allocates and populates a whole intermediate Judy array and then traverses that copy.",
+            'supported_types' => 'All types. String-keyed types require string bounds and compare them lexicographically.',
+            'example' => <<<'PHP'
+$judy = new Judy(Judy::BITSET);
+foreach ([1, 5, 10, 15] as $i) $judy[$i] = true;
+
+$judy->keys(5, 10);        // [5, 10]
+$judy->keys(5);            // [5, 10, 15]  (unbounded end)
+$judy->keys(null, 5);      // [1, 5]       (unbounded start)
+$judy->keys(10, 5);        // []           (inverted range)
+
+// An upper bound is a bound, not a prefix filter: "blackcurrant" sorts after
+// "bl", so bound a prefix sweep with the prefix's successor.
+$fruit = Judy::fromArray(Judy::STRING_TO_INT, ['blackcurrant' => 1, 'cherry' => 2]);
+$fruit->keys('bl', 'bl');  // []
+$fruit->keys('bl', 'bm');  // ['blackcurrant']
+PHP,
         ],
         'values' => [
-            'description' => 'Returns all values as a PHP array.',
+            'description' => 'Returns all values as a PHP array. With `$start` and/or `$end`, only the values of keys in the inclusive `[$start, $end]` range are returned; `null` leaves that side unbounded.',
+            'supported_types' => 'All types. String-keyed types require string bounds and compare them lexicographically.',
         ],
         'increment' => [
             'description' => 'Atomically increments the value at `$key` by `$amount`. If the key does not exist, it is created with the value `$amount`. Returns the new value.',
