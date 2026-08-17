@@ -855,7 +855,10 @@ echo "  - the array merge is measured in place, its best case: where a line is n
 echo "    to the target it moves the whole test list by refcount, so its work is\n";
 echo "    O(distinct lines) plus the overlap. union() and mergeWith() are O(keys)\n";
 echo "    in C. Which side wins the merge column therefore depends on how much\n";
-echo "    the two workers overlap, not on Judy alone.\n";
+echo "    the two workers overlap, not on Judy alone. On an idle 24-core host\n";
+echo "    at this workload's overlap ratio the ARRAY won it, by ~10% at the\n";
+echo "    large scale — see 'Measured: the coverage-index workload' in\n";
+echo "    BENCHMARK.md. Memory is where this index pays off, not merge time.\n";
 echo "  - union() builds a third index, so that row pays a transient copy of the\n";
 echo "    result; mergeWith() is the like-for-like in-place comparison.\n";
 echo "  - either merge is only free when both indexes share one test-id space.\n";

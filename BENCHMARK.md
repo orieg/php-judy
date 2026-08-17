@@ -621,11 +621,15 @@ section records which candidates were examined and rejected, and **why**,
 because the reason is the part that transfers: it is what tells you whether the
 *next* candidate is like these or unlike them.
 
-**Nothing in this section is measured.** Every claim below is either a
-structural argument or a pointer to a figure already in this document, and
-where a figure is cited the section it comes from is named.
-[`examples/coverage-index.php`](examples/coverage-index.php) is runnable and
-prints its own numbers on your hardware; this section does not quote them.
+**The rejections below are not measured.** Each is either a structural
+argument or a pointer to a figure already in this document, and where a figure
+is cited the section it comes from is named. Nobody built the rejected thing
+and benchmarked it — the reasoning is why it was not built.
+
+The one workload here that *has* been measured end to end is the coverage
+index; see [Measured: the coverage-index
+workload](#measured-the-coverage-index-workload) at the end of this section.
+Its result is a **split verdict**, and both halves are recorded there.
 
 ### ❌ Speeding up PHPUnit's core runtime
 
@@ -743,11 +747,85 @@ Kept short on purpose — the rejections above are the point of this section.
   class rather than a constant factor (Prefix invalidation, above).
 
 [`examples/coverage-index.php`](examples/coverage-index.php) is the worked
-example for the first two. It also documents where the nested array is *not*
-beaten: which side wins the merge column depends on how much two workers
-overlap, not on Judy — and it carries the soundness rule that makes selection
-safe, namely that a changed line with no recorded coverage must widen the
-selection, never return nothing.
+example for the first two, and it carries the soundness rule that makes
+selection safe: a changed line with no recorded coverage must widen the
+selection, never return nothing. What it buys and what it does not is measured
+directly below.
+
+### Measured: the coverage-index workload
+
+Run on an idle 24-core Ubuntu 22.04 host, in Docker (PHP 8.4.24), extension
+built from `main` at `f35ff20`. Load stayed between 0.11 and 0.56 across every
+repetition with no non-target process above 2% CPU. All variants were asserted
+to answer identically before timing. Two scales, 7 and 25 repetitions; figures
+are medians with a 95% bootstrap CI on the median.
+
+**5000 files x 500 lines, 10,000 tests (1,578,994 line/test pairs)**
+
+| variant | peak RSS | index (peak − floor) | merge |
+| ------- | -------- | -------------------- | ----- |
+| empty PHP process (floor) | 22.88 MB | — | — |
+| nested PHP array | 277.12 MB | 254.25 MB | 52.31 ms |
+| Judy, `mergeWith()` | **50.06 MB** | **27.38 MB** | 57.55 ms |
+| Judy, `union()` | 56.44 MB | 33.56 MB | 112.19 ms |
+
+**800 x 300, 2,000 tests (185,700 pairs)**
+
+| variant | peak RSS | index (peak − floor) | merge |
+| ------- | -------- | -------------------- | ----- |
+| empty PHP process (floor) | 22.88 MB | — | — |
+| nested PHP array | 52.12 MB | 29.44 MB | 5.83 ms |
+| Judy, `mergeWith()` | **25.88 MB** | **3.00 MB** | 6.81 ms |
+| Judy, `union()` | 26.44 MB | 3.38 MB | 12.99 ms |
+
+#### ✅ Memory: Judy wins, and the win grows with scale
+
+Peak RSS is **5.53x lower** at the large scale (95% CI [5.515, 5.536]) and
+2.02x lower at the small one (CI [2.014, 2.029]).
+
+Do not lean on that small-scale figure. Peak RSS includes the ~22.9 MB PHP
+runtime floor, which dominates a small index and drags the ratio down — 2 of 25
+runs fell below 2x. **The stable figure is the index-only ratio (peak minus
+floor), which is ~9.3–9.8x at *both* scales.** The apparent scale-dependence is
+the fixed floor's shrinking share, not a property of the data structure.
+
+This is the clause that matters for the motivating problem: a full-suite
+coverage run dying on `memory_limit`. Judy's index is also allocated outside
+`memory_limit` entirely, which the ratio above does not capture.
+
+#### ❌ Merge: the nested array wins, narrowly and consistently
+
+`mergeWith()` is **~10% slower** than the in-place nested-array merge at the
+large scale (57.55 ms vs 52.31 ms, CI on the ratio [0.898, 0.913]) and ~16%
+slower at the small one. Zero of 32 runs reached parity. This is not noise —
+the spread is tight and the CI does not approach 1.0.
+
+The mechanism is the one the example predicts: where a line is new to the
+target, the in-place array merge moves a whole test list by refcount, making it
+O(distinct lines) + overlap, while `mergeWith()` is O(keys). At this workload's
+overlap ratio the refcount shortcut wins. The gap narrows as scale grows
+(0.862 → 0.908), so a larger or more heavily overlapping workload may close it
+— but on both configurations measured, it does not.
+
+`union()` is excluded from the comparison by construction: it allocates a third
+index and lands at 0.46x.
+
+#### ❌ Selection: also not a Judy win here
+
+The per-id `first()`/`searchNext()` walk runs at 0.25x the array's selection
+speed and the bounded `keys($lo, $hi)` read at 0.42x. Bulk is ~1.7x faster than
+the walk (0.028 ms vs 0.047 ms at the large scale), which confirms the value of
+the bounded read *relative to the walk* — but both remain slower than a plain
+PHP array lookup, which reaches a line's test list in two hash lookups and then
+iterates inside the VM.
+
+#### What to take from this
+
+The coverage index is a **memory** result, not a speed result. Reach for it
+when the array shape is what is killing the run — and keep the array when it
+fits in memory, because it is faster at both merging and selecting. These
+numbers are one workload at one overlap ratio on one host; the example is
+runnable and prints the same table for yours.
 
 ---
 
