@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 5e3d1f5cee0d80d5d6729e766fd821c016f8f6c8 */
+ * Stub hash: b282c2b7e9533a09c14092837dc3f755561b296f */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_version, 0, 0, IS_STRING, 0)
 ZEND_END_ARG_INFO()
@@ -10,12 +10,16 @@ ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Judy___construct, 0, 0, 1)
 	ZEND_ARG_TYPE_INFO(0, type, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, optimizeIteration, _IS_BOOL, 0, "false")
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_class_Judy___destruct, 0, 0, 0)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_getType, 0, 0, IS_LONG, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_isIterationOptimized, 0, 0, _IS_BOOL, 0)
 ZEND_END_ARG_INFO()
 
 #define arginfo_class_Judy_free arginfo_class_Judy_getType
@@ -108,6 +112,7 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_Judy_fromArray, 0, 2, Judy, 0)
 	ZEND_ARG_TYPE_INFO(0, type, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, data, IS_ARRAY, 0)
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, optimizeIteration, _IS_BOOL, 0, "false")
 ZEND_END_ARG_INFO()
 
 #define arginfo_class_Judy_putAll arginfo_class_Judy___unserialize
@@ -124,8 +129,7 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_rewind, 0, 0, IS_VOID, 0)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_valid, 0, 0, _IS_BOOL, 0)
-ZEND_END_ARG_INFO()
+#define arginfo_class_Judy_valid arginfo_class_Judy_isIterationOptimized
 
 #define arginfo_class_Judy_current arginfo_class_Judy_jsonSerialize
 
@@ -155,10 +159,7 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_averageValues, 0, 0, IS_DOUBLE, 1)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_populationCount, 0, 0, IS_LONG, 0)
-	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, start, IS_MIXED, 0, "0")
-	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, end, IS_MIXED, 0, "-1")
-ZEND_END_ARG_INFO()
+#define arginfo_class_Judy_populationCount arginfo_class_Judy_size
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_deleteRange, 0, 2, IS_LONG, 0)
 	ZEND_ARG_TYPE_INFO(0, start, IS_MIXED, 0)
@@ -174,6 +175,7 @@ ZEND_FUNCTION(judy_type);
 ZEND_METHOD(Judy, __construct);
 ZEND_METHOD(Judy, __destruct);
 ZEND_METHOD(Judy, getType);
+ZEND_METHOD(Judy, isIterationOptimized);
 ZEND_METHOD(Judy, free);
 ZEND_METHOD(Judy, memoryUsage);
 ZEND_METHOD(Judy, size);
@@ -231,6 +233,7 @@ static const zend_function_entry class_Judy_methods[] = {
 	ZEND_ME(Judy, __construct, arginfo_class_Judy___construct, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, __destruct, arginfo_class_Judy___destruct, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, getType, arginfo_class_Judy_getType, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, isIterationOptimized, arginfo_class_Judy_isIterationOptimized, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, free, arginfo_class_Judy_free, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, memoryUsage, arginfo_class_Judy_memoryUsage, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, size, arginfo_class_Judy_size, ZEND_ACC_PUBLIC)

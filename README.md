@@ -339,6 +339,8 @@ echo $judy["name"]; // Outputs: John Doe
 
 Hash-based types use JudyHS for O(1) average-case lookups, with a parallel JudySL key index that maintains sorted iteration order. Best for workloads dominated by random key access where you still need ordered iteration.
 
+By default an ordered walk over these types costs a second lookup per element to fetch the value. `optimizeIteration` removes it — see [Trading write speed for iteration speed](#trading-write-speed-for-iteration-speed).
+
 #### 7. Judy::STRING_TO_INT_HASH
 
 A hash-backed Judy array with string keys and integer values.
@@ -354,6 +356,58 @@ echo $judy["session_abc"]; // Outputs: 1
 foreach ($judy as $key => $value) {
     echo "$key => $value\n";
 }
+```
+
+### Trading write speed for iteration speed
+
+`STRING_TO_INT_HASH` and `STRING_TO_INT_ADAPTIVE` keep the key set in a sorted
+index and the values in a separate store, so an ordered walk has to look each
+value up a second time. Passing `optimizeIteration` keeps a copy of the value
+alongside the key, which removes that second lookup — and makes every write
+maintain both copies:
+
+```php
+// Read-dominated: a cache that is written once and iterated often.
+$cache = new Judy(Judy::STRING_TO_INT_HASH, optimizeIteration: true);
+
+// Write-dominated: leave it off. This is the default.
+$counters = new Judy(Judy::STRING_TO_INT_HASH);
+foreach ($events as $e) {
+    $counters->increment($e);
+}
+```
+
+Measured on an idle 24-core x86_64 host, 300K entries:
+
+| | 16-byte keys | 40-byte keys |
+| --- | --- | --- |
+| `foreach` | 24.0% faster | 37.7% faster |
+| `values()` | 28.5% faster | 46.7% faster |
+| `filter()` | 29% faster | 39% faster |
+| `offsetSet` overwrite | 19.5% slower | 7.6% slower |
+| `increment()` | 19.5% slower | — |
+
+Note that the write penalty is *worst* where the read win is *smallest*. If the
+array is counter-heavy — and `increment()` exists precisely so counters do not
+round-trip through PHP — leave it off.
+
+Three properties worth knowing:
+
+- **It is fixed for the life of the array.** There is no setter; turning it on
+  later would mean rewriting the whole key index.
+- **It is inherited.** `clone`, `slice()`, `filter()`, `map()`, the set
+  operations and `__serialize`/`__unserialize` all carry it, so a derived array
+  never quietly performs differently from the one it came from.
+- **Other types accept and ignore it.** `BITSET`, the `INT_TO_*` family,
+  `STRING_TO_INT`, `STRING_TO_MIXED` and the `_MIXED` hash types have nothing
+  to mirror; `STRING_TO_INT_ADAPTIVE` honours it only for keys of 8 bytes or
+  more, because shorter ones are already stored somewhere cheap to read. That
+  means generic code can pass the argument unconditionally. Ask
+  `isIterationOptimized()` what actually took effect:
+
+```php
+$j = new Judy($typeFromConfig, optimizeIteration: true);
+var_dump($j->isIterationOptimized()); // false unless the type can honour it
 ```
 
 #### 8. Judy::STRING_TO_MIXED_HASH
@@ -476,6 +530,11 @@ $counters->increment("page_views");       // returns 2
 $counters->increment("page_views", 10);   // returns 12
 $counters->increment("page_views", -3);   // returns 9
 ```
+
+`increment()` is the reason `optimizeIteration` defaults to off: on
+`STRING_TO_INT_HASH` it measures 19.5% slower with the option on, because the
+counter has to be written in two places. A counter table should be constructed
+plainly.
 
 For detailed performance analysis, see [BENCHMARK.md](BENCHMARK.md).
 
@@ -630,8 +689,12 @@ Please report bugs and issues on the GitHub repository:
 
 - Eliminate redundant JLG+JLI double traversal in write hot paths for `INT_TO_INT`, `STRING_TO_INT`, and `STRING_TO_INT_HASH` types
 - Remove the per-element second lookup during ordered traversal of the
-  `*_HASH`/`*_ADAPTIVE` types — worth 22 ns/element at 16-byte keys and 98
-  ns/element (46% of `forEach()`) at 40-byte keys ([#85](https://github.com/orieg/php-judy/issues/85))
+  `STRING_TO_MIXED_HASH` and `STRING_TO_MIXED_ADAPTIVE` types
+  ([#85](https://github.com/orieg/php-judy/issues/85)). Done for the two `_INT`
+  variants, behind the opt-in `optimizeIteration` constructor argument — see
+  [Trading write speed for iteration speed](#trading-write-speed-for-iteration-speed).
+  The `_MIXED` payload is a `zval*`, so mirroring it is a question about
+  lifetime rather than about lookups.
 - Binary serialization format for faster `__serialize`/`__unserialize`
 - Extend `increment()` to adaptive types
 

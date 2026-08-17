@@ -32,21 +32,56 @@
  * by round (ABBA), and compare per-round ratios rather than two aggregate
  * numbers. Sequential arms minutes apart is the exact shape that produced the
  * false regressions in issue #87. `scripts/bench-compare.php` implements that
- * treatment — including the bootstrap CIs and the instability guard — for the
- * judy-bench.php groups; reuse its methodology rather than eyeballing medians.
+ * treatment — including the bootstrap CIs and the instability guard — so this
+ * script speaks that driver's contract (`--group`, `--json`, a `benchmarks`
+ * map of `median_ms`) and is driven through it rather than by hand:
+ *
+ *   php scripts/bench-compare.php \
+ *       --bench examples/benchmarks/judy-bench-writepath.php \
+ *       --groups write --baseline-so <a>/judy.so --current-so <b>/judy.so
+ *
+ * `--group` is accepted for that contract and ignored: every case here belongs
+ * to the one write-path group. The driver forwards only --size/--iterations,
+ * so key length travels in the environment — export JUDY_BENCH_KEYLEN and run
+ * the comparison once per length. An explicit --keylen still wins.
  *
  * Timings are only meaningful from an idle machine: check load average before
  * and between runs and treat anything above cores/2 as contaminated.
  */
 
-$opts = getopt('', ['size:', 'iterations:', 'keylen:']);
+$opts = getopt('', ['size:', 'iterations:', 'keylen:', 'json:', 'group:']);
 $size = (int)($opts['size'] ?? 200000);
 $iters = (int)($opts['iterations'] ?? 5);
-$keylen = (int)($opts['keylen'] ?? 16);
+$keylen = (int)($opts['keylen'] ?? getenv('JUDY_BENCH_KEYLEN') ?: 16);
+$json_out = $opts['json'] ?? null;
 
 if (!extension_loaded('judy')) {
     fwrite(STDERR, "judy not loaded\n");
     exit(1);
+}
+
+/**
+ * optimizeIteration arm switch.
+ *
+ * The mirror is opt-in per instance, so comparing "mirror on" against a
+ * baseline build means constructing differently in the two arms, not just
+ * linking a different judy.so. Export JUDY_BENCH_OPTIMIZE_ITERATION=1 and every
+ * array below is built with it on — but only on a build that has the argument,
+ * so the same command line can drive an older baseline .so, which silently
+ * constructs the way it always did. That is exactly the A/B the trade needs:
+ * today's behaviour against opted-in behaviour.
+ *
+ * With the variable unset both arms construct plainly, which is the comparison
+ * that has to come out flat.
+ */
+$optimizeIteration = (bool)getenv('JUDY_BENCH_OPTIMIZE_ITERATION');
+$supportsOptimizeIteration = method_exists('Judy', 'isIterationOptimized');
+function judy_new(int $type): Judy
+{
+    global $optimizeIteration, $supportsOptimizeIteration;
+    return ($optimizeIteration && $supportsOptimizeIteration)
+        ? new Judy($type, true)
+        : new Judy($type);
 }
 
 // Keys shaped like the issue's: a shared prefix every 10 keys, padded to
@@ -62,20 +97,31 @@ for ($i = 0; $i < $size; $i++) {
     $short[] = base_convert((string)$i, 10, 36);
 }
 
-/** Run $body $iters times, returning the median ns/op. $setup runs untimed. */
+/**
+ * Run $body $iters times. $setup runs untimed before each.
+ *
+ * Reports both shapes: ns/op for reading by eye, and the wall-clock ms per run
+ * that scripts/bench-compare.php pairs and bootstraps.
+ */
 function bench(string $name, int $ops, callable $setup, callable $body, int $iters): array {
-    $runs = [];
+    $runs_ns = [];
+    $runs_ms = [];
     for ($r = 0; $r < $iters; $r++) {
         $state = $setup();
         $t0 = hrtime(true);
         $body($state);
-        $runs[] = (hrtime(true) - $t0) / $ops;
+        $ns = hrtime(true) - $t0;
+        $runs_ns[] = $ns / $ops;
+        $runs_ms[] = $ns / 1e6;
     }
-    sort($runs);
+    sort($runs_ns);
+    sort($runs_ms);
     return [
-        'ns' => $runs[intdiv(count($runs), 2)],
-        'min' => $runs[0],
-        'max' => $runs[count($runs) - 1],
+        'ns' => $runs_ns[intdiv(count($runs_ns), 2)],
+        'min' => $runs_ns[0],
+        'max' => $runs_ns[count($runs_ns) - 1],
+        'median_ms' => round($runs_ms[intdiv(count($runs_ms), 2)], 4),
+        'runs_ms' => array_map(fn($v) => round($v, 4), $runs_ms),
     ];
 }
 
@@ -99,7 +145,7 @@ foreach ($types as $tname => $type) {
 
     // insert: a fresh array each iteration, filled once
     record("$tname.insert", bench("$tname.insert", $size,
-        fn() => new Judy($type),
+        fn() => judy_new($type),
         function ($j) use ($keys, $size, $mixed) {
             for ($i = 0; $i < $size; $i++) { $j[$keys[$i]] = $mixed ? $i : $i; }
         }, $iters));
@@ -107,7 +153,7 @@ foreach ($types as $tname => $type) {
     // overwrite: the array is already full before the timer starts
     record("$tname.overwrite", bench("$tname.overwrite", $size,
         function () use ($type, $keys, $size, $mixed) {
-            $j = new Judy($type);
+            $j = judy_new($type);
             for ($i = 0; $i < $size; $i++) { $j[$keys[$i]] = $i; }
             return $j;
         },
@@ -118,7 +164,7 @@ foreach ($types as $tname => $type) {
     // control: point lookup, an untouched path
     record("$tname.get", bench("$tname.get", $size,
         function () use ($type, $keys, $size) {
-            $j = new Judy($type);
+            $j = judy_new($type);
             for ($i = 0; $i < $size; $i++) { $j[$keys[$i]] = $i; }
             return $j;
         },
@@ -132,13 +178,13 @@ foreach ($types as $tname => $type) {
 foreach (['str_int_adaptive' => Judy::STRING_TO_INT_ADAPTIVE,
           'str_mixed_adaptive' => Judy::STRING_TO_MIXED_ADAPTIVE] as $tname => $type) {
     record("$tname.insert_sso", bench("$tname.insert_sso", $size,
-        fn() => new Judy($type),
+        fn() => judy_new($type),
         function ($j) use ($short, $size) {
             for ($i = 0; $i < $size; $i++) { $j[$short[$i]] = $i; }
         }, $iters));
     record("$tname.overwrite_sso", bench("$tname.overwrite_sso", $size,
         function () use ($type, $short, $size) {
-            $j = new Judy($type);
+            $j = judy_new($type);
             for ($i = 0; $i < $size; $i++) { $j[$short[$i]] = $i; }
             return $j;
         },
@@ -151,13 +197,13 @@ foreach (['str_int_adaptive' => Judy::STRING_TO_INT_ADAPTIVE,
 // existing-key path that used to write the value word on its own.
 foreach (['str_int' => Judy::STRING_TO_INT, 'str_int_hash' => Judy::STRING_TO_INT_HASH] as $tname => $type) {
     record("$tname.increment_new", bench("$tname.increment_new", $size,
-        fn() => new Judy($type),
+        fn() => judy_new($type),
         function ($j) use ($keys, $size) {
             for ($i = 0; $i < $size; $i++) { $j->increment($keys[$i]); }
         }, $iters));
     record("$tname.increment_hot", bench("$tname.increment_hot", $size,
         function () use ($type, $keys, $size) {
-            $j = new Judy($type);
+            $j = judy_new($type);
             for ($i = 0; $i < $size; $i++) { $j->increment($keys[$i]); }
             return $j;
         },
@@ -169,7 +215,7 @@ foreach (['str_int' => Judy::STRING_TO_INT, 'str_int_hash' => Judy::STRING_TO_IN
 // control: increment() on INT_TO_INT, which B1 did not touch at all
 record('int_int.increment_hot', bench('int_int.increment_hot', $size,
     function () use ($size) {
-        $j = new Judy(Judy::INT_TO_INT);
+        $j = judy_new(Judy::INT_TO_INT);
         for ($i = 0; $i < $size; $i++) { $j->increment($i); }
         return $j;
     },
@@ -177,10 +223,42 @@ record('int_int.increment_hot', bench('int_int.increment_hot', $size,
         for ($i = 0; $i < $size; $i++) { $j->increment($i); }
     }, $iters));
 
-echo json_encode([
+$benchmarks = [];
+foreach ($results as $name => $entry) {
+    $benchmarks["$name.judy"] = $entry;
+}
+
+$document = [
+    'metadata' => [
+        'php_version'  => phpversion(),
+        'judy_version' => judy_version(),
+        'platform'     => PHP_OS . ' ' . php_uname('m'),
+        'date'         => date('Y-m-d\TH:i:sP'),
+        'size'         => $size,
+        'keylen'       => $keylen,
+        'iterations'   => $iters,
+        // Recorded per arm, so a JSON pair makes it obvious which side
+        // actually had the mirror on rather than leaving it to the shell
+        // history.
+        'optimize_iteration' => $optimizeIteration && $supportsOptimizeIteration,
+        'groups'       => ['write'],
+    ],
+    // The map bench-compare.php reads. It selects on a `.judy` suffix (the
+    // other half of its convention, `.php`, is for PHP-array control work,
+    // which this script has none of). Each entry carries median_ms/runs_ms for
+    // the driver and ns/min/max for a human reading the file directly.
+    'benchmarks' => $benchmarks,
+    // Retained so `judy_version` and `results` keep working for anything that
+    // read the pre-driver shape.
     'version' => judy_version(),
     'size' => $size,
     'keylen' => $keylen,
     'iterations' => $iters,
     'results' => $results,
-], JSON_PRETTY_PRINT), "\n";
+];
+
+if ($json_out !== null) {
+    file_put_contents($json_out, json_encode($document, JSON_PRETTY_PRINT) . "\n");
+} else {
+    echo json_encode($document, JSON_PRETTY_PRINT), "\n";
+}

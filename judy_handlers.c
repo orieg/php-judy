@@ -184,6 +184,13 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 						JHSD(rc, newJArray, kindex, klen);
 						break;
 					}
+					/* Mirror the payload into the key_index slot the clone's
+					   traversal will read it from — only if the source was
+					   built with optimizeIteration, which the clone inherits
+					   (issue #85). */
+					if (JUDY_MIRRORS_PAYLOAD(old_obj, klen)) {
+						JUDY_LVAL_WRITE(newKValue, JUDY_LVAL_READ(HValue));
+					}
 				}
 			}
 			JSLN(KValue, old_obj->key_index, kindex)
@@ -206,6 +213,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			int value_ok = 0;      /* value slot successfully written */
 			int is_sso = 0;        /* which store to roll back on key failure */
 			zval *copied = NULL;   /* MIXED: the zval to free on rollback */
+			Word_t mirrored = 0;   /* payload to mirror into key_index, if any */
 
 			if (judy_pack_short_string_internal((char *)kindex, klen, &sso_idx)) {
 				/* Short key — stored in JudyL (intern->array) */
@@ -240,6 +248,9 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 							JUDY_MVAL_WRITE(newHValue, copied);
 						} else {
 							JUDY_LVAL_WRITE(newHValue, JUDY_LVAL_READ(HValue));
+							/* Only long keys can mirror, and only when the source
+							   opted in — the JSLI below decides. */
+							mirrored = (Word_t)JUDY_LVAL_READ(HValue);
 						}
 						value_ok = 1;
 					}
@@ -264,6 +275,9 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 					}
 					break;
 				}
+				if (JUDY_MIRRORS_PAYLOAD(old_obj, klen)) {
+					JUDY_LVAL_WRITE(newKValue, mirrored);
+				}
 			}
 
 			JSLN(KValue, old_obj->key_index, kindex)
@@ -283,6 +297,10 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 	 * index 0 and overwrite an existing element. */
 	new_obj->next_empty_is_valid = 0;
 	judy_init_type_flags(new_obj, old_obj->type);
+	/* A clone that iterated at a different speed than its source — or paid a
+	   write cost the source did not — would be a silent divergence, so the
+	   setting travels with the data. */
+	judy_set_optimize_iteration(new_obj, old_obj->mirror_payload);
 
 	if (new_obj->is_string_keyed && !new_obj->key_scratch) {
 		new_obj->key_scratch = emalloc(PHP_JUDY_MAX_LENGTH);

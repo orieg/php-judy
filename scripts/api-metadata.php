@@ -50,7 +50,7 @@ return [
             'methods' => ['__construct'],
         ],
         'Core Methods' => [
-            'methods' => ['getType', 'free', 'memoryUsage', 'size', 'count'],
+            'methods' => ['getType', 'isIterationOptimized', 'free', 'memoryUsage', 'size', 'count'],
         ],
         'Array Access' => [
             'methods' => ['offsetExists', 'offsetGet', 'offsetSet', 'offsetUnset'],
@@ -167,11 +167,39 @@ PHP,
     // 'supported_types', 'notes', 'example' are rendered below the description.
     'methods' => [
         '__construct' => [
-            'description' => 'Creates a new Judy array of the specified type.',
-            'example' => '$judy = new Judy(Judy::INT_TO_INT);',
+            'description' => "Creates a new Judy array of the specified type.\n\n"
+                . "`\$optimizeIteration` trades write speed for ordered-read speed, for the life of that array. "
+                . "With it on, ordered traversal reads each value out of the key index it is already walking instead "
+                . "of looking it up a second time; in exchange every write updates both. Measured: `foreach` 24-38% "
+                . "faster and `values()` 29-47% faster depending on key length, against 8-20% slower on overwrite and "
+                . "on `increment()`. Turn it on for a read-dominated cache; leave it off for a counter-heavy workload. "
+                . "It is inherited by every array derived from this one — `clone`, `slice()`, `filter()`, `map()`, the "
+                . "set operations, serialization round-trips — and only `STRING_TO_INT_HASH` and `STRING_TO_INT_ADAPTIVE` "
+                . "can honour it; see `isIterationOptimized()`.",
+            'example' => <<<'PHP'
+$judy = new Judy(Judy::INT_TO_INT);
+
+// Read-dominated cache: pay on writes, save on every ordered read.
+$cache = new Judy(Judy::STRING_TO_INT_HASH, optimizeIteration: true);
+PHP,
         ],
         'getType' => [
             'description' => 'Returns the type constant of the Judy array.',
+        ],
+        'isIterationOptimized' => [
+            'description' => 'Returns whether `optimizeIteration` is actually in effect on this array — what was honoured, not what was requested. Types that cannot honour it accept the constructor argument and return `false` here.',
+            'table' => [
+                'headers' => ['Type', 'Can honour `optimizeIteration`'],
+                'rows' => [
+                    ['STRING_TO_INT_HASH', 'yes'],
+                    ['STRING_TO_INT_ADAPTIVE', 'yes, for keys of 8 bytes or more'],
+                    ['All other types', 'no — argument accepted and ignored'],
+                ],
+            ],
+            'example' => <<<'PHP'
+$j = new Judy(Judy::STRING_TO_MIXED_HASH, optimizeIteration: true);
+var_dump($j->isIterationOptimized()); // bool(false) — MIXED cannot mirror
+PHP,
         ],
         'free' => [
             'description' => 'Frees all memory used by the Judy array and resets the element count. Returns the number of bytes freed (or 0 for string-keyed types).',

@@ -67,13 +67,18 @@ Adaptive types use Short-String Optimization (SSO): keys of 7 bytes or fewer are
 ### __construct()
 
 ```php
-public function __construct(int $type)
+public function __construct(int $type, bool $optimizeIteration = false)
 ```
 
 Creates a new Judy array of the specified type.
 
+`$optimizeIteration` trades write speed for ordered-read speed, for the life of that array. With it on, ordered traversal reads each value out of the key index it is already walking instead of looking it up a second time; in exchange every write updates both. Measured: `foreach` 24-38% faster and `values()` 29-47% faster depending on key length, against 8-20% slower on overwrite and on `increment()`. Turn it on for a read-dominated cache; leave it off for a counter-heavy workload. It is inherited by every array derived from this one — `clone`, `slice()`, `filter()`, `map()`, the set operations, serialization round-trips — and only `STRING_TO_INT_HASH` and `STRING_TO_INT_ADAPTIVE` can honour it; see `isIterationOptimized()`.
+
 ```php
 $judy = new Judy(Judy::INT_TO_INT);
+
+// Read-dominated cache: pay on writes, save on every ordered read.
+$cache = new Judy(Judy::STRING_TO_INT_HASH, optimizeIteration: true);
 ```
 
 ---
@@ -87,6 +92,25 @@ public function getType(): int
 ```
 
 Returns the type constant of the Judy array.
+
+### isIterationOptimized()
+
+```php
+public function isIterationOptimized(): bool
+```
+
+Returns whether `optimizeIteration` is actually in effect on this array — what was honoured, not what was requested. Types that cannot honour it accept the constructor argument and return `false` here.
+
+| Type                   | Can honour `optimizeIteration`     |
+| ---------------------- | ---------------------------------- |
+| STRING_TO_INT_HASH     | yes                                |
+| STRING_TO_INT_ADAPTIVE | yes, for keys of 8 bytes or more   |
+| All other types        | no — argument accepted and ignored |
+
+```php
+$j = new Judy(Judy::STRING_TO_MIXED_HASH, optimizeIteration: true);
+var_dump($j->isIterationOptimized()); // bool(false) — MIXED cannot mirror
+```
 
 ### free()
 
@@ -381,7 +405,7 @@ Returns the number of elements with keys in the range `[$start, $end]`. Uses Jud
 ### fromArray()
 
 ```php
-public static function fromArray(int $type, array $data): Judy
+public static function fromArray(int $type, array $data, bool $optimizeIteration = false): Judy
 ```
 
 Creates a new Judy array from a PHP array.

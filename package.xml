@@ -71,6 +71,7 @@
          <file name="examples/benchmarks/iterator_performance_analysis.md" role="doc" />
          <file name="examples/benchmarks/judy-bench-all-types.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-alternatives.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-readpath.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-writepath.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-batch-operations.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-bitset.php" role="doc" />
@@ -177,6 +178,8 @@
          <file name="tests/batch_large_001.phpt" role="test" />
          <file name="tests/increment_boundary_001.phpt" role="test" />
          <file name="tests/mirror_value_agreement_001.phpt" role="test" />
+         <file name="tests/mirror_value_agreement_002.phpt" role="test" />
+         <file name="tests/optimize_iteration_001.phpt" role="test" />
          <file md5sum="3022d615e01248b9aedcc07d53f9d298" name="tests/clone_bitset_001.phpt" role="test" />
          <file md5sum="ebf5a62bedc4d0100256bc6db614cac0" name="tests/int_to_int_001.phpt" role="test" />
          <file md5sum="293c4e8f37490390abeaac289e8d4ee7" name="tests/int_to_int_002.phpt" role="test" />

@@ -1,5 +1,5 @@
 --TEST--
-Judy *_HASH / *_ADAPTIVE: ordered traversal and point lookup agree after mixed writes
+Judy *_HASH / *_ADAPTIVE: ordered traversal and point lookup agree after mixed writes, mirrored and not
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
@@ -10,14 +10,30 @@ Judy *_HASH / *_ADAPTIVE: ordered traversal and point lookup agree after mixed w
 // holding different answers — no crash, no leak, only a wrong result. This
 // test pins the agreement across every write shape the extension has.
 //
+// With optimizeIteration on, STRING_TO_INT_HASH and long-keyed
+// STRING_TO_INT_ADAPTIVE mirror their payload into the key_index slot, so
+// ordered traversal reads it from there while point lookup still reads the
+// value store. Every ordered read surface is therefore cross-examined against
+// point lookup, not just foreach: they are separate call sites and a mirror is
+// only as good as the site that reads it.
+//
+// Each type runs twice, off and on. The off runs are the ones that pin "the
+// default is exactly what it was": they must produce identical output while
+// isIterationOptimized() reports false. The on runs on a _MIXED type pin the
+// accept-and-ignore rule — the argument is taken and dropped.
+//
 // ADAPTIVE keys are split deliberately across the 8-byte SSO boundary, since
 // short and long keys land in different value stores.
-$types = [
+$types = [];
+foreach ([
     'STRING_TO_INT_HASH'       => Judy::STRING_TO_INT_HASH,
     'STRING_TO_MIXED_HASH'     => Judy::STRING_TO_MIXED_HASH,
     'STRING_TO_INT_ADAPTIVE'   => Judy::STRING_TO_INT_ADAPTIVE,
     'STRING_TO_MIXED_ADAPTIVE' => Judy::STRING_TO_MIXED_ADAPTIVE,
-];
+] as $n => $t) {
+    $types["$n off"] = [$t, false];
+    $types["$n on"]  = [$t, true];
+}
 
 // Keys straddling the SSO boundary: "k00".."k07" are 3 bytes, the "long_"
 // ones are 8+.
@@ -47,8 +63,37 @@ function check(string $label, Judy $j, array $expected): void {
     if (count($seen) !== $j->count()) {
         $problems[] = "count() " . $j->count() . " != iterated " . count($seen);
     }
-    if (array_keys($seen) !== array_keys($j->toArray())) {
-        $problems[] = "toArray() key set differs from foreach";
+    if ($j->toArray() !== $seen) {
+        $problems[] = "toArray() differs from foreach";
+    }
+
+    // Each of these is its own ordered-traversal call site in C, and each one
+    // reads the mirrored payload independently. keys() is the control: it
+    // never touches a value, so a keys()/values() mismatch localises the fault
+    // to the value read rather than the walk.
+    $ks = $j->keys();
+    $vs = $j->values();
+    if (count($ks) !== count($vs) || array_combine($ks, $vs) !== $seen) {
+        $problems[] = "keys()/values() differ from foreach";
+    }
+    if ($ks && $j->getAll($ks) !== $seen) {
+        $problems[] = "getAll() differs from foreach";
+    }
+
+    $viaCallback = [];
+    $j->forEach(function ($v, $k) use (&$viaCallback) { $viaCallback[$k] = $v; });
+    if ($viaCallback !== $seen) {
+        $problems[] = "forEach() differs from foreach";
+    }
+
+    // The Iterator-interface methods are a separate walk from the one the
+    // foreach opcode drives.
+    $manual = [];
+    for ($j->rewind(); $j->valid(); $j->next()) {
+        $manual[$j->key()] = $j->current();
+    }
+    if ($manual !== $seen) {
+        $problems[] = "rewind()/next() walk differs from foreach";
     }
 
     $sorted = array_keys($seen);
@@ -66,9 +111,11 @@ function check(string $label, Judy $j, array $expected): void {
     echo $label . ": " . ($problems ? implode("; ", $problems) : "ok") . "\n";
 }
 
-foreach ($types as $name => $type) {
+foreach ($types as $name => [$type, $opt]) {
     $mixed = str_contains($name, 'MIXED');
-    $j = new Judy($type);
+    $j = new Judy($type, $opt);
+    // What the request actually bought: true only where the type can honour it.
+    echo "$name optimized: ", var_export($j->isIterationOptimized(), true), "\n";
     $model = [];
 
     // 1. plain inserts
@@ -126,42 +173,98 @@ foreach ($types as $name => $type) {
     $u = unserialize(serialize($j));
     check("$name unserialize", $u, $model);
 
+    // 7b. the setting itself has to survive both, or the copy would iterate
+    //     at a different speed than the original with no way to tell.
+    echo "$name derived optimized: ",
+        ($c->isIterationOptimized() === $j->isIterationOptimized()
+            && $u->isIterationOptimized() === $j->isIterationOptimized()
+            ? "match" : "DIVERGED"), "\n";
+
     // 8. mutating the clone must not disturb the original
     $c["only_on_clone"] = $mixed ? "x" : 42;
     check("$name original after clone write", $j, $model);
 }
 ?>
 --EXPECT--
-STRING_TO_INT_HASH insert: ok
-STRING_TO_INT_HASH overwrite: ok
-STRING_TO_INT_HASH increment: ok
-STRING_TO_INT_HASH putAll: ok
-STRING_TO_INT_HASH unset: ok
-STRING_TO_INT_HASH reinsert: ok
-STRING_TO_INT_HASH clone: ok
-STRING_TO_INT_HASH unserialize: ok
-STRING_TO_INT_HASH original after clone write: ok
-STRING_TO_MIXED_HASH insert: ok
-STRING_TO_MIXED_HASH overwrite: ok
-STRING_TO_MIXED_HASH putAll: ok
-STRING_TO_MIXED_HASH unset: ok
-STRING_TO_MIXED_HASH reinsert: ok
-STRING_TO_MIXED_HASH clone: ok
-STRING_TO_MIXED_HASH unserialize: ok
-STRING_TO_MIXED_HASH original after clone write: ok
-STRING_TO_INT_ADAPTIVE insert: ok
-STRING_TO_INT_ADAPTIVE overwrite: ok
-STRING_TO_INT_ADAPTIVE putAll: ok
-STRING_TO_INT_ADAPTIVE unset: ok
-STRING_TO_INT_ADAPTIVE reinsert: ok
-STRING_TO_INT_ADAPTIVE clone: ok
-STRING_TO_INT_ADAPTIVE unserialize: ok
-STRING_TO_INT_ADAPTIVE original after clone write: ok
-STRING_TO_MIXED_ADAPTIVE insert: ok
-STRING_TO_MIXED_ADAPTIVE overwrite: ok
-STRING_TO_MIXED_ADAPTIVE putAll: ok
-STRING_TO_MIXED_ADAPTIVE unset: ok
-STRING_TO_MIXED_ADAPTIVE reinsert: ok
-STRING_TO_MIXED_ADAPTIVE clone: ok
-STRING_TO_MIXED_ADAPTIVE unserialize: ok
-STRING_TO_MIXED_ADAPTIVE original after clone write: ok
+STRING_TO_INT_HASH off optimized: false
+STRING_TO_INT_HASH off insert: ok
+STRING_TO_INT_HASH off overwrite: ok
+STRING_TO_INT_HASH off increment: ok
+STRING_TO_INT_HASH off putAll: ok
+STRING_TO_INT_HASH off unset: ok
+STRING_TO_INT_HASH off reinsert: ok
+STRING_TO_INT_HASH off clone: ok
+STRING_TO_INT_HASH off unserialize: ok
+STRING_TO_INT_HASH off derived optimized: match
+STRING_TO_INT_HASH off original after clone write: ok
+STRING_TO_INT_HASH on optimized: true
+STRING_TO_INT_HASH on insert: ok
+STRING_TO_INT_HASH on overwrite: ok
+STRING_TO_INT_HASH on increment: ok
+STRING_TO_INT_HASH on putAll: ok
+STRING_TO_INT_HASH on unset: ok
+STRING_TO_INT_HASH on reinsert: ok
+STRING_TO_INT_HASH on clone: ok
+STRING_TO_INT_HASH on unserialize: ok
+STRING_TO_INT_HASH on derived optimized: match
+STRING_TO_INT_HASH on original after clone write: ok
+STRING_TO_MIXED_HASH off optimized: false
+STRING_TO_MIXED_HASH off insert: ok
+STRING_TO_MIXED_HASH off overwrite: ok
+STRING_TO_MIXED_HASH off putAll: ok
+STRING_TO_MIXED_HASH off unset: ok
+STRING_TO_MIXED_HASH off reinsert: ok
+STRING_TO_MIXED_HASH off clone: ok
+STRING_TO_MIXED_HASH off unserialize: ok
+STRING_TO_MIXED_HASH off derived optimized: match
+STRING_TO_MIXED_HASH off original after clone write: ok
+STRING_TO_MIXED_HASH on optimized: false
+STRING_TO_MIXED_HASH on insert: ok
+STRING_TO_MIXED_HASH on overwrite: ok
+STRING_TO_MIXED_HASH on putAll: ok
+STRING_TO_MIXED_HASH on unset: ok
+STRING_TO_MIXED_HASH on reinsert: ok
+STRING_TO_MIXED_HASH on clone: ok
+STRING_TO_MIXED_HASH on unserialize: ok
+STRING_TO_MIXED_HASH on derived optimized: match
+STRING_TO_MIXED_HASH on original after clone write: ok
+STRING_TO_INT_ADAPTIVE off optimized: false
+STRING_TO_INT_ADAPTIVE off insert: ok
+STRING_TO_INT_ADAPTIVE off overwrite: ok
+STRING_TO_INT_ADAPTIVE off putAll: ok
+STRING_TO_INT_ADAPTIVE off unset: ok
+STRING_TO_INT_ADAPTIVE off reinsert: ok
+STRING_TO_INT_ADAPTIVE off clone: ok
+STRING_TO_INT_ADAPTIVE off unserialize: ok
+STRING_TO_INT_ADAPTIVE off derived optimized: match
+STRING_TO_INT_ADAPTIVE off original after clone write: ok
+STRING_TO_INT_ADAPTIVE on optimized: true
+STRING_TO_INT_ADAPTIVE on insert: ok
+STRING_TO_INT_ADAPTIVE on overwrite: ok
+STRING_TO_INT_ADAPTIVE on putAll: ok
+STRING_TO_INT_ADAPTIVE on unset: ok
+STRING_TO_INT_ADAPTIVE on reinsert: ok
+STRING_TO_INT_ADAPTIVE on clone: ok
+STRING_TO_INT_ADAPTIVE on unserialize: ok
+STRING_TO_INT_ADAPTIVE on derived optimized: match
+STRING_TO_INT_ADAPTIVE on original after clone write: ok
+STRING_TO_MIXED_ADAPTIVE off optimized: false
+STRING_TO_MIXED_ADAPTIVE off insert: ok
+STRING_TO_MIXED_ADAPTIVE off overwrite: ok
+STRING_TO_MIXED_ADAPTIVE off putAll: ok
+STRING_TO_MIXED_ADAPTIVE off unset: ok
+STRING_TO_MIXED_ADAPTIVE off reinsert: ok
+STRING_TO_MIXED_ADAPTIVE off clone: ok
+STRING_TO_MIXED_ADAPTIVE off unserialize: ok
+STRING_TO_MIXED_ADAPTIVE off derived optimized: match
+STRING_TO_MIXED_ADAPTIVE off original after clone write: ok
+STRING_TO_MIXED_ADAPTIVE on optimized: false
+STRING_TO_MIXED_ADAPTIVE on insert: ok
+STRING_TO_MIXED_ADAPTIVE on overwrite: ok
+STRING_TO_MIXED_ADAPTIVE on putAll: ok
+STRING_TO_MIXED_ADAPTIVE on unset: ok
+STRING_TO_MIXED_ADAPTIVE on reinsert: ok
+STRING_TO_MIXED_ADAPTIVE on clone: ok
+STRING_TO_MIXED_ADAPTIVE on unserialize: ok
+STRING_TO_MIXED_ADAPTIVE on derived optimized: match
+STRING_TO_MIXED_ADAPTIVE on original after clone write: ok

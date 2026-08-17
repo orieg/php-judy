@@ -244,6 +244,86 @@ jobs:
 
           git checkout -- php_judy.c
 
+      - name: Negative control — break the payload mirror, require the abort
+        run: |
+          # The population/counter control above cannot see a *stale* mirror:
+          # both stores stay populated and the counter stays right, only the
+          # two integers disagree. Delete the mirror write on the offsetSet
+          # path and require the payload comparison to catch it.
+          #
+          # The instance must be constructed with optimizeIteration on: the
+          # mirror is opt-in, and on a default instance the deleted line was
+          # never going to run. That is also why the control below exists.
+          sed -i 's|JUDY_LVAL_WRITE(mirror, lval); /\* judy-mirror-payload-negative-control \*/|/* deleted by the CI negative control */|' php_judy.c
+          grep -q 'deleted by the CI negative control' php_judy.c \
+            || { echo "::error::negative control did not apply — the anchor line in php_judy.c moved"; exit 1; }
+          make
+
+          set +e
+          php -d extension="$(pwd)/modules/judy.so" \
+            -r '$j = new Judy(Judy::STRING_TO_INT_HASH, true); $j["a"] = 1;' \
+            > /tmp/negative-control-payload.log 2>&1
+          rc=$?
+          set -e
+          cat /tmp/negative-control-payload.log
+
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::a stale payload mirror ran to completion — the payload assertion is not working"
+            exit 1
+          fi
+          grep -q 'mirrored payload' /tmp/negative-control-payload.log \
+            || { echo "::error::process failed but not via the payload assertion — check the log above"; exit 1; }
+          echo "Negative control passed: the assertions caught the stale mirror."
+
+          # Same broken build, default-constructed instance: the deleted write
+          # was gated off, so nothing should fire. If this aborts, the gate is
+          # not a gate and "optimizeIteration defaults to off" is not true.
+          set +e
+          php -d extension="$(pwd)/modules/judy.so" \
+            -r '$j = new Judy(Judy::STRING_TO_INT_HASH); $j["a"] = 1; echo $j["a"];' \
+            > /tmp/negative-control-default.log 2>&1
+          rc=$?
+          set -e
+          cat /tmp/negative-control-default.log
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::a default-constructed instance depends on the mirror write — the opt-in gate leaks"
+            exit 1
+          fi
+
+          git checkout -- php_judy.c
+
+      - name: Negative control — write the mirror unconditionally, require the abort
+        run: |
+          # The mirror-off half of the invariant: on an instance that did not
+          # ask for it, the key_index value word must still be the 0 that JSLI
+          # left there. Drop the gate on the offsetSet mirror write so a
+          # default-constructed array mirrors anyway, and require check (5) to
+          # catch it. Without this control, "default off" is an intention
+          # rather than a tested property — a leaked mirror write is two valid
+          # words and passes every other check in the file.
+          sed -i 's|if (mirror_out != NULL \&\& intern->mirror_payload) {|if (mirror_out != NULL) { /* gate removed by the CI negative control */|' php_judy.c
+          grep -q 'gate removed by the CI negative control' php_judy.c \
+            || { echo "::error::negative control did not apply — the anchor line in php_judy.c moved"; exit 1; }
+          make
+
+          set +e
+          php -d extension="$(pwd)/modules/judy.so" \
+            -r '$j = new Judy(Judy::STRING_TO_INT_HASH); $j["a"] = 1;' \
+            > /tmp/negative-control-leak.log 2>&1
+          rc=$?
+          set -e
+          cat /tmp/negative-control-leak.log
+
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::a mirror write on an unmirrored instance ran to completion — check (5) is not working"
+            exit 1
+          fi
+          grep -q 'does not mirror' /tmp/negative-control-leak.log \
+            || { echo "::error::process failed but not via the unmirrored-slot assertion — check the log above"; exit 1; }
+          echo "Negative control passed: the assertions caught the leaked mirror write."
+
+          git checkout -- php_judy.c
+
   validate-pecl:
     runs-on: ubuntu-latest
     steps:

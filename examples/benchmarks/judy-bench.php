@@ -9,7 +9,8 @@
  *   core     — All Judy types + PHP array: write, read, foreach, free, memory
  *   api      — Batch ops, set ops, keys/values, sumValues, populationCount,
  *              deleteRange, equals
- *   advanced — C-level forEach/filter/map, adaptive SSO comparison
+ *   advanced — C-level forEach/filter/map, the optimizeIteration trade,
+ *              adaptive SSO comparison
  *   all      — All of the above (default)
  *
  * Usage:
@@ -176,11 +177,55 @@ function record(string $id, float $median_ms, array $runs = [], ?int $heap = nul
     $json_results['benchmarks'][$id] = $entry;
 }
 
+/**
+ * Record what the optimizeIteration opt-in costs relative to the default
+ * instance *of the same build*, as a percentage of the default.
+ *
+ * Why a ratio at all. An absolute optimized timing has no counterpart on the
+ * release-comparison baseline arm — that arm runs the last PECL release, which
+ * predates the API and therefore never emits these ids. Those absolutes land
+ * in the comparison's "new" bucket and only become comparable from the first
+ * release-over-release run after a release ships the feature. A ratio taken
+ * inside one binary needs no baseline, so it is the half of this section that
+ * answers "is the win still there?" today.
+ *
+ * Direction. Encoded so that worse is always larger, which is the direction
+ * scripts/bench-compare.php reports as SLOWER:
+ *   - traversal sits below 100 (76 == "optimized foreach costs 76% of
+ *     default"). If the win erodes the value climbs toward 100; if it inverts
+ *     it passes 100. Either way it rises, and a rise past the threshold is
+ *     flagged.
+ *   - writes sit above 100, the price of the trade. A deepening penalty also
+ *     raises the value.
+ *
+ * Scale. Reported as a percentage rather than a bare ratio because
+ * bench-compare.php skips any benchmark under its --min-ms floor (2.0 by
+ * default) on both arms; a 0.76 would fall under it and never be evaluated.
+ */
+function record_optiter_ratio(string $op, string $type_id, float $default_ms, float $optimized_ms): void {
+    if ($default_ms <= 0.0) {
+        // Nothing meaningful to divide by. Emit no entry at all rather than a
+        // zero that would read downstream as a real measurement.
+        return;
+    }
+    record("adv.optiter.ratio.$op.$type_id.judy", $optimized_ms / $default_ms * 100.0);
+}
+
 // ── Detect available types ──────────────────────────────────────────────────
 
 $has_packed  = defined('Judy::INT_TO_PACKED');
 $has_hash    = defined('Judy::STRING_TO_INT_HASH');
 $has_adaptive = defined('Judy::STRING_TO_INT_ADAPTIVE');
+
+// The optimizeIteration opt-in landed after the last release, so the arm that
+// scripts/bench-compare.php installs from PECL cannot construct an optimized
+// instance at all. Probe the *class*, never the constructor: on a build
+// without the feature `new Judy($t, optimizeIteration: true)` raises "Unknown
+// named parameter $optimizeIteration", which would abort the baseline arm and
+// take the whole release comparison down with it. isIterationOptimized() and
+// the constructor argument shipped in the same commit, so the method's
+// presence is exactly the feature's presence.
+$has_optiter = method_exists('Judy', 'isIterationOptimized');
 
 // ── Header ──────────────────────────────────────────────────────────────────
 
@@ -1018,6 +1063,141 @@ printf("  %-{$col_adv[0]}s  %{$col_adv[1]}s  %{$col_adv[2]}s  %{$col_adv[3]}s\n"
 
 unset($j_int, $j_str);
 echo "\n";
+
+// ── Advanced: the optimizeIteration trade ───────────────────────────────────
+//
+// Skipped wholesale on a build without the opt-in, so the release-comparison
+// baseline arm runs this group to completion and simply emits its usual id set
+// with these entries absent. Nothing here may construct an optimized instance
+// before this gate.
+
+if ($has_optiter && $has_hash && $has_adaptive) {
+
+echo "── Advanced: optimizeIteration trade (opt-in key-index payload mirror) ──────\n\n";
+
+// Capped independently of --size. This section runs twenty timed benchmarks
+// and the headline CI invocation passes --size 500000, where the full element
+// count would cost more wall clock than the trade is worth measuring at. What
+// this section reports is a ratio, a property of the storage rather than of n.
+$n_oi = min($size, 200000);
+
+/** Distinct keys of exactly $len bytes (fixed-width index, then padded). */
+$optiter_keys = static function (int $n, int $len): array {
+    $keys = [];
+    for ($i = 0; $i < $n; $i++) {
+        $keys[] = str_pad('oi_' . str_pad((string)$i, 9, '0', STR_PAD_LEFT), $len, '#');
+    }
+    return $keys;
+};
+
+// The two key lengths #100 measured, which are also the two ends of the trade:
+// the read win grows with key length while the write penalty shrinks. Only
+// STRING_TO_INT_HASH and STRING_TO_INT_ADAPTIVE can honour the flag, and
+// ADAPTIVE only at 8 bytes or more — both lengths here clear that.
+$oi_sets = [
+    ['id' => 'string_to_int_hash',     'label' => 'HASH kl16',
+     'type' => Judy::STRING_TO_INT_HASH,     'keylen' => 16],
+    ['id' => 'string_to_int_adaptive', 'label' => 'ADAPTIVE kl40',
+     'type' => Judy::STRING_TO_INT_ADAPTIVE, 'keylen' => 40],
+];
+
+$col_oi = [30, 12, 12, 12];
+printf("  %-{$col_oi[0]}s  %{$col_oi[1]}s  %{$col_oi[2]}s  %{$col_oi[3]}s\n",
+    'Operation', 'default(ms)', 'optim.(ms)', 'optim./def.');
+printf("  %-{$col_oi[0]}s  %{$col_oi[1]}s  %{$col_oi[2]}s  %{$col_oi[3]}s\n",
+    str_repeat('─', $col_oi[0]), str_repeat('─', $col_oi[1]),
+    str_repeat('─', $col_oi[2]), str_repeat('─', $col_oi[3]));
+
+$oi_skipped = [];
+
+foreach ($oi_sets as $set) {
+    $keys = $optiter_keys($n_oi, $set['keylen']);
+
+    $oi_def = new Judy($set['type']);
+    $oi_opt = new Judy($set['type'], optimizeIteration: true);
+    foreach ($keys as $i => $k) {
+        $oi_def[$k] = $i;
+        $oi_opt[$k] = $i;
+    }
+
+    // Reported, not gated on. A build that stops honouring the request for a
+    // type it used to honour has lost the win just as surely as one whose
+    // mirror got slower, and the ratio below climbs to ~100 in both cases —
+    // which is what should be flagged. Skipping here would hide that instead.
+    $honoured = $oi_opt->isIterationOptimized() && !$oi_def->isIterationOptimized();
+
+    // Ordered traversal — the side the trade buys.
+    $ops = [
+        // Keyed foreach on purpose: it is the shape #100 measured, and the
+        // unkeyed form does not ask the iterator for a key at all.
+        'foreach' => [
+            static function () use ($oi_def) { $s = 0; foreach ($oi_def as $k => $v) { $s += $v; } },
+            static function () use ($oi_opt) { $s = 0; foreach ($oi_opt as $k => $v) { $s += $v; } },
+        ],
+        'values' => [
+            static function () use ($oi_def) { $oi_def->values(); },
+            static function () use ($oi_opt) { $oi_opt->values(); },
+        ],
+        'toArray' => [
+            static function () use ($oi_def) { $oi_def->toArray(); },
+            static function () use ($oi_opt) { $oi_opt->toArray(); },
+        ],
+        // Write path — the side the trade pays with. Both run against the
+        // already-populated instance, so they measure the overwrite path
+        // rather than insertion, which is where the mirror's second update
+        // shows up.
+        'overwrite' => [
+            static function () use ($oi_def, $keys) { foreach ($keys as $i => $k) { $oi_def[$k] = $i; } },
+            static function () use ($oi_opt, $keys) { foreach ($keys as $i => $k) { $oi_opt[$k] = $i; } },
+        ],
+    ];
+
+    // increment() is not defined for every type that honours the opt-in —
+    // STRING_TO_INT_ADAPTIVE throws for it. Probe with one call rather than
+    // hard-coding the list, so this section keeps working if the supported
+    // set changes.
+    try {
+        $oi_def->increment($keys[0]);
+        $oi_opt->increment($keys[0]);
+        $ops['increment'] = [
+            static function () use ($oi_def, $keys) { foreach ($keys as $k) { $oi_def->increment($k); } },
+            static function () use ($oi_opt, $keys) { foreach ($keys as $k) { $oi_opt->increment($k); } },
+        ];
+    } catch (\Throwable $e) {
+        // Left out of the results entirely: no id, no zero-valued entry.
+        $oi_skipped[] = "increment() {$set['label']}: " . $e->getMessage();
+    }
+
+    foreach ($ops as $op => $fns) {
+        $t_def = bench_median($fns[0], $iterations);
+        $t_opt = bench_median($fns[1], $iterations);
+
+        record("adv.optiter.$op.{$set['id']}.default.judy",   $t_def['median'], $t_def['runs']);
+        record("adv.optiter.$op.{$set['id']}.optimized.judy", $t_opt['median'], $t_opt['runs']);
+        record_optiter_ratio($op, $set['id'], $t_def['median'], $t_opt['median']);
+
+        printf("  %-{$col_oi[0]}s  %{$col_oi[1]}s  %{$col_oi[2]}s  %{$col_oi[3]}s\n",
+            "$op() {$set['label']}",
+            sprintf('%.2f', $t_def['median']), sprintf('%.2f', $t_opt['median']),
+            $t_def['median'] > 0
+                ? sprintf('%.1f%%', $t_opt['median'] / $t_def['median'] * 100.0)
+                : 'n/a');
+    }
+    printf("  %-{$col_oi[0]}s  %s\n", "  {$set['label']}: honoured?",
+        $honoured ? 'yes' : 'NO — the opt-in did not take effect');
+
+    unset($oi_def, $oi_opt, $keys, $ops);
+}
+
+foreach ($oi_skipped as $why) {
+    echo "  skipped — $why\n";
+}
+
+echo "\n  Ratios are optimized as a percentage of default, measured inside this\n";
+echo "  build; below 100 is the traversal win, above 100 the write price. Lower\n";
+echo "  is better on every row, so a lost win reads as a rise.\n\n";
+
+} // end optimizeIteration section
 
 } // end adv.iter group
 
