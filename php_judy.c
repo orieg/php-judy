@@ -1897,6 +1897,19 @@ PHP_METHOD(Judy, searchNext)
 }
 /* }}} */
 
+/* Release the iterator's current key and mark the walk invalid.
+ *
+ * iterator_key holds a refcounted zend_string on the string-keyed types, so
+ * blanking it with a bare ZVAL_UNDEF leaks that string. Every end-of-walk and
+ * invalid-state path must go through here. zval_ptr_dtor is a no-op on the
+ * already-UNDEF and IS_LONG cases, so this is safe on the integer-keyed paths
+ * too and keeps the rule uniform. */
+static zend_always_inline void judy_iterator_key_clear(judy_object *intern)
+{
+	zval_ptr_dtor(&intern->iterator_key);
+	ZVAL_UNDEF(&intern->iterator_key);
+}
+
 /* {{{ Iterator interface next() method - Fixes GitHub issue #25
  *
  * This method was separated from the original Judy::next() search function
@@ -1932,7 +1945,7 @@ PHP_METHOD(Judy, next)
 			ZVAL_BOOL(&intern->iterator_data, 1);
 			intern->iterator_initialized = 1;
 		} else {
-			ZVAL_UNDEF(&intern->iterator_key);
+			judy_iterator_key_clear(intern);
 			intern->iterator_initialized = 0;
 		}
 
@@ -1959,7 +1972,7 @@ PHP_METHOD(Judy, next)
 			}
 			intern->iterator_initialized = 1;
 		} else {
-			ZVAL_UNDEF(&intern->iterator_key);
+			judy_iterator_key_clear(intern);
 			ZVAL_UNDEF(&intern->iterator_data);
 			intern->iterator_initialized = 0;
 		}
@@ -1980,7 +1993,7 @@ PHP_METHOD(Judy, next)
 			}
 		} else {
 			/* Invalid key type, mark iterator as invalid */
-			ZVAL_UNDEF(&intern->iterator_key);
+			judy_iterator_key_clear(intern);
 			intern->iterator_initialized = 0;
 			return;
 		}
@@ -1999,7 +2012,7 @@ PHP_METHOD(Judy, next)
 			}
 			intern->iterator_initialized = 1;
 		} else {
-			ZVAL_UNDEF(&intern->iterator_key);
+			judy_iterator_key_clear(intern);
 			intern->iterator_initialized = 0;
 		}
 	}
@@ -2027,7 +2040,7 @@ PHP_METHOD(Judy, rewind)
 			intern->iterator_initialized = 1;
 		} else {
 			/* Array is empty, mark iterator as invalid */
-			ZVAL_UNDEF(&intern->iterator_key);
+			judy_iterator_key_clear(intern);
 			ZVAL_UNDEF(&intern->iterator_data);
 			intern->iterator_initialized = 0;
 		}
@@ -2054,7 +2067,7 @@ PHP_METHOD(Judy, rewind)
 			}
 			intern->iterator_initialized = 1;
 		} else {
-			ZVAL_UNDEF(&intern->iterator_key);
+			judy_iterator_key_clear(intern);
 			ZVAL_UNDEF(&intern->iterator_data);
 			intern->iterator_initialized = 0;
 		}
@@ -2083,7 +2096,7 @@ PHP_METHOD(Judy, rewind)
 			}
 			intern->iterator_initialized = 1;
 		} else {
-			ZVAL_UNDEF(&intern->iterator_key);
+			judy_iterator_key_clear(intern);
 			ZVAL_UNDEF(&intern->iterator_data);
 			intern->iterator_initialized = 0;
 		}
