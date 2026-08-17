@@ -2,6 +2,8 @@
 Test foreach() with var_dump() on INT_TO_INT Judy array
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
+--INI--
+judy.debug_preview_size=16
 --FILE--
 <?php
 /*
@@ -31,13 +33,30 @@ foreach ($judy as $k => $v) {
 
 unset($judy);
 ?>
---EXPECT--
+--EXPECTF--
 Instantiate object: $judy
 echo values
 17
 71
 var_dump($judy)
-object(Judy)#1 (0) {
+object(Judy)#1 (6) {
+  ["type"]=>
+  string(10) "INT_TO_INT"
+  ["count"]=>
+  int(2)
+  ["memoryUsage"]=>
+  int(%d)
+  ["firstKey"]=>
+  int(125)
+  ["lastKey"]=>
+  int(521)
+  ["preview"]=>
+  array(2) {
+    [125]=>
+    int(17)
+    [521]=>
+    int(71)
+  }
 }
 var_dump($judy[125])
 int(17)

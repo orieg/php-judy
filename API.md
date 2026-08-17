@@ -102,12 +102,12 @@ Frees all memory used by the Judy array and resets the element count. Returns th
 public function memoryUsage(): ?int
 ```
 
-Returns the number of bytes used by the internal Judy structure. Returns `null` for string-keyed types (JudySL and JudyHS do not provide memory accounting).
+Returns the number of bytes used by the internal Judy structure. **The number means two different things depending on the key category, and callers must know which.** Integer-keyed types return libJudy's *exact* figure. String-keyed types return an *approximate* figure the extension maintains itself, because JudySL/JudyHS expose no accounting: it counts only the payload — stored key bytes (counted twice for the `_HASH` types, which hold each key in both the value store and the key index), one machine word per value slot, and the `zval` box allocated for each `_MIXED` value — and excludes everything libJudy allocates for its own trie and hash nodes. Treat it as a **lower bound**, good for tracking growth within one array, not for comparing against the exact figure. Both variants are O(1) and return `0` for a newly constructed or emptied array.
 
-| Supported Types                                 | Returns       |
-| ----------------------------------------------- | ------------- |
-| BITSET, INT_TO_INT, INT_TO_MIXED, INT_TO_PACKED | `int` (bytes) |
-| All string-keyed types                          | `null`        |
+| Supported Types                                 | Returns                                                                       |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| BITSET, INT_TO_INT, INT_TO_MIXED, INT_TO_PACKED | `int` (bytes, exact — `Judy1MemUsed`/`JudyLMemUsed`)                          |
+| All string-keyed types                          | `int` (bytes, **approximate** — payload only, excludes libJudy node overhead) |
 
 ### size()
 
@@ -613,7 +613,7 @@ Summary of which methods are available for each type. Methods not listed here wo
 
 | Method                     | BITSET | INT_TO_INT | INT_TO_MIXED | INT_TO_PACKED | STR_INT | STR_MIXED | STR_INT_HASH | STR_MIX_HASH | STR_INT_ADAPT | STR_MIX_ADAPT |
 | -------------------------- | ------ | ---------- | ------------ | ------------- | ------- | --------- | ------------ | ------------ | ------------- | ------------- |
-| `memoryUsage()`            | int    | int        | int          | int           | null    | null      | null         | null         | null          | null          |
+| `memoryUsage()`            | int    | int        | int          | int           | approx  | approx    | approx       | approx       | approx        | approx        |
 | `union/intersect/diff/xor` | yes    | yes        | -            | -             | yes     | -         | yes          | -            | -             | -             |
 | `populationCount()`        | yes    | yes        | yes          | yes           | -       | -         | -            | -            | -             | -             |
 | `sumValues()`              | yes    | yes        | -            | -             | yes     | -         | yes          | -            | yes           | -             |
@@ -622,6 +622,6 @@ Summary of which methods are available for each type. Methods not listed here wo
 | `byCount()`                | yes    | yes        | yes          | yes           | null    | null      | null         | null         | null          | null          |
 | `firstEmpty()` etc.        | yes    | yes        | yes          | yes           | null    | null      | null         | null         | null          | null          |
 
-**Legend**: `yes` = supported, `-` = throws exception, `null` = silently returns null, `int` = returns integer value.
+**Legend**: `yes` = supported, `-` = throws exception, `null` = silently returns null, `int` = returns an exact integer value, `approx` = returns an approximate integer value (see the method entry).
 
 All other methods (`slice`, `deleteRange`, `forEach`, `filter`, `map`, `keys`, `values`, `equals`, `mergeWith`, `toArray`, `fromArray`, `putAll`, `getAll`) work with all 10 types.

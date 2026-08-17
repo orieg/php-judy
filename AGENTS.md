@@ -70,11 +70,37 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
 - **`next()` is the Iterator method** (returns void, advances the cursor).
   The ordered *search* is `searchNext($index)`. Pre-2.x code and old stubs
   (php.net manual, outdated IDE stubs) show `next($index)` — that API is gone.
-- **`memoryUsage()` returns `null` for string-keyed types** (JudySL/JudyHS
-  provide no accounting). Only integer-keyed types report bytes.
+- **`memoryUsage()` returns two different kinds of number.** Integer-keyed
+  types report libJudy's EXACT total (`Judy1MemUsed`/`JudyLMemUsed`).
+  String-keyed types report an APPROXIMATION the extension maintains itself,
+  because JudySL/JudyHS expose no accounting: it counts payload only — stored
+  key bytes (twice for the `_HASH` types, which hold each key in the value
+  store and in the key index), one word per value slot, and the `zval` box per
+  `_MIXED` value — and excludes everything libJudy allocates for its trie and
+  hash nodes. It is a LOWER BOUND: useful for tracking growth within one array,
+  wrong to compare against an integer-keyed array's exact figure. Both are
+  O(1) and both return `0` for a new or emptied array. For the true
+  string-keyed footprint measure peak RSS in a separate process, or Massif via
+  `examples/benchmarks/judy-bench-memory.php`. Details: BENCHMARK.md
+  "Understanding `Judy::memoryUsage()`".
+- **`var_dump()`/`print_r()` show a synthetic, TRUNCATED view.** A Judy object
+  dumps as `type` (the name, e.g. `INT_TO_INT`), `count`, `memoryUsage` (plus
+  `memoryUsageIsApproximate => true` for string-keyed types, as above),
+  `firstKey`, `lastKey`, and `preview` — plus
+  `previewTruncated` whenever fewer elements are shown than the array
+  holds. `preview` is capped at `judy.debug_preview_size` (default 16,
+  `PHP_INI_ALL`, so `ini_set()` works mid-session); `0` disables the element
+  preview and leaves metadata only, and negatives clamp to 0. The cap exists
+  because a debug dump has to stay cheap enough to be safe at a breakpoint —
+  Xdebug and the PhpStorm/VS Code variable panels read the same handler over
+  DBGp, and serializing millions of elements there would hang the session.
+  **Never read element counts off a dump**: `count` and `previewTruncated`
+  carry the true total, `preview` is a sample. For the real contents use
+  `toArray()`/`keys()`/`values()`, which are unaffected by the INI.
 - **Judy memory is invisible to `memory_get_usage()`** — it allocates outside
-  PHP's memory manager. Measure peak RSS (`getrusage()['ru_maxrss']`) in a
-  separate process for honest comparisons.
+  PHP's memory manager, and Xdebug's memory column inherits that blindness.
+  Measure peak RSS (`getrusage()['ru_maxrss']`) in a separate process for
+  honest comparisons; see "Debugging and profiling Judy code" below.
 - **`*_HASH` and `*_ADAPTIVE` types DO iterate in key order** — they keep a
   sorted key index alongside the value store, so `foreach`, `first()` +
   `searchNext()` and prefix walks all work and return lexicographic order.
@@ -103,6 +129,41 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
 - Keys are `int` (platform word) or binary-safe `string` depending on type;
   mixing categories in set ops (`union` etc.) with a different key category
   throws.
+
+### Debugging and profiling Judy code
+
+- **Judy and Xdebug coexist; load order does not matter.** Judy is a module
+  extension that registers a class and object handlers and does not hook the
+  executor; Xdebug is a zend_extension that does. Verified empirically, not
+  argued: `php:8.4-cli` with judy built from source + Xdebug 3.5.3 from PECL,
+  both `extension_loaded()` true, `var_dump()` of a Judy object correct under
+  `xdebug.mode=develop` (Xdebug overrides `var_dump()` and goes through the
+  same `get_debug_info` handler), iteration correct, and swapping
+  `-d extension=judy.so` / `-d zend_extension=xdebug.so` changes nothing.
+- **Do NOT diagnose Judy memory with a profiler.** Xdebug's memory column is
+  `memory_get_usage()` underneath, and Judy allocates outside PHP's memory
+  manager. Measured: a function filling `STRING_TO_INT` with 50K keys traced at
+  `xdebug.mode=trace` shows a 65,696-byte delta — PHP-side overhead only, none
+  of the ~1.24 MB of trie it actually allocated — while the equivalent PHP
+  array shows its full 4,941,520 bytes. Judy looks free exactly where a user is
+  hunting a memory-limit crash. Use `memoryUsage()` (in-process; exact for
+  integer-keyed types, an approximate lower bound for string-keyed ones) and
+  peak RSS via `getrusage()['ru_maxrss']` measured in a **separate process**.
+- **The signal profilers DO give is call counts.** `$j[$key]` dispatches
+  straight to the extension's dimension handler, so it does not appear in a
+  trace or cachegrind profile at all — the cost lands in the enclosing
+  function. Explicit `$j->offsetGet($key)` calls do appear one per lookup
+  (5,000 lookups = 5,000 entries) against a single entry for the bulk call.
+  Either way the fix is the bulk API: `getAll()` 1.9x faster than individual
+  lookups (int keys, 10K lookups over 100K elements) and `toArray()` 2.8x
+  faster than a manual `foreach` (100K int-keyed; 3.1x string-keyed) — measured,
+  BENCHMARK.md Tables 5 and 6. `forEach()`/`filter()`/`map()` are the same
+  trade for callback loops.
+- **What an IDE variable pane shows** is the `get_debug_info` output described
+  in the `var_dump()` pitfall above: whole-array `count`/`firstKey`/`lastKey`,
+  a `preview` sample bounded by `judy.debug_preview_size` (0 = metadata only),
+  a `previewTruncated` note carrying the true total whenever the preview is
+  short, and `memoryUsageIsApproximate` on the string-keyed types.
 
 ## Modifying the extension (working in this repo)
 
@@ -147,5 +208,9 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   `ip-range-lookup.php` (floor lookup via `last()` — CIDR, tariff bands),
   `sliding-window-rate-limit.php` (time-bucket expiry via `deleteRange()`),
   `prefix-invalidation.php` (namespace drop via `first()` + `searchNext()`),
+  `coverage-index.php` (nested `file -> line -> ids` maps flattened into one
+  `BITSET` over packed keys, merged with `union()`/`mergeWith()`, then queried
+  for test-impact selection — the contiguous-block walk, and why an uncovered
+  changed line must widen rather than select nothing),
   `autocomplete-trie.php` (prefix search), `worker-counters.php` (atomic
   `increment()`), `quickstart.php` (API tour).
