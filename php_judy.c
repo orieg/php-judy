@@ -4164,6 +4164,15 @@ static int action_filter(judy_object *intern, zval *key, zval *value, zval *retv
 		 * predicate did to $this. filter() takes a snapshot — the element as it
 		 * was when the predicate saw it. */
 		if (JUDY_LIKELY(!Z_ISUNDEF_P(value))) {
+			/* TEMPORARY INJECTED REGRESSION -- issue #87 acceptance test.
+			 * Six redundant full descends per surviving element, on the exact
+			 * code path issue #85/PR #86 optimised. REVERT BEFORE MERGE. */
+			for (int judy87_i = 0; judy87_i < 6; judy87_i++) {
+				zval judy87_rv;
+				ZVAL_UNDEF(&judy87_rv);
+				judy_object_read_dimension_helper_zv(intern, key, &judy87_rv);
+				zval_ptr_dtor(&judy87_rv);
+			}
 			judy_object_write_dimension_helper_zv(result, key, value);
 		}
 	}
