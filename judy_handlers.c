@@ -274,6 +274,10 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 
 	new_obj->array = newJArray;
 	new_obj->counter = old_obj->counter;
+	/* The approximate payload total is a pure function of the key set and the
+	   value shape, and a clone reproduces both — so it carries over with the
+	   population count rather than being re-derived by a second O(n) walk. */
+	new_obj->approx_payload_bytes = old_obj->approx_payload_bytes;
 	/* Do not trust a copied append watermark: force the next `$j[] =` to
 	 * recompute the empty slot, otherwise a cloned array would append at
 	 * index 0 and overwrite an existing element. */

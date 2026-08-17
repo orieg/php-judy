@@ -9,10 +9,12 @@
  * internal Judy memory via JudyLMemUsed / Judy1MemUsed (O(1) lookup of the
  * JPM TotalMemWords counter).
  *
- * For JudySL (STRING_TO_INT, STRING_TO_MIXED), memoryUsage() returns NULL
- * because the Judy C library provides no JSLMU macro, and JudySL allocates
- * via C malloc (invisible to PHP's memory_get_usage()).  These types are
- * included in the insertion throughput comparison but not memory footprint.
+ * For JudySL (STRING_TO_INT, STRING_TO_MIXED) the C library provides no JSLMU
+ * macro, so memoryUsage() returns an APPROXIMATION maintained by the extension:
+ * payload bytes only (stored key bytes, value slots, zval boxes), excluding the
+ * trie nodes libJudy mallocs — which are invisible to PHP's memory_get_usage()
+ * as well. Treat the string-keyed figures below as a lower bound; the exact
+ * footprint needs Massif (judy-bench-memory.php) or peak RSS.
  *
  * All timings are median of N iterations using hrtime(true).
  */
@@ -221,9 +223,10 @@ foreach ($sizes as $size) {
 echo "\n";
 
 echo "  Note: STRING_TO_INT / STRING_TO_MIXED memory cannot be measured\n";
-echo "  directly. Judy::memoryUsage() returns NULL for these types (no\n";
-echo "  JudySL memory-accounting macro in the C library), and JudySL\n";
-echo "  allocates via C malloc — invisible to PHP's memory_get_usage().\n\n";
+echo "  exactly. Judy::memoryUsage() reports an approximation for these types\n";
+echo "  (payload bytes only — no JudySL memory-accounting macro exists), and\n";
+echo "  JudySL node memory goes through C malloc, invisible to\n";
+echo "  memory_get_usage(). Use Massif or peak RSS for the true figure.\n\n";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 2. memoryUsage() API details
@@ -267,7 +270,7 @@ foreach ($types as $name => $type) {
     $macro = match($type) {
         Judy::BITSET     => "J1MU",
         Judy::INT_TO_INT, Judy::INT_TO_MIXED => "JLMU",
-        default          => "(none)",
+        default          => "approx",
     };
 
     printf("  %-20s  %-12s  %-18s  %-12s\n", $name, $macro, $empty_str, $full_str);

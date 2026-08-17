@@ -50,10 +50,30 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
     public function free(): int {}
 
     /**
-     * Return the memory used by the internal Judy structure.
+     * Return the memory used by the internal Judy structure, in bytes.
      *
-     * Returns null for string-keyed types (JudySL/JudyHS do not provide
-     * memory accounting).
+     * The number means two different things, and callers relying on it must
+     * know which they are looking at:
+     *
+     * - Integer-keyed types (BITSET, INT_TO_INT, INT_TO_MIXED, INT_TO_PACKED)
+     *   return libJudy's EXACT figure (Judy1MemUsed/JudyLMemUsed): every byte
+     *   the library allocated for the array. It excludes the PHP heap used by
+     *   the values themselves (zvals for INT_TO_MIXED, buffers for
+     *   INT_TO_PACKED).
+     * - String-keyed types (STRING_TO_INT, STRING_TO_MIXED and their _HASH and
+     *   _ADAPTIVE variants) return an APPROXIMATE figure maintained by the
+     *   extension, because JudySL/JudyHS expose no accounting of their own. It
+     *   counts only the payload: the stored key bytes (twice for the _HASH
+     *   types, which hold each key in both the value store and the key index),
+     *   one machine word per value slot, and the zval box allocated for each
+     *   _MIXED value. It EXCLUDES everything libJudy allocates for its trie and
+     *   hash nodes, so it is a LOWER BOUND on the real footprint — usually a
+     *   large one — and must not be compared against the exact figure the
+     *   integer-keyed types return. It is well suited to tracking growth and
+     *   comparing populations within one array type.
+     *
+     * Both are O(1). Returns 0 for a newly constructed or emptied array, and
+     * null only for an array whose type was never initialised.
      */
     public function memoryUsage(): ?int {}
 

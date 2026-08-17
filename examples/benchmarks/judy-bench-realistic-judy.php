@@ -41,7 +41,8 @@ foreach ($element_counts as $element_count) {
     $start_time = microtime(true);
     $judy = new Judy(Judy::STRING_TO_INT); foreach ($keys as $k) $judy[$k] = 1;
     $results[$scenario]['Judy']['Write Time'] = microtime(true) - $start_time;
-    // For string-based Judy arrays, memoryUsage() returns NULL, so we use size() as approximation
+    // For string-based Judy arrays memoryUsage() is only an approximation of the
+    // payload, so we use size() here instead
     $memory_usage = $judy->memoryUsage();
     if ($memory_usage === null) {
         // Estimate memory usage based on size and average string length

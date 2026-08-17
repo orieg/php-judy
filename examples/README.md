@@ -18,6 +18,7 @@ php examples/quickstart.php
 | [ip-range-lookup.php](ip-range-lookup.php) | Floor lookup (`last()`) over range tables — IPs, tariffs, time buckets | `INT_TO_MIXED` |
 | [sliding-window-rate-limit.php](sliding-window-rate-limit.php) | Sliding-window rate limiting / rolling metrics — `deleteRange()` expiry that visits only aged-out buckets | `INT_TO_INT` |
 | [prefix-invalidation.php](prefix-invalidation.php) | Namespace invalidation (`user:123:*`) walking only the matching key slice, with a keys-visited comparison against a hash table | `STRING_TO_MIXED` |
+| [coverage-index.php](coverage-index.php) | Line-coverage index (`file -> line -> tests`) as one BITSET over packed keys, plus test-impact selection ("which tests must this diff run?"): interning, `union()`/`mergeWith()` merge of per-worker indexes, range-walk queries, sound escalation for changed lines with no recorded coverage, and an honest peak-RSS **and selection wall-time** comparison against the nested-array shape — with selection written both as a per-id `first()`/`searchNext()` walk and as bulk `populationCount()`/`slice()`/`keys()`, since the usual "prefer bulk" rule does not transfer cleanly to a bounded range read | `BITSET`, `STRING_TO_INT_HASH`, `INT_TO_MIXED` |
 
 ## Choosing a type
 
