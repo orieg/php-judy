@@ -249,7 +249,13 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
      */
     public function forEach(callable $callback): void {}
 
-    /** Return a new Judy array containing only elements matching the predicate. */
+    /**
+     * Return a new Judy array containing only elements matching the predicate.
+     *
+     * The value copied into the result is the one the predicate was handed. A
+     * predicate that writes or unsets `$this[$key]` does not change what is
+     * copied for that element.
+     */
     public function filter(callable $predicate): Judy {}
 
     /** Return a new Judy array with values transformed by the callback. */

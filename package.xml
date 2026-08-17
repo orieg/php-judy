@@ -255,6 +255,7 @@
          <file name="tests/delete_range_001.phpt" role="test" />
          <file name="tests/equals_001.phpt" role="test" />
          <file name="tests/foreach_string_key_stress_001.phpt" role="test" />
+         <file name="tests/filter_snapshot_semantics_001.phpt" role="test" />
          <file name="tests/adaptive_clone_isset_unset_empty_slice.phpt" role="test" />
          <file name="tests/keys_values_001.phpt" role="test" />
          <file name="tests/merge_with.phpt" role="test" />

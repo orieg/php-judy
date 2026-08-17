@@ -283,7 +283,7 @@ $judy->forEach(function ($key, $value) {
 PHP,
         ],
         'filter' => [
-            'description' => 'Returns a new Judy array containing only elements for which `$predicate($key, $value)` returns `true`.',
+            'description' => "Returns a new Judy array containing only elements for which `\$predicate(\$key, \$value)` returns `true`.\n\nThe value copied into the result is the one the predicate was handed. A predicate that writes or unsets `\$this[\$key]` does not change what is copied for that element.",
             'supported_types' => 'All types.',
         ],
         'map' => [

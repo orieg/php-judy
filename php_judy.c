@@ -3967,7 +3967,16 @@ PHP_METHOD(Judy, equals)
 }
 /* }}} */
 
-typedef int (*judy_callback_action)(judy_object *intern, zval *key, zval *value, void *data);
+/* Callback action hook.
+ *
+ * `value` is the element's value as the iterator already materialised it in
+ * args[0] — an owned zval (ZVAL_COPY for MIXED types, a scalar otherwise) that
+ * stays valid for the whole action call even if the user callback mutated or
+ * deleted the underlying entry. Actions that need the value must use it rather
+ * than reading the store again: a second lookup costs a full descend per
+ * element and would observe post-callback state (see issue #85). `retval` is
+ * what the user callback returned. */
+typedef int (*judy_callback_action)(judy_object *intern, zval *key, zval *value, zval *retval, void *data);
 
 static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, zend_fcall_info_cache *fci_cache, judy_callback_action action, void *data)
 {
@@ -3996,7 +4005,7 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 				fci->retval = &retval;
 
 				if (zend_call_function(fci, fci_cache) == SUCCESS && !Z_ISUNDEF(retval)) {
-					action_rc = action(intern, &args[1], &retval, data);
+					action_rc = action(intern, &args[1], &args[0], &retval, data);
 					zval_ptr_dtor(&retval);
 				} else {
 					action_rc = FAILURE;
@@ -4022,7 +4031,7 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 				fci->retval = &retval;
 
 				if (zend_call_function(fci, fci_cache) == SUCCESS && !Z_ISUNDEF(retval)) {
-					action_rc = action(intern, &args[1], &retval, data);
+					action_rc = action(intern, &args[1], &args[0], &retval, data);
 					zval_ptr_dtor(&retval);
 				} else {
 					action_rc = FAILURE;
@@ -4061,7 +4070,7 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 				fci->retval = &retval;
 
 				if (zend_call_function(fci, fci_cache) == SUCCESS && !Z_ISUNDEF(retval)) {
-					action_rc = action(intern, &args[1], &retval, data);
+					action_rc = action(intern, &args[1], &args[0], &retval, data);
 					zval_ptr_dtor(&retval);
 				} else {
 					action_rc = FAILURE;
@@ -4104,7 +4113,7 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 				fci->retval = &retval;
 
 				if (zend_call_function(fci, fci_cache) == SUCCESS && !Z_ISUNDEF(retval)) {
-					action_rc = action(intern, &args[1], &retval, data);
+					action_rc = action(intern, &args[1], &args[0], &retval, data);
 					zval_ptr_dtor(&retval);
 				} else {
 					action_rc = FAILURE;
@@ -4127,7 +4136,7 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 		efree(cursor);
 	}
 }
-static int action_foreach(judy_object *intern, zval *key, zval *retval, void *data) {
+static int action_foreach(judy_object *intern, zval *key, zval *value, zval *retval, void *data) {
 	return SUCCESS; /* forEach just calls the callback, iterator handles it */
 }
 
@@ -4146,17 +4155,16 @@ PHP_METHOD(Judy, forEach)
 }
 /* }}} */
 
-static int action_filter(judy_object *intern, zval *key, zval *retval, void *data) {
+static int action_filter(judy_object *intern, zval *key, zval *value, zval *retval, void *data) {
 	judy_object *result = (judy_object *)data;
 	if (zend_is_true(retval)) {
-		/* We need to re-fetch the value from 'intern' to put it into 'result'
-		   because 'retval' is the callback result (bool), not the original value. */
-		zval value;
-		ZVAL_UNDEF(&value);
-		judy_object_read_dimension_helper_zv(intern, key, &value);
-		if (!Z_ISUNDEF(value)) {
-			judy_object_write_dimension_helper_zv(result, key, &value);
-			zval_ptr_dtor(&value);
+		/* Copy the value the iterator handed the predicate, not a fresh read of
+		 * the store: the re-read cost a second full descend per surviving
+		 * element (issue #85) and made the copied value depend on whatever the
+		 * predicate did to $this. filter() takes a snapshot — the element as it
+		 * was when the predicate saw it. */
+		if (JUDY_LIKELY(!Z_ISUNDEF_P(value))) {
+			judy_object_write_dimension_helper_zv(result, key, value);
 		}
 	}
 	return SUCCESS;
@@ -4178,7 +4186,7 @@ PHP_METHOD(Judy, filter)
 }
 /* }}} */
 
-static int action_map(judy_object *intern, zval *key, zval *retval, void *data) {
+static int action_map(judy_object *intern, zval *key, zval *value, zval *retval, void *data) {
 	judy_object *result = (judy_object *)data;
 	/* retval is the mapped value. We put it into the result at the same key. */
 	judy_object_write_dimension_helper_zv(result, key, retval);
