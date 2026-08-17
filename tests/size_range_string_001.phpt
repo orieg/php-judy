@@ -120,6 +120,26 @@ echo "== BITSET\n";
 echo "  size():           ", $b->size(), "\n";
 echo "  size(0,49):       ", $b->size(0, 49), "\n";
 echo "  size(50,99):      ", $b->size(50, 99), "\n";
+
+/* The bounds are unsigned machine words, and that is load-bearing rather than
+   incidental: -1 has to keep reading as the maximum bound (which is what makes
+   the no-argument default and the explicit size(0, -1) the same query), and
+   negative keys sort above PHP_INT_MAX, so a range over them must not be
+   treated as inverted. A signed comparison here would break both. */
+$n = new Judy(Judy::INT_TO_INT);
+$n[1] = 1;
+$n[5] = 5;
+$n[-2] = -2;
+$n[-1] = -1;
+echo "== negative keys\n";
+echo "  count:            ", count($n), "\n";
+echo "  size(0,-1):       ", $n->size(0, -1), "\n";
+echo "  == count():       ", $n->size(0, -1) === count($n) ? "yes" : "no", "\n";
+echo "  == size():        ", $n->size(0, -1) === $n->size() ? "yes" : "no", "\n";
+echo "  size(-2,-1):      ", $n->size(-2, -1), "\n";
+echo "  size(0,PHP_INT_MAX): ", $n->size(0, PHP_INT_MAX), "\n";
+echo "  size(PHP_INT_MIN,-1):", $n->size(PHP_INT_MIN, -1), "\n";
+echo "  == popCount:      ", $n->size(-2, -1) === $n->populationCount(-2, -1) ? "yes" : "no", "\n";
 ?>
 --EXPECT--
 == STRING_TO_INT
@@ -247,3 +267,12 @@ echo "  size(50,99):      ", $b->size(50, 99), "\n";
   size():           5
   size(0,49):       3
   size(50,99):      2
+== negative keys
+  count:            4
+  size(0,-1):       4
+  == count():       yes
+  == size():        yes
+  size(-2,-1):      2
+  size(0,PHP_INT_MAX): 2
+  size(PHP_INT_MIN,-1):2
+  == popCount:      yes
