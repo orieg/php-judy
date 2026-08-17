@@ -105,6 +105,17 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   proposing a backend swap.
 - **Benchmarks**: suite in `examples/benchmarks/`; CI compares PRs against
   `baselines/latest.json`. Don't update the baseline in a feature PR.
+- **Verify you are testing the build you think you are.** If any ini file
+  under `conf.d/` already loads `judy.so` (a Docker image built with
+  `docker-php-ext-enable judy`, a system install, a PIE install), that copy
+  wins and your `-d extension=/path/to/modules/judy.so` is **ignored** — the
+  only signal is `Module "judy" is already loaded in Unknown on line 0`.
+  Always use `PHP_INI_SCAN_DIR= php -d extension=...` (or `php -n -d ...`)
+  when measuring or valgrinding a build you just compiled. `judy_version()`
+  will not save you: the stale and fresh builds report the same version. This
+  has already produced one wrong conclusion — a memory-safety fix was measured
+  as ineffective while the container re-ran the pre-fix binary, and the
+  isolated re-run reversed the result.
 - **Runnable demos**: `examples/` (index + type-per-demo table in
   `examples/README.md`). Reach for these before writing a pattern from
   scratch — each is the idiomatic shape for its problem:
