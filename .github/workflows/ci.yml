@@ -145,6 +145,66 @@ jobs:
             benchmark-output.txt
           if-no-files-found: ignore
 
+      # TEMPORARY — issue #87 acceptance experiment. Not for merge.
+      # Runs the same two builds twice on one runner: once the old way (whole
+      # baseline suite, then whole current suite, with CPU load arriving
+      # between the arms) and once interleaved, under that same sustained
+      # load. The first shape is what shipped false regressions; the second is
+      # the replacement. Both are measured on the same machine minutes apart,
+      # so the only difference is how the measurement is ordered.
+      - name: TEMP contamination experiment (issue #87)
+        if: matrix.php-version == '8.4'
+        run: |
+          set -x
+          nproc
+          mkdir -p /tmp/seq-base-ini /tmp/seq-cur-ini
+          echo "extension=$BASELINE_SO" > /tmp/seq-base-ini/judy.ini
+          echo "extension=$(pwd)/modules/judy.so" > /tmp/seq-cur-ini/judy.ini
+
+          echo "=== arm A (baseline), quiet runner ==="
+          PHP_INI_SCAN_DIR=/tmp/seq-base-ini php examples/benchmarks/judy-bench.php \
+            --json seq-baseline.json --size 300000 --iterations 3 --suite all > /dev/null
+
+          echo "=== load arrives between the arms ==="
+          for i in $(seq 1 6); do
+            setsid timeout 1200 sh -c 'while :; do :; done' >/dev/null 2>&1 &
+          done
+          sleep 10
+          uptime
+
+          echo "=== arm B (current), loaded runner ==="
+          PHP_INI_SCAN_DIR=/tmp/seq-cur-ini php examples/benchmarks/judy-bench.php \
+            --json seq-current.json --size 300000 --iterations 3 --suite all > /dev/null
+
+          echo "=== how the OLD sequential shape reads ==="
+          python3 - <<'PY'
+          import json, statistics
+          b = json.load(open('seq-baseline.json'))['benchmarks']
+          c = json.load(open('seq-current.json'))['benchmarks']
+          d = []
+          for k, v in b.items():
+              if not k.endswith('.judy'):
+                  continue
+              bm = v.get('median_ms', 0) or 0
+              cm = (c.get(k) or {}).get('median_ms', 0) or 0
+              if bm > 0 and (bm >= 2.0 or cm >= 2.0):
+                  d.append((cm - bm) / bm * 100)
+          med = statistics.median(d)
+          print(f"n={len(d)} run-wide median delta {med:+.2f}%")
+          print(f"flags at +/-10%: {sum(1 for x in d if x > 10)} SLOWER, "
+                f"{sum(1 for x in d if x < -10)} FASTER")
+          print(f"contamination detector (+/-5%): "
+                f"{'FIRES' if abs(med) > 5 else 'does not fire'}")
+          PY
+
+          echo "=== same sustained load, measured the INTERLEAVED way ==="
+          uptime
+          php scripts/bench-compare.php \
+            --baseline-so "$BASELINE_SO" --current-so "$(pwd)/modules/judy.so" \
+            --size 300000 --iterations 3 --rounds 5 \
+            --out loaded-compare.json --quiet
+          uptime
+
   build-alpine:
     # Most containerized PHP runs on Alpine. musl differs from glibc enough
     # (allocator, default stack size, locale handling) that a clean Debian
