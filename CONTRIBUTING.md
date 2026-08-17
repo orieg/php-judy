@@ -40,6 +40,29 @@ A failing test leaves `tests/<name>.diff` / `.out` / `.exp` files behind for
 inspection. Please add a `.phpt` test for every behavior change or bug fix —
 regression tests are what keep a C extension safe to evolve.
 
+### Internal consistency assertions
+
+The four `*_HASH` / `*_ADAPTIVE` types keep the key set in a JudySL
+`key_index` and the values in a separate store. A path that updates one and
+not the other leaves two valid pointers holding different answers: no crash,
+no leak, nothing valgrind can see. When touching a write, mutate or delete
+path on those types, rebuild with the assertions on and run the suite:
+
+```sh
+phpize --clean && phpize
+./configure --with-judy=/usr --enable-judy-debug-mirror
+make
+make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
+```
+
+The checker walks both stores at object teardown and after `clone`, and
+aborts with a `MIRROR INVARIANT VIOLATED` banner naming the offending key.
+Without the flag it compiles to nothing — the linked `judy.so` is
+byte-identical either way — so this is a development and CI build, never a
+release one. CI runs it as the `debug-mirror-assertions` job, which ends with
+a negative control that deliberately breaks the invariant and requires the
+abort, so the harness cannot rot into a no-op.
+
 ## Code conventions
 
 - **Zero compiler warnings.** CI fails on any warning in the extension source

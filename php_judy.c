@@ -50,6 +50,11 @@ static Word_t judy_free_array_internal(judy_object *intern)
 {
 	Word_t Rc_word = 0;
 
+	/* Teardown is the one point every object reaches, whatever it was used
+	 * for, and it is already O(n) — so it is where the consistency check earns
+	 * its keep. Compiles to nothing without --enable-judy-debug-mirror. */
+	JUDY_ASSERT_MIRROR(intern, "free_array_internal");
+
 	/* key_index must be in the guard too: a partially-failed clone can leave
 	 * key_index non-NULL while array/hs_array are NULL, and skipping the free
 	 * here would leak the JudySL key_index. */
@@ -526,6 +531,228 @@ static zval *judy_object_read_dimension(zend_object *obj, zval *offset, int type
     return judy_object_read_dimension_helper(&object_zv, offset, rv);
 }
 
+/* {{{ judy_string_slot_acquire — write-side twin of judy_string_value_slot().
+
+   Locates — creating it if absent — the value slot for `key` in a string-keyed
+   Judy object, and owns every side effect that must accompany the creation of
+   a new key:
+
+     - the embedded-NUL precondition of the four key_index-backed types (a NUL
+       truncates the JudySL key and would desynchronise the two stores),
+     - registering the key in the JudySL key_index,
+     - rolling the value-store insert back if that registration fails,
+     - the intern->counter bump.
+
+   Callers are left with exactly one job: write the payload through *slot_out.
+   That split is the point. The *_HASH and *_ADAPTIVE types hold the key set in
+   two structures at once, and a value write that reached the value store
+   without coming through here is precisely where the two would drift apart.
+   Route every string-keyed value write through this function.
+
+   Returns SUCCESS with *slot_out set to the value slot. A slot that was just
+   created reads 0 for the _INT variants / NULL for the _MIXED variants, so a
+   caller that cares can still tell an insert from an overwrite by inspecting
+   it; the counter is maintained here either way.
+
+   Returns FAILURE having made no net change. An exception is thrown only for
+   the NUL precondition — an allocation failure is reported silently so each
+   caller keeps its own wording. A caller adding a message of its own must
+   therefore check EG(exception) first.
+
+   Not valid for the integer-keyed types: they have no key_index, and their
+   index derivation (append, negative offsets) belongs to the caller. */
+static zend_always_inline int judy_string_slot_acquire(judy_object *intern, const uint8_t *key,
+	Word_t klen, Pvoid_t **slot_out)
+{
+	Pvoid_t *slot = NULL;
+	Pvoid_t *existing = NULL;
+	Pvoid_t *kslot = NULL;
+	Word_t sso_idx = 0;
+	int rc_tmp = 0;
+
+	*slot_out = NULL;
+
+	switch (intern->type) {
+
+	case TYPE_STRING_TO_INT:
+		/* Plain JudySL: the trie is itself the value store, so there is no
+		   mirror to keep and no NUL restriction. 0 is a legal stored value,
+		   hence the separate existence probe. */
+		JSLG(existing, intern->array, (uint8_t *)key);
+		JSLI(slot, intern->array, (uint8_t *)key);
+		if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
+			return FAILURE;
+		}
+		if (existing == NULL) {
+			intern->counter++;
+		}
+		break;
+
+	case TYPE_STRING_TO_MIXED:
+		JSLI(slot, intern->array, (uint8_t *)key);
+		if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
+			return FAILURE;
+		}
+		/* A MIXED slot holds a zval*, so NULL unambiguously means "new". */
+		if (JUDY_MVAL_READ(slot) == NULL) {
+			intern->counter++;
+		}
+		break;
+
+	/* The four key_index-backed types get one case each rather than a shared
+	   body with runtime `intern->type ==` tests inside it: those tests cost a
+	   measurable ~3% on the shortest write (ADAPTIVE SSO overwrite), which a
+	   refactor is not allowed to spend. The repetition stays inside this one
+	   function, so nothing outside it learns about the key_index. */
+	case TYPE_STRING_TO_INT_HASH:
+		if (JUDY_UNLIKELY(memchr(key, '\0', (size_t)klen) != NULL)) {
+			zend_throw_exception(NULL,
+				"Judy STRING_TO_INT_HASH keys must not contain embedded null bytes", 0);
+			return FAILURE;
+		}
+		/* 0 is a legal stored value, so probe rather than read the slot. */
+		JHSG(existing, intern->array, (uint8_t *)key, klen);
+		JHSI(slot, intern->array, (uint8_t *)key, klen);
+		if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
+			return FAILURE;
+		}
+		if (existing == NULL) {
+			JSLI(kslot, intern->key_index, (uint8_t *)key);
+			if (JUDY_UNLIKELY(kslot == PJERR)) {
+				/* Roll the value-store insert back rather than leave a key
+				   that key_index — and so iteration and free() — never sees. */
+				JHSD(rc_tmp, intern->array, (uint8_t *)key, klen);
+				return FAILURE;
+			}
+			/* The key_index registration above and this counter bump are what
+			   the JUDY_DEBUG_MIRROR checker cross-examines. ci.yml's negative
+			   control deletes this exact line and requires the assertions to
+			   fire, so that the harness cannot rot into a no-op. */
+			intern->counter++; /* judy-mirror-negative-control */
+		}
+		break;
+
+	case TYPE_STRING_TO_MIXED_HASH:
+		if (JUDY_UNLIKELY(memchr(key, '\0', (size_t)klen) != NULL)) {
+			zend_throw_exception(NULL,
+				"Judy STRING_TO_MIXED_HASH keys must not contain embedded null bytes", 0);
+			return FAILURE;
+		}
+		JHSI(slot, intern->array, (uint8_t *)key, klen);
+		if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
+			return FAILURE;
+		}
+		if (JUDY_MVAL_READ(slot) == NULL) {
+			JSLI(kslot, intern->key_index, (uint8_t *)key);
+			if (JUDY_UNLIKELY(kslot == PJERR)) {
+				JHSD(rc_tmp, intern->array, (uint8_t *)key, klen);
+				return FAILURE;
+			}
+			intern->counter++;
+		}
+		break;
+
+	case TYPE_STRING_TO_INT_ADAPTIVE:
+		if (JUDY_UNLIKELY(memchr(key, '\0', (size_t)klen) != NULL)) {
+			zend_throw_exception(NULL,
+				"Judy adaptive keys must not contain embedded null bytes", 0);
+			return FAILURE;
+		}
+		if (judy_pack_short_string_internal((const char *)key, (size_t)klen, &sso_idx)) {
+			JLG(existing, intern->array, sso_idx);
+			JLI(slot, intern->array, sso_idx);
+			if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
+				return FAILURE;
+			}
+			if (existing == NULL) {
+				JSLI(kslot, intern->key_index, (uint8_t *)key);
+				if (JUDY_UNLIKELY(kslot == PJERR)) {
+					JLD(rc_tmp, intern->array, sso_idx);
+					return FAILURE;
+				}
+				intern->counter++;
+			}
+		} else {
+			JHSG(existing, intern->hs_array, (uint8_t *)key, klen);
+			JHSI(slot, intern->hs_array, (uint8_t *)key, klen);
+			if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
+				return FAILURE;
+			}
+			if (existing == NULL) {
+				JSLI(kslot, intern->key_index, (uint8_t *)key);
+				if (JUDY_UNLIKELY(kslot == PJERR)) {
+					JHSD(rc_tmp, intern->hs_array, (uint8_t *)key, klen);
+					return FAILURE;
+				}
+				intern->counter++;
+			}
+		}
+		break;
+
+	case TYPE_STRING_TO_MIXED_ADAPTIVE:
+		if (JUDY_UNLIKELY(memchr(key, '\0', (size_t)klen) != NULL)) {
+			zend_throw_exception(NULL,
+				"Judy adaptive keys must not contain embedded null bytes", 0);
+			return FAILURE;
+		}
+		if (judy_pack_short_string_internal((const char *)key, (size_t)klen, &sso_idx)) {
+			JLI(slot, intern->array, sso_idx);
+			if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
+				return FAILURE;
+			}
+			if (JUDY_MVAL_READ(slot) == NULL) {
+				JSLI(kslot, intern->key_index, (uint8_t *)key);
+				if (JUDY_UNLIKELY(kslot == PJERR)) {
+					JLD(rc_tmp, intern->array, sso_idx);
+					return FAILURE;
+				}
+				intern->counter++;
+			}
+		} else {
+			JHSI(slot, intern->hs_array, (uint8_t *)key, klen);
+			if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
+				return FAILURE;
+			}
+			if (JUDY_MVAL_READ(slot) == NULL) {
+				JSLI(kslot, intern->key_index, (uint8_t *)key);
+				if (JUDY_UNLIKELY(kslot == PJERR)) {
+					JHSD(rc_tmp, intern->hs_array, (uint8_t *)key, klen);
+					return FAILURE;
+				}
+				intern->counter++;
+			}
+		}
+		break;
+
+	default:
+		return FAILURE;
+	}
+
+	*slot_out = slot;
+	return SUCCESS;
+}
+/* }}} */
+
+/* {{{ judy_slot_store_zval — publish a MIXED value into an acquired slot.
+
+   The new pointer is written into the slot BEFORE the old one is destroyed:
+   the old value's destructor can run arbitrary PHP that re-enters and
+   restructures this array, invalidating `slot`. Writing first leaves the slot
+   consistent no matter what the destructor does. */
+static zend_always_inline void judy_slot_store_zval(Pvoid_t *slot, zval *value)
+{
+	zval *old_value = JUDY_MVAL_READ(slot);
+	zval *new_value = emalloc(sizeof(zval));
+
+	ZVAL_COPY(new_value, value);
+	JUDY_MVAL_WRITE(slot, new_value);
+	if (old_value != NULL) {
+		zval_ptr_dtor(old_value);
+		efree(old_value);
+	}
+}
+/* }}} */
+
 int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) /* {{{ */
 {
 	zend_long index;
@@ -688,240 +915,32 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			efree(packed);
 			return FAILURE;
 		}
-	} else if (intern->type == TYPE_STRING_TO_INT) {
-		PWord_t     *PValue;
-		PWord_t     *PExisting;
-		zend_long lval = zval_get_long(value);
-		int res;
+	} else if (JUDY_IS_STRING_KEYED(intern)) {
+		/* All six string-keyed types share one slot-acquisition path; see
+		   judy_string_slot_acquire() for why nothing may bypass it. */
+		Pvoid_t *slot;
 
-		/* Check if key already exists before insert to track count correctly */
-		JSLG(PExisting, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
-
-		JSLI(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
-		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-			if (PExisting == NULL) {
-				intern->counter++;
+		if (JUDY_IS_MIXED_VALUE(intern)) {
+			if (JUDY_UNLIKELY(judy_string_slot_acquire(intern,
+					(uint8_t *)Z_STRVAL_P(pstring_key),
+					(Word_t)Z_STRLEN_P(pstring_key), &slot) == FAILURE)) {
+				return FAILURE;
 			}
-			JUDY_LVAL_WRITE(PValue, lval);
-			res = SUCCESS;
+			judy_slot_store_zval(slot, value);
 		} else {
-			res = FAILURE;
-		}
-		return res;
-	} else if (intern->type == TYPE_STRING_TO_MIXED) {
-		Pvoid_t *PValue;
-		int res;
+			/* Convert before acquiring the slot: zval_get_long() can run a
+			   userland cast handler that re-enters and restructures this
+			   array, which would invalidate a slot taken first. */
+			zend_long lval = zval_get_long(value);
 
-		JSLI(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
-		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-			zval *old_value = JUDY_MVAL_READ(PValue);
-			zval *new_value = emalloc(sizeof(zval));
-			ZVAL_COPY(new_value, value);
-			/* Write new value before destroying old (see INT_TO_MIXED note):
-			 * old_value's destructor may re-enter and invalidate PValue. */
-			JUDY_MVAL_WRITE(PValue, new_value);
-			if (old_value != NULL) {
-				zval_ptr_dtor(old_value);
-				efree(old_value);
-			} else {
-				intern->counter++;
+			if (JUDY_UNLIKELY(judy_string_slot_acquire(intern,
+					(uint8_t *)Z_STRVAL_P(pstring_key),
+					(Word_t)Z_STRLEN_P(pstring_key), &slot) == FAILURE)) {
+				return FAILURE;
 			}
-			res = SUCCESS;
-		} else {
-			res = FAILURE;
+			JUDY_LVAL_WRITE(slot, lval);
 		}
-		return res;
-	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
-		Pvoid_t *HValue;
-		Pvoid_t *KValue;
-		int res;
-		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
-
-		/* JudySL key_index uses null-terminated strings; reject embedded NULs */
-		if (memchr(Z_STRVAL_P(pstring_key), '\0', Z_STRLEN_P(pstring_key)) != NULL) {
-			zend_throw_exception(NULL,
-				"Judy STRING_TO_MIXED_HASH keys must not contain embedded null bytes", 0);
-			return FAILURE;
-		}
-
-		JHSI(HValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-		if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
-			zval *old_value = JUDY_MVAL_READ(HValue);
-			if (old_value == NULL) {
-				/* Register key in JudySL key_index for iteration support */
-				JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
-				if (JUDY_UNLIKELY(KValue == PJERR)) {
-					/* Rollback the JudyHS insertion */
-					int Rc_tmp = 0;
-					JHSD(Rc_tmp, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-					return FAILURE;
-				}
-				intern->counter++;
-			}
-			zval *new_value = ecalloc(1, sizeof(zval));
-			ZVAL_COPY(new_value, value);
-			/* Write new value before destroying old (see INT_TO_MIXED note). */
-			JUDY_MVAL_WRITE(HValue, new_value);
-			if (old_value != NULL) {
-				zval_ptr_dtor(old_value);
-				efree(old_value);
-			}
-			res = SUCCESS;
-		} else {
-			res = FAILURE;
-		}
-		return res;
-	} else if (intern->type == TYPE_STRING_TO_INT_HASH) {
-		Pvoid_t *HExisting;
-		Pvoid_t *HValue;
-		Pvoid_t *KValue;
-		int res;
-		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
-
-		/* JudySL key_index uses null-terminated strings; reject embedded NULs */
-		if (JUDY_UNLIKELY(memchr(Z_STRVAL_P(pstring_key), '\0', Z_STRLEN_P(pstring_key)) != NULL)) {
-			zend_throw_exception(NULL,
-				"Judy STRING_TO_INT_HASH keys must not contain embedded null bytes", 0);
-			return FAILURE;
-		}
-
-		/* Check if key already exists before insert to track count correctly */
-		JHSG(HExisting, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-
-		JHSI(HValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-		if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
-			if (HExisting == NULL) {
-				/* New key — register in key_index for iteration */
-				JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
-				if (JUDY_UNLIKELY(KValue == PJERR)) {
-					int Rc_tmp = 0;
-					JHSD(Rc_tmp, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-					return FAILURE;
-				}
-				intern->counter++;
-			}
-			JUDY_LVAL_WRITE(HValue, zval_get_long(value));
-			res = SUCCESS;
-		} else {
-			res = FAILURE;
-		}
-		return res;
-	} else if (intern->type == TYPE_STRING_TO_INT_ADAPTIVE) {
-		if (UNEXPECTED(memchr(Z_STRVAL_P(pstring_key), '\0', Z_STRLEN_P(pstring_key)) != NULL)) {
-			zend_throw_exception(NULL, "Judy adaptive keys must not contain embedded null bytes", 0);
-			return FAILURE;
-		}
-		Pvoid_t *PValue;
-		Pvoid_t *PExisting;
-		Pvoid_t *KValue;
-		int res;
-		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
-		Word_t sso_idx;
-
-		zend_long lval = zval_get_long(value);
-
-		if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
-			/* Probe existence before insert: value 0 is a legal stored value,
-			 * so a zero slot must not be mistaken for a brand-new key. */
-			JLG(PExisting, intern->array, sso_idx);
-			JLI(PValue, intern->array, sso_idx);
-			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (PExisting == NULL) {
-					/* New key — register in key_index for iteration */
-					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
-					if (JUDY_UNLIKELY(KValue == PJERR)) {
-						JLD(res, intern->array, sso_idx);
-						return FAILURE;
-					}
-					intern->counter++;
-				}
-				JUDY_LVAL_WRITE(PValue, lval);
-				res = SUCCESS;
-			} else {
-				res = FAILURE;
-			}
-		} else {
-			JHSG(PExisting, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-			JHSI(PValue, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				if (PExisting == NULL) {
-					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
-					if (JUDY_UNLIKELY(KValue == PJERR)) {
-						int Rc_tmp;
-						JHSD(Rc_tmp, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-						return FAILURE;
-					}
-					intern->counter++;
-				}
-				JUDY_LVAL_WRITE(PValue, lval);
-				res = SUCCESS;
-			} else {
-				res = FAILURE;
-			}
-		}
-		return res;
-	} else if (intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
-		if (UNEXPECTED(memchr(Z_STRVAL_P(pstring_key), '\0', Z_STRLEN_P(pstring_key)) != NULL)) {
-			zend_throw_exception(NULL, "Judy adaptive keys must not contain embedded null bytes", 0);
-			return FAILURE;
-		}
-		Pvoid_t *PValue;
-		Pvoid_t *KValue;
-		int res;
-		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
-		Word_t sso_idx;
-
-		if (judy_pack_short_string_internal(Z_STRVAL_P(pstring_key), key_len, &sso_idx)) {
-			JLI(PValue, intern->array, sso_idx);
-			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				zval *old_value = JUDY_MVAL_READ(PValue);
-				if (old_value == NULL) {
-					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
-					if (JUDY_UNLIKELY(KValue == PJERR)) {
-						JLD(res, intern->array, sso_idx);
-						return FAILURE;
-					}
-					intern->counter++;
-				}
-				zval *new_value = emalloc(sizeof(zval));
-				ZVAL_COPY(new_value, value);
-				/* Write new value before destroying old (see INT_TO_MIXED note). */
-				JUDY_MVAL_WRITE(PValue, new_value);
-				if (old_value != NULL) {
-					zval_ptr_dtor(old_value);
-					efree(old_value);
-				}
-				res = SUCCESS;
-			} else {
-				res = FAILURE;
-			}
-		} else {
-			JHSI(PValue, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-				zval *old_value = JUDY_MVAL_READ(PValue);
-				if (old_value == NULL) {
-					JSLI(KValue, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
-					if (JUDY_UNLIKELY(KValue == PJERR)) {
-						int Rc_tmp;
-						JHSD(Rc_tmp, intern->hs_array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-						return FAILURE;
-					}
-					intern->counter++;
-				}
-				zval *new_value = emalloc(sizeof(zval));
-				ZVAL_COPY(new_value, value);
-				/* Write new value before destroying old (see INT_TO_MIXED note). */
-				JUDY_MVAL_WRITE(PValue, new_value);
-				if (old_value != NULL) {
-					zval_ptr_dtor(old_value);
-					efree(old_value);
-				}
-				res = SUCCESS;
-			} else {
-				res = FAILURE;
-			}
-		}
-		return res;
+		return SUCCESS;
 	}
 	return FAILURE;
 }
@@ -1513,6 +1532,146 @@ static inline Pvoid_t *judy_string_value_slot(judy_object *intern, const uint8_t
 	return slot;
 }
 /* }}} */
+
+#ifdef JUDY_DEBUG_MIRROR
+/* {{{ judy_debug_check_mirror — internal consistency check.
+
+   The four *_HASH / *_ADAPTIVE types answer "which keys exist, in what order?"
+   from a JudySL key_index and "what is the value?" from a separate JudyHS (plus
+   a JudyL for the short keys ADAPTIVE packs inline). Nothing ties the two
+   together at the type level: a path that updates one and not the other leaves
+   two valid pointers holding different answers. There is no crash and no leak,
+   so valgrind cannot see it — only a check that walks both stores can.
+
+   What is checked:
+
+     1. Population agrees with intern->counter, for every type. That counter is
+        the bookkeeping every write branch maintains, and it is the cheapest
+        cross-examination of the two stores available.
+     2. Every key in key_index resolves to a live value slot, and for the MIXED
+        variants to a non-NULL zval*.
+     3. The reverse direction, as far as it is enumerable. JudyHS exposes no
+        enumeration primitive — the whole API is JHSG/JHSI/JHSD/JHSFA — so a
+        JudyHS entry that no key_index entry points at cannot be reached
+        directly. It is caught by (1) whenever the counter was bumped, and
+        shows up as a leak under valgrind otherwise. ADAPTIVE's short-key half
+        is an ordinary JudyL and *is* enumerable, so that half is checked in
+        both directions.
+
+   #85 step 1 (payload mirroring) extends (2) with "and the payload mirrored
+   into the key_index slot equals the one in the value store": the same walk,
+   one more comparison per key.
+
+   O(n). Call it only from operations that are already O(n) — object teardown,
+   clone — never once per element. */
+static void judy_debug_mirror_fail(const judy_object *intern, const char *where,
+	const char *what, const char *key)
+{
+	fprintf(stderr, "\n[judy] MIRROR INVARIANT VIOLATED at %s\n", where);
+	fprintf(stderr, "[judy]   %s\n", what);
+	fprintf(stderr, "[judy]   type=%ld counter=" ZEND_LONG_FMT "\n",
+		(long)intern->type, intern->counter);
+	if (key != NULL) {
+		fprintf(stderr, "[judy]   key=\"%s\"\n", key);
+	}
+	fflush(stderr);
+	abort();
+}
+
+void judy_debug_check_mirror(judy_object *intern, const char *where)
+{
+	zend_long seen = 0;
+
+	if (intern->array == NULL && intern->hs_array == NULL && intern->key_index == NULL) {
+		if (intern->counter != 0) {
+			judy_debug_mirror_fail(intern, where,
+				"object holds no store at all but the counter is non-zero", NULL);
+		}
+		return;
+	}
+
+	if (intern->type == TYPE_BITSET) {
+		Word_t count = 0;
+		J1C(count, intern->array, 0, (Word_t)-1);
+		seen = (zend_long)count;
+	} else if (JUDY_IS_INTEGER_KEYED(intern)) {
+		Word_t count = 0;
+		JLC(count, intern->array, 0, (Word_t)-1);
+		seen = (zend_long)count;
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+		/* Single store: the JudySL trie holds the values itself. */
+		uint8_t *cursor = emalloc(PHP_JUDY_MAX_LENGTH);
+		Pvoid_t *PValue;
+
+		cursor[0] = '\0';
+		JSLF(PValue, intern->array, cursor);
+		while (PValue != NULL && PValue != PJERR) {
+			seen++;
+			JSLN(PValue, intern->array, cursor);
+		}
+		efree(cursor);
+	} else {
+		/* The four key_index-backed types. A private cursor rather than
+		 * intern->key_scratch: a manual rewind()/next() iteration may be
+		 * holding that shared buffer. */
+		uint8_t *cursor = emalloc(PHP_JUDY_MAX_LENGTH);
+		Pvoid_t *KValue;
+
+		cursor[0] = '\0';
+		JSLF(KValue, intern->key_index, cursor);
+		while (KValue != NULL && KValue != PJERR) {
+			Word_t klen = (Word_t)strlen((char *)cursor);
+			Pvoid_t *VValue = judy_string_value_slot(intern, cursor, klen);
+
+			if (VValue == NULL) {
+				judy_debug_mirror_fail(intern, where,
+					"key listed in key_index has no entry in the value store",
+					(const char *)cursor);
+			}
+			if (JUDY_IS_MIXED_VALUE(intern) && JUDY_MVAL_READ(VValue) == NULL) {
+				judy_debug_mirror_fail(intern, where,
+					"key listed in key_index has a NULL zval in the value store",
+					(const char *)cursor);
+			}
+			seen++;
+			JSLN(KValue, intern->key_index, cursor);
+		}
+		efree(cursor);
+
+		if (JUDY_IS_ADAPTIVE(intern)) {
+			/* Reverse direction for the enumerable half: keys shorter than 8
+			 * bytes are packed into a JudyL index. */
+			Word_t sso_idx = 0;
+			Pvoid_t *PValue;
+
+			JLF(PValue, intern->array, sso_idx);
+			while (PValue != NULL && PValue != PJERR) {
+				uint8_t unpacked[9];
+				Pvoid_t *KFound;
+
+				memcpy(unpacked, &sso_idx, sizeof(Word_t));
+				unpacked[8] = '\0';
+				JSLG(KFound, intern->key_index, unpacked);
+				if (KFound == NULL || KFound == PJERR) {
+					judy_debug_mirror_fail(intern, where,
+						"short key present in the value store is missing from key_index",
+						(const char *)unpacked);
+				}
+				JLN(PValue, intern->array, sso_idx);
+			}
+		}
+	}
+
+	if (seen != intern->counter) {
+		char msg[128];
+		snprintf(msg, sizeof(msg),
+			"population %ld disagrees with counter %ld",
+			(long)seen, (long)intern->counter);
+		judy_debug_mirror_fail(intern, where, msg, NULL);
+	}
+}
+/* }}} */
+#endif /* JUDY_DEBUG_MIRROR */
 
 /* {{{ proto mixed Judy::first([mixed index])
    Search (inclusive) for the first index present that is equal to or greater than the passed Index */
@@ -4685,9 +4844,11 @@ PHP_METHOD(Judy, getAll)
 /* }}} */
 
 /* {{{ proto int Judy::increment(mixed $key, int $amount = 1)
-   Atomic increment for INT_TO_INT (single-traversal via JLI) and
-   STRING_TO_INT (two traversals: JSLG for counter tracking + JSLI).
-   Returns the new value. Creates the key with value $amount if it doesn't exist. */
+   Atomic increment for INT_TO_INT, STRING_TO_INT and STRING_TO_INT_HASH.
+   Returns the new value. Creates the key with value $amount if it doesn't
+   exist. The string-keyed types share judy_string_slot_acquire() with
+   offsetSet(), so an increment cannot register a key differently from a
+   plain write. */
 PHP_METHOD(Judy, increment)
 {
 	zval *zkey;
@@ -4717,10 +4878,11 @@ PHP_METHOD(Judy, increment)
 		JUDY_LVAL_WRITE(PValue, old_val + amount);
 		RETURN_LONG(old_val + amount);
 
-	} else if (intern->type == TYPE_STRING_TO_INT) {
+	} else if (intern->type == TYPE_STRING_TO_INT
+			|| intern->type == TYPE_STRING_TO_INT_HASH) {
 		zend_string *skey = zval_get_string(zkey);
-		Pvoid_t *PExisting;
-		Pvoid_t *PValue;
+		Pvoid_t *slot;
+		zend_long new_val;
 
 		if (ZSTR_LEN(skey) >= PHP_JUDY_MAX_LENGTH) {
 			zend_string_release(skey);
@@ -4730,74 +4892,24 @@ PHP_METHOD(Judy, increment)
 			return;
 		}
 
-		/* Check if key exists for counter tracking (requires JSLG + JSLI) */
-		JSLG(PExisting, intern->array, (uint8_t *)ZSTR_VAL(skey));
-
-		JSLI(PValue, intern->array, (uint8_t *)ZSTR_VAL(skey));
-		if (PValue == NULL || PValue == PJERR) {
+		/* Same acquisition path as offsetSet(): the embedded-NUL check, the
+		   key_index registration, its rollback and the counter all live in
+		   one place, so increment() cannot drift from a plain write. */
+		if (judy_string_slot_acquire(intern, (uint8_t *)ZSTR_VAL(skey),
+				(Word_t)ZSTR_LEN(skey), &slot) == FAILURE) {
 			zend_string_release(skey);
-			zend_throw_exception(NULL, "Judy: memory allocation failed during increment", 0);
-			return;
-		}
-
-		if (PExisting == NULL) {
-			intern->counter++;
-		}
-
-		zend_long old_val = JUDY_LVAL_READ(PValue);
-		JUDY_LVAL_WRITE(PValue, old_val + amount);
-		zend_string_release(skey);
-		RETURN_LONG(old_val + amount);
-
-	} else if (intern->type == TYPE_STRING_TO_INT_HASH) {
-		zend_string *skey = zval_get_string(zkey);
-		Pvoid_t *HExisting;
-		Pvoid_t *HValue;
-		Word_t key_len = (Word_t)ZSTR_LEN(skey);
-
-		if (ZSTR_LEN(skey) >= PHP_JUDY_MAX_LENGTH) {
-			zend_string_release(skey);
-			zend_throw_exception_ex(NULL, 0,
-				"Judy string key length (%zu) exceeds maximum of %d bytes",
-				ZSTR_LEN(skey), PHP_JUDY_MAX_LENGTH - 1);
-			return;
-		}
-
-		if (memchr(ZSTR_VAL(skey), '\0', ZSTR_LEN(skey)) != NULL) {
-			zend_string_release(skey);
-			zend_throw_exception(NULL,
-				"Judy STRING_TO_INT_HASH keys must not contain embedded null bytes", 0);
-			return;
-		}
-
-		/* Check if key exists for counter tracking */
-		JHSG(HExisting, intern->array, (uint8_t *)ZSTR_VAL(skey), key_len);
-
-		JHSI(HValue, intern->array, (uint8_t *)ZSTR_VAL(skey), key_len);
-		if (HValue == NULL || HValue == PJERR) {
-			zend_string_release(skey);
-			zend_throw_exception(NULL, "Judy: memory allocation failed during increment", 0);
-			return;
-		}
-
-		if (HExisting == NULL) {
-			/* New key — register in key_index for iteration */
-			Pvoid_t *KValue;
-			JSLI(KValue, intern->key_index, (uint8_t *)ZSTR_VAL(skey));
-			if (KValue == PJERR) {
-				int Rc_tmp = 0;
-				JHSD(Rc_tmp, intern->array, (uint8_t *)ZSTR_VAL(skey), key_len);
-				zend_string_release(skey);
+			/* The helper throws for the NUL precondition and stays silent on
+			   allocation failure, which is the case that wants our wording. */
+			if (!EG(exception)) {
 				zend_throw_exception(NULL, "Judy: memory allocation failed during increment", 0);
-				return;
 			}
-			intern->counter++;
+			return;
 		}
 
-		zend_long old_val = JUDY_LVAL_READ(HValue);
-		JUDY_LVAL_WRITE(HValue, old_val + amount);
+		new_val = JUDY_LVAL_READ(slot) + amount;
+		JUDY_LVAL_WRITE(slot, new_val);
 		zend_string_release(skey);
-		RETURN_LONG(old_val + amount);
+		RETURN_LONG(new_val);
 
 	} else {
 		zend_throw_exception(NULL, "Judy::increment() is only supported for INT_TO_INT, STRING_TO_INT and STRING_TO_INT_HASH types", 0);

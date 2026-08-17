@@ -166,6 +166,84 @@ jobs:
           docker run --rm -w /usr/src/php-judy php-judy-alpine \
             make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
 
+  debug-mirror-assertions:
+    # The four *_HASH / *_ADAPTIVE types keep the key set in a JudySL
+    # key_index and the values in a separate store. A path that updates one
+    # and not the other produces two valid pointers holding different answers:
+    # no crash, no leak, nothing valgrind can see. This job builds with
+    # --enable-judy-debug-mirror, which compiles in a checker that walks both
+    # stores and aborts on disagreement, and runs the whole suite under it.
+    #
+    # The last step is a negative control. An assertion that has never fired
+    # is not known to work, and a harness that silently stops checking is
+    # worse than none — so CI deletes one line the checker depends on and
+    # requires the abort to happen.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Install Judy library
+        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          coverage: none
+
+      - name: Build with the consistency assertions
+        run: |
+          phpize
+          ./configure --with-judy=/usr --enable-judy-debug-mirror
+          make 2>&1 | tee /tmp/build-debug-mirror.log
+
+      - name: Fail on compiler warnings
+        run: |
+          if grep -E '(php_judy|judy_handlers|judy_arrayaccess|judy_iterator)\.[ch]:[0-9]+:[0-9]+: warning:' /tmp/build-debug-mirror.log; then
+            echo "::error::Compiler warnings detected with JUDY_DEBUG_MIRROR enabled"
+            exit 1
+          fi
+          echo "No compiler warnings in extension sources."
+
+      - name: Confirm the assertions are compiled in
+        # Without this the job degrades silently into a duplicate of
+        # build-linux the moment the configure flag stops taking effect.
+        run: |
+          nm -D --defined-only modules/judy.so | grep -q judy_debug_check_mirror \
+            || { echo "::error::--enable-judy-debug-mirror produced a build with no checker in it"; exit 1; }
+
+      - name: Run the full suite under the assertions
+        run: make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
+
+      - name: Negative control — break the invariant, require the abort
+        run: |
+          # Delete the counter bump that accompanies a new key in the
+          # key_index-backed types. The stores stay individually valid; only
+          # their agreement breaks, which is exactly what the checker is for.
+          sed -i 's|intern->counter++; /\* judy-mirror-negative-control \*/|/* deleted by the CI negative control */|' php_judy.c
+          grep -q 'deleted by the CI negative control' php_judy.c \
+            || { echo "::error::negative control did not apply — the anchor line in php_judy.c moved"; exit 1; }
+          make
+
+          set +e
+          php -d extension="$(pwd)/modules/judy.so" \
+            -r '$j = new Judy(Judy::STRING_TO_INT_HASH); $j["a"] = 1;' \
+            > /tmp/negative-control.log 2>&1
+          rc=$?
+          set -e
+          cat /tmp/negative-control.log
+
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::a deliberately broken invariant ran to completion — the assertions are not working"
+            exit 1
+          fi
+          grep -q 'MIRROR INVARIANT VIOLATED' /tmp/negative-control.log \
+            || { echo "::error::process failed but not via the mirror assertion — check the log above"; exit 1; }
+          echo "Negative control passed: the assertions caught the broken invariant."
+
+          git checkout -- php_judy.c
+
   validate-pecl:
     runs-on: ubuntu-latest
     steps:

@@ -248,6 +248,25 @@ static inline void judy_init_type_flags(judy_object *intern, zend_long jtype)
 zend_object *judy_object_new(zend_class_entry *ce);
 zend_object *judy_object_new_ex(zend_class_entry *ce, judy_object **ptr);
 
+/* {{{ JUDY_ASSERT_MIRROR — internal consistency assertions.
+
+   Compiled in only by `./configure --enable-judy-debug-mirror`, which defines
+   JUDY_DEBUG_MIRROR. In a normal build the macro expands to nothing and
+   judy_debug_check_mirror() is not compiled at all, so the shipped extension
+   carries no cost and no extra symbol.
+
+   The check is O(n) in the population, so it belongs only at call sites that
+   are already O(n) — object teardown, clone — never per element. `where` names
+   the call site and is printed on violation. On violation the process aborts;
+   it never alters behaviour otherwise. */
+#ifdef JUDY_DEBUG_MIRROR
+void judy_debug_check_mirror(judy_object *intern, const char *where);
+#define JUDY_ASSERT_MIRROR(intern, where) judy_debug_check_mirror((intern), (where))
+#else
+#define JUDY_ASSERT_MIRROR(intern, where) ((void)0)
+#endif
+/* }}} */
+
 zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv);
 int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value);
 int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty);

@@ -284,6 +284,12 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 		new_obj->key_scratch = emalloc(PHP_JUDY_MAX_LENGTH);
 	}
 
+	/* Clone builds a second copy of both stores by hand rather than going
+	 * through the shared write path, so it is the other place they can drift.
+	 * Compiles to nothing without --enable-judy-debug-mirror. */
+	JUDY_ASSERT_MIRROR(old_obj, "clone (source)");
+	JUDY_ASSERT_MIRROR(new_obj, "clone (result)");
+
 	return &new_obj->std;
 }
 /* }}} */
