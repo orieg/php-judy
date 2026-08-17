@@ -46,10 +46,11 @@
  * below escalates instead of returning an empty set.
  *
  * That selection is written twice — a per-id first()/searchNext() walk and a
- * bulk populationCount()+slice()+keys() shape — because which one is cheaper
- * is genuinely not obvious here, and the usual "prefer bulk operations" rule
- * turns out not to transfer cleanly to a bounded range read. Both are timed;
- * see the notes at the bottom.
+ * bulk keys($lo, $hi) range read — and both are timed, because the gap between
+ * them is the whole reason keys($lo, $hi) was added (issue #96). Writing this
+ * file against the older API is what exposed it: the only bounded bulk read
+ * available was slice($lo, $hi)->keys(), which measured slower than the walk
+ * it was meant to beat. See the notes at the bottom.
  *
  * Judy memory is invisible to memory_get_usage(), so the comparison at the
  * bottom re-executes this script once per variant and reads peak RSS from
@@ -170,12 +171,20 @@ function mergeArray(array &$into, array $from): void
     }
 }
 
-/** Test ids covering one file:line — a range walk over the id block. */
+/**
+ * Test ids covering one file:line — the whole id block in one bounded read.
+ *
+ * Contrast with coveredLines() below. Both are "range" queries, but they want
+ * different primitives: this one reads every key in one contiguous span, which
+ * is exactly what keys($lo, $hi) does in a single traversal. coveredLines()
+ * deliberately does NOT want every key — it wants to skip a whole block at a
+ * time — so it stays on first(), which can seek past the keys it does not
+ * care about. Reading a span, jumping between spans: different tools.
+ */
 function testsCovering(Judy $cov, int $fileId, int $line): array
 {
-    $hi  = covKey($fileId, $line, TEST_MASK);
     $out = [];
-    for ($k = $cov->first(covKey($fileId, $line, 0)); $k !== null && $k <= $hi; $k = $cov->searchNext($k)) {
+    foreach ($cov->keys(covKey($fileId, $line, 0), covKey($fileId, $line, TEST_MASK)) as $k) {
         $out[] = $k & TEST_MASK;
     }
     return $out;
@@ -269,37 +278,41 @@ function selectJudy(Judy $cov, Interner $fileIds, Interner $testIds, array $chan
 }
 
 /**
- * The same policy, same answer, bulk operations instead of a per-id walk.
+ * The same policy, same answer, one bulk range read instead of a per-id walk.
  *
  * selectJudy() above crosses from PHP into C once per test id in the block:
  * one first(), then one searchNext() each. That is the per-element-dispatch
- * shape BENCHMARK.md's bulk-operation tables warn about, and it is not the
- * only tool available. Here each block is lifted whole:
+ * shape BENCHMARK.md's bulk-operation tables warn about. Here each block is
+ * lifted whole by a single call:
  *
- *   populationCount($lo, $hi)  is the block empty, and how big? No allocation.
- *   slice($lo, $hi)            the whole block as a new Judy, one C call.
- *   keys()                     that block as a PHP array, one more C call.
+ *   keys($lo, $hi)   the block as a PHP array, one bounded C traversal.
  *
- * Three crossings per changed line regardless of how many tests cover it,
- * and the mask then runs at VM speed over a plain array — the same kind of
- * work the array baseline does when it iterates a line's test list.
+ * The mask then runs at VM speed over a plain array — the same kind of work
+ * the array baseline does when it iterates a line's test list.
  *
- * Fewer crossings is not automatically less work, though, and this is the
- * interesting part. getAll() and toArray() are fast because they make ONE
- * traversal and write straight into the destination PHP array. There is no
- * range-limited equivalent — no keys($lo, $hi) — so bounding a read to one
- * block has to go through slice(), and slice() is a copy constructor, not a
- * projection: Judy::slice in php_judy.c runs the same J1F/J1N traversal the
- * walk does, but J1S-inserts every key into a freshly allocated Judy, which
- * keys() then traverses a second time to build the array. The bulk route
- * therefore pays two traversals, an insert per key and an allocation per
- * changed line in order to avoid a PHP method dispatch per key.
+ * This example is the reason keys($lo, $hi) exists. Writing it first is what
+ * exposed the gap: getAll() and toArray() are fast because they make ONE
+ * traversal writing straight into the destination PHP array, and until #96
+ * there was no range-limited form of that, so a bounded read had to go
+ * through slice($lo, $hi)->keys(). slice() is a copy constructor rather than
+ * a projection — it runs the same J1F/J1N traversal the walk does, but
+ * J1S-inserts every key into a freshly allocated Judy, which keys() then
+ * traverses a second time. Two traversals, an insert per key and an
+ * allocation per changed line, to save one method dispatch per key. Measured,
+ * that shape came out SLOWER than the walk it was supposed to beat, which is
+ * how a missing primitive shows up as an API-guidance problem: the repo's own
+ * "prefer bulk operations" rule pointed at the wrong tool because the right
+ * one did not exist.
  *
- * So the bulk-operations rule of thumb does not transfer to a range read the
- * way it does to getAll()/toArray(), and neither shape is obviously right.
- * Both are kept, and section 3 times both, so the example measures the
- * question instead of asserting an answer. Check the two columns on an idle
- * machine for your own block sizes rather than trusting either story here.
+ * With the primitive in place the rule holds again, and the win is not just
+ * swapping slice() for keys(). It is dropping to ONE crossing per changed
+ * line. The earlier shape also called populationCount($lo, $hi) first to
+ * price the block without materialising it — sound reasoning when the read
+ * that follows is expensive, but a bounded keys() already answers "is this
+ * block empty?" for free by returning an empty array. Paying an extra
+ * crossing to avoid a cheap call is a net loss at these block sizes, and
+ * removing it is worth more than the slice() swap. See the notes at the
+ * bottom for both effects measured separately.
  *
  * @param list<array{0:string,1:int}> $changed
  */
@@ -317,19 +330,19 @@ function selectJudyBulk(Judy $cov, Interner $fileIds, Interner $testIds, array $
             continue;
         }
 
-        $lo = covKey($fileId, $line, 0);
-        $hi = covKey($fileId, $line, TEST_MASK);
-        // Prices the block without materialising it, so the empty case costs
-        // one call and allocates nothing.
-        if ($cov->populationCount($lo, $hi) === 0) {
+        // One crossing. An empty array IS the "nothing covers this line"
+        // answer, so no separate emptiness probe is needed.
+        $block = $cov->keys(covKey($fileId, $line, 0), covKey($fileId, $line, TEST_MASK));
+        if ($block === []) {
+            // Widen to the whole file's block: still one contiguous range,
+            // just a much longer one.
             $widened++;
-            $lo = covKey($fileId, 0, 0);
-            $hi = covKey($fileId, LINE_MASK, TEST_MASK);
+            $block = $cov->keys(covKey($fileId, 0, 0), covKey($fileId, LINE_MASK, TEST_MASK));
         } else {
             $covered++;
         }
 
-        foreach ($cov->slice($lo, $hi)->keys() as $k) {
+        foreach ($block as $k) {
             $hits[$k & TEST_MASK] = true;
         }
     }
@@ -709,7 +722,7 @@ printf(
 // per changed line instead of a first()/searchNext() dispatch per test id.
 $bulk = selectJudyBulk($merged, $fileIds, $testIds, $diff);
 printf(
-    "   the slice()+keys() bulk shape selects the same set: %s\n\n",
+    "   the bulk keys(\$lo, \$hi) shape selects the same set: %s\n\n",
     $bulk['tests'] === $sel['tests'] ? 'yes' : 'NO — the two shapes disagree',
 );
 
@@ -767,7 +780,7 @@ foreach (['floor', 'array', 'union', 'mergeWith'] as $variant) {
         $row['merge'],
         $row['query'],
         $row['select'] * 1000,
-        $row['selectBulk'] === null ? '' : sprintf('  (bulk slice()+keys(): %8.3f ms)', $row['selectBulk'] * 1000),
+        $row['selectBulk'] === null ? '' : sprintf('  (bulk keys($lo,$hi): %8.3f ms)', $row['selectBulk'] * 1000),
     );
 }
 
@@ -778,7 +791,7 @@ if (count($digests) !== 1) {
 } else {
     printf("   every variant answers every probe query identically (%s)\n", $rows['array']['digest']);
 }
-// Every shape — nested array, per-id walk, bulk slice()+keys() — must select
+// Every shape — nested array, per-id walk, bulk keys($lo, $hi) — must select
 // byte-identically. This assertion is the one thing here machine load cannot
 // invalidate, so it is the one thing worth trusting on a busy box.
 $selDigests = array_unique([
@@ -792,7 +805,7 @@ if (count($selDigests) !== 1) {
     echo "   WARNING: the variants select different test sets for the same diff.\n";
 } else {
     printf(
-        "   array, per-id walk and bulk slice()+keys() select the identical test\n"
+        "   array, per-id walk and bulk keys(\$lo, \$hi) select the identical test\n"
         . "   set for the diff (%s)\n",
         $rows['array']['selDigest'],
     );
@@ -854,26 +867,35 @@ echo "    integers (pack('J*', ...) over keys(), or one packed key per line).\n"
 echo "  - the Judy index does not count against memory_limit at all; the array\n";
 echo "    one does, which is what turns a large coverage run into a fatal error.\n";
 echo "  - the two selection columns are the same query written two ways: a per-id\n";
-echo "    first()/searchNext() walk, and bulk populationCount()+slice()+keys().\n";
-echo "    The walk crosses PHP into C once per test id; the bulk shape crosses a\n";
-echo "    fixed three times per changed line and masks at VM speed.\n";
-echo "  - fewer crossings is not automatically less work, and this is the case\n";
-echo "    where the usual 'prefer bulk operations' advice does not carry over.\n";
-echo "    getAll() and toArray() win because they make one traversal straight\n";
-echo "    into the destination PHP array. There is no range-limited equivalent,\n";
-echo "    so a bounded read has to go through slice() — and slice() copies the\n";
-echo "    range into a newly allocated Judy (a J1S insert per key) before keys()\n";
-echo "    traverses it a second time. Two traversals plus an allocation, to save\n";
-echo "    one method dispatch per key. Read both columns before choosing.\n";
-echo "  - measure this one for your own diff shape rather than reasoning about\n";
+echo "    first()/searchNext() walk, and one bulk keys(\$lo, \$hi) range read.\n";
+echo "    The walk crosses PHP into C once per test id; the range read crosses\n";
+echo "    once per changed line and masks at VM speed.\n";
+echo "  - this example is why keys(\$lo, \$hi) exists (issue #96). Written against\n";
+echo "    the older API the only bounded bulk read was slice(\$lo,\$hi)->keys(),\n";
+echo "    and slice() copies the range into a newly allocated Judy (a J1S insert\n";
+echo "    per key) before keys() traverses it a second time. Two traversals plus\n";
+echo "    an allocation to save one dispatch per key — which measured SLOWER\n";
+echo "    than the walk. A missing primitive had turned into bad guidance: the\n";
+echo "    'prefer bulk operations' rule pointed at the wrong tool because the\n";
+echo "    right one did not exist. With keys(\$lo, \$hi) the rule holds again.\n";
+echo "  - the larger half of that win is crossing count, not the slice() swap.\n";
+echo "    An earlier shape probed populationCount(\$lo,\$hi) first to price the\n";
+echo "    block without materialising it; a bounded keys() already reports an\n";
+echo "    empty block for free, so that probe is a third crossing bought for\n";
+echo "    nothing. Dropping it moved this selection more than the swap did.\n";
+echo "  - still measure it for your own diff shape rather than reasoning about\n";
 echo "    it: the crossover depends on how many tests cover a changed line, and\n";
 echo "    a diff mixes tiny exactly-covered blocks with whole-file widenings.\n";
 echo "  - either way, do not conclude anything about the representation from the\n";
 echo "    selection columns alone. What Judy buys here is that the index still\n";
-echo "    exists at suite scale (the memory columns above), and that\n";
-echo "    populationCount() prices a block without materialising it, so 'is this\n";
-echo "    line covered at all?' costs one call and no allocation even when the\n";
-echo "    honest answer is a hot file covered by most of the suite.\n";
+echo "    exists at suite scale (the memory columns above), and that a bounded\n";
+echo "    range is addressable at all: keys(\$lo, \$hi) reads one file:line block\n";
+echo "    out of millions of triples for the cost of that block, not the index.\n";
+echo "  - populationCount() is still the right call when you want a block's SIZE\n";
+echo "    without its contents, or when the read that would follow is expensive\n";
+echo "    — 'how many tests cover this hot line?' costs one call and allocates\n";
+echo "    nothing. It is only redundant HERE, where the very next thing we do is\n";
+echo "    read the block anyway and an empty array answers the same question.\n";
 echo "  - a widened line walks the file's whole block, which for a hot file is\n";
 echo "    most of the suite. Both shapes pay that; it is the price of being\n";
 echo "    sound rather than the price of the representation.\n";
