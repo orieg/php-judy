@@ -107,10 +107,18 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
      * Return the number of elements, optionally within a key range.
      *
      * When called with arguments, returns the count of keys in the inclusive
-     * [$start, $end] range (integer-keyed types only). The bounds are keys,
-     * not offsets — see the note on Judy::slice().
+     * [$start, $end] range, where null leaves that side unbounded. All key
+     * types are supported: string-keyed types require string bounds and
+     * compare them lexicographically, exactly as keys()/values()/toArray()
+     * do. The bounds are keys, not offsets — see the note on Judy::slice().
+     *
+     * Unbounded, this is O(1) for every type; so is a bounded count on an
+     * integer-keyed type, which libJudy answers from its population cache.
+     * A bounded count on a string-keyed type walks the key index between the
+     * bounds — the cost of the range, not of the array, and cheaper than
+     * count(keys($start, $end)), which builds the array first.
      */
-    public function size(mixed $start = 0, mixed $end = -1): int {}
+    public function size(mixed $start = null, mixed $end = null): int {}
 
     /** Return the number of elements. Implements Countable. */
     public function count(): int {}

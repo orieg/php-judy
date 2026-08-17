@@ -136,10 +136,12 @@ Returns the number of bytes used by the internal Judy structure. **The number me
 ### size()
 
 ```php
-public function size(mixed $start = 0, mixed $end = -1): int
+public function size(mixed $start = null, mixed $end = null): int
 ```
 
-Returns the number of elements. When called with arguments, returns the population count of keys in the inclusive `[$start, $end]` range (integer-keyed types only). The bounds are keys, not offsets — see [Range Operations](#range-operations).
+Returns the number of elements. When called with arguments, returns the count of keys in the inclusive `[$start, $end]` range, where `null` leaves that side unbounded. The bounds are keys, not offsets — see [Range Operations](#range-operations). Unbounded, this is O(1) for every type; so is a bounded count on an integer-keyed type, which libJudy answers from its population cache. A bounded count on a string-keyed type walks the key index between the bounds — the cost of the range, not of the array, and cheaper than `count($judy->keys($start, $end))`, which builds the array first.
+
+**Supported types**: All types. String-keyed types require string bounds and compare them lexicographically.
 
 ```php
 $judy = Judy::fromArray(Judy::INT_TO_INT, [1 => 10, 5 => 50, 1000 => 100]);
@@ -147,6 +149,15 @@ $judy = Judy::fromArray(Judy::INT_TO_INT, [1 => 10, 5 => 50, 1000 => 100]);
 $judy->size();          // 3
 $judy->size(0, 100);    // 2  — keys 1 and 5; key 1000 is outside the range
 $judy->size(0, -1);     // 3  — -1 is the maximum bound, so this is "everything"
+
+$sym = new Judy(Judy::STRING_TO_MIXED);
+$sym['App\Domain\Order'] = true;
+$sym['App\Domain\Cart']  = true;
+$sym['App\Http\Y']       = true;
+
+// "How many classes are under this namespace?" — bound with the prefix and
+// its successor, since an upper bound is a bound and not a prefix match.
+$sym->size('App\Domain\\', 'App\Domain]');  // 2
 ```
 
 ### count()
@@ -394,7 +405,7 @@ Deletes all elements with keys in the range `[$start, $end]` (inclusive). Return
 public function populationCount(mixed $start = 0, mixed $end = -1): int
 ```
 
-Returns the number of elements with keys in the range `[$start, $end]`. Uses Judy's internal population cache for O(1) counting.
+Returns the number of elements with keys in the range `[$start, $end]`. Uses Judy's internal population cache for O(1) counting, which is why it is integer-keyed only: JudySL and JudyHS keep no population count. For a ranged count on a string-keyed type, use [`size()`](#size), which walks the key index between the bounds.
 
 **Supported types**: Integer-keyed types only (BITSET, INT_TO_INT, INT_TO_MIXED, INT_TO_PACKED). Throws exception for string-keyed types.
 
@@ -683,4 +694,4 @@ Summary of which methods are available for each type. Methods not listed here wo
 
 **Legend**: `yes` = supported, `-` = throws exception, `null` = silently returns null, `int` = returns an exact integer value, `approx` = returns an approximate integer value (see the method entry).
 
-All other methods (`slice`, `deleteRange`, `forEach`, `filter`, `map`, `keys`, `values`, `equals`, `mergeWith`, `toArray`, `fromArray`, `putAll`, `getAll`) work with all 10 types.
+All other methods (`size`, `slice`, `deleteRange`, `forEach`, `filter`, `map`, `keys`, `values`, `equals`, `mergeWith`, `toArray`, `fromArray`, `putAll`, `getAll`) work with all 10 types, ranged forms included.

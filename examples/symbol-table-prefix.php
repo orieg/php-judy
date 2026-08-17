@@ -139,6 +139,24 @@ function prefixKeys(Judy $symbols, string $prefix): array
     return $keys;
 }
 
+/**
+ * Just how many — same traversal again, nothing materialised at all.
+ *
+ * size($start, $end) counts the range over the same bounded walk keys() reads,
+ * so this answers "how big is this namespace?" without building an array only
+ * to call count() on it and throw it away. The one-key trim is the same
+ * correction prefixKeys() makes, done with an isset() instead of an array_pop().
+ */
+function prefixCount(Judy $symbols, string $prefix): int
+{
+    [$lo, $hi] = prefixBounds($prefix);
+    $n = $symbols->size($lo, $hi);
+    if ($hi !== null && isset($symbols[$hi])) {
+        $n--;                                     // the single possible false positive
+    }
+    return $n;
+}
+
 /*
  * Checks, so the derivation above is executable rather than a story. Written
  * as explicit comparisons rather than assert(), which zend.assertions=-1
@@ -185,6 +203,15 @@ $check(
 // Binary-safe: the naive P."\xFF" bound would drop both of these.
 $check('keys with a 0xFF byte after the prefix survive', count(prefixKeys($edge, "bin\xFF")) === 2);
 $check('empty prefix reads the whole table', prefixKeys($edge, '') === array_keys($edge->toArray()));
+// Counting the range and reading it must agree — including on the edge case
+// this whole file is about, where the successor bound is itself a stored key.
+$check(
+    'counting a namespace agrees with reading it',
+    prefixCount($edge, 'App\Domain\\') === 2
+        && prefixCount($edge, 'App\Domain') === count(prefixKeys($edge, 'App\Domain'))
+        && prefixCount($edge, "bin\xFF") === 2
+        && prefixCount($edge, '') === count($edge),
+);
 
 echo "1. Prefix -> inclusive key range\n\n";
 foreach (['App\Domain\\', 'App\Domain', "a\xFF\xFF", "\xFF\xFF", ''] as $p) {
@@ -278,7 +305,8 @@ foreach ($members as $fqcn => $meta) {
 [$lo, $hi] = prefixBounds($prefix);
 printf("\n   keys(\$lo, \$hi)    -> %d names, no values materialised\n", count(prefixKeys($symbols, $prefix)));
 printf("   values(\$lo, \$hi)  -> %d metadata records, no names\n", count($symbols->values($lo, $hi)));
-printf("   toArray(\$lo, \$hi) -> %d pairs\n\n", count($members));
+printf("   toArray(\$lo, \$hi) -> %d pairs\n", count($members));
+printf("   size(\$lo, \$hi)    -> %d, and nothing materialised at all\n\n", prefixCount($symbols, $prefix));
 
 // Completion usually wants direct children, not the whole subtree. That is the
 // same bounded read plus a filter at VM speed — still one crossing.
@@ -417,10 +445,13 @@ echo "    one-key trim has no such hole, and costs one array_pop.\n";
 echo "  - the trim is not paranoia about class names (no PHP identifier is\n";
 echo "    spelled \"App\\Domain]\"). It is what makes the helper reusable for keys\n";
 echo "    you did not choose — cache keys, file paths, serialised tuples.\n";
-echo "  - size(\$start, \$end) does NOT bound on string-keyed types: it ignores\n";
-echo "    string bounds and returns the whole count. Use count(keys(\$lo, \$hi))\n";
-echo "    for a namespace population; populationCount() throws on these types\n";
-echo "    rather than answering wrongly.\n";
+echo "  - size(\$lo, \$hi) counts the range on string-keyed types too, over the\n";
+echo "    same bounded walk keys() reads — so a namespace population costs the\n";
+echo "    range and materialises nothing. Prefer it to count(keys(\$lo, \$hi)),\n";
+echo "    which builds an array only to measure it. The one-key trim applies\n";
+echo "    here as well, as an isset() rather than an array_pop().\n";
+echo "    populationCount() still throws on these types: it answers from\n";
+echo "    libJudy's population cache, which the string-keyed stores lack.\n";
 echo "  - deleting a namespace is the same range, one call: deleteRange(\$lo,\n";
 echo "    \$hi) — but the bound is inclusive there too, so it removes the one\n";
 echo "    key spelled like \$hi as well. A read can trim that key afterwards; a\n";
