@@ -19,15 +19,16 @@ the fast path to using or modifying it correctly. Canonical references:
 | `Judy::INT_TO_MIXED` | int | any | yes | |
 | `Judy::STRING_TO_INT` | string | int | yes (lexicographic) | trie-based |
 | `Judy::STRING_TO_MIXED` | string | any | yes (lexicographic) | trie-based |
-| `Judy::STRING_TO_INT_HASH` | string | int | yes (lexicographic) | fastest point lookups; ordered walks are slow — see below |
-| `Judy::STRING_TO_MIXED_HASH` | string | any | yes (lexicographic) | as above |
-| `Judy::STRING_TO_INT_ADAPTIVE` | string | int | yes (lexicographic) | auto-switches storage; same walk caveat |
-| `Judy::STRING_TO_MIXED_ADAPTIVE` | string | any | yes (lexicographic) | as above |
+| `Judy::STRING_TO_INT_HASH` | string | int | yes (lexicographic) | fastest point lookups; ordered walks are slow unless `optimizeIteration` — see below |
+| `Judy::STRING_TO_MIXED_HASH` | string | any | yes (lexicographic) | as above, but cannot take `optimizeIteration` |
+| `Judy::STRING_TO_INT_ADAPTIVE` | string | int | yes (lexicographic) | auto-switches storage; same walk caveat, takes `optimizeIteration` for keys ≥ 8 bytes |
+| `Judy::STRING_TO_MIXED_ADAPTIVE` | string | any | yes (lexicographic) | as above, but cannot take `optimizeIteration` |
 
 ### Core usage
 
 ```php
 $j = new Judy(Judy::INT_TO_INT);
+$j = new Judy(Judy::STRING_TO_INT_HASH, optimizeIteration: true); // see pitfalls
 $j[42] = 7;                    // ArrayAccess
 isset($j[42]); unset($j[42]);
 count($j);                     // Countable
@@ -66,6 +67,8 @@ operations exist and they are different: `byCount($n)` is the positional one
 Judy is fast — a bound is a seek plus a walk, so a narrow range out of a huge
 array costs the range, not the array. All range methods use `$start`/`$end`
 parameter names, so named arguments are uniform across them.
+
+Introspection: `getType(): int`, `isIterationOptimized(): bool`.
 
 Functions: `judy_version(): string`, `judy_type(mixed): int`.
 
@@ -114,15 +117,35 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   sorted key index alongside the value store, so `foreach`, `first()` +
   `searchNext()` and prefix walks all work and return lexicographic order.
   (Verified empirically, and asserted by `tests/string_to_mixed_hash_004.phpt`.)
-  What differs is **cost, not capability**: an ordered walk over these types
-  pays a second lookup per element to fetch the value (measured 22 ns/element
-  at 16-byte keys, 98 ns/element at 40-byte keys — see
-  [#85](https://github.com/orieg/php-judy/issues/85)), and prefix invalidation
+  What differs is **cost, not capability**: by default an ordered walk over
+  these types pays a second lookup per element to fetch the value (measured 22
+  ns/element at 16-byte keys, 98 ns/element at 40-byte keys — see
+  [#85](https://github.com/orieg/php-judy/issues/85); removable on the two
+  `_INT` types with `optimizeIteration`, see the next pitfall), and prefix
+  invalidation
   scales with cache size rather than with the slice dropped (measured 168x
   growth across a 100x sweep, against 1.5x for the trie types — see
   BENCHMARK.md). **Choose `*_HASH`/`*_ADAPTIVE` for point-lookup-dominated
   work and `STRING_TO_INT`/`STRING_TO_MIXED` when ordered or prefix walks are
   hot** — but do not tell users the ordered operations are unavailable.
+- **`optimizeIteration` is a trade, defaults to off, and is fixed at
+  construction.** `new Judy($type, optimizeIteration: true)` (also
+  `Judy::fromArray($type, $data, true)`) makes ordered traversal read each
+  value out of the key index it is already walking instead of looking it up
+  again — **but every write then has to update both.** Measured: `foreach`
+  24-38% faster and `values()` 29-47% faster depending on key length, against
+  8-20% slower on overwrite and on `increment()`, with the *worst* write
+  penalty at the shortest keys, where the read win is smallest. Turn it on for
+  a read-dominated cache; leave it off for anything counter-heavy —
+  `increment()` is the headline reason not to turn it on blindly. It cannot be
+  changed after construction, and it is inherited by every derived array
+  (`clone`, `slice()`, `filter()`, `map()`, `union`/`intersect`/`diff`/`xor`,
+  `__serialize`/`__unserialize`). **Only `STRING_TO_INT_HASH` and
+  `STRING_TO_INT_ADAPTIVE` honour it** (ADAPTIVE only for keys of 8 bytes or
+  more — shorter keys live in a JudyL that is already cheap to read). Every
+  other type accepts the argument and silently ignores it, so generic code may
+  pass it unconditionally; call `isIterationOptimized()` to find out what
+  actually took effect rather than assuming the request was honoured.
 - **`filter()` copies a snapshot.** The value written to the result is the one
   the predicate received; a predicate that writes or unsets `$this[$key]` does
   not change what that element contributes to the result.

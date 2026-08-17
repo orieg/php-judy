@@ -46,11 +46,13 @@ The four `*_HASH` / `*_ADAPTIVE` types keep the key set in a JudySL
 `key_index` and the values in a separate store. A path that updates one and
 not the other leaves two valid pointers holding different answers: no crash,
 no leak, nothing valgrind can see. `STRING_TO_INT_HASH` and long-keyed
-`STRING_TO_INT_ADAPTIVE` go further and mirror the payload itself into the
-`key_index` slot so ordered traversal need not look the value up a second
-time — see `JUDY_MIRRORS_PAYLOAD` in `php_judy.h` — which makes a stale value
-a third way for the two to disagree. When touching a write, mutate or delete
-path on those types, rebuild with the assertions on and run the suite:
+`STRING_TO_INT_ADAPTIVE` go further *when the instance was constructed with
+`optimizeIteration`*: they mirror the payload itself into the `key_index` slot
+so ordered traversal need not look the value up a second time — see
+`JUDY_MIRRORS_PAYLOAD` in `php_judy.h` — which makes a stale value a third way
+for the two to disagree, and a mirror written on an instance that did not ask
+for one a fourth. When touching a write, mutate or delete path on those types,
+rebuild with the assertions on and run the suite:
 
 ```sh
 phpize --clean && phpize
@@ -64,9 +66,13 @@ aborts with a `MIRROR INVARIANT VIOLATED` banner naming the offending key.
 Without the flag it compiles to nothing — the linked `judy.so` is
 byte-identical either way — so this is a development and CI build, never a
 release one. CI runs it as the `debug-mirror-assertions` job, which ends with
-two negative controls — one deletes the counter bump, one deletes the payload
-mirror write — and requires the abort in both cases, so the harness cannot rot
-into a no-op.
+three negative controls — one deletes the counter bump, one deletes the payload
+mirror write on an opted-in instance, one removes the gate so a
+default-constructed instance mirrors anyway — and requires the abort in all
+three, so the harness cannot rot into a no-op. The second control also re-runs
+the same broken build against a default-constructed array and requires it to
+*succeed*, which is what makes "optimizeIteration defaults to off" a tested
+property rather than an intention.
 
 One limit the checker cannot close: JudyHS exposes no enumeration primitive
 (`JHSI`/`JHSG`/`JHSD`/`JHSFA` is the whole API), so both the existence check
