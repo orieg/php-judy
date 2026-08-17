@@ -25,21 +25,59 @@ ini_set('memory_limit', '2G');
 
 // ── CLI argument parsing ────────────────────────────────────────────────────
 
-$opts = getopt('', ['json:', 'size:', 'iterations:', 'suite:']);
+$opts = getopt('', ['json:', 'size:', 'iterations:', 'suite:', 'group:', 'list-groups']);
 $size       = isset($opts['size'])       ? (int)$opts['size']       : 500000;
 $iterations = isset($opts['iterations']) ? (int)$opts['iterations'] : 5;
 $suite      = isset($opts['suite'])      ? $opts['suite']           : 'all';
 $json_file  = isset($opts['json'])       ? $opts['json']            : null;
 
-$valid_suites = ['core', 'api', 'advanced', 'all'];
+// Groups are the finest unit the runner can execute on its own. Each one owns
+// its setup, so running a group in isolation costs only that group's work —
+// which is what lets an external driver interleave two extension builds at
+// group granularity instead of whole-suite granularity (see
+// scripts/bench-compare.php).
+$suite_groups = [
+    'core'     => ['core.int', 'core.str'],
+    'api'      => ['api.batch', 'api.setops'],
+    'advanced' => ['adv.iter', 'adv.sso'],
+];
+$suite_groups['all'] = array_merge(...array_values($suite_groups));
+
+if (isset($opts['list-groups'])) {
+    foreach ($suite_groups['all'] as $g) {
+        echo "$g\n";
+    }
+    exit(0);
+}
+
+$valid_suites = array_keys($suite_groups);
 if (!in_array($suite, $valid_suites, true)) {
     fwrite(STDERR, "Invalid suite: $suite. Choose from: " . implode(', ', $valid_suites) . "\n");
     exit(1);
 }
 
-$run_core     = ($suite === 'all' || $suite === 'core');
-$run_api      = ($suite === 'all' || $suite === 'api');
-$run_advanced = ($suite === 'all' || $suite === 'advanced');
+$active_groups = $suite_groups[$suite];
+if (isset($opts['group'])) {
+    $requested = array_filter(array_map('trim', explode(',', (string)$opts['group'])), 'strlen');
+    $unknown   = array_diff($requested, $suite_groups['all']);
+    if ($unknown) {
+        fwrite(STDERR, "Unknown group(s): " . implode(', ', $unknown)
+            . ". Choose from: " . implode(', ', $suite_groups['all']) . "\n");
+        exit(1);
+    }
+    $active_groups = array_values($requested);
+}
+$active_group_set = array_flip($active_groups);
+
+/** Is this benchmark group selected for this run? */
+function bench_group(string $group): bool {
+    global $active_group_set;
+    return isset($active_group_set[$group]);
+}
+
+$run_core     = bench_group('core.int')  || bench_group('core.str');
+$run_api      = bench_group('api.batch') || bench_group('api.setops');
+$run_advanced = bench_group('adv.iter')  || bench_group('adv.sso');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -116,6 +154,7 @@ $json_results = [
         'size'         => $size,
         'iterations'   => $iterations,
         'suite'        => $suite,
+        'groups'       => $active_groups,
     ],
     'benchmarks' => [],
 ];
@@ -149,7 +188,7 @@ $div = str_repeat('═', 90);
 echo "$div\n";
 echo "  php-judy Benchmark Suite — " . number_format($size) . " elements, $iterations iterations (median)\n";
 echo "  PHP " . phpversion() . " | Judy ext " . judy_version() . " | " . PHP_OS . " " . php_uname('m') . "\n";
-echo "  Suite: $suite\n";
+echo "  Suite: $suite | Groups: " . implode(',', $active_groups) . "\n";
 echo "$div\n\n";
 
 // ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -220,9 +259,12 @@ function bench_core_type(
     ];
 }
 
+$col = [24, 12, 12, 12, 12, 12, 12];
+
+if (bench_group('core.int')) {
+
 echo "── Core: Integer-Keyed Types ────────────────────────────────────────────────\n\n";
 
-$col = [24, 12, 12, 12, 12, 12, 12];
 printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$col[5]}s\n",
     'Type', 'Write(ms)', 'Read(ms)', 'Iter(ms)', 'Free(ms)', 'Heap');
 printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$col[5]}s\n",
@@ -363,7 +405,11 @@ if ($has_packed) {
 unset($mixed_data, $mixed_keys);
 echo "\n";
 
+} // end core.int group
+
 // ── Core: String-Keyed Types ────────────────────────────────────────────────
+
+if (bench_group('core.str')) {
 
 echo "── Core: String-Keyed Types ────────────────────────────────────────────────\n\n";
 
@@ -444,6 +490,8 @@ if ($has_adaptive) {
 unset($str_int_data, $str_keys, $str_mixed_data, $str_mix_keys);
 echo "\n";
 
+} // end core.str group
+
 } // end core suite
 
 // ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -452,9 +500,12 @@ echo "\n";
 
 if ($run_api) {
 
+$col_api = [30, 12, 12, 10];
+
+if (bench_group('api.batch')) {
+
 echo "── API: Batch Operations (INT_TO_INT) ────────────────────────────────────────\n\n";
 
-$col_api = [30, 12, 12, 10];
 printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n",
     'Operation', 'Judy(ms)', 'PHP(ms)', 'Speedup');
 printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n",
@@ -647,7 +698,11 @@ printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n"
 unset($j_int, $j_str, $j_int_b);
 echo "\n";
 
+} // end api.batch group
+
 // ── API: Set Operations ─────────────────────────────────────────────────────
+
+if (bench_group('api.setops')) {
 
 echo "── API: Set Operations (BITSET, 50% overlap) ────────────────────────────────\n\n";
 
@@ -846,6 +901,8 @@ foreach (['union', 'intersect', 'diff'] as $op) {
 unset($judy_a, $judy_b, $php_a, $php_b, $j_a, $j_b, $js_a, $js_b);
 echo "\n";
 
+} // end api.setops group
+
 } // end api suite
 
 // ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -857,6 +914,8 @@ if ($run_advanced) {
 $col_adv = [30, 12, 12, 10];
 
 // ── Advanced: C-level forEach/filter/map ────────────────────────────────────
+
+if (bench_group('adv.iter')) {
 
 echo "── Advanced: C-Level forEach/filter/map ──────────────────────────────────────\n\n";
 
@@ -960,9 +1019,11 @@ printf("  %-{$col_adv[0]}s  %{$col_adv[1]}s  %{$col_adv[2]}s  %{$col_adv[3]}s\n"
 unset($j_int, $j_str);
 echo "\n";
 
+} // end adv.iter group
+
 // ── Advanced: Adaptive SSO comparison ───────────────────────────────────────
 
-if ($has_adaptive) {
+if ($has_adaptive && bench_group('adv.sso')) {
 
 echo "── Advanced: Adaptive SSO — short keys (<8 bytes) via JudyL ─────────────────\n\n";
 
