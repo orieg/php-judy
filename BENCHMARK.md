@@ -626,6 +626,12 @@ argument or a pointer to a figure already in this document, and where a figure
 is cited the section it comes from is named. Nobody built the rejected thing
 and benchmarked it — the reasoning is why it was not built.
 
+Several of them do, however, rest on **read source rather than recollection**,
+because the premise a candidate is argued from turns out to be wrong about the
+real code often enough to be the deciding factor on its own. Where an entry
+cites another project's internals it names the revision it was read at, and
+where a structural claim could not be checked it says so.
+
 The one workload here that *has* been measured end to end is the coverage
 index; see [Measured: the coverage-index
 workload](#measured-the-coverage-index-workload) at the end of this section.
@@ -705,6 +711,85 @@ manager entirely, so it does not count against that limit at all.
 Honest status: **plausible, unmeasured, high cost**. If someone picks it up,
 the first artifact should be a standalone harness over a captured real
 dependency graph — not a patch.
+
+### ❌ PHPStan / Psalm result-cache invalidation
+
+The claim: a static analyser's result cache is a file-dependency graph,
+invalidation is a reverse-transitive closure over integer node ids, and the
+repeated set unions would be leaner in a `BITSET` than in a PHP loop plus
+`array_unique`.
+
+Only the first clause survives contact with the code. This one was checked
+against source rather than recalled — `phpstan/phpstan-src` at `6c642f1` and
+`vimeo/psalm` at `7385c40`.
+
+**It is not a transitive closure.** `ResultCacheManager::restore()` expands each
+changed file by exactly **one hop**: it appends that file's cached
+`dependentFiles` (or, for a body-only change to a file containing a trait, its
+`usedTraitDependentFiles`) to a flat `$filesToAnalyse` list, and never
+re-expands the files it just appended. There is no worklist, no fixed point.
+What substitutes for transitivity is a different mechanism entirely — a hash of
+each file's *exported nodes* (its public signature surface). If those changed,
+PHPStan sets `$newFileAppeared` and appends every file that had a cached error,
+which is a conservative widening, not a graph walk. Deleted files contribute
+their dependents by the same one-hop rule. The whole thing ends in a single
+`array_unique()` over a list of strings.
+
+**The node ids are not integers.** The cached graph is
+`array<string, array{fileHash: string, dependentFiles: list<string>}>`, keyed by
+absolute file path, and the appended values are file paths too. To get to a
+`BITSET` you would first have to assign integer ids to every path — which
+requires exactly the string-keyed map Judy is *worse* at than a PHP array (see
+[Avoid Judy Arrays When](#-avoid-judy-arrays-when)), rebuilt on every run,
+to save work on a set operation that is smaller than the map you built to
+enable it.
+
+**And it is nowhere near the size where Judy competes.** The graph holds one
+entry per analysed file, so a 10k–20k-file project is a 10k–20k-node graph, and
+the set being unioned — `$filesToAnalyse` — is smaller still: changed files plus
+their direct dependents plus, in the widening case, the previously-errored
+files. That is one to two orders of magnitude below the ~100k-element threshold
+this document gives for random-access workloads, on the wrong side of it.
+
+**The closure is not hot, and the enclosing method proves it.** Before the
+expansion loop runs, `restore()` calls `getFileHash()` for **every** analysed
+file, which is a `hash_file('sha256', ...)` — a full read and digest of the
+entire source tree. The invalidation pass then walks the same files once in
+PHP. Any saving on the set union is bounded by a term that is already dwarfed
+by the hashing beside it, before you even reach parsing and analysis.
+
+**Persistence closes the last door.** The cache is not held in memory between
+runs; it is written as a `var_export()`ed PHP file and read back with `require`.
+That is the same mechanism that makes
+[Composer's `autoload_classmap.php`](#-composers-autoload_classmapphp)
+unbeatable here: OPcache compiles the literal once and every process maps it,
+whereas a Judy version must be constructed at run time, per process, from that
+same file. Judy would be paying a build cost to replace something whose build
+cost is zero.
+
+**Psalm is the same shape.** `FileReferenceProvider` keeps
+`$file_references[$file] = ['a' => list<string>, 'i' => list<string>]` plus
+class-keyed maps whose keys are lowercased FQCN strings, and
+`calculateFilesReferencingFile()` / `calculateFilesInheritingFile()` each end in
+`array_unique()` over a one-hop list of paths. String keys, one hop, same
+verdict.
+
+**Does the long-lived-process angle rescue it?** No. PHPStan's `--watch` hands
+off to PHPStan Pro, which is closed source — *this could not be verified* and
+nothing here should be read as a claim about it. Psalm's language server is
+in-repo and genuinely long-lived, but what it holds resident is `ClassLikeStorage`
+and `FileStorage` objects — fat objects with dozens of array properties each —
+not the reference maps. That is the AST case again: an `INT_TO_MIXED` or
+`STRING_TO_MIXED` slot holds a `zval` pointer, so the storages cost the same
+either way and only the container overhead differs (see
+[When PHP Arrays Win](#when-php-arrays-win)). The reference maps are the small
+part of that process's footprint, so shrinking them does not change the
+calculus on its own. *The split between storages and reference maps in a
+resident language server was not measured — that claim is structural.*
+
+Honest status: **rejected on the code, not on a benchmark.** Two of the claim's
+premises are factually wrong about both tools, and the two that would matter
+even if they were right — size and hotness — both fail independently.
 
 ### The constraint underneath several of these: one process, one arena
 
