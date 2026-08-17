@@ -253,6 +253,7 @@
          <file name="tests/count_int_to_mixed_overwrite_001.phpt" role="test" />
          <file name="tests/count_int_to_packed_overwrite_001.phpt" role="test" />
          <file name="tests/delete_range_001.phpt" role="test" />
+         <file name="tests/regression_delete_range_destructor_reentrancy_001.phpt" role="test" />
          <file name="tests/equals_001.phpt" role="test" />
          <file name="tests/foreach_string_key_stress_001.phpt" role="test" />
          <file name="tests/adaptive_clone_isset_unset_empty_slice.phpt" role="test" />
