@@ -265,8 +265,13 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 				ZVAL_STRINGL(&it->key, (char *)key, new_len);
 			}
 
+			/* KValue is the key_index slot for this key. The mirrored types
+			   keep their payload in it, so ordered traversal costs one descend
+			   instead of two (issue #85 step B3). */
 			Pvoid_t *VValue = NULL;
-			if (object->type == TYPE_STRING_TO_MIXED_ADAPTIVE || object->type == TYPE_STRING_TO_INT_ADAPTIVE) {
+			if (JUDY_MIRRORS_PAYLOAD(object, new_len)) {
+				VValue = KValue;
+			} else if (object->type == TYPE_STRING_TO_MIXED_ADAPTIVE || object->type == TYPE_STRING_TO_INT_ADAPTIVE) {
 				Word_t sso_idx;
 				if (judy_pack_short_string_internal((char *)key, new_len, &sso_idx)) {
 					JLG(VValue, object->array, sso_idx);
@@ -385,8 +390,11 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			zval_ptr_dtor(&it->key);
 			ZVAL_STRINGL(&it->key, (const char *) key, new_len);
 
+			/* Same mirrored read as move_forward(). */
 			Pvoid_t *VValue = NULL;
-			if (object->type == TYPE_STRING_TO_MIXED_ADAPTIVE || object->type == TYPE_STRING_TO_INT_ADAPTIVE) {
+			if (JUDY_MIRRORS_PAYLOAD(object, new_len)) {
+				VValue = KValue;
+			} else if (object->type == TYPE_STRING_TO_MIXED_ADAPTIVE || object->type == TYPE_STRING_TO_INT_ADAPTIVE) {
 				Word_t sso_idx;
 				if (judy_pack_short_string_internal((char *)key, new_len, &sso_idx)) {
 					JLG(VValue, object->array, sso_idx);

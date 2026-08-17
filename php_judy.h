@@ -219,13 +219,47 @@ static inline judy_object *php_judy_object(zend_object *obj) {
 	return (judy_object *)((char*)(obj) - offsetof(judy_object, std));
 }
 
+/* A key shorter than a Word_t fits inside the index itself, so ADAPTIVE stores
+   it in a JudyL rather than the JudyHS. */
+#define JUDY_SSO_MAX_LEN (sizeof(Word_t))
+
 static inline int judy_pack_short_string_internal(const char *str, size_t len, Word_t *index)
 {
-	if (len >= 8) return 0;
+	if (len >= JUDY_SSO_MAX_LEN) return 0;
 	*index = 0;
 	memcpy(index, str, len);
 	return 1;
 }
+
+/* {{{ JUDY_MIRRORS_PAYLOAD — does this (type, key length) keep its payload in
+   the key_index value word as well as in the value store?
+
+   The key_index of the four *_HASH / *_ADAPTIVE types is a JudySL whose value
+   word was allocated and never written. STRING_TO_INT_HASH and the long-key
+   half of STRING_TO_INT_ADAPTIVE now mirror their Word_t payload there, so
+   ordered traversal reads it from the cursor it already holds instead of doing
+   a second full lookup per element (issue #85 step B3). The payload is a plain
+   integer with no ownership, which is why these two types go first: no zval
+   lifetime, no destructor ordering, no get_gc interaction.
+
+   Two exclusions, both deliberate:
+
+     - The _MIXED variants are not mirrored yet. Their payload is a zval*, so a
+       mirror is a second pointer to a refcounted value and the rules that keeps
+       are a separate piece of work (issue #85 step B5).
+     - ADAPTIVE keys shorter than JUDY_SSO_MAX_LEN are not mirrored. Their value
+       lives in a JudyL keyed by the packed index, and both the read and the
+       write side reach it with a JLG — measured at 17.6 ns against 184.7 ns for
+       a JudySL descend of the same key (research/write-probe-cost). There is
+       nothing to win on that branch and an order of magnitude to lose.
+
+   Every read site that consults this must therefore have the key length in
+   hand, which the ADAPTIVE traversal sites already compute to pick a store. */
+#define JUDY_MIRRORS_PAYLOAD(intern, klen) \
+	((intern)->type == TYPE_STRING_TO_INT_HASH \
+		|| ((intern)->type == TYPE_STRING_TO_INT_ADAPTIVE \
+			&& (size_t)(klen) >= JUDY_SSO_MAX_LEN))
+/* }}} */
 
 static inline void judy_init_type_flags(judy_object *intern, zend_long jtype)
 {

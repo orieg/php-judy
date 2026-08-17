@@ -45,7 +45,11 @@ regression tests are what keep a C extension safe to evolve.
 The four `*_HASH` / `*_ADAPTIVE` types keep the key set in a JudySL
 `key_index` and the values in a separate store. A path that updates one and
 not the other leaves two valid pointers holding different answers: no crash,
-no leak, nothing valgrind can see. When touching a write, mutate or delete
+no leak, nothing valgrind can see. `STRING_TO_INT_HASH` and long-keyed
+`STRING_TO_INT_ADAPTIVE` go further and mirror the payload itself into the
+`key_index` slot so ordered traversal need not look the value up a second
+time — see `JUDY_MIRRORS_PAYLOAD` in `php_judy.h` — which makes a stale value
+a third way for the two to disagree. When touching a write, mutate or delete
 path on those types, rebuild with the assertions on and run the suite:
 
 ```sh
@@ -60,8 +64,15 @@ aborts with a `MIRROR INVARIANT VIOLATED` banner naming the offending key.
 Without the flag it compiles to nothing — the linked `judy.so` is
 byte-identical either way — so this is a development and CI build, never a
 release one. CI runs it as the `debug-mirror-assertions` job, which ends with
-a negative control that deliberately breaks the invariant and requires the
-abort, so the harness cannot rot into a no-op.
+two negative controls — one deletes the counter bump, one deletes the payload
+mirror write — and requires the abort in both cases, so the harness cannot rot
+into a no-op.
+
+One limit the checker cannot close: JudyHS exposes no enumeration primitive
+(`JHSI`/`JHSG`/`JHSD`/`JHSFA` is the whole API), so both the existence check
+and the payload comparison are driven from `key_index` outwards. A value-store
+entry that `key_index` does not list is reachable only through the population
+counter or as a valgrind leak.
 
 ## Code conventions
 

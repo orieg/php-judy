@@ -546,7 +546,8 @@ static zval *judy_object_read_dimension(zend_object *obj, zval *offset, int type
      - rolling the value-store insert back if that registration fails,
      - the intern->counter bump.
 
-   Callers are left with exactly one job: write the payload through *slot_out.
+   Callers are left with exactly one job: write the payload through *slot_out —
+   and, when *mirror_out came back non-NULL, the same payload through that too.
    That split is the point. The *_HASH and *_ADAPTIVE types hold the key set in
    two structures at once, and a value write that reached the value store
    without coming through here is precisely where the two would drift apart.
@@ -557,6 +558,15 @@ static zval *judy_object_read_dimension(zend_object *obj, zval *offset, int type
    caller that cares can still tell an insert from an overwrite by inspecting
    it; the counter is maintained here either way.
 
+   *mirror_out is the key_index value word for the types JUDY_MIRRORS_PAYLOAD()
+   names, and NULL for every other type and key length. Both pointers are
+   resolved before either is written, so the caller's two stores cannot fail
+   half-way: a Word_t store into an acquired Judy slot cannot fail.
+
+   mirror_out may be NULL when the caller knows it is writing a type that never
+   mirrors — but passing it costs nothing and skipping it on a mirrored type
+   silently desynchronises the two stores, so callers pass it.
+
    Returns FAILURE having made no net change. An exception is thrown only for
    the NUL precondition — an allocation failure is reported silently so each
    caller keeps its own wording. A caller adding a message of its own must
@@ -565,7 +575,7 @@ static zval *judy_object_read_dimension(zend_object *obj, zval *offset, int type
    Not valid for the integer-keyed types: they have no key_index, and their
    index derivation (append, negative offsets) belongs to the caller. */
 static zend_always_inline int judy_string_slot_acquire(judy_object *intern, const uint8_t *key,
-	Word_t klen, Pvoid_t **slot_out)
+	Word_t klen, Pvoid_t **slot_out, Pvoid_t **mirror_out)
 {
 	Pvoid_t *slot = NULL;
 	Pvoid_t *existing = NULL;
@@ -574,6 +584,9 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 	int rc_tmp = 0;
 
 	*slot_out = NULL;
+	if (mirror_out != NULL) {
+		*mirror_out = NULL;
+	}
 
 	switch (intern->type) {
 
@@ -615,13 +628,18 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 				"Judy STRING_TO_INT_HASH keys must not contain embedded null bytes", 0);
 			return FAILURE;
 		}
-		/* 0 is a legal stored value, so probe rather than read the slot. */
-		JHSG(existing, intern->array, (uint8_t *)key, klen);
+		/* One descend of key_index answers "does this key exist?" AND yields
+		   the mirror slot, replacing the JHSG existence probe rather than
+		   adding a third lookup. 0 is a legal stored value, so existence has to
+		   come from a probe either way; asking the trie costs about the same on
+		   a hit (+3% at 16-byte keys, -9% at 40-byte) and far less on a miss,
+		   which is the insert path. Measured in research/write-probe-cost. */
+		JSLG(kslot, intern->key_index, (uint8_t *)key);
 		JHSI(slot, intern->array, (uint8_t *)key, klen);
 		if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
 			return FAILURE;
 		}
-		if (existing == NULL) {
+		if (kslot == NULL) {
 			JSLI(kslot, intern->key_index, (uint8_t *)key);
 			if (JUDY_UNLIKELY(kslot == PJERR)) {
 				/* Roll the value-store insert back rather than leave a key
@@ -635,6 +653,9 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 			   fire, so that the harness cannot rot into a no-op. */
 			intern->counter++; /* judy-mirror-negative-control */
 			judy_string_bytes_add(intern, klen);
+		}
+		if (mirror_out != NULL) {
+			*mirror_out = kslot;
 		}
 		break;
 
@@ -666,6 +687,10 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 			return FAILURE;
 		}
 		if (judy_pack_short_string_internal((const char *)key, (size_t)klen, &sso_idx)) {
+			/* Short keys keep the JudyL probe and are NOT mirrored: JLG costs
+			   17.6 ns against 184.7 ns for a JudySL descend of the same key,
+			   and traversal reads them back through that same JLG, so a mirror
+			   would buy nothing here. See JUDY_MIRRORS_PAYLOAD. */
 			JLG(existing, intern->array, sso_idx);
 			JLI(slot, intern->array, sso_idx);
 			if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
@@ -681,12 +706,13 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 				judy_string_bytes_add(intern, klen);
 			}
 		} else {
-			JHSG(existing, intern->hs_array, (uint8_t *)key, klen);
+			/* Long keys: same probe swap as STRING_TO_INT_HASH. */
+			JSLG(kslot, intern->key_index, (uint8_t *)key);
 			JHSI(slot, intern->hs_array, (uint8_t *)key, klen);
 			if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
 				return FAILURE;
 			}
-			if (existing == NULL) {
+			if (kslot == NULL) {
 				JSLI(kslot, intern->key_index, (uint8_t *)key);
 				if (JUDY_UNLIKELY(kslot == PJERR)) {
 					JHSD(rc_tmp, intern->hs_array, (uint8_t *)key, klen);
@@ -694,6 +720,9 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 				}
 				intern->counter++;
 				judy_string_bytes_add(intern, klen);
+			}
+			if (mirror_out != NULL) {
+				*mirror_out = kslot;
 			}
 		}
 		break;
@@ -930,11 +959,12 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		/* All six string-keyed types share one slot-acquisition path; see
 		   judy_string_slot_acquire() for why nothing may bypass it. */
 		Pvoid_t *slot;
+		Pvoid_t *mirror;
 
 		if (JUDY_IS_MIXED_VALUE(intern)) {
 			if (JUDY_UNLIKELY(judy_string_slot_acquire(intern,
 					(uint8_t *)Z_STRVAL_P(pstring_key),
-					(Word_t)Z_STRLEN_P(pstring_key), &slot) == FAILURE)) {
+					(Word_t)Z_STRLEN_P(pstring_key), &slot, NULL) == FAILURE)) {
 				return FAILURE;
 			}
 			judy_slot_store_zval(slot, value);
@@ -946,8 +976,15 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 
 			if (JUDY_UNLIKELY(judy_string_slot_acquire(intern,
 					(uint8_t *)Z_STRVAL_P(pstring_key),
-					(Word_t)Z_STRLEN_P(pstring_key), &slot) == FAILURE)) {
+					(Word_t)Z_STRLEN_P(pstring_key), &slot, &mirror) == FAILURE)) {
 				return FAILURE;
+			}
+			/* Both slots are in hand and neither store can fail, so there is no
+			   window in which one of the two is updated and the other is not.
+			   ci.yml's second negative control deletes the mirror write below
+			   and requires the payload assertion to fire. */
+			if (mirror != NULL) {
+				JUDY_LVAL_WRITE(mirror, lval); /* judy-mirror-payload-negative-control */
 			}
 			JUDY_LVAL_WRITE(slot, lval);
 		}
@@ -1597,10 +1634,16 @@ static inline Pvoid_t *judy_string_value_slot(judy_object *intern, const uint8_t
         shows up as a leak under valgrind otherwise. ADAPTIVE's short-key half
         is an ordinary JudyL and *is* enumerable, so that half is checked in
         both directions.
+     4. For the types JUDY_MIRRORS_PAYLOAD() names, the payload mirrored into
+        the key_index slot equals the one in the value store. This is the check
+        that has no other backstop at all: a stale mirror is two valid words
+        holding different integers, invisible to valgrind and to the counter.
+        It rides inside the same walk as (2), one comparison per key.
 
-   #85 step 1 (payload mirroring) extends (2) with "and the payload mirrored
-   into the key_index slot equals the one in the value store": the same walk,
-   one more comparison per key.
+        Note what it does NOT cover. The comparison is driven from key_index,
+        the same direction as (2), because that is the only direction JudyHS
+        can be walked. A value-store entry that key_index does not list is
+        still unreachable here.
 
    O(n). Call it only from operations that are already O(n) — object teardown,
    clone — never once per element. */
@@ -1672,6 +1715,14 @@ void judy_debug_check_mirror(judy_object *intern, const char *where)
 				judy_debug_mirror_fail(intern, where,
 					"key listed in key_index has a NULL zval in the value store",
 					(const char *)cursor);
+			}
+			if (JUDY_MIRRORS_PAYLOAD(intern, klen)
+					&& JUDY_LVAL_READ(KValue) != JUDY_LVAL_READ(VValue)) {
+				char msg[160];
+				snprintf(msg, sizeof(msg),
+					"mirrored payload %ld in key_index disagrees with %ld in the value store",
+					(long)JUDY_LVAL_READ(KValue), (long)JUDY_LVAL_READ(VValue));
+				judy_debug_mirror_fail(intern, where, msg, (const char *)cursor);
 			}
 			seen++;
 			JSLN(KValue, intern->key_index, cursor);
@@ -1989,7 +2040,11 @@ PHP_METHOD(Judy, next)
 			zval_ptr_dtor(&intern->iterator_key);
 			ZVAL_STRING(&intern->iterator_key, (char *)key);
 
-			Pvoid_t *VValue = judy_string_value_slot(intern, key, (Word_t)strlen((char *)key));
+			/* PValue is the key_index slot for the *_HASH / *_ADAPTIVE types,
+			   which is where the mirrored payload lives. */
+			Word_t vklen = (Word_t)strlen((char *)key);
+			Pvoid_t *VValue = JUDY_MIRRORS_PAYLOAD(intern, vklen)
+				? PValue : judy_string_value_slot(intern, key, vklen);
 			if (VValue != NULL) {
 				if (JUDY_IS_MIXED_VALUE(intern)) {
 					ZVAL_COPY(&intern->iterator_data, JUDY_MVAL_READ(VValue));
@@ -2073,7 +2128,10 @@ PHP_METHOD(Judy, rewind)
 		if (PValue != NULL && PValue != PJERR) {
 			zval_ptr_dtor(&intern->iterator_key);
 			ZVAL_STRING(&intern->iterator_key, (const char *) key);
-			Pvoid_t *VValue = judy_string_value_slot(intern, key, (Word_t)strlen((char *)key));
+			/* PValue is the key_index slot for the mirrored types. */
+			Word_t vklen = (Word_t)strlen((char *)key);
+			Pvoid_t *VValue = JUDY_MIRRORS_PAYLOAD(intern, vklen)
+				? PValue : judy_string_value_slot(intern, key, vklen);
 			if (VValue != NULL) {
 				if (JUDY_IS_MIXED_VALUE(intern)) {
 					ZVAL_COPY(&intern->iterator_data, JUDY_MVAL_READ(VValue));
@@ -3311,6 +3369,8 @@ PHP_METHOD(Judy, slice)
 						JHSD(jhsd_rc, result->array, key, klen);
 						goto alloc_error;
 					}
+					/* Mirror the payload for the slice's own traversal. */
+					JUDY_LVAL_WRITE(KNew, JUDY_LVAL_READ(HValue));
 					result->counter++;
 					judy_string_bytes_add(result, klen);
 				}
@@ -3399,6 +3459,10 @@ PHP_METHOD(Judy, slice)
 							JHSD(rc, result->hs_array, key, klen);
 						}
 						goto alloc_error;
+					}
+					/* Long INT_ADAPTIVE keys mirror; short ones do not. */
+					if (JUDY_MIRRORS_PAYLOAD(result, klen)) {
+						JUDY_LVAL_WRITE(KNew, (Word_t)JUDY_LVAL_READ(SrcValue));
 					}
 					result->counter++;
 					judy_string_bytes_add(result, klen);
@@ -3627,6 +3691,10 @@ static void judy_populate_array_ex(judy_object *intern, zval *data, judy_collect
 
 				if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
 					JLG(VValue, intern->array, sso_idx);
+				} else if (JUDY_MIRRORS_PAYLOAD(intern, key_len)) {
+					/* The payload is mirrored into the key_index slot the walk
+					   is already standing on — no second lookup. */
+					VValue = PValue;
 				} else {
 					JHSG(VValue, intern->hs_array, key, key_len);
 				}
@@ -3678,7 +3746,12 @@ static void judy_populate_array_ex(judy_object *intern, zval *data, judy_collect
 				add_next_index_string(data, (const char *)key);
 			} else {
 				Pvoid_t *VValue = PValue;
-				if (intern->is_hash_keyed) {
+				/* STRING_TO_INT_HASH mirrors its payload into the key_index
+				   slot PValue already points at; STRING_TO_MIXED_HASH does not
+				   (yet) and still needs the second lookup. This branch is never
+				   reached for the ADAPTIVE types, so the key-length half of
+				   JUDY_MIRRORS_PAYLOAD() does not apply. */
+				if (intern->is_hash_keyed && intern->type != TYPE_STRING_TO_INT_HASH) {
 					JHSG(VValue, intern->array, key, (Word_t)strlen((char *)key));
 				}
 
@@ -4648,6 +4721,8 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 
 			if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
 				JLG(VValue, intern->array, sso_idx);
+			} else if (JUDY_MIRRORS_PAYLOAD(intern, key_len)) {
+				VValue = PValue;
 			} else {
 				JHSG(VValue, intern->hs_array, key, key_len);
 			}
@@ -4691,7 +4766,9 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR) && action_rc == SUCCESS) {
 			ZVAL_STRING(&args[1], (const char *)key);
 			Pvoid_t *VValue = PValue;
-			if (intern->is_hash_keyed) {
+			/* Mirrored types read the payload from the key_index cursor; see
+			   judy_populate_array() for why the ADAPTIVE length test is absent. */
+			if (intern->is_hash_keyed && intern->type != TYPE_STRING_TO_INT_HASH) {
 				JHSG(VValue, intern->array, key, (Word_t)strlen((char *)key));
 			}
 
@@ -5266,6 +5343,7 @@ PHP_METHOD(Judy, increment)
 			|| intern->type == TYPE_STRING_TO_INT_HASH) {
 		zend_string *skey = zval_get_string(zkey);
 		Pvoid_t *slot;
+		Pvoid_t *mirror;
 		zend_long new_val;
 
 		if (ZSTR_LEN(skey) >= PHP_JUDY_MAX_LENGTH) {
@@ -5280,7 +5358,7 @@ PHP_METHOD(Judy, increment)
 		   key_index registration, its rollback and the counter all live in
 		   one place, so increment() cannot drift from a plain write. */
 		if (judy_string_slot_acquire(intern, (uint8_t *)ZSTR_VAL(skey),
-				(Word_t)ZSTR_LEN(skey), &slot) == FAILURE) {
+				(Word_t)ZSTR_LEN(skey), &slot, &mirror) == FAILURE) {
 			zend_string_release(skey);
 			/* The helper throws for the NUL precondition and stays silent on
 			   allocation failure, which is the case that wants our wording. */
@@ -5291,6 +5369,9 @@ PHP_METHOD(Judy, increment)
 		}
 
 		new_val = JUDY_LVAL_READ(slot) + amount;
+		if (mirror != NULL) {
+			JUDY_LVAL_WRITE(mirror, new_val);
+		}
 		JUDY_LVAL_WRITE(slot, new_val);
 		zend_string_release(skey);
 		RETURN_LONG(new_val);

@@ -10,6 +10,12 @@ Judy *_HASH / *_ADAPTIVE: ordered traversal and point lookup agree after mixed w
 // holding different answers — no crash, no leak, only a wrong result. This
 // test pins the agreement across every write shape the extension has.
 //
+// STRING_TO_INT_HASH and long-keyed STRING_TO_INT_ADAPTIVE now mirror their
+// payload into the key_index slot, so ordered traversal reads it from there
+// and point lookup still reads the value store. Every ordered read surface is
+// therefore cross-examined against point lookup, not just foreach: they are
+// separate call sites and a mirror is only as good as the site that reads it.
+//
 // ADAPTIVE keys are split deliberately across the 8-byte SSO boundary, since
 // short and long keys land in different value stores.
 $types = [
@@ -47,8 +53,37 @@ function check(string $label, Judy $j, array $expected): void {
     if (count($seen) !== $j->count()) {
         $problems[] = "count() " . $j->count() . " != iterated " . count($seen);
     }
-    if (array_keys($seen) !== array_keys($j->toArray())) {
-        $problems[] = "toArray() key set differs from foreach";
+    if ($j->toArray() !== $seen) {
+        $problems[] = "toArray() differs from foreach";
+    }
+
+    // Each of these is its own ordered-traversal call site in C, and each one
+    // reads the mirrored payload independently. keys() is the control: it
+    // never touches a value, so a keys()/values() mismatch localises the fault
+    // to the value read rather than the walk.
+    $ks = $j->keys();
+    $vs = $j->values();
+    if (count($ks) !== count($vs) || array_combine($ks, $vs) !== $seen) {
+        $problems[] = "keys()/values() differ from foreach";
+    }
+    if ($ks && $j->getAll($ks) !== $seen) {
+        $problems[] = "getAll() differs from foreach";
+    }
+
+    $viaCallback = [];
+    $j->forEach(function ($v, $k) use (&$viaCallback) { $viaCallback[$k] = $v; });
+    if ($viaCallback !== $seen) {
+        $problems[] = "forEach() differs from foreach";
+    }
+
+    // The Iterator-interface methods are a separate walk from the one the
+    // foreach opcode drives.
+    $manual = [];
+    for ($j->rewind(); $j->valid(); $j->next()) {
+        $manual[$j->key()] = $j->current();
+    }
+    if ($manual !== $seen) {
+        $problems[] = "rewind()/next() walk differs from foreach";
     }
 
     $sorted = array_keys($seen);

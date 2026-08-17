@@ -184,6 +184,9 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 						JHSD(rc, newJArray, kindex, klen);
 						break;
 					}
+					/* Mirror the payload into the key_index slot the clone's
+					   traversal will read it from (issue #85 step B3). */
+					JUDY_LVAL_WRITE(newKValue, JUDY_LVAL_READ(HValue));
 				}
 			}
 			JSLN(KValue, old_obj->key_index, kindex)
@@ -206,6 +209,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			int value_ok = 0;      /* value slot successfully written */
 			int is_sso = 0;        /* which store to roll back on key failure */
 			zval *copied = NULL;   /* MIXED: the zval to free on rollback */
+			Word_t mirrored = 0;   /* payload to mirror into key_index, if any */
 
 			if (judy_pack_short_string_internal((char *)kindex, klen, &sso_idx)) {
 				/* Short key — stored in JudyL (intern->array) */
@@ -240,6 +244,8 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 							JUDY_MVAL_WRITE(newHValue, copied);
 						} else {
 							JUDY_LVAL_WRITE(newHValue, JUDY_LVAL_READ(HValue));
+							/* Long INT_ADAPTIVE keys mirror; short ones do not. */
+							mirrored = (Word_t)JUDY_LVAL_READ(HValue);
 						}
 						value_ok = 1;
 					}
@@ -263,6 +269,9 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 						JHSD(rc, newHsArray, kindex, klen);
 					}
 					break;
+				}
+				if (JUDY_MIRRORS_PAYLOAD(old_obj, klen)) {
+					JUDY_LVAL_WRITE(newKValue, mirrored);
 				}
 			}
 

@@ -244,6 +244,35 @@ jobs:
 
           git checkout -- php_judy.c
 
+      - name: Negative control — break the payload mirror, require the abort
+        run: |
+          # The population/counter control above cannot see a *stale* mirror:
+          # both stores stay populated and the counter stays right, only the
+          # two integers disagree. Delete the mirror write on the offsetSet
+          # path and require the payload comparison to catch it.
+          sed -i 's|JUDY_LVAL_WRITE(mirror, lval); /\* judy-mirror-payload-negative-control \*/|/* deleted by the CI negative control */|' php_judy.c
+          grep -q 'deleted by the CI negative control' php_judy.c \
+            || { echo "::error::negative control did not apply — the anchor line in php_judy.c moved"; exit 1; }
+          make
+
+          set +e
+          php -d extension="$(pwd)/modules/judy.so" \
+            -r '$j = new Judy(Judy::STRING_TO_INT_HASH); $j["a"] = 1;' \
+            > /tmp/negative-control-payload.log 2>&1
+          rc=$?
+          set -e
+          cat /tmp/negative-control-payload.log
+
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::a stale payload mirror ran to completion — the payload assertion is not working"
+            exit 1
+          fi
+          grep -q 'mirrored payload' /tmp/negative-control-payload.log \
+            || { echo "::error::process failed but not via the payload assertion — check the log above"; exit 1; }
+          echo "Negative control passed: the assertions caught the stale mirror."
+
+          git checkout -- php_judy.c
+
   validate-pecl:
     runs-on: ubuntu-latest
     steps:
