@@ -127,28 +127,136 @@ register_shutdown_function(static function () use ($tmp_root): void {
 
 // ── Child execution ─────────────────────────────────────────────────────────
 
+/** Build the `PHP_INI_SCAN_DIR=... php ...` prefix for one arm's child. */
+function arm_php(string $arm): string {
+    global $arm_ini;
+
+    // PHP_INI_SCAN_DIR points at a directory holding exactly one judy.ini, so
+    // no other ini file on the machine can also load the extension. The whole
+    // comparison is worthless if an arm silently runs the other build: an
+    // image that pre-enables judy in its own conf.d makes `-d extension=...`
+    // a no-op and PHP only whispers "Module already loaded" about it. Hence
+    // the scan-dir override here and verify_arm() below.
+    return 'PHP_INI_SCAN_DIR=' . escapeshellarg($arm_ini[$arm]) . ' '
+        . escapeshellarg(PHP_BINARY) . ' -d memory_limit=-1 ';
+}
+
+/**
+ * Fail loudly unless this arm's children load exactly the extension we asked
+ * for. A benchmark that silently measures the wrong binary is worse than a
+ * noisy one: it reports a near-zero delta, which reads as success.
+ */
+function verify_arm(string $arm, string $so): void {
+    global $tmp_root;
+
+    $probe = <<<'PROBE'
+$out = ['loaded' => extension_loaded('judy'), 'paths' => [], 'proc' => false];
+$maps = @file_get_contents('/proc/self/maps');
+if ($maps !== false) {
+    $out['proc'] = true;
+    if (preg_match_all('#/\S*judy\S*\.so#', $maps, $m)) {
+        $out['paths'] = array_values(array_unique($m[0]));
+    }
+}
+$inis = php_ini_scanned_files();
+$out['ini_files'] = $inis === false ? [] : array_values(array_filter(
+    array_map('trim', explode(',', $inis)), 'strlen'
+));
+$loaded_ini = php_ini_loaded_file();
+$out['main_ini_loads_judy'] = $loaded_ini !== false
+    && preg_match('#^\s*(zend_)?extension\s*=.*judy#mi', (string)@file_get_contents($loaded_ini)) === 1;
+echo json_encode($out);
+PROBE;
+
+    $err = "$tmp_root/probe.err";
+    $cmd = arm_php($arm) . '-r ' . escapeshellarg($probe) . ' 2> ' . escapeshellarg($err);
+    $raw = (string)shell_exec($cmd);
+    $stderr = is_file($err) ? trim((string)file_get_contents($err)) : '';
+    @unlink($err);
+
+    $fail = static function (string $why) use ($arm, $so, $stderr): void {
+        fwrite(STDERR, "Extension preflight failed for the $arm arm.\n");
+        fwrite(STDERR, "  wanted: $so\n");
+        fwrite(STDERR, "  reason: $why\n");
+        if ($stderr !== '') {
+            fwrite(STDERR, "  child stderr: $stderr\n");
+        }
+        exit(1);
+    };
+
+    if (stripos($stderr, 'already loaded') !== false) {
+        $fail('another ini file had already loaded judy, so this arm would '
+            . 'have measured whichever build that ini points at');
+    }
+    if (stripos($stderr, 'Unable to load dynamic library') !== false) {
+        $fail('the extension could not be loaded');
+    }
+
+    $info = json_decode(trim($raw), true);
+    if (!is_array($info)) {
+        $fail('the probe produced no usable output: ' . trim($raw));
+    }
+    if (empty($info['loaded'])) {
+        $fail('the judy extension was not loaded at all');
+    }
+    if (!empty($info['main_ini_loads_judy'])) {
+        $fail('the main php.ini also loads judy; PHP_INI_SCAN_DIR cannot '
+            . 'override that, so run this on a PHP whose php.ini does not '
+            . 'enable the extension');
+    }
+    if (count($info['ini_files']) > 1) {
+        $fail('more than one scanned ini file is in effect: '
+            . implode(', ', $info['ini_files']));
+    }
+
+    // Linux gives us the authoritative answer: which file is actually mapped.
+    if (!empty($info['proc'])) {
+        $want  = realpath($so);
+        $paths = array_map(static fn($p) => realpath($p) ?: $p, $info['paths']);
+        $paths = array_values(array_unique($paths));
+        if (count($paths) !== 1 || $paths[0] !== $want) {
+            $fail('the mapped extension is ' . (
+                $paths ? implode(', ', $paths) : 'not identifiable'
+            ));
+        }
+    }
+}
+
 /**
  * Run one benchmark group under one arm. Returns the child's `benchmarks` map.
  *
  * @return array<string,array<string,mixed>>
  */
 function run_group(string $arm, string $group): array {
-    global $arm_ini, $bench_script, $size, $iterations, $tmp_root;
+    global $bench_script, $size, $iterations, $tmp_root;
 
     $json = "$tmp_root/out.json";
+    $err  = "$tmp_root/child.err";
     @unlink($json);
-    $cmd = 'PHP_INI_SCAN_DIR=' . escapeshellarg($arm_ini[$arm]) . ' '
-        . escapeshellarg(PHP_BINARY) . ' -d memory_limit=-1 '
+    $cmd = arm_php($arm)
         . escapeshellarg($bench_script)
         . ' --group ' . escapeshellarg($group)
         . ' --size ' . $size
         . ' --iterations ' . $iterations
         . ' --json ' . escapeshellarg($json)
-        . ' > /dev/null 2>&1';
+        . ' > /dev/null 2> ' . escapeshellarg($err);
 
     exec($cmd, $_, $status);
+    $stderr = is_file($err) ? trim((string)file_get_contents($err)) : '';
+    @unlink($err);
+
+    // Never measure through a warning that means the wrong build is loaded.
+    if (stripos($stderr, 'already loaded') !== false
+        || stripos($stderr, 'Unable to load dynamic library') !== false) {
+        fwrite(STDERR, "Extension loading went wrong mid-run (arm=$arm "
+            . "group=$group): $stderr\n");
+        exit(1);
+    }
     if ($status !== 0 || !is_file($json)) {
         fwrite(STDERR, "Child failed (arm=$arm group=$group status=$status)\n");
+        if ($stderr !== '') {
+            fwrite(STDERR, "  stderr: $stderr\n");
+        }
         exit(1);
     }
     $data = json_decode((string)file_get_contents($json), true);
@@ -223,6 +331,17 @@ $arm_meta = [];
 $samples  = ['baseline' => [], 'current' => []];
 /** @var array<string,array<string,array<int>>> $heaps */
 $heaps    = ['baseline' => [], 'current' => []];
+
+// Preflight before spending any wall clock: prove each arm loads the build it
+// was given, and say plainly when the two arms are the same file.
+verify_arm('baseline', $baseline_so);
+verify_arm('current', $current_so);
+$same_build = hash_file('sha256', $baseline_so) === hash_file('sha256', $current_so);
+if ($same_build) {
+    say("Note: both arms are byte-identical builds — this is a self-comparison,\n"
+        . "      so any flagged difference is measurement error by construction.\n");
+}
+say("Preflight OK: baseline and current arms load their own build.\n");
 
 $started = microtime(true);
 $total   = count($groups) * $rounds * 2;
@@ -447,6 +566,9 @@ $result = [
         'drift_threshold_pct' => $drift_max,
         'max_spread_pct'   => $max_spread,
         'wall_seconds'     => round($wall, 1),
+        'baseline_so'      => realpath($baseline_so),
+        'current_so'       => realpath($current_so),
+        'identical_builds' => $same_build,
         'schema'           => 'judy-bench-compare/1',
     ],
     'drift' => [
