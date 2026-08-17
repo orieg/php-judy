@@ -53,6 +53,11 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 > Choosing between Judy and **APCu, `SplFixedArray`, or a sorted array** rather
 > than a PHP array? Skip to [Versus the Alternatives](#versus-the-alternatives-apcu-splfixedarray-sorted-arrays).
 
+> Evaluating Judy for a **PHP developer tool** — a test runner, a static
+> analyser, a refactoring pass, a dependency manager? Several of those
+> candidates were examined and rejected. The reasons are in
+> [Judy in PHP Developer Tooling](#judy-in-php-developer-tooling).
+
 **Use Judy Arrays When:**
 - ✅ Memory is constrained (2-4x less memory usage)
 - ✅ Large datasets (> 1M elements) where memory efficiency matters
@@ -605,6 +610,222 @@ Memcached. It measures in-process data-structure behavior only.
 - High-frequency string key operations
 - When performance is more important than memory
 - **Reason**: Slower than PHP arrays for string keys
+
+---
+
+## Judy in PHP Developer Tooling
+
+Judy gets proposed for PHP developer tooling — test runners, static analysers,
+refactoring passes, dependency managers — more often than it fits there. This
+section records which candidates were examined and rejected, and **why**,
+because the reason is the part that transfers: it is what tells you whether the
+*next* candidate is like these or unlike them.
+
+**The rejections below are not measured.** Each is either a structural
+argument or a pointer to a figure already in this document, and where a figure
+is cited the section it comes from is named. Nobody built the rejected thing
+and benchmarked it — the reasoning is why it was not built.
+
+The one workload here that *has* been measured end to end is the coverage
+index; see [Measured: the coverage-index
+workload](#measured-the-coverage-index-workload) at the end of this section.
+Its result is a **split verdict**, and both halves are recorded there.
+
+### ❌ Speeding up PHPUnit's core runtime
+
+This is the first idea most people have, and it is the wrong one. A test run's
+cost is autoloading, reflection, the assertion machinery, fixture setup and
+process bootstrap — not map lookups. There is no associative-array lookup in
+the runner hot enough for the data structure underneath it to be observable, so
+swapping a hash table for a trie buys nothing, and any swap you did make would
+pay Judy's random-access penalty (2-9x slower on integer keys — see Key
+Findings above) for that nothing.
+
+Worth stating explicitly because "make PHPUnit faster" is the obvious framing
+and it aims at the wrong layer. The place inside a test run where a data
+structure genuinely *is* the constraint is coverage collection — see the fit
+list below — and that is a different component with a different shape.
+
+### ❌ Token streams and per-file ASTs (Rector, PHP-CS-Fixer, anything on nikic/PHP-Parser)
+
+A tokenised file is a dense, small, sequentially-indexed integer array —
+thousands of entries, not millions — and the traversal is a linear pass, not a
+range query. That is squarely inside the existing "avoid Judy below ~100k
+elements with random access" rule above, and it also gives up nothing Judy has
+to offer: the keys are already contiguous and already in order, so ordered
+iteration is free either way.
+
+The memory argument does not rescue it. AST nodes are objects, so the Judy type
+would be `INT_TO_MIXED`, which stores a `zval` pointer per slot — the zval heap
+cost is identical to a PHP array's (see [When PHP Arrays Win](#when-php-arrays-win))
+and only the trie overhead differs. There is no memory saving to trade the
+traversal speed against.
+
+### ❌ Composer's `autoload_classmap.php`
+
+Already optimal, by a mechanism Judy cannot match. The classmap is a compiled
+PHP array literal: OPcache compiles it once and holds the immutable array in
+shared memory, so every process on the box maps the same copy at zero
+per-request build cost. A Judy version would have to be constructed at run time
+in each process, from some source, and would then hold a private copy per
+process. That is worse on both axes before the first lookup happens.
+
+### ⏸️ Composer's dependency solver — researched and deprioritised, not unexplored
+
+This one is recorded differently, because it is structurally a *good* fit and
+was parked anyway. The distinction matters: someone re-deriving this list
+should not spend the time rediscovering it.
+
+**Why it fits.** The solver works over package versions identified by dense
+integer literal ids, and spends its time on set operations — union,
+intersection, difference over candidate pools — which is the shape `BITSET`
+plus the C-level set methods exist for. Memory is a real, long-standing pain
+point there: `COMPOSER_MEMORY_LIMIT` exists because resolving a large graph can
+exhaust `memory_limit`, and a Judy array is allocated outside PHP's memory
+manager entirely, so it does not count against that limit at all.
+
+**Why it was parked anyway.**
+
+- **Invasive, in someone else's codebase.** The pool and rule representation is
+  load-bearing across the whole solver, so this is not a swap behind an
+  interface — it is a rewrite of the solver's core that introduces a hard
+  `ext-judy` dependency into a tool that has to run everywhere, including where
+  no extension can be installed. That pushes it toward an optional backend,
+  which doubles the code paths that must agree.
+- **The trade is not free even if it lands.** The solver does a great deal of
+  random access on integer ids, which is Judy's documented weakness (2-9x
+  slower — Key Findings above). The win would be memory and set-operation
+  throughput bought with lookup latency — favourable only if memory is the binding
+  constraint on the run, which is plausible on large graphs and unproven on
+  small ones.
+- **Nobody has measured it.** There is no benchmark in this repo for it, and
+  the two points above are entirely structural. Do not read this entry as a
+  claim that it would win.
+
+Honest status: **plausible, unmeasured, high cost**. If someone picks it up,
+the first artifact should be a standalone harness over a captured real
+dependency graph — not a patch.
+
+### The constraint underneath several of these: one process, one arena
+
+php-judy has no shared arena. A Judy array lives in the heap of the process
+that built it and cannot be read by another process. This is stated for the
+caching case in
+[Versus the Alternatives](#versus-the-alternatives-apcu-splfixedarray-sorted-arrays);
+[issue #83](https://github.com/orieg/php-judy/issues/83) and
+[`research/shm-arena/FINDINGS.md`](research/shm-arena/FINDINGS.md) carry the
+feasibility spike.
+
+For developer tooling the consequence is specific: **anything whose value comes
+from a cache shared across processes cannot use Judy.** A parallel test runner
+(ParaTest, `--process-isolation`) must have each worker accumulate its own
+structure and merge them in the coordinator, shipping each index across the
+process boundary like any other data. That is fine for a coverage index — the
+merge is one set-union call, and a `BITSET`'s keys serialise as a flat run of
+integers rather than as a nested map. It is fatal for anything that wants
+APCu-style cross-worker sharing, such as a static-analysis result cache several
+concurrent runs would all read.
+
+It is also the same reason the classmap rejection above holds: OPcache's shared
+memory is precisely the property Judy does not have.
+
+### ✅ What does fit
+
+Kept short on purpose — the rejections above are the point of this section.
+
+- **Coverage indexes.** `file -> line -> [test ids]` is a deep nested map of
+  tens of millions of live zvals, which is what turns a full-suite coverage run
+  into a `memory_limit` fatal. Flattened into one `BITSET` over a packed
+  `[file | line | test]` key it becomes sparse integer keys with no nested
+  containers, allocated outside `memory_limit`.
+- **Test-impact selection.** Because that key is ordered file-major, every test
+  id for one `file:line` is a contiguous block, so "which tests must this diff
+  run?" is a bounded range read rather than a scan.
+- **Prefix and namespace walks.** Ordered string keys make "everything under
+  `App\Foo\`" a `first()` + `searchNext()` walk that stops at the end of the
+  slice — the one place in this document where the difference is a complexity
+  class rather than a constant factor (Prefix invalidation, above).
+
+[`examples/coverage-index.php`](examples/coverage-index.php) is the worked
+example for the first two, and it carries the soundness rule that makes
+selection safe: a changed line with no recorded coverage must widen the
+selection, never return nothing. What it buys and what it does not is measured
+directly below.
+
+### Measured: the coverage-index workload
+
+Run on an idle 24-core Ubuntu 22.04 host, in Docker (PHP 8.4.24), extension
+built from `main` at `f35ff20`. Load stayed between 0.11 and 0.56 across every
+repetition with no non-target process above 2% CPU. All variants were asserted
+to answer identically before timing. Two scales, 7 and 25 repetitions; figures
+are medians with a 95% bootstrap CI on the median.
+
+**5000 files x 500 lines, 10,000 tests (1,578,994 line/test pairs)**
+
+| variant | peak RSS | index (peak − floor) | merge |
+| ------- | -------- | -------------------- | ----- |
+| empty PHP process (floor) | 22.88 MB | — | — |
+| nested PHP array | 277.12 MB | 254.25 MB | 52.31 ms |
+| Judy, `mergeWith()` | **50.06 MB** | **27.38 MB** | 57.55 ms |
+| Judy, `union()` | 56.44 MB | 33.56 MB | 112.19 ms |
+
+**800 x 300, 2,000 tests (185,700 pairs)**
+
+| variant | peak RSS | index (peak − floor) | merge |
+| ------- | -------- | -------------------- | ----- |
+| empty PHP process (floor) | 22.88 MB | — | — |
+| nested PHP array | 52.12 MB | 29.44 MB | 5.83 ms |
+| Judy, `mergeWith()` | **25.88 MB** | **3.00 MB** | 6.81 ms |
+| Judy, `union()` | 26.44 MB | 3.38 MB | 12.99 ms |
+
+#### ✅ Memory: Judy wins, and the win grows with scale
+
+Peak RSS is **5.53x lower** at the large scale (95% CI [5.515, 5.536]) and
+2.02x lower at the small one (CI [2.014, 2.029]).
+
+Do not lean on that small-scale figure. Peak RSS includes the ~22.9 MB PHP
+runtime floor, which dominates a small index and drags the ratio down — 2 of 25
+runs fell below 2x. **The stable figure is the index-only ratio (peak minus
+floor), which is ~9.3–9.8x at *both* scales.** The apparent scale-dependence is
+the fixed floor's shrinking share, not a property of the data structure.
+
+This is the clause that matters for the motivating problem: a full-suite
+coverage run dying on `memory_limit`. Judy's index is also allocated outside
+`memory_limit` entirely, which the ratio above does not capture.
+
+#### ❌ Merge: the nested array wins, narrowly and consistently
+
+`mergeWith()` is **~10% slower** than the in-place nested-array merge at the
+large scale (57.55 ms vs 52.31 ms, CI on the ratio [0.898, 0.913]) and ~16%
+slower at the small one. Zero of 32 runs reached parity. This is not noise —
+the spread is tight and the CI does not approach 1.0.
+
+The mechanism is the one the example predicts: where a line is new to the
+target, the in-place array merge moves a whole test list by refcount, making it
+O(distinct lines) + overlap, while `mergeWith()` is O(keys). At this workload's
+overlap ratio the refcount shortcut wins. The gap narrows as scale grows
+(0.862 → 0.908), so a larger or more heavily overlapping workload may close it
+— but on both configurations measured, it does not.
+
+`union()` is excluded from the comparison by construction: it allocates a third
+index and lands at 0.46x.
+
+#### ❌ Selection: also not a Judy win here
+
+The per-id `first()`/`searchNext()` walk runs at 0.25x the array's selection
+speed and the bounded `keys($lo, $hi)` read at 0.42x. Bulk is ~1.7x faster than
+the walk (0.028 ms vs 0.047 ms at the large scale), which confirms the value of
+the bounded read *relative to the walk* — but both remain slower than a plain
+PHP array lookup, which reaches a line's test list in two hash lookups and then
+iterates inside the VM.
+
+#### What to take from this
+
+The coverage index is a **memory** result, not a speed result. Reach for it
+when the array shape is what is killing the run — and keep the array when it
+fits in memory, because it is faster at both merging and selecting. These
+numbers are one workload at one overlap ratio on one host; the example is
+runnable and prints the same table for yours.
 
 ---
 
