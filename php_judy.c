@@ -41,6 +41,7 @@ zend_object_handlers judy_handlers;
 static void php_judy_init_globals(zend_judy_globals *judy_globals)
 {
 	judy_globals->max_length = 65536;
+	judy_globals->debug_preview_size = PHP_JUDY_DEFAULT_DEBUG_PREVIEW_SIZE;
 }
 /* }}} */
 
@@ -416,6 +417,7 @@ PHP_JUDY_API zend_class_entry *php_judy_ce(void)
 */
 PHP_INI_BEGIN()
 	STD_PHP_INI_ENTRY("judy.string.maxlength", "65536", PHP_INI_ALL, OnUpdateLong, max_length, zend_judy_globals, judy_globals)
+	STD_PHP_INI_ENTRY("judy.debug_preview_size", PHP_JUDY_STR(PHP_JUDY_DEFAULT_DEBUG_PREVIEW_SIZE), PHP_INI_ALL, OnUpdateLong, debug_preview_size, zend_judy_globals, judy_globals)
 PHP_INI_END()
 /* }}} */
 
@@ -1208,6 +1210,8 @@ static inline int judy_object_write_dimension_helper_zv(judy_object *intern, zva
 	return judy_object_write_dimension_helper(&object_zv, offset, value);
 }
 
+static HashTable *judy_object_get_debug_info(zend_object *object, int *is_temp);
+
 /* {{{ PHP_MINIT_FUNCTION
 */
 PHP_MINIT_FUNCTION(judy)
@@ -1237,6 +1241,7 @@ PHP_MINIT_FUNCTION(judy)
 	judy_handlers.dtor_obj = zend_objects_destroy_object;
 	judy_handlers.free_obj = judy_object_free_storage;
 	judy_handlers.get_gc = judy_object_get_gc;
+	judy_handlers.get_debug_info = judy_object_get_debug_info;
 	judy_handlers.offset = offsetof(judy_object, std);
 
 	/* implements some interface to provide access to judy object as an array */
@@ -3221,15 +3226,34 @@ typedef enum {
 } judy_collect_mode;
 
 /* {{{ Helper to build a PHP array from a Judy array's contents.
-   Used by jsonSerialize(), __serialize(), toArray(), keys(), and values(). */
-static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mode mode)
+   Used by jsonSerialize(), __serialize(), toArray(), keys(), values(), and the
+   bounded preview built by get_debug_info().
+
+   `limit` < 0 collects everything; `limit` >= 0 stops after that many elements.
+   `cursor` overrides the shared intern->key_scratch walk buffer for string-keyed
+   types; pass a private buffer when the caller may run while a manual
+   rewind()/next() iteration holds the shared one (debug dumps do). */
+static void judy_populate_array_ex(judy_object *intern, zval *data, judy_collect_mode mode,
+		zend_long limit, uint8_t *cursor)
 {
+	zend_long emitted = 0;
+
+	if (limit == 0) {
+		return;
+	}
+	if (cursor == NULL) {
+		cursor = intern->key_scratch;
+	}
+
 	if (intern->type == TYPE_BITSET) {
 		Word_t index = 0;
 		int Rc_int;
 
 		J1F(Rc_int, intern->array, index);
 		while (Rc_int) {
+			if (limit >= 0 && emitted++ >= limit) {
+				break;
+			}
 			/* BITSET is a set of indices — the index IS the value.
 			   keys(), values(), and toArray() all return the same flat index list. */
 			add_next_index_long(data, (zend_long)index);
@@ -3242,6 +3266,9 @@ static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mo
 
 		JLF(PValue, intern->array, index);
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+			if (limit >= 0 && emitted++ >= limit) {
+				break;
+			}
 			if (mode == JUDY_COLLECT_KEYS) {
 				add_next_index_long(data, (zend_long)index);
 			} else if (intern->type == TYPE_INT_TO_INT) {
@@ -3289,12 +3316,15 @@ static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mo
 		}
 
 	} else if (intern->is_adaptive) {
-		uint8_t *key = intern->key_scratch;
+		uint8_t *key = cursor;
 		Pvoid_t *PValue;
 		key[0] = '\0';
 		JSLF(PValue, intern->key_index, key);
 
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+			if (limit >= 0 && emitted++ >= limit) {
+				break;
+			}
 			if (mode == JUDY_COLLECT_KEYS) {
 				add_next_index_string(data, (const char *)key);
 			} else {
@@ -3336,7 +3366,7 @@ static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mo
 		}
 
 	} else { /* is_string_keyed */
-		uint8_t *key = intern->key_scratch;
+		uint8_t *key = cursor;
 		Pvoid_t *PValue;
 
 		key[0] = '\0';
@@ -3347,6 +3377,9 @@ static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mo
 		}
 
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+			if (limit >= 0 && emitted++ >= limit) {
+				break;
+			}
 			if (mode == JUDY_COLLECT_KEYS) {
 				add_next_index_string(data, (const char *)key);
 			} else {
@@ -3389,10 +3422,197 @@ static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mo
 	}
 }
 
+static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mode mode)
+{
+	judy_populate_array_ex(intern, data, mode, -1, NULL);
+}
+
 static void judy_build_data_array(judy_object *intern, zval *data)
 {
 	judy_populate_array(intern, data, JUDY_COLLECT_ALL);
 }
+
+/* {{{ judy_type_name — human-readable name for a judy_type.
+   The debug output shows this rather than the raw integer constant. */
+static const char *judy_type_name(zend_long type)
+{
+	switch (type) {
+		case TYPE_BITSET:                   return "BITSET";
+		case TYPE_INT_TO_INT:               return "INT_TO_INT";
+		case TYPE_INT_TO_MIXED:             return "INT_TO_MIXED";
+		case TYPE_INT_TO_PACKED:            return "INT_TO_PACKED";
+		case TYPE_STRING_TO_INT:            return "STRING_TO_INT";
+		case TYPE_STRING_TO_MIXED:          return "STRING_TO_MIXED";
+		case TYPE_STRING_TO_INT_HASH:       return "STRING_TO_INT_HASH";
+		case TYPE_STRING_TO_MIXED_HASH:     return "STRING_TO_MIXED_HASH";
+		case TYPE_STRING_TO_INT_ADAPTIVE:   return "STRING_TO_INT_ADAPTIVE";
+		case TYPE_STRING_TO_MIXED_ADAPTIVE: return "STRING_TO_MIXED_ADAPTIVE";
+		default:                            return "UNINITIALIZED";
+	}
+}
+/* }}} */
+
+/* {{{ judy_debug_boundary_key — first (or last) key present, as a zval.
+   Ordered types only report a boundary; an empty array reports null. */
+static void judy_debug_boundary_key(judy_object *intern, zval *out, int want_last)
+{
+	ZVAL_NULL(out);
+
+	if (intern->type == TYPE_BITSET) {
+		Word_t index = want_last ? (Word_t)-1 : 0;
+		int Rc_int;
+
+		if (want_last) {
+			J1L(Rc_int, intern->array, index);
+		} else {
+			J1F(Rc_int, intern->array, index);
+		}
+		if (Rc_int == 1) {
+			ZVAL_LONG(out, (zend_long)index);
+		}
+	} else if (intern->is_integer_keyed) {
+		Word_t index = want_last ? (Word_t)-1 : 0;
+		PWord_t PValue;
+
+		if (want_last) {
+			JLL(PValue, intern->array, index);
+		} else {
+			JLF(PValue, intern->array, index);
+		}
+		if (PValue != NULL && PValue != PJERR) {
+			ZVAL_LONG(out, (zend_long)index);
+		}
+	} else if (intern->is_string_keyed) {
+		/* Private buffer: a debugger may inspect mid-iteration, and the shared
+		 * intern->key_scratch is live during a manual rewind()/next() walk. */
+		uint8_t *key = emalloc(PHP_JUDY_MAX_LENGTH);
+		Pvoid_t index_array = intern->is_hash_keyed ? intern->key_index : intern->array;
+		PWord_t PValue;
+
+		if (want_last) {
+			memset(key, 0xff, PHP_JUDY_MAX_LENGTH);
+			key[PHP_JUDY_MAX_LENGTH - 1] = '\0';
+			JSLL(PValue, index_array, key);
+		} else {
+			key[0] = '\0';
+			JSLF(PValue, index_array, key);
+		}
+		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+			ZVAL_STRING(out, (char *)key);
+		}
+		efree(key);
+	}
+}
+/* }}} */
+
+/* {{{ judy_object_get_debug_info — what var_dump()/print_r()/Xdebug/the IDE
+   variable panel (DBGp) show for a Judy object.
+
+   Without this handler the engine falls back to zend_std_get_debug_info, which
+   returns the (always empty) declared-properties table: a Judy holding millions
+   of elements renders as an opaque `object(Judy)#1 (0) {}`.
+
+   The element preview is deliberately BOUNDED by judy.debug_preview_size
+   (default PHP_JUDY_DEFAULT_DEBUG_PREVIEW_SIZE). Dumping every element of a
+   large Judy would hang the IDE session or overflow the debug transport, and a
+   debug dump must stay cheap enough to be safe at a breakpoint. Setting the INI
+   to 0 disables the element preview entirely, leaving only metadata. Whenever
+   fewer elements are shown than the array holds — including the 0 case — a
+   `previewTruncated` entry states the TRUE total, so the preview can never be
+   mistaken for the whole array. */
+static HashTable *judy_object_get_debug_info(zend_object *object, int *is_temp)
+{
+	judy_object *intern = php_judy_object(object);
+	HashTable *ht;
+	zval tmp;
+	zend_long limit;
+	zend_long shown;
+
+	*is_temp = 1;
+	ht = zend_new_array(8);
+
+	/* Keep any dynamic properties visible: they showed up in var_dump() before
+	 * this handler existed, and the synthetic entries below take precedence on
+	 * a name clash. */
+	if (object->properties && zend_hash_num_elements(object->properties) > 0) {
+		zend_string *pkey;
+		zval *pval;
+
+		ZEND_HASH_FOREACH_STR_KEY_VAL(object->properties, pkey, pval) {
+			if (pkey == NULL) {
+				continue;
+			}
+			if (Z_TYPE_P(pval) == IS_INDIRECT) {
+				pval = Z_INDIRECT_P(pval);
+			}
+			if (Z_TYPE_P(pval) == IS_UNDEF) {
+				continue;
+			}
+			Z_TRY_ADDREF_P(pval);
+			zend_hash_update(ht, pkey, pval);
+		} ZEND_HASH_FOREACH_END();
+	}
+
+	ZVAL_STRING(&tmp, judy_type_name(intern->type));
+	zend_hash_str_update(ht, "type", sizeof("type") - 1, &tmp);
+
+	ZVAL_LONG(&tmp, intern->counter);
+	zend_hash_str_update(ht, "count", sizeof("count") - 1, &tmp);
+
+	/* Mirrors Judy::memoryUsage(): JudySL/JudyHS provide no accounting, so
+	 * string-keyed types report null here too. */
+	switch (intern->type) {
+		case TYPE_BITSET: {
+			Word_t Rc_word;
+			J1MU(Rc_word, intern->array);
+			ZVAL_LONG(&tmp, (zend_long)Rc_word);
+			break;
+		}
+		case TYPE_INT_TO_INT:
+		case TYPE_INT_TO_MIXED:
+		case TYPE_INT_TO_PACKED: {
+			Word_t Rc_word;
+			JLMU(Rc_word, intern->array);
+			ZVAL_LONG(&tmp, (zend_long)Rc_word);
+			break;
+		}
+		default:
+			ZVAL_NULL(&tmp);
+	}
+	zend_hash_str_update(ht, "memoryUsage", sizeof("memoryUsage") - 1, &tmp);
+
+	judy_debug_boundary_key(intern, &tmp, 0);
+	zend_hash_str_update(ht, "firstKey", sizeof("firstKey") - 1, &tmp);
+	judy_debug_boundary_key(intern, &tmp, 1);
+	zend_hash_str_update(ht, "lastKey", sizeof("lastKey") - 1, &tmp);
+
+	limit = JUDY_G(debug_preview_size);
+	if (limit < 0) {
+		limit = 0;
+	}
+
+	array_init(&tmp);
+	if (intern->type != 0 && limit > 0) {
+		uint8_t *cursor = intern->is_string_keyed ? emalloc(PHP_JUDY_MAX_LENGTH) : NULL;
+		judy_populate_array_ex(intern, &tmp, JUDY_COLLECT_ALL, limit, cursor);
+		if (cursor) {
+			efree(cursor);
+		}
+	}
+	shown = (zend_long)zend_hash_num_elements(Z_ARRVAL(tmp));
+	zend_hash_str_update(ht, "preview", sizeof("preview") - 1, &tmp);
+
+	if (shown < intern->counter) {
+		zend_string *note = zend_strpprintf(0,
+			"showing " ZEND_LONG_FMT " of " ZEND_LONG_FMT " elements (judy.debug_preview_size=" ZEND_LONG_FMT ")",
+			shown, intern->counter, limit);
+		ZVAL_STR(&tmp, note);
+		zend_hash_str_update(ht, "previewTruncated", sizeof("previewTruncated") - 1, &tmp);
+	}
+
+	return ht;
+}
+/* }}} */
 
 /* {{{ proto array Judy::keys()
    Return the keys of the Judy array */

@@ -63,6 +63,19 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   (php.net manual, outdated IDE stubs) show `next($index)` — that API is gone.
 - **`memoryUsage()` returns `null` for string-keyed types** (JudySL/JudyHS
   provide no accounting). Only integer-keyed types report bytes.
+- **`var_dump()`/`print_r()` show a synthetic, TRUNCATED view.** A Judy object
+  dumps as `type` (the name, e.g. `INT_TO_INT`), `count`, `memoryUsage` (null
+  for string-keyed types, as above), `firstKey`, `lastKey`, and `preview` —
+  plus `previewTruncated` whenever fewer elements are shown than the array
+  holds. `preview` is capped at `judy.debug_preview_size` (default 16,
+  `PHP_INI_ALL`, so `ini_set()` works mid-session); `0` disables the element
+  preview and leaves metadata only, and negatives clamp to 0. The cap exists
+  because a debug dump has to stay cheap enough to be safe at a breakpoint —
+  Xdebug and the PhpStorm/VS Code variable panels read the same handler over
+  DBGp, and serializing millions of elements there would hang the session.
+  **Never read element counts off a dump**: `count` and `previewTruncated`
+  carry the true total, `preview` is a sample. For the real contents use
+  `toArray()`/`keys()`/`values()`, which are unaffected by the INI.
 - **Judy memory is invisible to `memory_get_usage()`** — it allocates outside
   PHP's memory manager. Measure peak RSS (`getrusage()['ru_maxrss']`) in a
   separate process for honest comparisons.

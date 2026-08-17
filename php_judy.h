@@ -261,8 +261,19 @@ int judy_unpack_value(judy_packed_value *packed, zval *rv);
     zend_declare_class_constant_long(judy_ce, const_name, sizeof(const_name)-1, (zend_long) value);
 /* }}} */
 
+/* Default number of elements shown by var_dump()/print_r()/debugger panels
+ * (get_debug_info). Bounded so that dumping a multi-million-element Judy
+ * neither hangs the IDE nor blows the DBGp transport. */
+#define PHP_JUDY_DEFAULT_DEBUG_PREVIEW_SIZE 16
+
+/* Local stringifier: ZEND_TOSTR is not available across every supported PHP
+ * version, and the INI default has to be a string literal. */
+#define PHP_JUDY_STR_(x) #x
+#define PHP_JUDY_STR(x)  PHP_JUDY_STR_(x)
+
 ZEND_BEGIN_MODULE_GLOBALS(judy)
     unsigned long    max_length;
+    zend_long        debug_preview_size;
 ZEND_END_MODULE_GLOBALS(judy)
 
 ZEND_EXTERN_MODULE_GLOBALS(judy)
