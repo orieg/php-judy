@@ -71,11 +71,13 @@ For a detailed performance comparison with native PHP arrays, please see the [BE
 README.md            This file
 API.md               Complete API reference
 BENCHMARK.md         Performance benchmarks and analysis
+BACKEND_EVALUATION.md  Judy vs ART/Masstree/HOT/Wormhole as the C backend
 MIGRATION_2.2.0.md   Migration guide for version 2.2.0
 LICENSE              The PHP License used by this project
 
 tests/               Unit and regression tests (.phpt)
 examples/            Runnable demos (see examples/README.md) + benchmark suite
+research/            Standalone C harnesses backing measured claims (not shipped)
 scripts/             API-doc generation helpers
 *.c, *.h             C source and header files
 Judy.stub.php        PHP stub for IDE autocompletion
@@ -493,9 +495,25 @@ Please report bugs and issues on the GitHub repository:
 ## Roadmap
 
 - Eliminate redundant JLG+JLI double traversal in write hot paths for `INT_TO_INT`, `STRING_TO_INT`, and `STRING_TO_INT_HASH` types
-- C-level `forEach()`/`filter()`/`map()` performance tuning (vtable dispatch)
+- Remove the per-element second lookup during ordered traversal of the
+  `*_HASH`/`*_ADAPTIVE` types — worth 22 ns/element at 16-byte keys and 98
+  ns/element (46% of `forEach()`) at 40-byte keys ([#85](https://github.com/orieg/php-judy/issues/85))
 - Binary serialization format for faster `__serialize`/`__unserialize`
 - Extend `increment()` to adaptive types
+
+Retired: *"C-level `forEach()`/`filter()`/`map()` performance tuning (vtable
+dispatch)"*. Measurement in [#85](https://github.com/orieg/php-judy/issues/85)
+found userland callback dispatch is only ~10 ns/element inside a 6-15 ns glue
+bucket, and `Judy::forEach()` on `INT_TO_INT` (26.4 ns/element) already beats
+`array_map()` over a native PHP array (29.0). The addressable cost was
+elsewhere: the `filter()` half shipped in
+[#86](https://github.com/orieg/php-judy/pull/86), and the larger second-lookup
+item is listed above.
+
+Whether the extension should keep libJudy as its backend at all — measured
+against the Adaptive Radix Tree, with Masstree/HOT/Wormhole considered — is
+evaluated in [BACKEND_EVALUATION.md](BACKEND_EVALUATION.md). Current verdict:
+keep Judy.
 
 ## Releasing
 
