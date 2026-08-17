@@ -196,6 +196,8 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   `sliding-window-rate-limit.php` (time-bucket expiry via `deleteRange()`),
   `prefix-invalidation.php` (namespace drop via `first()` + `searchNext()`),
   `coverage-index.php` (nested `file -> line -> ids` maps flattened into one
-  `BITSET` over packed keys, merged with `union()`/`mergeWith()`),
+  `BITSET` over packed keys, merged with `union()`/`mergeWith()`, then queried
+  for test-impact selection — the contiguous-block walk, and why an uncovered
+  changed line must widen rather than select nothing),
   `autocomplete-trie.php` (prefix search), `worker-counters.php` (atomic
   `increment()`), `quickstart.php` (API tour).
