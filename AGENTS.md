@@ -19,10 +19,10 @@ the fast path to using or modifying it correctly. Canonical references:
 | `Judy::INT_TO_MIXED` | int | any | yes | |
 | `Judy::STRING_TO_INT` | string | int | yes (lexicographic) | trie-based |
 | `Judy::STRING_TO_MIXED` | string | any | yes (lexicographic) | trie-based |
-| `Judy::STRING_TO_INT_HASH` | string | int | **no** | fastest point lookups |
-| `Judy::STRING_TO_MIXED_HASH` | string | any | **no** | |
-| `Judy::STRING_TO_INT_ADAPTIVE` | string | int | no | auto-switches storage |
-| `Judy::STRING_TO_MIXED_ADAPTIVE` | string | any | no | |
+| `Judy::STRING_TO_INT_HASH` | string | int | yes (lexicographic) | fastest point lookups; ordered walks are slow — see below |
+| `Judy::STRING_TO_MIXED_HASH` | string | any | yes (lexicographic) | as above |
+| `Judy::STRING_TO_INT_ADAPTIVE` | string | int | yes (lexicographic) | auto-switches storage; same walk caveat |
+| `Judy::STRING_TO_MIXED_ADAPTIVE` | string | any | yes (lexicographic) | as above |
 
 ### Core usage
 
@@ -66,8 +66,19 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
 - **Judy memory is invisible to `memory_get_usage()`** — it allocates outside
   PHP's memory manager. Measure peak RSS (`getrusage()['ru_maxrss']`) in a
   separate process for honest comparisons.
-- **`*_HASH` types do not iterate in key order.** If you need ordered/prefix
-  walks over string keys, use `STRING_TO_INT`/`STRING_TO_MIXED` (trie).
+- **`*_HASH` and `*_ADAPTIVE` types DO iterate in key order** — they keep a
+  sorted key index alongside the value store, so `foreach`, `first()` +
+  `searchNext()` and prefix walks all work and return lexicographic order.
+  (Verified empirically, and asserted by `tests/string_to_mixed_hash_004.phpt`.)
+  What differs is **cost, not capability**: an ordered walk over these types
+  pays a second lookup per element to fetch the value (measured 22 ns/element
+  at 16-byte keys, 98 ns/element at 40-byte keys — see
+  [#85](https://github.com/orieg/php-judy/issues/85)), and prefix invalidation
+  scales with cache size rather than with the slice dropped (measured 168x
+  growth across a 100x sweep, against 1.5x for the trie types — see
+  BENCHMARK.md). **Choose `*_HASH`/`*_ADAPTIVE` for point-lookup-dominated
+  work and `STRING_TO_INT`/`STRING_TO_MIXED` when ordered or prefix walks are
+  hot** — but do not tell users the ordered operations are unavailable.
 - **`filter()` copies a snapshot.** The value written to the result is the one
   the predicate received; a predicate that writes or unsets `$this[$key]` does
   not change what that element contributes to the result.
