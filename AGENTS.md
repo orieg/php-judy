@@ -147,5 +147,7 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   `ip-range-lookup.php` (floor lookup via `last()` — CIDR, tariff bands),
   `sliding-window-rate-limit.php` (time-bucket expiry via `deleteRange()`),
   `prefix-invalidation.php` (namespace drop via `first()` + `searchNext()`),
+  `coverage-index.php` (nested `file -> line -> ids` maps flattened into one
+  `BITSET` over packed keys, merged with `union()`/`mergeWith()`),
   `autocomplete-trie.php` (prefix search), `worker-counters.php` (atomic
   `increment()`), `quickstart.php` (API tour).

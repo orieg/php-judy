@@ -61,6 +61,7 @@
          <file name="examples/ip-range-lookup.php" role="doc" />
          <file name="examples/sliding-window-rate-limit.php" role="doc" />
          <file name="examples/prefix-invalidation.php" role="doc" />
+        <file name="examples/coverage-index.php" role="doc" />
          <file name="examples/benchmarks/benchmark_ordered_data.php" role="doc" />
          <file name="examples/benchmarks/benchmark_ordered_data_demo.php" role="doc" />
          <file name="examples/benchmarks/benchmark_range_queries.php" role="doc" />
@@ -70,6 +71,7 @@
          <file name="examples/benchmarks/iterator_performance_analysis.md" role="doc" />
          <file name="examples/benchmarks/judy-bench-all-types.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-alternatives.php" role="doc" />
+         <file name="examples/benchmarks/judy-bench-writepath.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-batch-operations.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-bitset.php" role="doc" />
          <file name="examples/benchmarks/judy-bench-compare.php" role="doc" />
@@ -134,6 +136,7 @@
          <file name="tests/get_all_001.phpt" role="test" />
          <file name="tests/increment_int_to_int_001.phpt" role="test" />
          <file name="tests/increment_string_to_int_001.phpt" role="test" />
+         <file name="tests/increment_string_to_int_hash_001.phpt" role="test" />
          <file name="tests/increment_type_error_001.phpt" role="test" />
          <file name="tests/judy_memuse_001.phpt" role="test" />
          <file name="tests/judy_memuse_002.phpt" role="test" />
@@ -171,6 +174,7 @@
          <file name="tests/batch_empty_input_001.phpt" role="test" />
          <file name="tests/batch_large_001.phpt" role="test" />
          <file name="tests/increment_boundary_001.phpt" role="test" />
+         <file name="tests/mirror_value_agreement_001.phpt" role="test" />
          <file md5sum="3022d615e01248b9aedcc07d53f9d298" name="tests/clone_bitset_001.phpt" role="test" />
          <file md5sum="ebf5a62bedc4d0100256bc6db614cac0" name="tests/int_to_int_001.phpt" role="test" />
          <file md5sum="293c4e8f37490390abeaac289e8d4ee7" name="tests/int_to_int_002.phpt" role="test" />
