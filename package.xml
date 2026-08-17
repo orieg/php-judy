@@ -134,6 +134,7 @@
          <file name="tests/get_all_001.phpt" role="test" />
          <file name="tests/increment_int_to_int_001.phpt" role="test" />
          <file name="tests/increment_string_to_int_001.phpt" role="test" />
+         <file name="tests/increment_string_to_int_hash_001.phpt" role="test" />
          <file name="tests/increment_type_error_001.phpt" role="test" />
          <file name="tests/judy_memuse_001.phpt" role="test" />
          <file name="tests/judy_memuse_002.phpt" role="test" />
@@ -171,6 +172,7 @@
          <file name="tests/batch_empty_input_001.phpt" role="test" />
          <file name="tests/batch_large_001.phpt" role="test" />
          <file name="tests/increment_boundary_001.phpt" role="test" />
+         <file name="tests/mirror_value_agreement_001.phpt" role="test" />
          <file md5sum="3022d615e01248b9aedcc07d53f9d298" name="tests/clone_bitset_001.phpt" role="test" />
          <file md5sum="ebf5a62bedc4d0100256bc6db614cac0" name="tests/int_to_int_001.phpt" role="test" />
          <file md5sum="293c4e8f37490390abeaac289e8d4ee7" name="tests/int_to_int_002.phpt" role="test" />
