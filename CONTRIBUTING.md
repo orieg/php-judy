@@ -67,10 +67,39 @@ release checklist.
 
 ## Benchmarks
 
-Benchmark scripts live in `examples/benchmarks/`. CI compares each PR against the
-committed baseline in `baselines/latest.json`. If your change legitimately
-shifts performance, mention it in the PR description; do not update the
-baseline in a feature PR.
+Benchmark scripts live in `examples/benchmarks/`. Benchmarks are **advisory** —
+they never gate a merge.
+
+CI compares each PR against the previous release, installed onto the same runner
+via `pie`. The comparison is driven by `scripts/bench-compare.php`, which
+interleaves the two extension builds per benchmark group (A/B/A/B) and repeats
+the pair over several rounds in ABBA order. Each row in the report is the median
+of the paired current/baseline ratios with a 95% percentile-bootstrap CI, and is
+flagged only when the whole drift-adjusted CI clears ±10%. Running the two
+suites back to back instead put the arms minutes apart, so runner drift showed
+up as a page of regressions on code the diff could not reach (issue #87).
+
+Reading the report:
+
+- **`~same`** — either the difference is inside ±10%, or the CI straddles the
+  threshold, i.e. there is no measured separation.
+- **`unstable`** — the benchmark's own arms scattered by more than the effect
+  being claimed, so it was not evaluated. Expect a few on a busy runner.
+- **"Comparison contaminated"** — the run-wide median delta moved past ±5%,
+  meaning the whole suite shifted together. That is a slower runner, not slower
+  code; individual flags are suppressed and the job should be re-run.
+
+To reproduce a comparison locally:
+
+```sh
+php scripts/bench-compare.php \
+    --baseline-so /path/to/previous/judy.so \
+    --current-so "$PWD/modules/judy.so" \
+    --size 300000 --iterations 3 --rounds 5
+```
+
+If your change legitimately shifts performance, mention it in the PR
+description; do not update `baselines/latest.json` in a feature PR.
 
 ## Submitting a pull request
 
