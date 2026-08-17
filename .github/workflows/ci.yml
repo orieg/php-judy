@@ -183,6 +183,22 @@ jobs:
             exit 1
           fi
 
+      - name: Verify package.xml lists every tests/*.phpt
+        # The test run below executes tests/*.phpt from the checkout, not from
+        # the built tarball, so a .phpt missing from package.xml still passes
+        # CI while being absent from the shipped package. Compare explicitly.
+        run: |
+          ls tests/*.phpt | sort > /tmp/tests-on-disk.txt
+          grep -oP '(?<=name=")tests/[^"]+(?=")' package.xml | sort > /tmp/tests-in-package.txt
+          if ! diff -u --label package.xml --label tests/ \
+               /tmp/tests-in-package.txt /tmp/tests-on-disk.txt; then
+            echo "ERROR: package.xml and tests/ have diverged."
+            echo "  '+' lines: on disk but not in package.xml — add"
+            echo '            <file name="tests/<name>.phpt" role="test" />'
+            echo "  '-' lines: in package.xml but not on disk — remove the entry"
+            exit 1
+          fi
+
       - name: Install Judy library
         run: sudo apt-get update && sudo apt-get install -y libjudy-dev
 
