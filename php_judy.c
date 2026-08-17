@@ -3662,27 +3662,40 @@ PHP_METHOD(Judy, deleteRange)
 			JLF(PValue, intern->array, index);
 			while (JUDY_LIKELY(PValue != NULL && PValue != PJERR) && index <= index_end) {
 				int Rc_del;
+				zval *value = NULL;
+				judy_packed_value *packed = NULL;
+
 				if (intern->type == TYPE_INT_TO_MIXED) {
-					zval *value = JUDY_MVAL_READ(PValue);
-					zval_ptr_dtor(value);
-					efree(value);
+					value = JUDY_MVAL_READ(PValue);
 				} else if (intern->type == TYPE_INT_TO_PACKED) {
-					judy_packed_value *packed = JUDY_PVAL_READ(PValue);
-					if (packed) efree(packed);
+					packed = JUDY_PVAL_READ(PValue);
 				}
+				/* Delete before free (destructor re-entrancy guard): a user
+				 * destructor can unset the same key, which would otherwise
+				 * find this slot still populated and free `value` twice.
+				 * The counter must also be settled before the destructor
+				 * runs, since it can observe count(). */
 				JLD(Rc_del, intern->array, index);
 				if (Rc_del) {
 					deleted++;
 					intern->counter--;
 				}
-				/* Re-seek after mutation — JLF is safe after JLD */
-				JLF(PValue, intern->array, index);
+				if (value != NULL) {
+					zval_ptr_dtor(value);
+					efree(value);
+				} else if (packed != NULL) {
+					efree(packed);
+				}
+				/* Re-seek strictly past `index`: the destructor may have
+				 * re-inserted this very key, and JLF would hand it back
+				 * forever. JLN also stops cleanly at the Word_t maximum. */
+				JLN(PValue, intern->array, index);
 			}
 		}
 	} else if (intern->is_adaptive) {
 		char *str_start, *str_end;
 		size_t str_start_len, str_end_len;
-		uint8_t *key = intern->key_scratch;
+		uint8_t *key;
 		Pvoid_t *PValue;
 
 		ZEND_PARSE_PARAMETERS_START(2, 2)
@@ -3691,6 +3704,12 @@ PHP_METHOD(Judy, deleteRange)
 		ZEND_PARSE_PARAMETERS_END();
 
 		if (strcmp(str_start, str_end) > 0) RETURN_LONG(0);
+
+		/* Private cursor rather than intern->key_scratch: a stored value's
+		 * destructor can re-enter and run an operation that owns that shared
+		 * buffer (iteration, first()/next()), which would corrupt this walk.
+		 * Same rationale as judy_object_get_gc(). */
+		key = emalloc(PHP_JUDY_MAX_LENGTH);
 
 		size_t key_len = str_start_len >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_start_len;
 		memcpy(key, str_start, key_len);
@@ -3702,15 +3721,19 @@ PHP_METHOD(Judy, deleteRange)
 			Word_t klen = (Word_t)strlen((char *)key);
 			Word_t sso_idx;
 			int Rc_del;
+			int Rc_idx_del;
+			zval *value = NULL;
 
+			/* Capture the value, then remove both the value slot and the
+			 * key_index entry, and only then run the destructor: it can
+			 * re-enter and unset the same key, which would otherwise find
+			 * the entry still present and free `value` a second time. */
 			if (judy_pack_short_string_internal((char *)key, klen, &sso_idx)) {
 				Pvoid_t *VValue;
 				JLG(VValue, intern->array, sso_idx);
 				if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
 					if (intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
-						zval *value = JUDY_MVAL_READ(VValue);
-						zval_ptr_dtor(value);
-						efree(value);
+						value = JUDY_MVAL_READ(VValue);
 					}
 					JLD(Rc_del, intern->array, sso_idx);
 				}
@@ -3719,28 +3742,34 @@ PHP_METHOD(Judy, deleteRange)
 				JHSG(VValue, intern->hs_array, key, klen);
 				if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
 					if (intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
-						zval *value = JUDY_MVAL_READ(VValue);
-						zval_ptr_dtor(value);
-						efree(value);
+						value = JUDY_MVAL_READ(VValue);
 					}
 					JHSD(Rc_del, intern->hs_array, key, klen);
 				}
 			}
-			
+
 			/* Delete from key_index */
-			int Rc_idx_del;
 			JSLD(Rc_idx_del, intern->key_index, key);
 			if (Rc_idx_del) {
 				deleted++;
 				intern->counter--;
 			}
-			
-			JSLF(PValue, intern->key_index, key);
+
+			if (value != NULL) {
+				zval_ptr_dtor(value);
+				efree(value);
+			}
+
+			/* Re-seek strictly past `key`: the destructor may have
+			 * re-inserted it, and JSLF would hand it back forever. */
+			JSLN(PValue, intern->key_index, key);
 		}
+
+		efree(key);
 	} else { /* string keyed */
 		char *str_start, *str_end;
 		size_t str_start_len, str_end_len;
-		uint8_t *key = intern->key_scratch;
+		uint8_t *key;
 		Pvoid_t *PValue;
 
 		ZEND_PARSE_PARAMETERS_START(2, 2)
@@ -3749,6 +3778,9 @@ PHP_METHOD(Judy, deleteRange)
 		ZEND_PARSE_PARAMETERS_END();
 
 		if (strcmp(str_start, str_end) > 0) RETURN_LONG(0);
+
+		/* Private cursor — see the adaptive branch above. */
+		key = emalloc(PHP_JUDY_MAX_LENGTH);
 
 		size_t key_len = str_start_len >= PHP_JUDY_MAX_LENGTH ? PHP_JUDY_MAX_LENGTH - 1 : str_start_len;
 		memcpy(key, str_start, key_len);
@@ -3761,44 +3793,58 @@ PHP_METHOD(Judy, deleteRange)
 		}
 
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR) && strcmp((const char *)key, str_end) <= 0) {
+			zval *value = NULL;
+
+			/* Delete before free (destructor re-entrancy guard) — see the
+			 * adaptive branch above. */
 			if (intern->is_hash_keyed) {
+				Word_t klen = (Word_t)strlen((char *)key);
 				Pvoid_t *HValue;
-				JHSG(HValue, intern->array, key, (Word_t)strlen((char *)key));
+				int Rc_idx_del;
+
+				JHSG(HValue, intern->array, key, klen);
 				if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
-					if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
-						zval *value = JUDY_MVAL_READ(HValue);
-						zval_ptr_dtor(value);
-						efree(value);
-					}
 					int Rc_del;
-					JHSD(Rc_del, intern->array, key, (Word_t)strlen((char *)key));
+					if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
+						value = JUDY_MVAL_READ(HValue);
+					}
+					JHSD(Rc_del, intern->array, key, klen);
 					(void)Rc_del; /* JUDYERROR_NOTEST: delete cannot partially fail */
 				}
 				/* Delete from key_index too */
-				int Rc_idx_del;
 				JSLD(Rc_idx_del, intern->key_index, key);
 				if (Rc_idx_del) {
 					deleted++;
 					intern->counter--;
 				}
-				/* We must use JSLF again because key_index was modified */
-				JSLF(PValue, intern->key_index, key);
-			} else {
-				if (intern->type == TYPE_STRING_TO_MIXED) {
-					zval *value = JUDY_MVAL_READ(PValue);
+				if (value != NULL) {
 					zval_ptr_dtor(value);
 					efree(value);
 				}
+				/* Re-seek strictly past `key` — the destructor may have
+				 * re-inserted it, and JSLF would hand it back forever. */
+				JSLN(PValue, intern->key_index, key);
+			} else {
 				int Rc_str_del;
+
+				if (intern->type == TYPE_STRING_TO_MIXED) {
+					value = JUDY_MVAL_READ(PValue);
+				}
 				JSLD(Rc_str_del, intern->array, key);
 				if (Rc_str_del) {
 					deleted++;
 					intern->counter--;
 				}
-				/* We must use JSLF again because array was modified */
-				JSLF(PValue, intern->array, key);
+				if (value != NULL) {
+					zval_ptr_dtor(value);
+					efree(value);
+				}
+				/* Re-seek strictly past `key` — see above. */
+				JSLN(PValue, intern->array, key);
 			}
 		}
+
+		efree(key);
 	}
 	RETURN_LONG(deleted);
 }
