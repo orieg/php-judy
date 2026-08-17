@@ -15,13 +15,14 @@
 2. [Directory Contents](#directory-contents)
 3. [Installation](#installation)
 4. [Usage Examples](#usage-examples)
-5. [Ecosystem](#ecosystem)
-6. [Reporting Bugs](#reporting-bugs)
-7. [Roadmap](#roadmap)
-8. [Releasing](#releasing)
-9. [License](#license)
-10. [Contributing](#contributing)
-11. [Support](#support)
+5. [Debugging and Profiling](#debugging-and-profiling)
+6. [Ecosystem](#ecosystem)
+7. [Reporting Bugs](#reporting-bugs)
+8. [Roadmap](#roadmap)
+9. [Releasing](#releasing)
+10. [License](#license)
+11. [Contributing](#contributing)
+12. [Support](#support)
 
 ## Introduction
 
@@ -472,6 +473,119 @@ Beyond basic array access, Judy provides a rich API including:
 - **Comparison**: `equals()`
 
 For complete method signatures, parameter details, and type compatibility, see [API.md](API.md).
+
+## Debugging and Profiling
+
+### Judy and Xdebug coexist
+
+Judy is an ordinary **module** extension: it registers a class and a set of
+object handlers and does not hook the executor. Xdebug is a **zend_extension**
+that does hook the executor. The two do not overlap, and load order is
+irrelevant.
+
+That was verified rather than assumed: in a container with both loaded
+(`php:8.4-cli`, judy built from source, Xdebug 3.5.3 from PECL), both report
+loaded, `var_dump()` of a Judy object renders correctly under
+`xdebug.mode=develop` (Xdebug replaces `var_dump()`, and it goes through the
+same handler), iteration works, and swapping the order of `-d extension=judy.so`
+and `-d zend_extension=xdebug.so` changes nothing.
+
+### The blind spot: Judy memory is invisible to memory profiling
+
+Judy allocates through the C allocator, outside PHP's memory manager. So
+`memory_get_usage()` does not see it — and neither does anything built on top
+of it, including Xdebug's per-function memory column. Filling a
+`STRING_TO_INT` with 50,000 keys inside a function, traced with
+`xdebug.mode=trace`:
+
+| Function                       | Xdebug memory delta | Actually allocated             |
+| ------------------------------ | ------------------- | ------------------------------ |
+| `fill_judy(50000)`             | 65,696 bytes        | ~1.24 MB (`memoryUsage()`)     |
+| `fill_php_array(50000)`        | 4,941,520 bytes     | 4,941,520 bytes                |
+
+The 65 KB charged to `fill_judy()` is PHP-side overhead (the object, the key
+zvals); not one byte of the ~1.24 MB of trie the call actually allocated
+appears anywhere in the trace, while the PHP array is reported in full. A
+memory-limit investigation driven by those numbers concludes the Judy array is
+nearly free — the opposite of what is happening.
+
+Two things do see it:
+
+- **`Judy::memoryUsage()`** — the only in-process view. Exact for
+  integer-keyed types, approximate (payload bytes, a lower bound) for
+  string-keyed ones; see [BENCHMARK.md](BENCHMARK.md#understanding-judymemoryusage).
+- **Peak RSS**, `getrusage()['ru_maxrss']`, measured in a **separate process**
+  per configuration — the honest way to compare Judy against a PHP array,
+  since only one of the two is visible to PHP's own accounting.
+
+```php
+// Run each variant in its own process; comparing them in one process is
+// meaningless because neither allocation is released to the OS on time.
+$judy = new Judy(Judy::STRING_TO_INT);
+for ($i = 0; $i < 1_000_000; $i++) { $judy["key_$i"] = $i; }
+printf("memoryUsage: %d bytes (approximate)\n", $judy->memoryUsage());
+printf("peak RSS:    %d\n", getrusage()['ru_maxrss']);
+```
+
+### What profilers do tell you: dispatch cost
+
+The signal Xdebug gives accurately is **call counts**, and that is what usually
+points at the real fix. With bracket syntax (`$judy[$key]`) the engine calls the
+extension's dimension handler directly, so nothing named `Judy` appears in the
+trace at all and the cost lands in the enclosing function. Explicit
+`$judy->offsetGet($key)` calls do appear, one line per lookup — 5,000 lookups
+show up as 5,000 `Judy->offsetGet` entries in both the trace and the cachegrind
+profile, while the bulk equivalent is a single `Judy->getAll` entry.
+
+Either way, a hot loop doing one lookup per element is the thing to replace:
+
+```php
+// Per-element dispatch
+foreach ($keys as $k) { $sum += $judy[$k]; }
+$copy = []; foreach ($judy as $k => $v) { $copy[$k] = $v; }
+
+// One C-level call instead
+$sum  = array_sum($judy->getAll($keys));
+$copy = $judy->toArray();
+```
+
+Measured (BENCHMARK.md Tables 5 and 6): `getAll()` is **1.9x** faster than
+individual lookups for integer keys on 10K lookups over 100K elements, and
+`toArray()` is **2.8x** faster than a manual `foreach` for 100K integer-keyed
+elements (**3.1x** for string keys). `forEach()`, `filter()` and `map()` are the
+same trade for callback-driven loops.
+
+### What a debugger shows
+
+`var_dump()`, `print_r()` and IDE variable panes (PhpStorm/VS Code over DBGp)
+all read the same `get_debug_info` handler, which renders a Judy object as
+(condensed — `var_dump()` prints each value on its own line):
+
+```
+object(Judy)#1 (7) {
+  ["type"]=>                      string(20) "STRING_TO_MIXED_HASH"
+  ["count"]=>                     int(2)
+  ["memoryUsage"]=>               int(68)
+  ["memoryUsageIsApproximate"]=>  bool(true)
+  ["firstKey"]=>                  string(5) "alpha"
+  ["lastKey"]=>                   string(4) "beta"
+  ["preview"]=>                   array(2) { ... }
+}
+```
+
+- `count`, `firstKey` and `lastKey` always describe the **whole** array.
+- `preview` is a **sample**, capped at `judy.debug_preview_size` (default 16,
+  `PHP_INI_ALL`, so `ini_set()` works mid-session). `0` disables the element
+  preview and leaves metadata only; negative values clamp to 0. The cap exists
+  because a dump has to stay cheap enough to be safe at a breakpoint —
+  serializing millions of elements over DBGp would hang the session.
+- Whenever fewer elements are shown than the array holds — including the `0`
+  case — a `previewTruncated` entry states the true total, e.g.
+  `showing 16 of 1000000 elements (judy.debug_preview_size=16)`. **Never read
+  element counts off a preview**; use `count()`, `toArray()`, `keys()` or
+  `values()`, which the INI does not affect.
+- `memoryUsageIsApproximate` appears only for string-keyed types, marking the
+  `memoryUsage` figure on the line above as a payload-only lower bound.
 
 ## Ecosystem
 
