@@ -43,8 +43,15 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 - **Hardware**: Tests run on modern x86_64 systems with sufficient RAM to avoid memory pressure
 - **Operating System**: Linux (Docker containers for consistency)
 - **PHP Version**: 8.x with Judy extension 2.4.2 — the release these figures were
-  measured on. They have not been re-measured on 2.5.0; the ranged reads and the
-  opt-in `optimizeIteration` mirror that 2.5.0 adds are not represented here.
+  measured on. They still describe 2.5.0: the release-over-release comparison run
+  on 2026-08-17 (interleaved arms, 5 groups x 5 rounds, PHP 8.4.24, Linux x86_64)
+  found **0 regressions** across 69 shared benchmarks, a run-wide median delta of
+  **-0.04%** against a PHP-array control of +0.36%, and one improvement —
+  `adv.filter.int_to_int` **-12.1%** [-12.8%, -10.1%]. The figures below are
+  therefore representative rather than merely unrefuted. Two 2.5.0 additions are
+  *not* represented: the 27 new ranged-read benchmarks, and the opt-in
+  `optimizeIteration` mirror, which is off by default and so never exercised by
+  the default-path figures here.
 - **Test Methodology**: Multiple iterations with statistical analysis (min/max/median/percentiles)
 - **Memory Measurement**: Using `memory_get_usage(true)` and `Judy::memoryUsage()`
 
@@ -1177,5 +1184,6 @@ php examples/benchmarks/run-benchmarks-robust.php
 Our methodology and insights are informed by the [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which demonstrates Judy's strengths in ordered access patterns and memory efficiency.
 
 **Describes**: php-judy 2.5.0
-**Figures measured on**: 2.4.2 (see Benchmarking Environment — not yet re-run on 2.5.0)
+**Figures measured on**: 2.4.2, verified unchanged on 2.5.0 (0 regressions, run-wide
+median -0.04%; see Benchmarking Environment)
 **Last Updated**: August 2026
