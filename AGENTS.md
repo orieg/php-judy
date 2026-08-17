@@ -93,6 +93,16 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   `API.md` is stale.
 - **Version lockstep**: `php_judy.h` (`PHP_JUDY_VERSION`) and `package.xml`
   must match; see the Releasing section in README.md.
+- **Measured claims have re-runnable harnesses**: `research/` (see
+  `research/README.md`) holds standalone C benches backing doc and issue
+  claims — `shm-arena/` for #83, `iteration-cost/` for #85. Nothing there
+  ships or builds with the extension. Re-run rather than trusting a number,
+  and only on an idle machine.
+- **Backend choice is settled, don't relitigate it**: `BACKEND_EVALUATION.md`
+  measures libJudy against ART (tie on lookup, 27% worse memory for ART) and
+  explains why Masstree/HOT/Wormhole don't apply to a single-threaded,
+  short-key, per-process extension. Verdict: keep Judy. Read it before
+  proposing a backend swap.
 - **Benchmarks**: suite in `examples/benchmarks/`; CI compares PRs against
   `baselines/latest.json`. Don't update the baseline in a feature PR.
 - **Runnable demos**: `examples/` (index + type-per-demo table in

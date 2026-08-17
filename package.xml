@@ -282,6 +282,7 @@
          <file md5sum="302250a837e8e489f3e465bdfd488f32" name="README.md" role="doc" />
          <file md5sum="730470b2aca686ddbea82a2b2af03a1a" name="CREDITS" role="doc" />
          <file md5sum="af4d88a4da7b16aaf4f92d7fe619e6be" name="BENCHMARK.md" role="doc" />
+         <file name="BACKEND_EVALUATION.md" role="doc" />
          <file name="API.md" role="doc" />
          <file name="scripts/api-metadata.php" role="doc" />
          <file name="scripts/generate-api-docs.php" role="doc" />
