@@ -44,10 +44,28 @@ Bulk (run in C, prefer over PHP loops): `toArray()`, `Judy::fromArray($type,
 $arr)`, `putAll($arr)`, `getAll($keys)`, `keys()`, `values()`, `forEach($cb)`,
 `filter($cb)`, `map($cb)`.
 
+`keys`, `values` and `toArray` also take an inclusive range —
+`keys($start = null, $end = null)` — where `null` leaves that side unbounded.
+All key types are supported; string-keyed types require string bounds and
+compare them lexicographically. **This is the primitive to reach for on a
+bounded read**: it is one traversal writing straight into the PHP array, so
+prefer it over `slice($lo, $hi)->keys()`, which copies a whole sub-Judy first
+and then traverses that copy.
+
 Set ops (return new Judy): `union`, `intersect`, `diff`, `xor`; in-place:
 `mergeWith`. Range: `slice($start, $end)` (inclusive), `deleteRange`,
-`populationCount`. Aggregation: `sumValues()`, `averageValues()`. Atomic:
-`increment($key, $amount = 1)` — creates the key if absent.
+`populationCount`, `size`, `keys`/`values`/`toArray` with bounds. Aggregation:
+`sumValues()`, `averageValues()`. Atomic: `increment($key, $amount = 1)` —
+creates the key if absent.
+
+**Every range here is a pair of inclusive keys, never an offset and a length.**
+Read `slice(5, 10)` as `range(5, 10)`, not as `array_slice($a, 5, 10)` — it is
+"keys 5 through 10", and it returns nothing if no key in that span is set. Both
+operations exist and they are different: `byCount($n)` is the positional one
+("the Nth element present"); everything above is key-space. Key-space is where
+Judy is fast — a bound is a seek plus a walk, so a narrow range out of a huge
+array costs the range, not the array. All range methods use `$start`/`$end`
+parameter names, so named arguments are uniform across them.
 
 Functions: `judy_version(): string`, `judy_type(mixed): int`.
 
@@ -110,6 +128,10 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   not change what that element contributes to the result.
 - **`count()` takes no arguments** (Countable); ranged counting is
   `size($start, $end)` or `populationCount($start, $end)`.
+- **A string upper bound is a bound, not a prefix match.** `keys('bl', 'bl')`
+  does not return `blackcurrant` — `blackcurrant` sorts *after* `bl`. For a
+  prefix sweep, bound with the prefix and its successor (`keys('bl', 'bm')`)
+  or append `"\xff"`. Same rule for `slice()` and `deleteRange()`.
 - **Random access on small dense datasets is faster with native arrays.**
   Judy wins on memory at scale, ordered navigation, and sparse keysets —
   see BENCHMARK.md before claiming performance.

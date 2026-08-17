@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 1067f736ceecd1551388388a1c84bcc518dade11 */
+ * Stub hash: 5e3d1f5cee0d80d5d6729e766fd821c016f8f6c8 */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_version, 0, 0, IS_STRING, 0)
 ZEND_END_ARG_INFO()
@@ -24,8 +24,8 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_memoryUsage, 0, 0, IS
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_size, 0, 0, IS_LONG, 0)
-	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, index_start, IS_MIXED, 0, "0")
-	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, index_end, IS_MIXED, 0, "-1")
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, start, IS_MIXED, 0, "0")
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, end, IS_MIXED, 0, "-1")
 ZEND_END_ARG_INFO()
 
 #define arginfo_class_Judy_count arginfo_class_Judy_getType
@@ -100,7 +100,10 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy___unserialize, 0, 1, 
 	ZEND_ARG_TYPE_INFO(0, data, IS_ARRAY, 0)
 ZEND_END_ARG_INFO()
 
-#define arginfo_class_Judy_toArray arginfo_class_Judy___serialize
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_toArray, 0, 0, IS_ARRAY, 0)
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, start, IS_MIXED, 0, "null")
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, end, IS_MIXED, 0, "null")
+ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_OBJ_INFO_EX(arginfo_class_Judy_fromArray, 0, 2, Judy, 0)
 	ZEND_ARG_TYPE_INFO(0, type, IS_LONG, 0)
@@ -130,9 +133,9 @@ ZEND_END_ARG_INFO()
 
 #define arginfo_class_Judy_next arginfo_class_Judy_rewind
 
-#define arginfo_class_Judy_keys arginfo_class_Judy___serialize
+#define arginfo_class_Judy_keys arginfo_class_Judy_toArray
 
-#define arginfo_class_Judy_values arginfo_class_Judy___serialize
+#define arginfo_class_Judy_values arginfo_class_Judy_toArray
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_forEach, 0, 1, IS_VOID, 0)
 	ZEND_ARG_TYPE_INFO(0, callback, IS_CALLABLE, 0)

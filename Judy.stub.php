@@ -80,10 +80,11 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
     /**
      * Return the number of elements, optionally within a key range.
      *
-     * When called with arguments, returns the count within
-     * [$index_start, $index_end] (integer-keyed types only).
+     * When called with arguments, returns the count of keys in the inclusive
+     * [$start, $end] range (integer-keyed types only). The bounds are keys,
+     * not offsets — see the note on Judy::slice().
      */
-    public function size(mixed $index_start = 0, mixed $index_end = -1): int {}
+    public function size(mixed $start = 0, mixed $end = -1): int {}
 
     /** Return the number of elements. Implements Countable. */
     public function count(): int {}
@@ -207,8 +208,12 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
      * Convert the Judy array to a native PHP array.
      *
      * Uses native C iteration internally, faster than manual foreach.
+     *
+     * With $start and/or $end, only the inclusive [$start, $end] key range is
+     * returned; null leaves that side unbounded. String-keyed types compare
+     * bounds lexicographically and require string bounds.
      */
-    public function toArray(): array {}
+    public function toArray(mixed $start = null, mixed $end = null): array {}
 
     /**
      * Create a new Judy array from a PHP array.
@@ -256,11 +261,24 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
 
     /* ── Expanded API ─────────────────────────────────────────── */
 
-    /** Return all keys as a PHP array. */
-    public function keys(): array {}
+    /**
+     * Return all keys as a PHP array.
+     *
+     * With $start and/or $end, only the inclusive [$start, $end] key range is
+     * returned; null leaves that side unbounded. String-keyed types compare
+     * bounds lexicographically and require string bounds.
+     */
+    public function keys(mixed $start = null, mixed $end = null): array {}
 
-    /** Return all values as a PHP array. */
-    public function values(): array {}
+    /**
+     * Return all values as a PHP array.
+     *
+     * With $start and/or $end, only the values of keys in the inclusive
+     * [$start, $end] range are returned; null leaves that side unbounded.
+     * String-keyed types compare bounds lexicographically and require string
+     * bounds.
+     */
+    public function values(mixed $start = null, mixed $end = null): array {}
 
     /**
      * Call a callback for each element, iterating in C.

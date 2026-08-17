@@ -3423,6 +3423,91 @@ typedef enum {
 	JUDY_COLLECT_VALUES
 } judy_collect_mode;
 
+/* An inclusive key range for the bulk collectors. A NULL range means "the
+   whole array"; a bounded range narrows the same single traversal, so a range
+   read costs no more than a full one — unlike slice()->keys(), which copies a
+   sub-array first and then traverses it again. Either side may be unbounded:
+   for integer keys that is 0 / Word_t maximum, for string keys a NULL bound. */
+typedef struct {
+	Word_t       start;          /* integer-keyed: inclusive lower bound */
+	Word_t       end;            /* integer-keyed: inclusive upper bound */
+	const char  *str_start;      /* string-keyed: lower bound, NULL = first key */
+	const char  *str_end;        /* string-keyed: upper bound, NULL = last key */
+	size_t       str_start_len;
+	zend_bool    is_empty;       /* $start > $end — nothing can match */
+} judy_collect_range;
+
+/* Seed a JudySL traversal key with the range's lower bound. Over-long bounds
+   are truncated like every other string-key entry point, which only widens
+   the range (JSLF seeks to the first key at or after the bound). */
+static void judy_range_seed_key(uint8_t *key, const judy_collect_range *range)
+{
+	size_t key_len;
+
+	if (range == NULL || range->str_start == NULL || range->str_start_len == 0) {
+		key[0] = '\0';
+		return;
+	}
+
+	key_len = range->str_start_len >= PHP_JUDY_MAX_LENGTH
+		? PHP_JUDY_MAX_LENGTH - 1 : range->str_start_len;
+	memcpy(key, range->str_start, key_len);
+	key[key_len] = '\0';
+}
+
+/* Is this traversal key still at or below the range's upper bound? */
+static zend_always_inline int judy_range_key_in_bounds(const uint8_t *key, const char *str_end)
+{
+	return str_end == NULL || strcmp((const char *)key, str_end) <= 0;
+}
+
+/* Parse the optional ($start, $end) pair the bulk collectors accept. A missing
+   or null argument leaves that side unbounded. Returns FAILURE with an
+   exception pending when a string-keyed array is handed a non-string bound. */
+static int judy_parse_collect_range(judy_object *intern, zval *zstart, zval *zend_val,
+		judy_collect_range *range, const char *method)
+{
+	memset(range, 0, sizeof(*range));
+
+	if (zstart != NULL && Z_TYPE_P(zstart) == IS_NULL) {
+		zstart = NULL;
+	}
+	if (zend_val != NULL && Z_TYPE_P(zend_val) == IS_NULL) {
+		zend_val = NULL;
+	}
+
+	if (intern->is_integer_keyed) {
+		range->start = zstart != NULL ? (Word_t) zval_get_long(zstart) : (Word_t) 0;
+		range->end = zend_val != NULL ? (Word_t) zval_get_long(zend_val) : (Word_t) -1;
+		if (EG(exception)) {
+			return FAILURE;
+		}
+		range->is_empty = range->start > range->end;
+		return SUCCESS;
+	}
+
+	if ((zstart != NULL && Z_TYPE_P(zstart) != IS_STRING)
+			|| (zend_val != NULL && Z_TYPE_P(zend_val) != IS_STRING)) {
+		zend_throw_error(zend_ce_type_error,
+			"Judy::%s() expects string arguments for string-keyed arrays", method);
+		return FAILURE;
+	}
+
+	if (zstart != NULL) {
+		range->str_start = Z_STRVAL_P(zstart);
+		range->str_start_len = Z_STRLEN_P(zstart);
+	}
+	if (zend_val != NULL) {
+		range->str_end = Z_STRVAL_P(zend_val);
+	}
+	if (range->str_start != NULL && range->str_end != NULL
+			&& strcmp(range->str_start, range->str_end) > 0) {
+		range->is_empty = 1;
+	}
+
+	return SUCCESS;
+}
+
 /* {{{ Helper to build a PHP array from a Judy array's contents.
    Used by jsonSerialize(), __serialize(), toArray(), keys(), values(), and the
    bounded preview built by get_debug_info().
@@ -3430,13 +3515,22 @@ typedef enum {
    `limit` < 0 collects everything; `limit` >= 0 stops after that many elements.
    `cursor` overrides the shared intern->key_scratch walk buffer for string-keyed
    types; pass a private buffer when the caller may run while a manual
-   rewind()/next() iteration holds the shared one (debug dumps do). */
+   rewind()/next() iteration holds the shared one (debug dumps do).
+   `range` restricts the traversal to an inclusive key range; NULL collects the
+   whole array. The two bounds are independent: the debug preview takes the
+   first N of everything, keys($lo, $hi) takes all of one range. */
 static void judy_populate_array_ex(judy_object *intern, zval *data, judy_collect_mode mode,
-		zend_long limit, uint8_t *cursor)
+		zend_long limit, uint8_t *cursor, const judy_collect_range *range)
 {
 	zend_long emitted = 0;
 
-	if (limit == 0) {
+	/* An absent range is exactly an unbounded one: 0..Word_t maximum for
+	   integer keys, NULL bounds for string keys. */
+	Word_t range_start = range != NULL ? range->start : (Word_t) 0;
+	Word_t range_end = range != NULL ? range->end : (Word_t) -1;
+	const char *range_str_end = range != NULL ? range->str_end : NULL;
+
+	if (limit == 0 || (range != NULL && range->is_empty)) {
 		return;
 	}
 	if (cursor == NULL) {
@@ -3444,11 +3538,11 @@ static void judy_populate_array_ex(judy_object *intern, zval *data, judy_collect
 	}
 
 	if (intern->type == TYPE_BITSET) {
-		Word_t index = 0;
+		Word_t index = range_start;
 		int Rc_int;
 
 		J1F(Rc_int, intern->array, index);
-		while (Rc_int) {
+		while (Rc_int && index <= range_end) {
 			if (limit >= 0 && emitted++ >= limit) {
 				break;
 			}
@@ -3459,11 +3553,11 @@ static void judy_populate_array_ex(judy_object *intern, zval *data, judy_collect
 		}
 
 	} else if (intern->is_integer_keyed) {
-		Word_t index = 0;
+		Word_t index = range_start;
 		Pvoid_t *PValue;
 
 		JLF(PValue, intern->array, index);
-		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR) && index <= range_end) {
 			if (limit >= 0 && emitted++ >= limit) {
 				break;
 			}
@@ -3516,10 +3610,11 @@ static void judy_populate_array_ex(judy_object *intern, zval *data, judy_collect
 	} else if (intern->is_adaptive) {
 		uint8_t *key = cursor;
 		Pvoid_t *PValue;
-		key[0] = '\0';
+		judy_range_seed_key(key, range);
 		JSLF(PValue, intern->key_index, key);
 
-		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)
+				&& judy_range_key_in_bounds(key, range_str_end)) {
 			if (limit >= 0 && emitted++ >= limit) {
 				break;
 			}
@@ -3567,14 +3662,15 @@ static void judy_populate_array_ex(judy_object *intern, zval *data, judy_collect
 		uint8_t *key = cursor;
 		Pvoid_t *PValue;
 
-		key[0] = '\0';
+		judy_range_seed_key(key, range);
 		if (intern->is_hash_keyed) {
 			JSLF(PValue, intern->key_index, key);
 		} else {
 			JSLF(PValue, intern->array, key);
 		}
 
-		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)
+				&& judy_range_key_in_bounds(key, range_str_end)) {
 			if (limit >= 0 && emitted++ >= limit) {
 				break;
 			}
@@ -3622,7 +3718,7 @@ static void judy_populate_array_ex(judy_object *intern, zval *data, judy_collect
 
 static void judy_populate_array(judy_object *intern, zval *data, judy_collect_mode mode)
 {
-	judy_populate_array_ex(intern, data, mode, -1, NULL);
+	judy_populate_array_ex(intern, data, mode, -1, NULL, NULL);
 }
 
 static void judy_build_data_array(judy_object *intern, zval *data)
@@ -3805,7 +3901,7 @@ static HashTable *judy_object_get_debug_info(zend_object *object, int *is_temp)
 	array_init(&tmp);
 	if (intern->type != 0 && limit > 0) {
 		uint8_t *cursor = intern->is_string_keyed ? emalloc(PHP_JUDY_MAX_LENGTH) : NULL;
-		judy_populate_array_ex(intern, &tmp, JUDY_COLLECT_ALL, limit, cursor);
+		judy_populate_array_ex(intern, &tmp, JUDY_COLLECT_ALL, limit, cursor, NULL);
 		if (cursor) {
 			efree(cursor);
 		}
@@ -3825,25 +3921,43 @@ static HashTable *judy_object_get_debug_info(zend_object *object, int *is_temp)
 }
 /* }}} */
 
-/* {{{ proto array Judy::keys()
-   Return the keys of the Judy array */
+/* Shared body of keys()/values()/toArray(): parse the optional range pair and
+   run one bounded traversal straight into the returned PHP array. */
+static void judy_collect_method(INTERNAL_FUNCTION_PARAMETERS, judy_collect_mode mode,
+		const char *method)
+{
+	zval *zstart = NULL, *zend_val = NULL;
+	judy_collect_range range;
+
+	JUDY_METHOD_GET_OBJECT
+
+	ZEND_PARSE_PARAMETERS_START(0, 2)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_ZVAL(zstart)
+		Z_PARAM_ZVAL(zend_val)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (judy_parse_collect_range(intern, zstart, zend_val, &range, method) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	array_init(return_value);
+	judy_populate_array_ex(intern, return_value, mode, -1, NULL, &range);
+}
+
+/* {{{ proto array Judy::keys(mixed $start = null, mixed $end = null)
+   Return the keys of the Judy array, optionally limited to [$start, $end] */
 PHP_METHOD(Judy, keys)
 {
-	JUDY_METHOD_GET_OBJECT
-	ZEND_PARSE_PARAMETERS_NONE();
-	array_init(return_value);
-	judy_populate_array(intern, return_value, JUDY_COLLECT_KEYS);
+	judy_collect_method(INTERNAL_FUNCTION_PARAM_PASSTHRU, JUDY_COLLECT_KEYS, "keys");
 }
 /* }}} */
 
-/* {{{ proto array Judy::values()
-   Return the values of the Judy array */
+/* {{{ proto array Judy::values(mixed $start = null, mixed $end = null)
+   Return the values of the Judy array, optionally limited to [$start, $end] */
 PHP_METHOD(Judy, values)
 {
-	JUDY_METHOD_GET_OBJECT
-	ZEND_PARSE_PARAMETERS_NONE();
-	array_init(return_value);
-	judy_populate_array(intern, return_value, JUDY_COLLECT_VALUES);
+	judy_collect_method(INTERNAL_FUNCTION_PARAM_PASSTHRU, JUDY_COLLECT_VALUES, "values");
 }
 /* }}} */
 
@@ -4864,16 +4978,11 @@ PHP_METHOD(Judy, __unserialize)
 }
 /* }}} */
 
-/* {{{ proto array Judy::toArray()
-   Convert the Judy array to a native PHP array */
+/* {{{ proto array Judy::toArray(mixed $start = null, mixed $end = null)
+   Convert the Judy array to a native PHP array, optionally limited to [$start, $end] */
 PHP_METHOD(Judy, toArray)
 {
-	JUDY_METHOD_GET_OBJECT
-
-	ZEND_PARSE_PARAMETERS_NONE();
-
-	array_init(return_value);
-	judy_build_data_array(intern, return_value);
+	judy_collect_method(INTERNAL_FUNCTION_PARAM_PASSTHRU, JUDY_COLLECT_ALL, "toArray");
 }
 /* }}} */
 

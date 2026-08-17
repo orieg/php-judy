@@ -442,7 +442,26 @@ $judy->putAll([20 => 400, 30 => 500]);
 
 // Retrieve multiple values at once (missing keys return null)
 $values = $judy->getAll([0, 5, 99]); // [0 => 100, 5 => 200, 99 => null]
+
+// Read only part of the key space: keys(), values() and toArray() all take an
+// inclusive range, with null leaving that side unbounded
+$judy->keys(5, 20);      // [5, 10, 20]
+$judy->toArray(5, 10);   // [5 => 200, 10 => 300]
+$judy->values(null, 5);  // [100, 200]
 ```
+
+A bounded read is one traversal writing straight into the returned PHP array,
+so prefer it to `slice($lo, $hi)->keys()`, which first copies the range into a
+new Judy array and then traverses that copy.
+
+> **Ranges are keys, not offsets.** Every range argument in this API —
+> `slice()`, `deleteRange()`, `populationCount()`, `size()`, and the bounded
+> forms above — is a pair of **inclusive keys**. Read `keys(5, 10)` as
+> `range(5, 10)`, not as `array_slice($a, 5, 10)`: it returns the keys *between*
+> 5 and 10, and nothing at all if none are set. If you want the element at a
+> *position*, that is `byCount($n)`. Bounding by key is a seek plus a walk, so a
+> narrow range out of a huge array costs the range rather than the array — which
+> is the reason the distinction is worth keeping.
 
 ### Atomic Increment
 
@@ -466,7 +485,8 @@ Beyond basic array access, Judy provides a rich API including:
 
 - **Set operations**: `union()`, `intersect()`, `diff()`, `xor()`, `mergeWith()`
 - **Functional iteration**: `forEach()`, `filter()`, `map()` (C-level, bypasses Iterator overhead)
-- **Range operations**: `slice()`, `deleteRange()`, `populationCount()`
+- **Range operations**: `slice()`, `deleteRange()`, `populationCount()`, and the
+  bounded forms of `keys()`, `values()`, `toArray()`
 - **Aggregation**: `sumValues()`, `averageValues()`
 - **Batch operations**: `putAll()`, `getAll()`, `keys()`, `values()`, `toArray()`, `fromArray()`
 - **Serialization**: `serialize()`/`unserialize()`, `json_encode()`
