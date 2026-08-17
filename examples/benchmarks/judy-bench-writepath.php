@@ -41,7 +41,9 @@
  *       --groups write --baseline-so <a>/judy.so --current-so <b>/judy.so
  *
  * `--group` is accepted for that contract and ignored: every case here belongs
- * to the one write-path group.
+ * to the one write-path group. The driver forwards only --size/--iterations,
+ * so key length travels in the environment — export JUDY_BENCH_KEYLEN and run
+ * the comparison once per length. An explicit --keylen still wins.
  *
  * Timings are only meaningful from an idle machine: check load average before
  * and between runs and treat anything above cores/2 as contaminated.
@@ -50,7 +52,7 @@
 $opts = getopt('', ['size:', 'iterations:', 'keylen:', 'json:', 'group:']);
 $size = (int)($opts['size'] ?? 200000);
 $iters = (int)($opts['iterations'] ?? 5);
-$keylen = (int)($opts['keylen'] ?? 16);
+$keylen = (int)($opts['keylen'] ?? getenv('JUDY_BENCH_KEYLEN') ?: 16);
 $json_out = $opts['json'] ?? null;
 
 if (!extension_loaded('judy')) {
