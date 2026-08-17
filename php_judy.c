@@ -1570,39 +1570,24 @@ PHP_METHOD(Judy, memoryUsage)
 }
 /* }}} */
 
-/* {{{ proto long Judy::size()
-   Return the current size of the array. */
+/* Defined with the bulk collectors below, next to the range parsing it shares
+   with keys()/values()/toArray(): counting a range and reading one must agree
+   on what the bounds mean, so they parse them in the same place. */
+static void judy_range_count_method(INTERNAL_FUNCTION_PARAMETERS, const char *method);
+
+/* {{{ proto long Judy::size(mixed $start = null, mixed $end = null)
+   Return the current size of the array, or of an inclusive key range. */
 PHP_METHOD(Judy, size)
 {
 	JUDY_METHOD_GET_OBJECT
 
-		if (intern->type == TYPE_BITSET || intern->type == TYPE_INT_TO_INT
-				|| intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_INT_TO_PACKED) {
-			zend_long   zl_idx1 = 0;
-			zend_long   zl_idx2 = -1;
-			Word_t   idx1, idx2;
-			Word_t   Rc_word;
+	/* A Judy whose type was never initialised has no key space to count in.
+	   Report null, as this method always has for that state. */
+	if (!intern->is_integer_keyed && !intern->is_string_keyed) {
+		RETURN_NULL();
+	}
 
-			ZEND_PARSE_PARAMETERS_START(0, 2)
-				Z_PARAM_OPTIONAL
-				Z_PARAM_LONG(zl_idx1)
-				Z_PARAM_LONG(zl_idx2)
-			ZEND_PARSE_PARAMETERS_END();
-			idx1 = (Word_t)zl_idx1;
-			idx2 = (Word_t)zl_idx2;
-
-			if (intern->type == TYPE_BITSET) {
-				J1C(Rc_word, intern->array, idx1, idx2);
-			} else {
-				JLC(Rc_word, intern->array, idx1, idx2);
-			}
-
-			RETURN_LONG(Rc_word);
-		} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED
-				|| intern->type == TYPE_STRING_TO_MIXED_HASH || intern->type == TYPE_STRING_TO_INT_HASH
-				|| intern->type == TYPE_STRING_TO_INT_ADAPTIVE || intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
-			RETURN_LONG(intern->counter);
-		}
+	judy_range_count_method(INTERNAL_FUNCTION_PARAM_PASSTHRU, "size");
 }
 
 /* {{{ proto long Judy::count()
@@ -4128,6 +4113,80 @@ static void judy_collect_method(INTERNAL_FUNCTION_PARAMETERS, judy_collect_mode 
 
 	array_init(return_value);
 	judy_populate_array_ex(intern, return_value, mode, -1, NULL, &range);
+}
+
+/* How many keys fall inside `range`? Answers without materialising them, so a
+   count never costs an allocation per element the way count(keys($lo, $hi))
+   does.
+
+   Integer-keyed types read libJudy's population cache (J1C/JLC), which is O(1)
+   whatever the range spans. String-keyed types have no such cache — JudySL and
+   JudyHS keep no population count — so a bounded count walks the JudySL key
+   index between the bounds. That is the same seek-then-walk keys($lo, $hi)
+   performs, minus the array building: it costs the range, not the array. The
+   unbounded case still short-circuits to the maintained element counter. */
+static zend_long judy_count_range(judy_object *intern, const judy_collect_range *range)
+{
+	Pvoid_t   index_array;
+	uint8_t  *key;
+	Pvoid_t  *PValue;
+	zend_long counted = 0;
+
+	if (range->is_empty) {
+		return 0;
+	}
+
+	if (intern->is_integer_keyed) {
+		Word_t Rc_word;
+
+		if (intern->type == TYPE_BITSET) {
+			J1C(Rc_word, intern->array, range->start, range->end);
+		} else {
+			JLC(Rc_word, intern->array, range->start, range->end);
+		}
+		return (zend_long)Rc_word;
+	}
+
+	/* Unbounded on both sides is the whole array, which the counter already
+	   knows exactly — no walk. */
+	if (range->str_start == NULL && range->str_end == NULL) {
+		return (zend_long)intern->counter;
+	}
+
+	index_array = intern->is_hash_keyed ? intern->key_index : intern->array;
+	key = intern->key_scratch;
+
+	judy_range_seed_key(key, range);
+	JSLF(PValue, index_array, key);
+	while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)
+			&& judy_range_key_in_bounds(key, range->str_end)) {
+		counted++;
+		JSLN(PValue, index_array, key);
+	}
+
+	return counted;
+}
+
+/* Shared body of the ranged counters: parse the optional ($start, $end) pair
+   exactly as the collectors do, then count what falls inside it. */
+static void judy_range_count_method(INTERNAL_FUNCTION_PARAMETERS, const char *method)
+{
+	zval *zstart = NULL, *zend_val = NULL;
+	judy_collect_range range;
+
+	JUDY_METHOD_GET_OBJECT
+
+	ZEND_PARSE_PARAMETERS_START(0, 2)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_ZVAL(zstart)
+		Z_PARAM_ZVAL(zend_val)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (judy_parse_collect_range(intern, zstart, zend_val, &range, method) == FAILURE) {
+		RETURN_THROWS();
+	}
+
+	RETURN_LONG(judy_count_range(intern, &range));
 }
 
 /* {{{ proto array Judy::keys(mixed $start = null, mixed $end = null)

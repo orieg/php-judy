@@ -290,6 +290,7 @@
          <file name="tests/keys_values_001.phpt" role="test" />
          <file name="tests/keys_range_int_001.phpt" role="test" />
          <file name="tests/keys_range_string_001.phpt" role="test" />
+         <file name="tests/size_range_string_001.phpt" role="test" />
          <file name="tests/range_named_args_001.phpt" role="test" />
          <file name="tests/merge_with.phpt" role="test" />
          <file name="tests/packed_complex_fallback_001.phpt" role="test" />

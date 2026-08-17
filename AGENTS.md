@@ -45,13 +45,15 @@ Bulk (run in C, prefer over PHP loops): `toArray()`, `Judy::fromArray($type,
 $arr)`, `putAll($arr)`, `getAll($keys)`, `keys()`, `values()`, `forEach($cb)`,
 `filter($cb)`, `map($cb)`.
 
-`keys`, `values` and `toArray` also take an inclusive range —
+`keys`, `values`, `toArray` and `size` also take an inclusive range —
 `keys($start = null, $end = null)` — where `null` leaves that side unbounded.
 All key types are supported; string-keyed types require string bounds and
 compare them lexicographically. **This is the primitive to reach for on a
 bounded read**: it is one traversal writing straight into the PHP array, so
 prefer it over `slice($lo, $hi)->keys()`, which copies a whole sub-Judy first
-and then traverses that copy.
+and then traverses that copy. To *count* a range rather than read it, use
+`size($lo, $hi)`, which runs the same traversal without building anything —
+never `count($j->keys($lo, $hi))`.
 
 Set ops (return new Judy): `union`, `intersect`, `diff`, `xor`; in-place:
 `mergeWith`. Range: `slice($start, $end)` (inclusive), `deleteRange`,
@@ -150,7 +152,11 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   the predicate received; a predicate that writes or unsets `$this[$key]` does
   not change what that element contributes to the result.
 - **`count()` takes no arguments** (Countable); ranged counting is
-  `size($start, $end)` or `populationCount($start, $end)`.
+  `size($start, $end)` for every type, or `populationCount($start, $end)` for
+  integer-keyed types only — it reads libJudy's population cache, which
+  JudySL/JudyHS do not have, and throws on a string-keyed array. `size()` on a
+  string-keyed range walks the key index instead: the cost of the range, not
+  of the array.
 - **A string upper bound is a bound, not a prefix match.** `keys('bl', 'bl')`
   does not return `blackcurrant` — `blackcurrant` sorts *after* `bl`. For a
   prefix sweep, bound with the prefix and its successor: `keys('bl', 'bm')`.
