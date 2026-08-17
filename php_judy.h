@@ -203,7 +203,7 @@ typedef struct _judy_object {
 	zval            iterator_key;        /* 16 */
 	zval            iterator_data;       /* 16 */
 	uint8_t         *key_scratch;        /* 8 — heap-allocated PHP_JUDY_MAX_LENGTH buffer */
-	/* Pack all bools together (8 bytes) */
+	/* Pack all bools together */
 	zend_bool       next_empty_is_valid;
 	zend_bool       iterator_initialized;
 	zend_bool       is_integer_keyed;
@@ -212,6 +212,9 @@ typedef struct _judy_object {
 	zend_bool       is_packed_value;
 	zend_bool       is_hash_keyed;
 	zend_bool       is_adaptive;
+	/* Set iff optimizeIteration was requested AND this type can honour it.
+	   Fixed for the object's lifetime — see judy_set_optimize_iteration(). */
+	zend_bool       mirror_payload;
 	zend_object     std;                 /* must be last */
 } judy_object;
 
@@ -231,39 +234,73 @@ static inline int judy_pack_short_string_internal(const char *str, size_t len, W
 	return 1;
 }
 
-/* {{{ JUDY_MIRRORS_PAYLOAD — does this (type, key length) keep its payload in
-   the key_index value word as well as in the value store?
+/* {{{ Payload mirroring — the optimizeIteration trade.
 
    The key_index of the four *_HASH / *_ADAPTIVE types is a JudySL whose value
-   word was allocated and never written. STRING_TO_INT_HASH and the long-key
-   half of STRING_TO_INT_ADAPTIVE now mirror their Word_t payload there, so
-   ordered traversal reads it from the cursor it already holds instead of doing
-   a second full lookup per element (issue #85 step B3). The payload is a plain
-   integer with no ownership, which is why these two types go first: no zval
-   lifetime, no destructor ordering, no get_gc interaction.
+   word is allocated and, by default, never written. Ordered traversal walks
+   that index for the key and then does a *second*, independent lookup
+   (JHSG/JLG) to fetch the value — 22 ns/element at 16-byte keys, 98 ns at
+   40-byte (issue #85).
 
-   Two exclusions, both deliberate:
+   With optimizeIteration on, STRING_TO_INT_HASH and the long-key half of
+   STRING_TO_INT_ADAPTIVE mirror their Word_t payload into that spare word, so
+   traversal reads the value from the cursor it already holds. That is a
+   measured 24-38% off ordered traversal and 29-47% off values(), paid for with
+   8-20% on overwrite and on increment(): every write now has to locate the
+   key_index slot as well as the value slot.
 
-     - The _MIXED variants are not mirrored yet. Their payload is a zval*, so a
-       mirror is a second pointer to a refcounted value and the rules that keeps
-       are a separate piece of work (issue #85 step B5).
-     - ADAPTIVE keys shorter than JUDY_SSO_MAX_LEN are not mirrored. Their value
-       lives in a JudyL keyed by the packed index, and both the read and the
-       write side reach it with a JLG — measured at 17.6 ns against 184.7 ns for
-       a JudySL descend of the same key (research/write-probe-cost). There is
-       nothing to win on that branch and an order of magnitude to lose.
+   Which side of that trade is right depends on the workload of the individual
+   array, so it is a per-instance constructor choice, not a global one, and it
+   is fixed for the object's lifetime — flipping it on a populated array would
+   mean rewriting every key_index slot. See judy_set_optimize_iteration().
 
-   Every read site that consults this must therefore have the key length in
-   hand, which the ADAPTIVE traversal sites already compute to pick a store. */
+   Three exclusions, all deliberate, all silent (the request is a performance
+   hint; a type that cannot honour it reports so through
+   Judy::isIterationOptimized() rather than throwing):
+
+     - Every type without a key_index: BITSET, the INT_TO_* family,
+       STRING_TO_INT and STRING_TO_MIXED. There is nothing to mirror into.
+     - The _MIXED variants. Their payload is a zval*, so a mirror is a second
+       pointer to a refcounted value and the rules that keeps are a separate
+       piece of work (issue #85 step B5).
+     - ADAPTIVE keys shorter than JUDY_SSO_MAX_LEN, even on an instance that
+       asked for it. Their value lives in a JudyL keyed by the packed index and
+       both sides reach it with a JLG — 17.6 ns against 184.7 ns for a JudySL
+       descend of the same key (research/write-probe-cost). Nothing to win and
+       an order of magnitude to lose.
+
+   JUDY_MIRRORS_PAYLOAD() answers "does this (instance, key length) mirror?".
+   Every read site that consults it must therefore have the key length in hand,
+   which the ADAPTIVE traversal sites already compute to pick a store. The
+   type test collapses to HASH-or-not because mirror_payload is only ever set
+   on the two types judy_type_can_mirror() names. */
 #define JUDY_MIRRORS_PAYLOAD(intern, klen) \
-	((intern)->type == TYPE_STRING_TO_INT_HASH \
-		|| ((intern)->type == TYPE_STRING_TO_INT_ADAPTIVE \
-			&& (size_t)(klen) >= JUDY_SSO_MAX_LEN))
+	((intern)->mirror_payload \
+		&& ((intern)->type == TYPE_STRING_TO_INT_HASH \
+			|| (size_t)(klen) >= JUDY_SSO_MAX_LEN))
+
+/* The same question on the traversal branches that only ever see the two
+   non-ADAPTIVE *_HASH types, where the key length is irrelevant and not always
+   in hand. */
+#define JUDY_MIRRORS_HASH_PAYLOAD(intern) \
+	((intern)->mirror_payload && (intern)->type == TYPE_STRING_TO_INT_HASH)
+
+/* The types that can honour optimizeIteration at all. */
+static inline int judy_type_can_mirror(zend_long jtype)
+{
+	return jtype == TYPE_STRING_TO_INT_HASH || jtype == TYPE_STRING_TO_INT_ADAPTIVE;
+}
 /* }}} */
 
 static inline void judy_init_type_flags(judy_object *intern, zend_long jtype)
 {
 	intern->type = jtype;
+	/* Default off: an instance is exactly origin/main until something asks
+	   otherwise. Every path that builds a Judy from another one has to
+	   re-assert the flag afterwards — judy_set_optimize_iteration() is the
+	   only way to turn it on, so a forgotten propagation degrades to the
+	   safe, unmirrored behaviour rather than to a stale mirror. */
+	intern->mirror_payload = 0;
 	intern->is_integer_keyed = (jtype == TYPE_BITSET || jtype == TYPE_INT_TO_INT || jtype == TYPE_INT_TO_MIXED || jtype == TYPE_INT_TO_PACKED);
 	intern->is_string_keyed = (jtype == TYPE_STRING_TO_INT || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_INT_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
 	intern->is_mixed_value = (jtype == TYPE_INT_TO_MIXED || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE);
@@ -348,6 +385,15 @@ static inline void judy_string_bytes_sub(judy_object *intern, Word_t klen)
 		(intern->approx_payload_bytes > bytes) ? intern->approx_payload_bytes - bytes : 0;
 }
 /* }}} */
+
+/* Apply an optimizeIteration request to an object whose type is already set.
+   Must be called after judy_init_type_flags(), which clears the flag. A request
+   on a type that cannot honour it is dropped here, once, so no other code has
+   to distinguish "not asked for" from "asked for and impossible". */
+static inline void judy_set_optimize_iteration(judy_object *intern, zend_bool requested)
+{
+	intern->mirror_payload = (requested && judy_type_can_mirror(intern->type)) ? 1 : 0;
+}
 
 /* Max length, this must be a constant for it to work in
  * declarings as we cannot use runtime decided values at

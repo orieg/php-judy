@@ -35,8 +35,26 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
      * Create a new Judy array of the specified type.
      *
      * Pass one of the Judy type constants (e.g. Judy::INT_TO_INT).
+     *
+     * $optimizeIteration trades write speed for ordered-read speed. With it
+     * on, ordered traversal (foreach, forEach(), filter(), map(), keys(),
+     * values(), toArray(), sumValues(), averageValues()) reads the value out
+     * of the key index it is already walking instead of looking it up a
+     * second time; in exchange, every write has to update both. Measured:
+     * foreach 24-38% faster and values() 29-47% faster depending on key
+     * length, against 8-20% slower on overwrite and on increment(). Turn it on
+     * for a read-dominated cache; leave it off for a counter-heavy workload.
+     *
+     * The choice is fixed for the life of the array and is inherited by every
+     * array derived from it (clone, slice(), filter(), map(), the set
+     * operations, serialization round-trips).
+     *
+     * Only STRING_TO_INT_HASH and STRING_TO_INT_ADAPTIVE can honour it, and
+     * ADAPTIVE only for keys of 8 bytes or more. Any other type accepts the
+     * argument and ignores it, so generic code may pass it unconditionally;
+     * isIterationOptimized() reports what actually took effect.
      */
-    public function __construct(int $type) {}
+    public function __construct(int $type, bool $optimizeIteration = false) {}
 
     /** Free the Judy array and release all associated resources. */
     public function __destruct() {}
@@ -45,6 +63,14 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
 
     /** Return the type constant of this Judy array. */
     public function getType(): int {}
+
+    /**
+     * Whether the optimizeIteration trade is actually in effect here.
+     *
+     * Returns what was honoured, not what was asked for: a type that cannot
+     * mirror its payload accepts the constructor argument and returns false.
+     */
+    public function isIterationOptimized(): bool {}
 
     /** Free the entire Judy array. Returns the number of bytes freed. */
     public function free(): int {}
@@ -220,8 +246,10 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
      *
      * $type is one of the Judy type constants. $data provides the
      * key-value pairs to populate the array with.
+     *
+     * $optimizeIteration has the same meaning as in the constructor.
      */
-    public static function fromArray(int $type, array $data): Judy {}
+    public static function fromArray(int $type, array $data, bool $optimizeIteration = false): Judy {}
 
     /** Bulk-insert entries from a PHP array into this Judy array. */
     public function putAll(array $data): void {}
