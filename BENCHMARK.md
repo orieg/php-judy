@@ -626,6 +626,12 @@ argument or a pointer to a figure already in this document, and where a figure
 is cited the section it comes from is named. Nobody built the rejected thing
 and benchmarked it — the reasoning is why it was not built.
 
+Several of them do, however, rest on **read source rather than recollection**,
+because the premise a candidate is argued from turns out to be wrong about the
+real code often enough to be the deciding factor on its own. Where an entry
+cites another project's internals it names the revision it was read at, and
+where a structural claim could not be checked it says so.
+
 The one workload here that *has* been measured end to end is the coverage
 index; see [Measured: the coverage-index
 workload](#measured-the-coverage-index-workload) at the end of this section.
@@ -705,6 +711,157 @@ manager entirely, so it does not count against that limit at all.
 Honest status: **plausible, unmeasured, high cost**. If someone picks it up,
 the first artifact should be a standalone harness over a captured real
 dependency graph — not a patch.
+
+### ❌ PHPStan / Psalm result-cache invalidation
+
+The claim: a static analyser's result cache is a file-dependency graph,
+invalidation is a reverse-transitive closure over integer node ids, and the
+repeated set unions would be leaner in a `BITSET` than in a PHP loop plus
+`array_unique`.
+
+Only the first clause survives contact with the code. This one was checked
+against source rather than recalled — `phpstan/phpstan-src` at `6c642f1` and
+`vimeo/psalm` at `7385c40`.
+
+**It is not a transitive closure.** `ResultCacheManager::restore()` expands each
+changed file by exactly **one hop**: it appends that file's cached
+`dependentFiles` (or, for a body-only change to a file containing a trait, its
+`usedTraitDependentFiles`) to a flat `$filesToAnalyse` list, and never
+re-expands the files it just appended. There is no worklist, no fixed point.
+What substitutes for transitivity is a different mechanism entirely — a hash of
+each file's *exported nodes* (its public signature surface). If those changed,
+PHPStan sets `$newFileAppeared` and appends every file that had a cached error,
+which is a conservative widening, not a graph walk. Deleted files contribute
+their dependents by the same one-hop rule. The whole thing ends in a single
+`array_unique()` over a list of strings.
+
+**The node ids are not integers.** The cached graph is
+`array<string, array{fileHash: string, dependentFiles: list<string>}>`, keyed by
+absolute file path, and the appended values are file paths too. To get to a
+`BITSET` you would first have to assign integer ids to every path — which
+requires exactly the string-keyed map Judy is *worse* at than a PHP array (see
+[Avoid Judy Arrays When](#-avoid-judy-arrays-when)), rebuilt on every run,
+to save work on a set operation that is smaller than the map you built to
+enable it.
+
+**And it is nowhere near the size where Judy competes.** The graph holds one
+entry per analysed file, so a 10k–20k-file project is a 10k–20k-node graph, and
+the set being unioned — `$filesToAnalyse` — is smaller still: changed files plus
+their direct dependents plus, in the widening case, the previously-errored
+files. That is one to two orders of magnitude below the ~100k-element threshold
+this document gives for random-access workloads, on the wrong side of it.
+
+**The closure is not hot, and the enclosing method proves it.** Before the
+expansion loop runs, `restore()` calls `getFileHash()` for **every** analysed
+file, which is a `hash_file('sha256', ...)` — a full read and digest of the
+entire source tree. The invalidation pass then walks the same files once in
+PHP. Any saving on the set union is bounded by a term that is already dwarfed
+by the hashing beside it, before you even reach parsing and analysis.
+
+**Persistence closes the last door.** The cache is not held in memory between
+runs; it is written as a `var_export()`ed PHP file and read back with `require`.
+That is the same mechanism that makes
+[Composer's `autoload_classmap.php`](#-composers-autoload_classmapphp)
+unbeatable here: OPcache compiles the literal once and every process maps it,
+whereas a Judy version must be constructed at run time, per process, from that
+same file. Judy would be paying a build cost to replace something whose build
+cost is zero.
+
+**Psalm is the same shape.** `FileReferenceProvider` keeps
+`$file_references[$file] = ['a' => list<string>, 'i' => list<string>]` plus
+class-keyed maps whose keys are lowercased FQCN strings, and
+`calculateFilesReferencingFile()` / `calculateFilesInheritingFile()` each end in
+`array_unique()` over a one-hop list of paths. String keys, one hop, same
+verdict.
+
+**Does the long-lived-process angle rescue it?** No. PHPStan's `--watch` hands
+off to PHPStan Pro, which is closed source — *this could not be verified* and
+nothing here should be read as a claim about it. Psalm's language server is
+in-repo and genuinely long-lived, but what it holds resident is `ClassLikeStorage`
+and `FileStorage` objects — fat objects with dozens of array properties each —
+not the reference maps. That is the AST case again: an `INT_TO_MIXED` or
+`STRING_TO_MIXED` slot holds a `zval` pointer, so the storages cost the same
+either way and only the container overhead differs (see
+[When PHP Arrays Win](#when-php-arrays-win)). The reference maps are the small
+part of that process's footprint, so shrinking them does not change the
+calculus on its own. *The split between storages and reference maps in a
+resident language server was not measured — that claim is structural.*
+
+Honest status: **rejected on the code, not on a benchmark.** Two of the claim's
+premises are factually wrong about both tools, and the two that would matter
+even if they were right — size and hotness — both fail independently.
+
+### ❌ Doctrine's UnitOfWork during batch imports
+
+The claim: `identityMap`, `entityStates` and `originalEntityData` are keyed by
+`spl_object_id` — sparse integers, Judy's native key shape — and are why people
+call `clear()` every N rows during a batch import. Candidate: `INT_TO_MIXED` for
+the maps, `BITSET` for the states.
+
+The three maps do not share a verdict, so they are assessed separately, against
+`doctrine/orm` at `c9a7332`.
+
+**`identityMap` is not keyed by `spl_object_id` at all.** It is
+`array<class-string, array<string, object>>` — the root entity class name, then
+the flattened identifier hash produced by `getIdHashByEntity()`. Two levels,
+both string-keyed, no object id anywhere. The nesting is load-bearing rather
+than incidental: `computeChangeSets()` iterates it class-major so it can fetch
+`ClassMetadata` once per class and skip read-only classes wholesale, and
+`getIdentityMap()` returns the nested array as public API. Flattening it to a
+composite key to fit a single Judy array would break that iteration, and the
+key type it would land on is Judy's slowest. **Rejected**, and on a premise that
+is simply not true of the code.
+
+**`originalEntityData` is keyed by `spl_object_id`, and it is the AST argument
+again.** The type is `array<int, array<string, mixed>>` — one PHP array of field
+values per managed entity. `INT_TO_MIXED` stores a `zval` pointer per slot, so
+each of those inner arrays costs precisely what it costs today and only the
+outer container's per-entry overhead changes (see
+[When PHP Arrays Win](#when-php-arrays-win)). The inner arrays *are* the
+footprint. Doctrine's own docblock on the property notes it already leans on
+copy-on-write so that a field value is shared with the entity's property until
+the user modifies it, which means the outer container's share of the retained
+bytes is smaller still. `entityIdentifiers` is the same type with the same
+verdict. **Rejected** — the entity graph is the memory, not the map.
+
+**`entityStates` is the one that could work, and it is too small to be worth
+it.** Values are `self::STATE_*` small ints, and within `UnitOfWork.php` the
+only values ever *stored* are `STATE_MANAGED` and `STATE_REMOVED` — the
+`STATE_NEW` and `STATE_DETACHED` assignments are commented out, because
+`getEntityState()` derives those from absence. Two states plus absence is
+exactly what a pair of `BITSET`s expresses, so unlike the other two maps there
+is no zval-per-slot objection here. It fails on proportion instead: this is one
+scalar per managed entity sitting beside that entity's object, its
+`originalEntityData` array and its `entityIdentifiers` array. Eliminating its
+storage entirely leaves everything `clear()` exists to release still resident.
+**Plausible in isolation, pointless in isolation** — and it is the only one of
+the three with any structural case at all.
+
+**The keys are dense, not sparse — the premise inverts.** `spl_object_id()`
+returns the object-store handle: a small integer counter starting at 1, recycled
+the moment an object is freed. Doctrine says so itself, in the `getEntityState()`
+comment explaining why NEW and DETACHED are not cached — *"the object hash can be
+reused"*. Probed directly on PHP 8.5.8: ten retained objects got ids 1–10; a
+freed object's id was handed straight to the next allocation; and retaining one
+companion object per entity gave 1, 3, 5 … 15, a density of 0.53. Judy's
+sparse-key memory advantage in
+[When Judy Saves Memory](#when-judy-saves-memory) above is demonstrated at a key
+step of 1000 — density 0.001. Dense low integers are the shape a PHP array
+handles most cheaply, not the shape that buys Judy anything.
+
+**Size settles what is left.** Doctrine's own batch-processing chapter uses
+`$batchSize = 20`, flushing and clearing every 20 rows, so between clears these
+maps hold tens of entries — five orders of magnitude below the threshold where
+Judy starts winning. And the pathological run people are actually fixing when
+they add `clear()` — the one that never clears and dies at 100k rows — dies
+because 100k entity objects and 100k field-data arrays are resident, which no
+change to the key structure touches.
+
+Honest status: **rejected.** The kill is the same one the AST entry makes: the
+values dominate the footprint and `INT_TO_MIXED` stores them as zvals either
+way. `entityStates` escapes that objection on value shape and then loses on
+proportion. Nothing here was measured, and nothing here needs to be — the
+element counts are below the range where a measurement would be interesting.
 
 ### The constraint underneath several of these: one process, one arena
 

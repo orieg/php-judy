@@ -15,7 +15,12 @@
  *
  *   1. line numbers are sparse integer keys;
  *   2. intern the test names once, and "which tests cover this line" becomes
- *      a set of small integers instead of a PHP array of strings;
+ *      a set of small integers instead of a PHP array of strings.
+ *      NOTE: interning is no longer a point of difference against the real
+ *      tool. sebastian/php-code-coverage 14.3.0 (2026-08-07) interns test
+ *      ids to integers itself and stores per-line hit counts rather than id
+ *      lists, in plain PHP arrays with no extension involved. Property 2 is
+ *      why the packed key works here; it is not a Judy-only idea;
  *   3. merging per-worker indexes (ParaTest, --process-isolation) is one
  *      set-union call running in C rather than a recursive array merge in
  *      PHP — though see the notes at the bottom: an in-place nested-array
