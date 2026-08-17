@@ -157,6 +157,43 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 
 **Key Insight**: `toArray()` is 2-3x faster than building an array via `foreach` because it uses native C iteration internally, bypassing the PHP Iterator interface overhead.
 
+### **What the two tables above actually say — and the trap they used to set**
+
+Tables 5 and 6 win for one reason, and it is worth stating precisely because it
+predicts where the win does *not* apply: **one C traversal writing straight into
+the destination PHP array**. The saving is the per-element PHP↔C crossing, so it
+scales with element count and it needs the whole operation to happen in a single
+pass.
+
+Read as "bulk operations are always faster than a PHP loop", that rule used to
+point at the wrong tool for a *bounded* read. Before `keys($start, $end)` existed
+(#96), reading one key range in bulk meant `slice($lo, $hi)->keys()` — and
+`slice()` is a copy constructor, not a projection: it traverses the source,
+inserts every key into a freshly allocated Judy, and then `keys()` traverses that
+copy. Two traversals plus an allocation to avoid one dispatch per key, which
+measured **slower than the `first()`/`searchNext()` walk it was meant to replace**.
+
+The primitive now exists, so the rule holds again — but state it the precise way:
+
+> Prefer a bulk operation when it does the whole job in **one** traversal.
+> Composing two bulk calls to fake a third operation can cost more than the loop.
+
+| You want | Use | Not |
+| --- | --- | --- |
+| every element | `toArray()` / `keys()` / `values()` | `foreach` accumulating |
+| many known keys | `getAll($keys)` | a `$j[$k]` loop |
+| one key range | `keys($lo, $hi)` / `toArray($lo, $hi)` | `slice($lo,$hi)->keys()`, or a walk |
+| a range's size only | `populationCount($lo, $hi)` | reading it to count it |
+| to skip whole blocks | `first()` / `searchNext()` | reading spans you discard |
+
+The last two rows are the ones people get wrong in opposite directions.
+`populationCount()` is right when you want a count *without* the contents — but
+redundant in front of a read you are about to do anyway, since a bounded `keys()`
+returns an empty array for an empty range. And a walk is right when you mean to
+*skip* — seeking past keys you do not want is something no bulk call can do.
+
+`examples/coverage-index.php` measures exactly this on a realistic workload.
+
 ### **Table 7: Atomic Increment (100K operations, 1K unique keys)**
 
 | Method                                | INT_TO_INT      | STRING_TO_INT   | Notes                                                      |
@@ -590,12 +627,15 @@ foreach ($judy as $key => $value) {
 $judy = new Judy(Judy::INT_TO_INT);
 // ... populate data ...
 
-// Good: Sort keys first, then access sequentially
-$keys = array_keys($judy->toArray());
-sort($keys);
-foreach ($keys as $key) {
+// Judy keys come out sorted already — no array_keys(), no sort()
+foreach ($judy->keys() as $key) {
     $value = $judy[$key];
     // Process value
+}
+
+// Only need part of the key space? Bound the read instead of filtering after
+foreach ($judy->keys(1000, 2000) as $key) {
+    // one traversal of that range, not of the whole array
 }
 ```
 
