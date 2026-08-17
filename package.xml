@@ -61,6 +61,7 @@
          <file name="examples/ip-range-lookup.php" role="doc" />
          <file name="examples/sliding-window-rate-limit.php" role="doc" />
          <file name="examples/prefix-invalidation.php" role="doc" />
+         <file name="examples/symbol-table-prefix.php" role="doc" />
         <file name="examples/coverage-index.php" role="doc" />
          <file name="examples/benchmarks/benchmark_ordered_data.php" role="doc" />
          <file name="examples/benchmarks/benchmark_ordered_data_demo.php" role="doc" />

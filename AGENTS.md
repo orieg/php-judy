@@ -153,8 +153,16 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   `size($start, $end)` or `populationCount($start, $end)`.
 - **A string upper bound is a bound, not a prefix match.** `keys('bl', 'bl')`
   does not return `blackcurrant` — `blackcurrant` sorts *after* `bl`. For a
-  prefix sweep, bound with the prefix and its successor (`keys('bl', 'bm')`)
-  or append `"\xff"`. Same rule for `slice()` and `deleteRange()`.
+  prefix sweep, bound with the prefix and its successor: `keys('bl', 'bm')`.
+  Two details that bite on binary-safe keys, both worked through and asserted
+  in `examples/symbol-table-prefix.php`: the successor needs a **carry** when
+  the prefix ends in `"\xff"` (and an all-`"\xff"` prefix has no successor at
+  all — pass `null` for "to the end"), and because the upper bound is
+  **inclusive** the range over-reaches by at most one key, the one spelled
+  exactly like the bound (`'bm'` itself), which a read should drop. Appending
+  `"\xff"` to the prefix instead is *not* equivalent — it silently omits any
+  key carrying a `0xff` byte right after the prefix. Same rule for `slice()`
+  and `deleteRange()`, except a delete cannot drop the over-reach afterwards.
 - **Random access on small dense datasets is faster with native arrays.**
   Judy wins on memory at scale, ordered navigation, and sparse keysets —
   see BENCHMARK.md before claiming performance.
@@ -244,5 +252,10 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   `BITSET` over packed keys, merged with `union()`/`mergeWith()`, then queried
   for test-impact selection — the contiguous-block walk, and why an uncovered
   changed line must widen rather than select nothing),
-  `autocomplete-trie.php` (prefix search), `worker-counters.php` (atomic
+  `symbol-table-prefix.php` (FQCN symbol table queried by namespace —
+  deriving inclusive key bounds from a prefix binary-safely, then reading the
+  slice with one `keys`/`values`/`toArray($lo, $hi)` call; counts keys visited
+  and PHP→C crossings against a hash scan and against the per-element walk),
+  `autocomplete-trie.php` (prefix search, and when the walk still beats a
+  bounded read), `worker-counters.php` (atomic
   `increment()`), `quickstart.php` (API tour).
