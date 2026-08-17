@@ -454,6 +454,15 @@ A bounded read is one traversal writing straight into the returned PHP array,
 so prefer it to `slice($lo, $hi)->keys()`, which first copies the range into a
 new Judy array and then traverses that copy.
 
+> **Ranges are keys, not offsets.** Every range argument in this API —
+> `slice()`, `deleteRange()`, `populationCount()`, `size()`, and the bounded
+> forms above — is a pair of **inclusive keys**. Read `keys(5, 10)` as
+> `range(5, 10)`, not as `array_slice($a, 5, 10)`: it returns the keys *between*
+> 5 and 10, and nothing at all if none are set. If you want the element at a
+> *position*, that is `byCount($n)`. Bounding by key is a seek plus a walk, so a
+> narrow range out of a huge array costs the range rather than the array — which
+> is the reason the distinction is worth keeping.
+
 ### Atomic Increment
 
 For `INT_TO_INT`, `STRING_TO_INT`, and `STRING_TO_INT_HASH` types, `increment()` performs an efficient counter update:

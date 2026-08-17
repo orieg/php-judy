@@ -80,10 +80,11 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
     /**
      * Return the number of elements, optionally within a key range.
      *
-     * When called with arguments, returns the count within
-     * [$index_start, $index_end] (integer-keyed types only).
+     * When called with arguments, returns the count of keys in the inclusive
+     * [$start, $end] range (integer-keyed types only). The bounds are keys,
+     * not offsets — see the note on Judy::slice().
      */
-    public function size(mixed $index_start = 0, mixed $index_end = -1): int {}
+    public function size(mixed $start = 0, mixed $end = -1): int {}
 
     /** Return the number of elements. Implements Countable. */
     public function count(): int {}

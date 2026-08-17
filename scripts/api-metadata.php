@@ -91,6 +91,34 @@ PHP,
         ],
         'Range Operations' => [
             'methods' => ['slice', 'deleteRange', 'populationCount'],
+            'description' => <<<'MD'
+**Every range in this API is a pair of inclusive *keys*, never an offset and a length.**
+
+Think `range($start, $end)`, not `array_slice($a, $offset, $length)`. PHP splits
+the convention by data shape: offset/length suits *sequences* (`array_slice`,
+`substr`), where positions are dense and meaningful; start/end suits *ordered
+value domains* (`range()`, `DatePeriod`). A Judy array is the second kind — a
+sparse ordered map — so `slice(5, 10)` means "keys 5 through 10 inclusive", and
+returns nothing at all if no key in that span is set.
+
+The distinction is not cosmetic, because both operations exist here and they are
+different:
+
+| Question | Method | How it works |
+| --- | --- | --- |
+| "the element at position N" | `byCount($nth_index)` | positional; counts elements |
+| "elements with keys in [lo, hi]" | `slice`, `deleteRange`, `populationCount`, `size`, and the bounded forms of `keys`/`values`/`toArray` | key-space; seeks directly |
+
+Key-space is where Judy is fast: bounding by key is a seek to the first key at or
+above `$start` and then a walk, so reading a narrow range out of a huge array
+costs the range, not the array. An offset-based equivalent would have to count
+from the beginning to find where to start — which is exactly the work `byCount()`
+does, and exactly the work the key-bounded methods exist to avoid.
+
+Bounds are inclusive on both ends, an inverted range (`$start > $end`) yields
+nothing rather than erroring, and string-keyed types compare bounds
+lexicographically with `strcmp()`.
+MD,
         ],
         'Batch Operations' => [
             'methods' => ['fromArray', 'toArray', 'putAll', 'getAll', 'keys', 'values', 'increment'],
@@ -159,7 +187,14 @@ PHP,
             ],
         ],
         'size' => [
-            'description' => 'Returns the number of elements. When called with arguments, returns the population count within the given range (integer-keyed types only).',
+            'description' => 'Returns the number of elements. When called with arguments, returns the population count of keys in the inclusive `[$start, $end]` range (integer-keyed types only). The bounds are keys, not offsets — see [Range Operations](#range-operations).',
+            'example' => <<<'PHP'
+$judy = Judy::fromArray(Judy::INT_TO_INT, [1 => 10, 5 => 50, 1000 => 100]);
+
+$judy->size();          // 3
+$judy->size(0, 100);    // 2  — keys 1 and 5; key 1000 is outside the range
+$judy->size(0, -1);     // 3  — -1 is the maximum bound, so this is "everything"
+PHP,
         ],
         'count' => [
             'description' => "Returns the number of elements. Implements PHP's `Countable` interface.",

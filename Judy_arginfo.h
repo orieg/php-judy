@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: e0cba2d9a949592b101da4eff41c901a7448662c */
+ * Stub hash: 5e3d1f5cee0d80d5d6729e766fd821c016f8f6c8 */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_version, 0, 0, IS_STRING, 0)
 ZEND_END_ARG_INFO()
@@ -24,8 +24,8 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_memoryUsage, 0, 0, IS
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_size, 0, 0, IS_LONG, 0)
-	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, index_start, IS_MIXED, 0, "0")
-	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, index_end, IS_MIXED, 0, "-1")
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, start, IS_MIXED, 0, "0")
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, end, IS_MIXED, 0, "-1")
 ZEND_END_ARG_INFO()
 
 #define arginfo_class_Judy_count arginfo_class_Judy_getType
