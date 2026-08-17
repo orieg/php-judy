@@ -478,7 +478,7 @@ while ($judy->valid()) {
 
 - **Memory Efficiency**: Judy arrays use 2-4x less memory than PHP arrays
 - **Sequential Access**: Excellent performance for ordered iteration
-- **Range Queries**: Native support via `slice()`, `deleteRange()`, and `populationCount()`
+- **Range Queries**: Native support via `slice()`, `deleteRange()`, and the bounded forms of `keys()`, `values()`, `toArray()` and `size()`
 - **Random Access**: Trie types are slower than PHP arrays (O(log n) vs O(1)); Hash types offer O(1) average-case lookups for string keys
 - **String Lookups**: Use `STRING_TO_*_HASH` or `STRING_TO_*_ADAPTIVE` types for faster string key access when sorted traversal is not the primary use case
 
@@ -499,11 +499,15 @@ $judy->putAll([20 => 400, 30 => 500]);
 // Retrieve multiple values at once (missing keys return null)
 $values = $judy->getAll([0, 5, 99]); // [0 => 100, 5 => 200, 99 => null]
 
-// Read only part of the key space: keys(), values() and toArray() all take an
-// inclusive range, with null leaving that side unbounded
+// Read only part of the key space: keys(), values(), toArray() and size() all
+// take an inclusive range, with null leaving that side unbounded
 $judy->keys(5, 20);      // [5, 10, 20]
 $judy->toArray(5, 10);   // [5 => 200, 10 => 300]
 $judy->values(null, 5);  // [100, 200]
+
+// To count a range rather than read it, size() runs the same traversal and
+// materialises nothing — prefer it to count($judy->keys($lo, $hi))
+$judy->size(5, 20);      // 3
 ```
 
 A bounded read is one traversal writing straight into the returned PHP array,
@@ -546,8 +550,9 @@ Beyond basic array access, Judy provides a rich API including:
 
 - **Set operations**: `union()`, `intersect()`, `diff()`, `xor()`, `mergeWith()`
 - **Functional iteration**: `forEach()`, `filter()`, `map()` (C-level, bypasses Iterator overhead)
-- **Range operations**: `slice()`, `deleteRange()`, `populationCount()`, and the
-  bounded forms of `keys()`, `values()`, `toArray()`
+- **Range operations**: `slice()`, `deleteRange()`, and the bounded forms of
+  `keys()`, `values()`, `toArray()` and `size()` — with `populationCount()` as
+  the integer-only O(1) counter
 - **Aggregation**: `sumValues()`, `averageValues()`
 - **Batch operations**: `putAll()`, `getAll()`, `keys()`, `values()`, `toArray()`, `fromArray()`
 - **Serialization**: `serialize()`/`unserialize()`, `json_encode()`
