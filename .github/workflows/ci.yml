@@ -94,26 +94,34 @@ jobs:
           php -d "extension=$BASELINE_SO" -r \
             'echo "Baseline loaded: judy " . judy_version() . "\n";'
 
-      - name: Run baseline benchmarks
+      - name: Run interleaved release comparison
         if: matrix.php-version == '8.4'
         run: |
-          mkdir -p /tmp/php-judy-baseline-ini
-          echo "extension=$BASELINE_SO" > /tmp/php-judy-baseline-ini/judy.ini
+          # Interleaved A/B/A/B comparison against the previous release. The
+          # arms alternate per benchmark group and repeat over several rounds,
+          # so runner drift hits both arms and cancels in the paired ratio —
+          # see scripts/bench-compare.php and issue #87 for why running the
+          # two suites back to back reported false regressions instead.
+          #
+          # Deliberately smaller than the headline benchmark below: this job
+          # needs to detect *changes* reliably, not produce publishable
+          # absolute numbers (those come from a dedicated host, see
+          # BENCHMARK.md). Rounds buy more than element count here.
+          php scripts/bench-compare.php \
+            --baseline-so "$BASELINE_SO" \
+            --current-so "$(pwd)/modules/judy.so" \
+            --size 300000 --iterations 3 --rounds 5 \
+            --out bench-compare.json \
+            2>&1 | tee bench-compare-output.txt
 
-          # v2.4.1 has all types + API, so run the full suite for a complete
-          # release-over-release comparison.
-          PHP_INI_SCAN_DIR=/tmp/php-judy-baseline-ini php examples/benchmarks/judy-bench.php \
-            --json baseline-bench.json --size 500000 --iterations 7 --suite all \
-            2>&1 | tee baseline-benchmark-output.txt
-
-      - name: Upload baseline benchmark results
+      - name: Upload release comparison results
         if: always() && matrix.php-version == '8.4'
         uses: actions/upload-artifact@v7
         with:
           name: benchmark-baseline-linux-php${{ matrix.php-version }}
           path: |
-            baseline-bench.json
-            baseline-benchmark-output.txt
+            bench-compare.json
+            bench-compare-output.txt
           if-no-files-found: ignore
 
       - name: Run benchmarks
@@ -973,25 +981,229 @@ jobs:
                   lines.append("</details>\n")
 
               # ── Cross-release baseline comparison ──
-              # Prefer CI-generated baseline (same runner = no arch noise)
+              # Preferred: the interleaved A/B comparison produced on the same
+              # runner by scripts/bench-compare.php. Running the two suites
+              # back to back put the arms minutes apart and reported runner
+              # drift as regressions (issue #87); this artifact instead carries
+              # paired per-round ratios with confidence intervals.
+              compare = None
+              for cf in sorted(glob.glob(
+                  "benchmarks/benchmark-baseline-*/bench-compare.json"
+              )):
+                  with open(cf) as f:
+                      try:
+                          compare = json.load(f)
+                      except json.JSONDecodeError:
+                          compare = None
+                  break
+
+              if compare and compare.get("benchmarks"):
+                  meta = compare.get("metadata", {})
+                  drift = compare.get("drift", {})
+                  counts = compare.get("counts", {})
+                  rows = compare["benchmarks"]
+
+                  lines.append(
+                      f"### Release Comparison "
+                      f"({meta.get('baseline_version', '?')} → "
+                      f"{meta.get('current_version', '?')})\n"
+                  )
+                  lines.append(
+                      f"> Interleaved A/B comparison against v"
+                      f"{meta.get('baseline_version', '?')} "
+                      f"(`pie install`) on the **same CI runner**: "
+                      f"{len(meta.get('groups', []))} benchmark groups × "
+                      f"{meta.get('rounds', '?')} rounds × 2 arms, "
+                      f"{meta.get('size', 0):,} elements, "
+                      f"median of {meta.get('iterations', '?')} per child. "
+                      f"Each row is the median of the paired "
+                      f"current/baseline ratios with a 95% "
+                      f"percentile-bootstrap CI; it is flagged only when the "
+                      f"whole drift-adjusted CI clears "
+                      f"±{meta.get('threshold_pct', 10):.0f}%. "
+                      f"Advisory — benchmarks never gate a merge.\n"
+                  )
+
+                  php_ctl = drift.get("php_control_median_delta_pct")
+                  drift_note = (
+                      f"Run-wide median delta "
+                      f"{drift.get('median_delta_pct', 0):+.2f}% "
+                      f"(PHP-array control "
+                      + ("n/a" if php_ctl is None else f"{php_ctl:+.2f}%")
+                      + "), divided out of every row."
+                  )
+                  if drift.get("contaminated"):
+                      lines.append(
+                          f"> ⚠️ **Comparison contaminated.** "
+                          f"{drift_note} That is past the "
+                          f"±{meta.get('drift_threshold_pct', 5):.0f}% "
+                          f"threshold: the whole suite moved together, which "
+                          f"is a slower runner rather than slower code. "
+                          f"Individual flags are suppressed — re-run the "
+                          f"job for a usable comparison.\n"
+                      )
+                  else:
+                      lines.append(f"> {drift_note}\n")
+
+                  parts = []
+                  if counts.get("faster"):
+                      parts.append(f"{counts['faster']} faster")
+                  if counts.get("slower"):
+                      parts.append(
+                          f"⚠️ **{counts['slower']} regressions**"
+                      )
+                  else:
+                      parts.append("0 regressions")
+                  if counts.get("same"):
+                      parts.append(f"{counts['same']} unchanged")
+                  if counts.get("unstable"):
+                      parts.append(
+                          f"{counts['unstable']} not evaluated (unstable)"
+                      )
+                  if counts.get("new"):
+                      parts.append(f"{counts['new']} new")
+                  if counts.get("removed"):
+                      parts.append(f"{counts['removed']} removed")
+                  lines.append("**Summary**: " + ", ".join(parts) + "\n")
+
+                  def cmp_row(name, r):
+                      d = r.get("adj_delta_pct", 0.0)
+                      ci = r.get("adj_ci_delta_pct", [0.0, 0.0])
+                      d_str = "0.0%" if abs(d) < 0.05 else f"{d:+.1f}%"
+                      ci_str = f"[{ci[0]:+.1f}%, {ci[1]:+.1f}%]"
+                      st = r.get("status", "~same")
+                      if st == "FASTER":
+                          s_str = "✅ **FASTER**"
+                      elif st == "SLOWER":
+                          s_str = "⚠️ **SLOWER**"
+                      elif st == "unstable":
+                          s_str = "— unstable"
+                      else:
+                          s_str = "~same"
+                      return (
+                          f"| {name} | {fmt_ms(r.get('baseline_ms'))} "
+                          f"| {fmt_ms(r.get('current_ms'))} | {d_str} "
+                          f"| {ci_str} | {s_str} |"
+                      )
+
+                  header = [
+                      "| Benchmark | Baseline | Current | Delta | 95% CI "
+                      "| Status |",
+                      "|-----------|----------|---------|------:|--------:"
+                      "|--------|",
+                  ]
+                  evaluated = [
+                      (n, r) for n, r in sorted(rows.items())
+                      if r.get("status") != "unstable"
+                  ]
+                  unstable = [
+                      (n, r) for n, r in sorted(rows.items())
+                      if r.get("status") == "unstable"
+                  ]
+                  if evaluated:
+                      lines.extend(header)
+                      for n, r in evaluated:
+                          lines.append(cmp_row(n, r))
+                      lines.append("")
+                  if unstable:
+                      lines.append(
+                          f"<details><summary>{len(unstable)} benchmarks not "
+                          f"evaluated (within-arm scatter exceeded the effect "
+                          f"being claimed)</summary>\n"
+                      )
+                      lines.extend(header)
+                      for n, r in unstable:
+                          lines.append(cmp_row(n, r))
+                      lines.append("")
+                      lines.append("</details>\n")
+
+                  # ── Memory Comparison ──
+                  type_label_map = dict(all_types)
+                  mem_rows = []
+                  mem_counts = {"better": 0, "worse": 0, "same": 0}
+                  for mid, m in sorted(compare.get("memory", {}).items()):
+                      mid_parts = mid.split(".")
+                      if len(mid_parts) < 2:
+                          continue
+                      name = type_label_map.get(mid_parts[1], mid_parts[1])
+                      b_heap = m.get("baseline_bytes") or 0
+                      c_heap = m.get("current_bytes") or 0
+                      if b_heap <= 0:
+                          delta, status = 0.0, "~same"
+                          mem_counts["same"] += 1
+                      else:
+                          delta = ((c_heap - b_heap) / b_heap) * 100
+                          if delta < -1.0:
+                              status = "BETTER"
+                              mem_counts["better"] += 1
+                          elif delta > 1.0:
+                              status = "WORSE"
+                              mem_counts["worse"] += 1
+                          else:
+                              status = "~same"
+                              mem_counts["same"] += 1
+                      mem_rows.append((name, b_heap, c_heap, delta, status))
+
+                  if mem_rows:
+                      lines.append("#### Memory Comparison\n")
+                      mparts = []
+                      if mem_counts["better"]:
+                          mparts.append(f"{mem_counts['better']} improved")
+                      if mem_counts["worse"]:
+                          mparts.append(
+                              f"⚠️ **{mem_counts['worse']} "
+                              f"regressions**"
+                          )
+                      else:
+                          mparts.append("0 regressions")
+                      if mem_counts["same"]:
+                          mparts.append(f"{mem_counts['same']} unchanged")
+                      lines.append("**Memory**: " + ", ".join(mparts) + "\n")
+                      lines.append(
+                          "| Type | Baseline | Current | Delta | Status |"
+                      )
+                      lines.append(
+                          "|------|----------|---------|------:|--------|"
+                      )
+                      for name, b_heap, c_heap, delta, status in mem_rows:
+                          if abs(delta) < 0.05:
+                              d_str = "0.0%"
+                          else:
+                              d_str = f"{delta:+.1f}%"
+                          if status == "BETTER":
+                              s_str = "✅ **BETTER**"
+                          elif status == "WORSE":
+                              s_str = "⚠️ **WORSE**"
+                          else:
+                              s_str = "~same"
+                          lines.append(
+                              f"| {name} | {fmt_bytes(b_heap)} "
+                              f"| {fmt_bytes(c_heap)} | {d_str} | {s_str} |"
+                          )
+                      lines.append("")
+
+                  for label, entries in (
+                      ("new benchmarks (not in baseline)", compare.get("new", {})),
+                      ("removed benchmarks", compare.get("removed", {})),
+                  ):
+                      if entries:
+                          lines.append(
+                              f"<details><summary>{len(entries)} {label}"
+                              f"</summary>\n"
+                          )
+                          lines.append("| Benchmark | Median |")
+                          lines.append("|-----------|--------|")
+                          for n, ms in sorted(entries.items()):
+                              lines.append(f"| {n} | {fmt_ms(ms)} |")
+                          lines.append("")
+                          lines.append("</details>\n")
+
+              # Fallback: committed baseline file. Only reached when the
+              # interleaved comparison artifact is missing (e.g. the 8.4 job
+              # failed before producing it).
               baseline = None
               baseline_source = None
-
-              for bdir in sorted(glob.glob(
-                  "benchmarks/benchmark-baseline-*"
-              )):
-                  bf = os.path.join(bdir, "baseline-bench.json")
-                  if os.path.isfile(bf):
-                      with open(bf) as f:
-                          try:
-                              baseline = json.load(f)
-                              baseline_source = "same-runner"
-                          except json.JSONDecodeError:
-                              pass
-                      break
-
-              # Fallback: committed baseline file
-              if baseline is None:
+              if compare is None:
                   fallback = "baselines/latest.json"
                   if os.path.isfile(fallback):
                       with open(fallback) as f:
@@ -1086,23 +1298,16 @@ jobs:
                           f"### Release Comparison "
                           f"({base_ver} \u2192 {cur_ver})\n"
                       )
-                      if baseline_source == "same-runner":
-                          lines.append(
-                              f"> Baseline: v{base_ver} via "
-                              f"`pie install` on **same CI "
-                              f"runner**. "
-                              f"Comparing {primary} PHP {latest}. "
-                              f"Threshold: \u00b1{threshold:.0f}% "
-                              f"(entries < {min_ms:.0f} ms ignored).\n"
-                          )
-                      else:
-                          lines.append(
-                              f"> \u26a0\ufe0f Baseline: v{base_ver} "
-                              f"from committed file "
-                              f"(cross-architecture — deltas may "
-                              f"be unreliable). "
-                              f"Threshold: \u00b1{threshold:.0f}%.\n"
-                          )
+                      lines.append(
+                          f"> \u26a0\ufe0f Fallback comparison — the "
+                          f"interleaved same-runner artifact was missing, so "
+                          f"this is v{base_ver} from the committed baseline "
+                          f"file: cross-architecture, one sample per arm, no "
+                          f"confidence intervals. Treat the deltas as "
+                          f"unreliable. "
+                          f"Threshold: \u00b1{threshold:.0f}% "
+                          f"(entries < {min_ms:.0f} ms ignored).\n"
+                      )
                       # Summary line
                       parts = []
                       if counts["faster"]:
