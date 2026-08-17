@@ -80,6 +80,117 @@ and the payload comparison are driven from `key_index` outwards. A value-store
 entry that `key_index` does not list is reachable only through the population
 counter or as a valgrind leak.
 
+## Debugging the extension itself (lldb)
+
+This is the C-side story — a crash, a core dump, or a stop inside `php_judy.c`
+where you are looking at a raw `judy_object`. (What a *PHP user* sees in
+`var_dump()`, Xdebug or an IDE variable pane is a different thing entirely: the
+`get_debug_info` handler, described in AGENTS.md.)
+
+**The default build is not debuggable.** `phpize && ./configure && make`
+inherits PHP's own `CFLAGS`, which on a typical distro or Homebrew PHP include
+`-O3 -DNDEBUG -flto`. Under `-flto` clang emits a single debug-map entry
+pointing at a temporary `/tmp/lto.o` that is gone by the time you debug, so
+lldb has **no type information and no locals at all** for the extension — a
+breakpoint hits and `frame variable intern` finds nothing. Rebuild first:
+
+```sh
+make clean && make EXTRA_CFLAGS="-g -O0 -fno-lto"
+```
+
+`EXTRA_CFLAGS` lands after `CFLAGS` on the compile line, so it wins. Confirm
+with `nm -pa modules/judy.so | grep OSO`: you want one entry per object file
+under `.libs/`, not a single `/tmp/lto.o`.
+
+Then load the printers:
+
+```
+(lldb) command script import scripts/judy_lldb.py
+```
+
+They give `judy_object`, `judy_iterator` and `judy_packed_value` one-line
+summaries, so plain `frame variable` is readable:
+
+```
+(judy_object *) intern = 0x104405320 Judy STRING_TO_INT_HASH count=3 \
+    [string_keyed hash_keyed mirror_payload next_empty_is_valid iterator_initialized]
+```
+
+and a `judy` command for the full breakdown — the type as its name, the element
+counter, every packed flag bitfield decoded, the storage roots labelled with
+which libJudy flavour each one is *for this type*, and the iterator/cursor
+state:
+
+```
+(lldb) judy intern
+judy_object @ 0x104405320
+  type              8 = STRING_TO_INT_HASH   [names from debug info (enum judy_type)]
+  counter           3 element(s)
+  ...
+  storage roots (Pvoid_t; contents opaque — see the header note)
+    array      0x788c0d000    JudyHS VALUE STORE — key -> zend_long, O(1) point lookup, unordered
+    key_index  0x7890fd1d0    JudySL key index — sorted keys; payload slot MIRRORED (optimizeIteration on)
+    hs_array   NULL           unused
+  iterator / cursor state (Iterator methods; foreach uses judy_iterator)
+    iterator_key     STRING(len=12) "session:beef"
+    iterator_data    LONG 22
+    next_empty       0   cached, usable
+    key_scratch      0x1044bb000   -> "session:beef"   (live cursor key)
+```
+
+`judy` takes any variable path — `judy intern`, `judy object` (a `zend_object*`
+is rebased through `offsetof(judy_object, std)` the way `php_judy_object()`
+does), `judy it->intern.data` — and defaults to `intern` in the current frame.
+It also cross-checks the six type-derived flags against `->type` and shouts if
+they disagree, which is what a corrupted or half-constructed object looks like.
+
+Two things to know:
+
+- **The type names come from the `judy_type` enum in the debug info**, not from
+  a table in the script, so they cannot drift from `judy_type_name()` in
+  `php_judy.c`. There is a literal fallback for builds whose debug info lacks
+  the enum.
+- **It does not walk the Judy tree, deliberately.** libJudy's node layout is
+  internal and version-dependent; a printer that decoded it by guesswork would
+  be confidently wrong against the next libJudy, and a wrong element listing is
+  worse than none when you are already chasing a corruption. Storage roots are
+  printed as pointers with their role; population comes from `intern->counter`,
+  which the extension maintains itself. To see elements, use the PHP side.
+
+Nothing is evaluated in the inferior — every field is a direct memory read — so
+the printers also work on a core dump and at a breakpoint in a crash handler.
+
+Two gotchas that are not the printers' fault:
+
+- A breakpoint set by *function name* stops at the function's first line,
+  before its locals are assigned, so `intern` there is uninitialised garbage.
+  Set the breakpoint a line or two later (`breakpoint set -f php_judy.c -l
+  <line>`) or `next` once first.
+- Once a summary is installed, `p intern` shows the summary instead of the
+  struct. `frame variable --raw intern` (lldb) or `print /r intern` (gdb) gets
+  the unfiltered fields back.
+
+### The same thing under gdb (Linux, valgrind)
+
+`scripts/judy_gdb.py` is the gdb twin — same command, same output. Everything
+php-judy-specific lives in `scripts/judy_debug_common.py`, which both
+front-ends import, so the two cannot drift; the front-ends only know how to
+read fields out of their own debugger's values.
+
+```sh
+gdb -ex 'source scripts/judy_gdb.py' --args php -n -d extension=modules/judy.so t.php
+```
+
+It composes with the valgrind recipe above, which is the main reason it exists:
+
+```sh
+valgrind --vgdb=yes --vgdb-error=0 php -n -d extension=modules/judy.so t.php
+gdb -ex 'source scripts/judy_gdb.py' -ex 'target remote | vgdb' $(which php)
+```
+
+Because nothing is evaluated in the inferior, `judy intern` works unchanged
+over the vgdb remote and on a core dump (`gdb php core`).
+
 ## Code conventions
 
 - **Zero compiler warnings.** CI fails on any warning in the extension source

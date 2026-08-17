@@ -332,6 +332,9 @@
          <file name="scripts/api-metadata.php" role="doc" />
          <file name="scripts/bench-compare.php" role="doc" />
          <file name="scripts/generate-api-docs.php" role="doc" />
+         <file name="scripts/judy_debug_common.py" role="doc" />
+         <file name="scripts/judy_gdb.py" role="doc" />
+         <file name="scripts/judy_lldb.py" role="doc" />
          <file md5sum="513b0c0813de66e8cba534d4fa1b0eb2" name="MIGRATION_2.2.0.md" role="doc" />
          <file md5sum="23186208fc931049aac9169f60dfc9be" name="MIGRATION_2.5.0.md" role="doc" />
          <file md5sum="366b0129d18f1e9b38f1712590805903" name="Dockerfile" role="doc" />
