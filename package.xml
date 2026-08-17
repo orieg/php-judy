@@ -57,6 +57,27 @@
 - FIX: allocation failure (JERR) during write/unset is reported as failure, not success
 - FIX: bulk operations stop on the first thrown key instead of continuing with a
   pending exception; clone/slice no longer leak zvals or diverge on OOM paths
+- FEATURE: keys(), values() and toArray() take an inclusive [$start, $end] key
+  range, where null leaves that side unbounded. All key types; string-keyed types
+  require string bounds and compare them lexicographically. A bounded read is one
+  traversal writing straight into the PHP array — prefer it to slice($lo,
+  $hi)->keys(), which copies a whole sub-array first.
+- FEATURE: size($start, $end) counts that same range, including on the six
+  string-keyed types, without materialising anything. Previously it accepted
+  string bounds, ignored them, and returned the whole-array count. Its parameters
+  were renamed $index_start/$index_end -> $start/$end to match the other range
+  methods, which breaks named-argument callers only; its defaults moved from
+  (0, -1) to (null, null). populationCount() is unchanged and stays
+  integer-keyed-only — it answers from libJudy's O(1) population cache, which the
+  string-keyed stores lack. See MIGRATION_2.5.0.md.
+- FEATURE: new Judy($type, optimizeIteration: true) mirrors payloads into the key
+  index for 24-47% faster ordered reads, at a write-path and memory cost. Opt-in,
+  per-instance, off by default, and honoured only by STRING_TO_INT_HASH and
+  STRING_TO_INT_ADAPTIVE; isIterationOptimized() reports what took effect.
+- FEATURE: Judy instances are now legible to debuggers — var_dump()/print_r()
+  show type, count, memory usage, first/last key and a bounded element preview
+  (judy.debug_preview_size). Ships lldb/gdb pretty-printers for the extension's
+  own structs under scripts/.
 - FEATURE: set operations (intersect/diff/xor) now supported for STRING_TO_INT_ADAPTIVE
 - BUILD: extension compiles warning-free; CI now fails on any new compiler warning
 - BUILD: minimum PHP raised to 8.1 (PHP 8.0 is no longer tested in CI)
