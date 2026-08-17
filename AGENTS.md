@@ -68,6 +68,9 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   separate process for honest comparisons.
 - **`*_HASH` types do not iterate in key order.** If you need ordered/prefix
   walks over string keys, use `STRING_TO_INT`/`STRING_TO_MIXED` (trie).
+- **`filter()` copies a snapshot.** The value written to the result is the one
+  the predicate received; a predicate that writes or unsets `$this[$key]` does
+  not change what that element contributes to the result.
 - **`count()` takes no arguments** (Countable); ranged counting is
   `size($start, $end)` or `populationCount($start, $end)`.
 - **Random access on small dense datasets is faster with native arrays.**
