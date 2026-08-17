@@ -791,6 +791,78 @@ Honest status: **rejected on the code, not on a benchmark.** Two of the claim's
 premises are factually wrong about both tools, and the two that would matter
 even if they were right — size and hotness — both fail independently.
 
+### ❌ Doctrine's UnitOfWork during batch imports
+
+The claim: `identityMap`, `entityStates` and `originalEntityData` are keyed by
+`spl_object_id` — sparse integers, Judy's native key shape — and are why people
+call `clear()` every N rows during a batch import. Candidate: `INT_TO_MIXED` for
+the maps, `BITSET` for the states.
+
+The three maps do not share a verdict, so they are assessed separately, against
+`doctrine/orm` at `c9a7332`.
+
+**`identityMap` is not keyed by `spl_object_id` at all.** It is
+`array<class-string, array<string, object>>` — the root entity class name, then
+the flattened identifier hash produced by `getIdHashByEntity()`. Two levels,
+both string-keyed, no object id anywhere. The nesting is load-bearing rather
+than incidental: `computeChangeSets()` iterates it class-major so it can fetch
+`ClassMetadata` once per class and skip read-only classes wholesale, and
+`getIdentityMap()` returns the nested array as public API. Flattening it to a
+composite key to fit a single Judy array would break that iteration, and the
+key type it would land on is Judy's slowest. **Rejected**, and on a premise that
+is simply not true of the code.
+
+**`originalEntityData` is keyed by `spl_object_id`, and it is the AST argument
+again.** The type is `array<int, array<string, mixed>>` — one PHP array of field
+values per managed entity. `INT_TO_MIXED` stores a `zval` pointer per slot, so
+each of those inner arrays costs precisely what it costs today and only the
+outer container's per-entry overhead changes (see
+[When PHP Arrays Win](#when-php-arrays-win)). The inner arrays *are* the
+footprint. Doctrine's own docblock on the property notes it already leans on
+copy-on-write so that a field value is shared with the entity's property until
+the user modifies it, which means the outer container's share of the retained
+bytes is smaller still. `entityIdentifiers` is the same type with the same
+verdict. **Rejected** — the entity graph is the memory, not the map.
+
+**`entityStates` is the one that could work, and it is too small to be worth
+it.** Values are `self::STATE_*` small ints, and within `UnitOfWork.php` the
+only values ever *stored* are `STATE_MANAGED` and `STATE_REMOVED` — the
+`STATE_NEW` and `STATE_DETACHED` assignments are commented out, because
+`getEntityState()` derives those from absence. Two states plus absence is
+exactly what a pair of `BITSET`s expresses, so unlike the other two maps there
+is no zval-per-slot objection here. It fails on proportion instead: this is one
+scalar per managed entity sitting beside that entity's object, its
+`originalEntityData` array and its `entityIdentifiers` array. Eliminating its
+storage entirely leaves everything `clear()` exists to release still resident.
+**Plausible in isolation, pointless in isolation** — and it is the only one of
+the three with any structural case at all.
+
+**The keys are dense, not sparse — the premise inverts.** `spl_object_id()`
+returns the object-store handle: a small integer counter starting at 1, recycled
+the moment an object is freed. Doctrine says so itself, in the `getEntityState()`
+comment explaining why NEW and DETACHED are not cached — *"the object hash can be
+reused"*. Probed directly on PHP 8.5.8: ten retained objects got ids 1–10; a
+freed object's id was handed straight to the next allocation; and retaining one
+companion object per entity gave 1, 3, 5 … 15, a density of 0.53. Judy's
+sparse-key memory advantage in
+[When Judy Saves Memory](#when-judy-saves-memory) above is demonstrated at a key
+step of 1000 — density 0.001. Dense low integers are the shape a PHP array
+handles most cheaply, not the shape that buys Judy anything.
+
+**Size settles what is left.** Doctrine's own batch-processing chapter uses
+`$batchSize = 20`, flushing and clearing every 20 rows, so between clears these
+maps hold tens of entries — five orders of magnitude below the threshold where
+Judy starts winning. And the pathological run people are actually fixing when
+they add `clear()` — the one that never clears and dies at 100k rows — dies
+because 100k entity objects and 100k field-data arrays are resident, which no
+change to the key structure touches.
+
+Honest status: **rejected.** The kill is the same one the AST entry makes: the
+values dominate the footprint and `INT_TO_MIXED` stores them as zvals either
+way. `entityStates` escapes that objection on value shape and then loses on
+proportion. Nothing here was measured, and nothing here needs to be — the
+element counts are below the range where a measurement would be interesting.
+
 ### The constraint underneath several of these: one process, one arena
 
 php-judy has no shared arena. A Judy array lives in the heap of the process
