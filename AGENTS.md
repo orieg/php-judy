@@ -232,6 +232,18 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   `API.md` is stale.
 - **Version lockstep**: `php_judy.h` (`PHP_JUDY_VERSION`) and `package.xml`
   must match; see the Releasing section in README.md.
+- **Debugging the C side**: `scripts/judy_lldb.py` (lldb) and
+  `scripts/judy_gdb.py` (gdb, composes with the valgrind recipe above) decode a
+  raw `judy_object` — type NAME rather than the enum integer, element counter,
+  every packed flag bitfield, which libJudy structure each `Pvoid_t` root is
+  for that type (including the key_index/value-store split on
+  `*_HASH`/`*_ADAPTIVE`), and iterator/cursor state. **The default build is not
+  debuggable** — PHP's own CFLAGS carry `-O3 -flto`, which leaves the debugger
+  with no types and no locals; rebuild with `make clean && make
+  EXTRA_CFLAGS="-g -O0 -fno-lto"` first. They deliberately do NOT walk the Judy
+  tree (libJudy's node layout is internal and version-dependent). Load
+  instructions and the full rationale: CONTRIBUTING.md "Debugging the extension
+  itself".
 - **Measured claims have re-runnable harnesses**: `research/` (see
   `research/README.md`) holds standalone C benches backing doc and issue
   claims — `shm-arena/` for #83, `iteration-cost/` for #85. Nothing there
