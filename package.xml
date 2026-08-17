@@ -253,8 +253,10 @@
          <file name="tests/count_int_to_mixed_overwrite_001.phpt" role="test" />
          <file name="tests/count_int_to_packed_overwrite_001.phpt" role="test" />
          <file name="tests/delete_range_001.phpt" role="test" />
+         <file name="tests/regression_delete_range_destructor_reentrancy_001.phpt" role="test" />
          <file name="tests/equals_001.phpt" role="test" />
          <file name="tests/foreach_string_key_stress_001.phpt" role="test" />
+         <file name="tests/filter_snapshot_semantics_001.phpt" role="test" />
          <file name="tests/adaptive_clone_isset_unset_empty_slice.phpt" role="test" />
          <file name="tests/keys_values_001.phpt" role="test" />
          <file name="tests/merge_with.phpt" role="test" />
@@ -293,6 +295,7 @@
          <file md5sum="302250a837e8e489f3e465bdfd488f32" name="README.md" role="doc" />
          <file md5sum="730470b2aca686ddbea82a2b2af03a1a" name="CREDITS" role="doc" />
          <file md5sum="af4d88a4da7b16aaf4f92d7fe619e6be" name="BENCHMARK.md" role="doc" />
+         <file name="BACKEND_EVALUATION.md" role="doc" />
          <file name="API.md" role="doc" />
          <file name="scripts/api-metadata.php" role="doc" />
          <file name="scripts/generate-api-docs.php" role="doc" />

@@ -1,0 +1,13 @@
+# Compiled gate binaries (built by `make`, not shipped).
+gate1_correctness
+gate2_fork
+gate3_lock
+gate4_profile
+gate5_crash
+gate1_asan
+*.o
+*.dSYM/
+
+# The repo-root .gitignore excludes "Makefile" because phpize generates one
+# there. This spike's Makefile is hand-written source, so re-include it.
+!Makefile

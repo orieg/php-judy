@@ -68,6 +68,9 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   separate process for honest comparisons.
 - **`*_HASH` types do not iterate in key order.** If you need ordered/prefix
   walks over string keys, use `STRING_TO_INT`/`STRING_TO_MIXED` (trie).
+- **`filter()` copies a snapshot.** The value written to the result is the one
+  the predicate received; a predicate that writes or unsets `$this[$key]` does
+  not change what that element contributes to the result.
 - **`count()` takes no arguments** (Countable); ranged counting is
   `size($start, $end)` or `populationCount($start, $end)`.
 - **Random access on small dense datasets is faster with native arrays.**
@@ -90,6 +93,16 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   `API.md` is stale.
 - **Version lockstep**: `php_judy.h` (`PHP_JUDY_VERSION`) and `package.xml`
   must match; see the Releasing section in README.md.
+- **Measured claims have re-runnable harnesses**: `research/` (see
+  `research/README.md`) holds standalone C benches backing doc and issue
+  claims — `shm-arena/` for #83, `iteration-cost/` for #85. Nothing there
+  ships or builds with the extension. Re-run rather than trusting a number,
+  and only on an idle machine.
+- **Backend choice is settled, don't relitigate it**: `BACKEND_EVALUATION.md`
+  measures libJudy against ART (tie on lookup, 27% worse memory for ART) and
+  explains why Masstree/HOT/Wormhole don't apply to a single-threaded,
+  short-key, per-process extension. Verdict: keep Judy. Read it before
+  proposing a backend swap.
 - **Benchmarks**: suite in `examples/benchmarks/`; CI compares PRs against
   `baselines/latest.json`. Don't update the baseline in a feature PR.
 - **Runnable demos**: `examples/` (index + type-per-demo table in

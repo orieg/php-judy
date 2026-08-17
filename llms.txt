@@ -19,7 +19,13 @@ show a removed API; trust the docs below instead).
 - [API.md](https://github.com/orieg/php-judy/blob/main/API.md): complete API
   reference, generated from the canonical stub
 - [BENCHMARK.md](https://github.com/orieg/php-judy/blob/main/BENCHMARK.md):
-  measured performance, memory numbers, when (not) to use Judy
+  measured performance, memory numbers, when (not) to use Judy, and php-judy
+  versus APCu / SplFixedArray / sorted arrays
+- [BACKEND_EVALUATION.md](https://github.com/orieg/php-judy/blob/main/BACKEND_EVALUATION.md):
+  maintainer-facing — whether the extension should keep libJudy as its C
+  backend, measured against the Adaptive Radix Tree (ART) with Masstree, HOT
+  and Wormhole considered. Verdict: keep Judy (ART ties on lookup and costs
+  27% more memory)
 - [README.md](https://github.com/orieg/php-judy/blob/main/README.md):
   install paths for Linux/macOS/Windows/Docker, usage examples per type
 
