@@ -143,6 +143,8 @@
          <file name="tests/judy_memuse_003.phpt" role="test" />
          <file name="tests/judy_memuse_004.phpt" role="test" />
          <file name="tests/judy_memuse_005.phpt" role="test" />
+         <file name="tests/judy_memuse_string_approx_001.phpt" role="test" />
+         <file name="tests/judy_memuse_string_approx_002.phpt" role="test" />
          <file name="tests/int_to_packed_001.phpt" role="test" />
          <file name="tests/int_to_packed_002.phpt" role="test" />
          <file name="tests/int_to_packed_003.phpt" role="test" />

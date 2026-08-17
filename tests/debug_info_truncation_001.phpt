@@ -24,9 +24,10 @@ function dump_string(int $n): void {
         $j["k" . $i] = $i;
     }
     $info = print_r($j, true);
-    // memoryUsage is null for string-keyed types; drop the line so the
-    // expectation carries no trailing whitespace.
-    echo preg_replace('/^\s+\[memoryUsage\].*\n/m', '', $info), "\n";
+    // memoryUsage is an approximation for string-keyed types (and carries the
+    // memoryUsageIsApproximate flag); drop both rows so the expectation stays
+    // about truncation only.
+    echo preg_replace('/^\s+\[memoryUsage(IsApproximate)?\].*\n/m', '', $info), "\n";
 }
 
 dump_int(3);

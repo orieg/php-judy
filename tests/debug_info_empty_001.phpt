@@ -58,13 +58,15 @@ object(Judy)#%d (6) {
   array(0) {
   }
 }
-object(Judy)#%d (6) {
+object(Judy)#%d (7) {
   ["type"]=>
   string(15) "STRING_TO_MIXED"
   ["count"]=>
   int(0)
   ["memoryUsage"]=>
-  NULL
+  int(0)
+  ["memoryUsageIsApproximate"]=>
+  bool(true)
   ["firstKey"]=>
   NULL
   ["lastKey"]=>
@@ -73,13 +75,15 @@ object(Judy)#%d (6) {
   array(0) {
   }
 }
-object(Judy)#%d (6) {
+object(Judy)#%d (7) {
   ["type"]=>
   string(18) "STRING_TO_INT_HASH"
   ["count"]=>
   int(0)
   ["memoryUsage"]=>
-  NULL
+  int(0)
+  ["memoryUsageIsApproximate"]=>
+  bool(true)
   ["firstKey"]=>
   NULL
   ["lastKey"]=>
@@ -88,13 +92,15 @@ object(Judy)#%d (6) {
   array(0) {
   }
 }
-object(Judy)#%d (6) {
+object(Judy)#%d (7) {
   ["type"]=>
   string(24) "STRING_TO_MIXED_ADAPTIVE"
   ["count"]=>
   int(0)
   ["memoryUsage"]=>
-  NULL
+  int(0)
+  ["memoryUsageIsApproximate"]=>
+  bool(true)
   ["firstKey"]=>
   NULL
   ["lastKey"]=>
@@ -103,13 +109,15 @@ object(Judy)#%d (6) {
   array(0) {
   }
 }
-object(Judy)#%d (6) {
+object(Judy)#%d (7) {
   ["type"]=>
   string(15) "STRING_TO_MIXED"
   ["count"]=>
   int(0)
   ["memoryUsage"]=>
-  NULL
+  int(0)
+  ["memoryUsageIsApproximate"]=>
+  bool(true)
   ["firstKey"]=>
   NULL
   ["lastKey"]=>

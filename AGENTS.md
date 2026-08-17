@@ -61,11 +61,23 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
 - **`next()` is the Iterator method** (returns void, advances the cursor).
   The ordered *search* is `searchNext($index)`. Pre-2.x code and old stubs
   (php.net manual, outdated IDE stubs) show `next($index)` — that API is gone.
-- **`memoryUsage()` returns `null` for string-keyed types** (JudySL/JudyHS
-  provide no accounting). Only integer-keyed types report bytes.
+- **`memoryUsage()` returns two different kinds of number.** Integer-keyed
+  types report libJudy's EXACT total (`Judy1MemUsed`/`JudyLMemUsed`).
+  String-keyed types report an APPROXIMATION the extension maintains itself,
+  because JudySL/JudyHS expose no accounting: it counts payload only — stored
+  key bytes (twice for the `_HASH` types, which hold each key in the value
+  store and in the key index), one word per value slot, and the `zval` box per
+  `_MIXED` value — and excludes everything libJudy allocates for its trie and
+  hash nodes. It is a LOWER BOUND: useful for tracking growth within one array,
+  wrong to compare against an integer-keyed array's exact figure. Both are
+  O(1) and both return `0` for a new or emptied array. For the true
+  string-keyed footprint measure peak RSS in a separate process, or Massif via
+  `examples/benchmarks/judy-bench-memory.php`. Details: BENCHMARK.md
+  "Understanding `Judy::memoryUsage()`".
 - **`var_dump()`/`print_r()` show a synthetic, TRUNCATED view.** A Judy object
-  dumps as `type` (the name, e.g. `INT_TO_INT`), `count`, `memoryUsage` (null
-  for string-keyed types, as above), `firstKey`, `lastKey`, and `preview` —
+  dumps as `type` (the name, e.g. `INT_TO_INT`), `count`, `memoryUsage` (plus
+  `memoryUsageIsApproximate => true` for string-keyed types, as above),
+  `firstKey`, `lastKey`, and `preview` —
   plus `previewTruncated` whenever fewer elements are shown than the array
   holds. `preview` is capped at `judy.debug_preview_size` (default 16,
   `PHP_INI_ALL`, so `ini_set()` works mid-session); `0` disables the element

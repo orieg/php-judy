@@ -6,8 +6,9 @@
  * Massif. Each type is tested in an isolated sub-process so peak heap
  * measurements are per-type.
  *
- * This specifically measures libJudy.so's malloc allocations — the metric
- * that is missing for STRING_TO_* types where memoryUsage() returns null.
+ * This specifically measures libJudy.so's malloc allocations — the node
+ * overhead that the STRING_TO_* memoryUsage() approximation deliberately
+ * excludes (it counts payload only: key bytes, value slots, zval boxes).
  * PHP arrays use emalloc (mmap'd) and won't appear here; see the 'Heap delta'
  * column in judy-bench-all-types.php for PHP-level memory comparison.
  *
@@ -242,8 +243,8 @@ echo "  • Per element: net / $size\n";
 echo "  • Baseline: " . ($baseline !== null ? fmt($baseline) : '?') . "\n";
 echo "  • PHP array shows ~0 because PHP uses emalloc (mmap'd), not malloc — see\n";
 echo "    judy-bench-all-types.php 'Heap delta' column for PHP-level memory comparison\n";
-echo "  • Judy types show libJudy.so malloc overhead — this fills the gap for\n";
-echo "    STRING_TO_* types where memoryUsage() returns null\n";
+echo "  • Judy types show libJudy.so malloc overhead — the part the STRING_TO_*\n";
+echo "    memoryUsage() approximation excludes (it counts payload bytes only)\n";
 echo "  • MIXED types (INT_TO_MIXED, STRING_TO_MIXED) may undercount at large N:\n";
 echo "    PHP GC fires mid-loop, temporarily lowering tracked malloc heap; Massif\n";
 echo "    peak can be captured before loop completion. Use <=100K for reliable results.\n";

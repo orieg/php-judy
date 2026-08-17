@@ -170,6 +170,7 @@ static Word_t judy_free_array_internal(judy_object *intern)
 
 	intern->array = NULL;
 	intern->counter = 0;
+	intern->approx_payload_bytes = 0;
 
 	return Rc_word;
 }
@@ -587,6 +588,7 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 		}
 		if (existing == NULL) {
 			intern->counter++;
+			judy_string_bytes_add(intern, klen);
 		}
 		break;
 
@@ -598,6 +600,7 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 		/* A MIXED slot holds a zval*, so NULL unambiguously means "new". */
 		if (JUDY_MVAL_READ(slot) == NULL) {
 			intern->counter++;
+			judy_string_bytes_add(intern, klen);
 		}
 		break;
 
@@ -631,6 +634,7 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 			   control deletes this exact line and requires the assertions to
 			   fire, so that the harness cannot rot into a no-op. */
 			intern->counter++; /* judy-mirror-negative-control */
+			judy_string_bytes_add(intern, klen);
 		}
 		break;
 
@@ -651,6 +655,7 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 				return FAILURE;
 			}
 			intern->counter++;
+			judy_string_bytes_add(intern, klen);
 		}
 		break;
 
@@ -673,6 +678,7 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 					return FAILURE;
 				}
 				intern->counter++;
+				judy_string_bytes_add(intern, klen);
 			}
 		} else {
 			JHSG(existing, intern->hs_array, (uint8_t *)key, klen);
@@ -687,6 +693,7 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 					return FAILURE;
 				}
 				intern->counter++;
+				judy_string_bytes_add(intern, klen);
 			}
 		}
 		break;
@@ -709,6 +716,7 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 					return FAILURE;
 				}
 				intern->counter++;
+				judy_string_bytes_add(intern, klen);
 			}
 		} else {
 			JHSI(slot, intern->hs_array, (uint8_t *)key, klen);
@@ -722,6 +730,7 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 					return FAILURE;
 				}
 				intern->counter++;
+				judy_string_bytes_add(intern, klen);
 			}
 		}
 		break;
@@ -1126,6 +1135,7 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 					JSLD(Rc_idx_del, intern->key_index, key);
 					if (Rc_idx_del == 1) {
 						intern->counter--;
+						judy_string_bytes_sub(intern, key_len);
 					}
 				}
 			}
@@ -1145,6 +1155,7 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 					JSLD(Rc_idx_del, intern->key_index, key);
 					if (Rc_idx_del == 1) {
 						intern->counter--;
+						judy_string_bytes_sub(intern, key_len);
 					}
 				}
 			}
@@ -1165,6 +1176,7 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 		}
 		if (Rc_int == 1) {
 			intern->counter--;
+			judy_string_bytes_sub(intern, (Word_t)Z_STRLEN_P(pstring_key));
 		}
 	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
 		Pvoid_t     *HValue;
@@ -1182,6 +1194,7 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 				JSLD(Rc_del, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
 				if (Rc_del == 1) {
 					intern->counter--;
+					judy_string_bytes_sub(intern, key_len);
 				}
 			}
 		}
@@ -1198,6 +1211,7 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 				JSLD(Rc_del, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
 				if (Rc_del == 1) {
 					intern->counter--;
+					judy_string_bytes_sub(intern, key_len);
 				}
 			}
 		}
@@ -1402,7 +1416,20 @@ PHP_METHOD(Judy, free)
 /* }}} */
 
 /* {{{ proto long Judy::memoryUsage()
-   Return the memory used by the Judy Array */
+   Return the memory used by the Judy Array.
+
+   Two different numbers wear this one name, and callers have to know which:
+
+     - Integer-keyed types (BITSET, INT_TO_*) return libJudy's EXACT total,
+       read in O(1) from the Judy1/JudyL root counter.
+     - String-keyed types return the extension's own APPROXIMATE payload total
+       (judy_string_entry_bytes()): key bytes plus value slots plus zval boxes,
+       excluding everything libJudy allocates for its trie and hash nodes. It is
+       a lower bound, not a measurement. JudySL/JudyHS expose no accounting to
+       do better; returning null instead — as this method did before — left the
+       only visible figure for the types most likely to hold a large working set
+       at nothing at all, since Judy memory is invisible to memory_get_usage()
+       and to Xdebug alike. */
 PHP_METHOD(Judy, memoryUsage)
 {
 	Word_t     Rc_word;
@@ -1420,6 +1447,14 @@ PHP_METHOD(Judy, memoryUsage)
 			case TYPE_INT_TO_PACKED:
 				JLMU(Rc_word, intern->array);
 				RETURN_LONG(Rc_word);
+				break;
+			case TYPE_STRING_TO_INT:
+			case TYPE_STRING_TO_MIXED:
+			case TYPE_STRING_TO_INT_HASH:
+			case TYPE_STRING_TO_MIXED_HASH:
+			case TYPE_STRING_TO_INT_ADAPTIVE:
+			case TYPE_STRING_TO_MIXED_ADAPTIVE:
+				RETURN_LONG(intern->approx_payload_bytes);
 				break;
 			default:
 				RETURN_NULL();
@@ -3178,6 +3213,7 @@ PHP_METHOD(Judy, slice)
 					JUDY_MVAL_WRITE(PNew, new_value);
 				}
 				result->counter++;
+				judy_string_bytes_add(result, (Word_t)strlen((char *)key));
 				JSLN(PValue, intern->array, key);
 			}
 		}
@@ -3229,6 +3265,7 @@ PHP_METHOD(Judy, slice)
 						goto alloc_error;
 					}
 					result->counter++;
+					judy_string_bytes_add(result, klen);
 				}
 				JSLN(KValue, intern->key_index, key);
 			}
@@ -3275,6 +3312,7 @@ PHP_METHOD(Judy, slice)
 						goto alloc_error;
 					}
 					result->counter++;
+					judy_string_bytes_add(result, klen);
 				}
 				JSLN(KValue, intern->key_index, key);
 			}
@@ -3363,6 +3401,7 @@ PHP_METHOD(Judy, slice)
 						goto alloc_error;
 					}
 					result->counter++;
+					judy_string_bytes_add(result, klen);
 				}
 				JSLN(KValue, intern->key_index, key);
 			}
@@ -3718,8 +3757,11 @@ static HashTable *judy_object_get_debug_info(zend_object *object, int *is_temp)
 	ZVAL_LONG(&tmp, intern->counter);
 	zend_hash_str_update(ht, "count", sizeof("count") - 1, &tmp);
 
-	/* Mirrors Judy::memoryUsage(): JudySL/JudyHS provide no accounting, so
-	 * string-keyed types report null here too. */
+	/* Mirrors Judy::memoryUsage(), including the fact that the number means two
+	 * different things: libJudy's exact total for the integer-keyed types, the
+	 * extension's approximate payload total for the string-keyed ones. The
+	 * string-keyed dumps carry an extra memoryUsageIsApproximate entry so that
+	 * nobody reading an IDE variable pane has to know that rule in advance. */
 	switch (intern->type) {
 		case TYPE_BITSET: {
 			Word_t Rc_word;
@@ -3736,9 +3778,19 @@ static HashTable *judy_object_get_debug_info(zend_object *object, int *is_temp)
 			break;
 		}
 		default:
-			ZVAL_NULL(&tmp);
+			if (intern->is_string_keyed) {
+				ZVAL_LONG(&tmp, intern->approx_payload_bytes);
+			} else {
+				ZVAL_NULL(&tmp);
+			}
 	}
 	zend_hash_str_update(ht, "memoryUsage", sizeof("memoryUsage") - 1, &tmp);
+
+	if (intern->is_string_keyed) {
+		ZVAL_TRUE(&tmp);
+		zend_hash_str_update(ht, "memoryUsageIsApproximate",
+			sizeof("memoryUsageIsApproximate") - 1, &tmp);
+	}
 
 	judy_debug_boundary_key(intern, &tmp, 0);
 	zend_hash_str_update(ht, "firstKey", sizeof("firstKey") - 1, &tmp);
@@ -4132,6 +4184,7 @@ PHP_METHOD(Judy, deleteRange)
 			if (Rc_idx_del) {
 				deleted++;
 				intern->counter--;
+				judy_string_bytes_sub(intern, klen);
 			}
 
 			if (value != NULL) {
@@ -4195,6 +4248,7 @@ PHP_METHOD(Judy, deleteRange)
 				if (Rc_idx_del) {
 					deleted++;
 					intern->counter--;
+					judy_string_bytes_sub(intern, klen);
 				}
 				if (value != NULL) {
 					zval_ptr_dtor(value);
@@ -4213,6 +4267,7 @@ PHP_METHOD(Judy, deleteRange)
 				if (Rc_str_del) {
 					deleted++;
 					intern->counter--;
+					judy_string_bytes_sub(intern, (Word_t)strlen((char *)key));
 				}
 				if (value != NULL) {
 					zval_ptr_dtor(value);

@@ -196,6 +196,7 @@ typedef struct _judy_object {
 	Pvoid_t         key_index;           /* 8 */
 	Pvoid_t         hs_array;            /* 8 — for longer strings in ADAPTIVE type */
 	zend_long       counter;             /* 8 */
+	zend_long       approx_payload_bytes;/* 8 — string-keyed types only; see judy_string_entry_bytes() */
 	Word_t			next_empty;          /* 8 */
 	zend_long       type;                /* 8 */
 	/* Iterator state for Iterator interface methods */
@@ -236,6 +237,83 @@ static inline void judy_init_type_flags(judy_object *intern, zend_long jtype)
 	intern->is_hash_keyed = (jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_INT_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
 	intern->is_adaptive = (jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
 }
+
+/* {{{ Approximate payload accounting for the string-keyed types.
+
+   libJudy exposes no accounting for JudySL/JudyHS — there is no JudySLMemUsed
+   twin of JudyLMemUsed — so Judy::memoryUsage() has nothing exact to report for
+   the six string-keyed types. Instead the extension keeps its own running total,
+   maintained wherever intern->counter is, of the bytes it can attribute to each
+   live entry:
+
+     - the key bytes as stored, counted once per structure that holds a copy.
+       The *_HASH types store every key twice (once in the JudyHS value store,
+       once in the JudySL key_index); ADAPTIVE packs keys shorter than 8 bytes
+       into the JudyL index word rather than copying them into JudyHS, so only
+       its long keys are counted twice.
+     - the Word_t value slot.
+     - for the _MIXED variants, the sizeof(zval) box the extension emallocs to
+       hold the value.
+
+   What the total EXCLUDES, and why it is only ever an approximation: every byte
+   libJudy allocates for its own trie branches, leaves and JudyHS hash
+   structures; allocator rounding; and the PHP heap reachable from a stored zval
+   (the string or array it points at, which memory_get_usage() does see). It is
+   a LOWER BOUND on the real footprint — for JudyHS-backed types the node
+   overhead is a large fraction of the total — and it must never be presented
+   with the authority of the exact JudyLMemUsed figure the integer-keyed types
+   return. It IS exact for what it claims: key bytes plus value slots plus zval
+   boxes, and so it is a sound basis for tracking growth and comparing
+   populations of the same type. */
+static inline zend_long judy_string_entry_bytes(const judy_object *intern, Word_t klen)
+{
+	zend_long bytes;
+
+	switch (intern->type) {
+	case TYPE_STRING_TO_INT:
+	case TYPE_STRING_TO_MIXED:
+		/* Plain JudySL: one NUL-terminated key copy, value in the same trie. */
+		bytes = (zend_long)klen + 1 + (zend_long)sizeof(Word_t);
+		break;
+	case TYPE_STRING_TO_INT_HASH:
+	case TYPE_STRING_TO_MIXED_HASH:
+		/* JudyHS key copy + JudySL key_index copy + value slot. */
+		bytes = (zend_long)klen + (zend_long)klen + 1 + (zend_long)sizeof(Word_t);
+		break;
+	case TYPE_STRING_TO_INT_ADAPTIVE:
+	case TYPE_STRING_TO_MIXED_ADAPTIVE:
+		/* key_index copy + value slot; long keys are copied into JudyHS too,
+		   short ones are packed into the JudyL index and cost nothing extra. */
+		bytes = (zend_long)klen + 1 + (zend_long)sizeof(Word_t);
+		if (klen >= 8) {
+			bytes += (zend_long)klen;
+		}
+		break;
+	default:
+		return 0;
+	}
+
+	if (intern->is_mixed_value) {
+		bytes += (zend_long)sizeof(zval);
+	}
+	return bytes;
+}
+
+static inline void judy_string_bytes_add(judy_object *intern, Word_t klen)
+{
+	intern->approx_payload_bytes += judy_string_entry_bytes(intern, klen);
+}
+
+static inline void judy_string_bytes_sub(judy_object *intern, Word_t klen)
+{
+	zend_long bytes = judy_string_entry_bytes(intern, klen);
+
+	/* Clamp rather than go negative: a partially-failed clone or a rolled-back
+	   insert must never make memoryUsage() report a nonsense value. */
+	intern->approx_payload_bytes =
+		(intern->approx_payload_bytes > bytes) ? intern->approx_payload_bytes - bytes : 0;
+}
+/* }}} */
 
 /* Max length, this must be a constant for it to work in
  * declarings as we cannot use runtime decided values at

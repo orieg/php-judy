@@ -628,7 +628,9 @@ foreach ($random_keys as $key) {
 
 ## Understanding `Judy::memoryUsage()`
 
-The `memoryUsage()` method reports internal Judy C library memory consumption for the array. Its behavior varies by Judy type because the underlying C library provides different memory-accounting macros for each array family.
+The `memoryUsage()` method reports the memory a Judy array occupies outside PHP's memory manager — memory that `memory_get_usage()` and Xdebug's memory profiler are both blind to, so this method is the only in-process view of it.
+
+**It returns two different kinds of number.** Integer-keyed types return libJudy's own exact accounting. String-keyed types return an approximation the extension maintains itself, because libJudy ships no accounting macro for JudySL or JudyHS. Read the type table before comparing two figures.
 
 ### Return Values by Type
 
@@ -638,20 +640,32 @@ The `memoryUsage()` method reports internal Judy C library memory consumption fo
 | `INT_TO_INT`               | JudyL                   | `JudyLMemUsed` (JLMU) | `int` — bytes used                                              |
 | `INT_TO_MIXED`             | JudyL                   | `JudyLMemUsed` (JLMU) | `int` — bytes used (Judy storage only, excludes PHP zvals)      |
 | `INT_TO_PACKED`            | JudyL                   | `JudyLMemUsed` (JLMU) | `int` — bytes used (Judy storage only, excludes packed buffers) |
-| `STRING_TO_INT`            | JudySL                  | *(no macro)*          | `NULL`                                                          |
-| `STRING_TO_MIXED`          | JudySL                  | *(no macro)*          | `NULL`                                                          |
-| `STRING_TO_INT_HASH`       | JudyHS + JudySL         | *(no macro)*          | `NULL`                                                          |
-| `STRING_TO_MIXED_HASH`     | JudyHS + JudySL         | *(no macro)*          | `NULL`                                                          |
-| `STRING_TO_INT_ADAPTIVE`   | JudyL + JudyHS + JudySL | *(no macro)*          | `NULL`                                                          |
-| `STRING_TO_MIXED_ADAPTIVE` | JudyL + JudyHS + JudySL | *(no macro)*          | `NULL`                                                          |
+| `STRING_TO_INT`            | JudySL                  | *(no macro)*          | `int` — **approximate**, payload only                           |
+| `STRING_TO_MIXED`          | JudySL                  | *(no macro)*          | `int` — **approximate**, payload only                           |
+| `STRING_TO_INT_HASH`       | JudyHS + JudySL         | *(no macro)*          | `int` — **approximate**, payload only (keys counted twice)      |
+| `STRING_TO_MIXED_HASH`     | JudyHS + JudySL         | *(no macro)*          | `int` — **approximate**, payload only (keys counted twice)      |
+| `STRING_TO_INT_ADAPTIVE`   | JudyL + JudyHS + JudySL | *(no macro)*          | `int` — **approximate**, payload only                           |
+| `STRING_TO_MIXED_ADAPTIVE` | JudyL + JudyHS + JudySL | *(no macro)*          | `int` — **approximate**, payload only                           |
 
-**Why STRING types return NULL**: The Judy C library does not provide a `JudySLMemUsed` macro. JudySL is internally a chain of JudyL arrays (one per byte of the key), making a single memory total impractical at the C level. Use `memory_get_usage()` deltas as an alternative for string-keyed types.
+**What the string-keyed approximation counts**: the Judy C library provides no `JudySLMemUsed` macro (JudySL is internally a chain of JudyL arrays, one per key byte, and JudyHS exposes only get/insert/delete/free-all), so the extension keeps its own running total instead. Per live entry it counts:
+
+- the **stored key bytes**, once per structure that holds a copy. The `_HASH` types hold every key twice — once in the JudyHS value store, once in the JudySL key index that makes ordered iteration possible — so their figure is roughly twice the key bytes. `_ADAPTIVE` packs keys shorter than 8 bytes into the index word and only copies longer ones into JudyHS.
+- one **machine word per value slot** (8 bytes on 64-bit).
+- the **`zval` box** (`sizeof(zval)`, 16 bytes on 64-bit) allocated for each `_MIXED` value.
+
+**What it excludes** — and therefore why it is only an approximation: every byte libJudy allocates for its own trie branches, leaves and JudyHS hash structures; allocator rounding; and the PHP heap reachable from a stored `zval` (the string or array it points at, which `memory_get_usage()` *does* see). The figure is a **lower bound on the true footprint**. How far below depends on the key distribution: keys with heavy prefix sharing compress well in the trie and land close to the reported figure, while random keys leave the real footprint a small multiple of it. Use it to track growth and to compare populations of the same type, not to compare a string-keyed array against the exact figure an integer-keyed one reports.
+
+**For the exact string-keyed footprint**, measure outside the extension: peak RSS via `getrusage()['ru_maxrss']` in a separate process, or Valgrind Massif (`examples/benchmarks/judy-bench-memory.php`), which attributes libJudy's `malloc` traffic directly.
+
+**Debug dumps carry the caveat too**: `var_dump()` of a string-keyed Judy shows a `memoryUsageIsApproximate => true` entry beside `memoryUsage`, so the distinction is visible in an IDE variable pane without consulting this table.
 
 **INT_TO_MIXED note**: The value returned is only the JudyL trie memory. The PHP `zval` pointers stored in each slot consume additional PHP heap memory not reflected in `memoryUsage()`.
 
 ### How `memoryUsage()` Works Internally
 
 For `BITSET` and `INT_TO_*` types, the Judy library maintains a `TotalMemWords` counter in the root JPM (Judy Population/Memory) structure. `memoryUsage()` reads this counter and multiplies by `sizeof(Word_t)` — an O(1) operation with no traversal.
+
+For the string-keyed types the extension maintains its own counter in the object, adjusted on the same insert and delete paths that maintain the element count — so that call is O(1) as well, and it is safe to read at a breakpoint. It survives `clone`, `serialize()`/`unserialize()`, `slice()`, `deleteRange()`, `mergeWith()`, the set operations and the bulk writers, and returns to exactly `0` for a newly constructed array, after `free()`, and after the last key is unset.
 
 ```php
 $j = new Judy(Judy::INT_TO_INT);

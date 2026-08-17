@@ -22,7 +22,8 @@
  *   INT_TO_INT       — JudyLMemUsed via memoryUsage()
  *   INT_TO_MIXED     — JudyLMemUsed via memoryUsage() (ecalloc'd zvals not counted)
  *   INT_TO_PACKED    — JudyLMemUsed via memoryUsage() (emalloc'd packed bufs not counted)
- *   STRING_TO_*      — memoryUsage() returns NULL (no C-level accounting macro)
+ *   STRING_TO_*      — memoryUsage() is approximate (payload bytes only; libJudy
+ *                      exposes no accounting macro for JudySL/JudyHS)
  *
  * Usage:
  *   php examples/judy-bench-all-types.php [size] [iterations]
@@ -564,8 +565,9 @@ $results['STRING_TO_INT'] = [
         foreach ($str_int_data as $k => $v) { $j[$k] = $v; }
         return $j;
     }, $iterations),
-    'internal' => null,  // JudySL has no C-level memory accounting
-    'note'   => 'memoryUsage()=null (JudySL)',
+    'internal' => null,  // libJudy exposes no accounting for JudySL; the extension's
+                         // memoryUsage() approximation is deliberately not used here
+    'note'   => 'memoryUsage() approximate (JudySL)',
 ];
 
 // PHP string array — mixed values
@@ -632,8 +634,9 @@ $results['STRING_TO_MIXED'] = [
         foreach ($str_mixed_data as $k => $v) { $j[$k] = $v; }
         return $j;
     }, $iterations),
-    'internal' => null,  // JudySL has no C-level memory accounting
-    'note'   => 'memoryUsage()=null (JudySL)',
+    'internal' => null,  // libJudy exposes no accounting for JudySL; the extension's
+                         // memoryUsage() approximation is deliberately not used here
+    'note'   => 'memoryUsage() approximate (JudySL)',
 ];
 
 // STRING_TO_MIXED_HASH
@@ -666,8 +669,9 @@ $results['STRING_TO_MIXED_HASH'] = [
         foreach ($str_mixed_data as $k => $v) { $j[$k] = $v; }
         return $j;
     }, $iterations),
-    'internal' => null,  // JudyHS has no C-level memory accounting
-    'note'   => 'memoryUsage()=null (JudyHS)',
+    'internal' => null,  // libJudy exposes no accounting for JudyHS; the extension's
+                         // memoryUsage() approximation is deliberately not used here
+    'note'   => 'memoryUsage() approximate (JudyHS)',
 ];
 
 // STRING_TO_INT_HASH
@@ -700,8 +704,9 @@ $results['STRING_TO_INT_HASH'] = [
         foreach ($str_int_data as $k => $v) { $j[$k] = $v; }
         return $j;
     }, $iterations),
-    'internal' => null,  // JudyHS has no C-level memory accounting
-    'note'   => 'memoryUsage()=null (JudyHS)',
+    'internal' => null,  // libJudy exposes no accounting for JudyHS; the extension's
+                         // memoryUsage() approximation is deliberately not used here
+    'note'   => 'memoryUsage() approximate (JudyHS)',
 ];
 
 // ── Long-key string subjects (JudyHS O(1) vs JudySL O(k) demo) ────────
