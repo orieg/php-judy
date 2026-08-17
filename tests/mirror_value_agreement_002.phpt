@@ -1,7 +1,11 @@
 --TEST--
-Judy *_HASH / *_ADAPTIVE: the mirrored payload survives mutation during iteration, destructors and failed writes
+Judy *_HASH / *_ADAPTIVE: mirrored and unmirrored survive mutation during iteration, destructors and failed writes
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
+--INI--
+; The var_dump() preview is a read surface like any other and is checked below,
+; so it must not be truncated out from under the comparison.
+judy.debug_preview_size=256
 --FILE--
 <?php
 // Companion to mirror_value_agreement_001.phpt, which pins traversal against
@@ -17,14 +21,24 @@ Judy *_HASH / *_ADAPTIVE: the mirrored payload survives mutation during iteratio
 //   6. slice(), filter() and map() results, which build their stores directly
 //      rather than through the shared write path
 //   7. a write that throws, which must leave both stores exactly as they were
+//   8. the var_dump()/print_r() preview, which is a read surface like any
+//      other: it walks the array and fetches values through the same collector
+//      toArray() uses, so a stale mirror would show up there too
 //
 // STRING_TO_INT is carried along as the control: it has one store and cannot
-// diverge, so any line where it differs from the two mirrored types is a
+// diverge, so any line where it differs from the two mirrorable types is a
 // property of the mirror rather than of the operation.
+//
+// The mirrorable types run twice, with optimizeIteration off and on. The off
+// runs are not redundant: they are what pins the default path against the
+// behaviour it had before the mirror existed, under exactly the same
+// re-entrancy and failed-write pressure.
 $types = [
-    'STRING_TO_INT'          => Judy::STRING_TO_INT,
-    'STRING_TO_INT_HASH'     => Judy::STRING_TO_INT_HASH,
-    'STRING_TO_INT_ADAPTIVE' => Judy::STRING_TO_INT_ADAPTIVE,
+    'STRING_TO_INT'              => [Judy::STRING_TO_INT, false],
+    'STRING_TO_INT_HASH off'     => [Judy::STRING_TO_INT_HASH, false],
+    'STRING_TO_INT_HASH on'      => [Judy::STRING_TO_INT_HASH, true],
+    'STRING_TO_INT_ADAPTIVE off' => [Judy::STRING_TO_INT_ADAPTIVE, false],
+    'STRING_TO_INT_ADAPTIVE on'  => [Judy::STRING_TO_INT_ADAPTIVE, true],
 ];
 
 // Keys straddling the 8-byte SSO boundary: ADAPTIVE stores the short ones in a
@@ -72,7 +86,34 @@ function agrees(Judy $j): string {
     if ($truth && abs($j->averageValues() - array_sum($truth) / count($truth)) > 1e-9) {
         $problems[] = "averageValues";
     }
+    if ($truth && preview($j) !== $truth) { $problems[] = "var_dump preview"; }
     return $problems ? "DIVERGED: " . implode(",", $problems) : "ok";
+}
+
+/**
+ * The key => value pairs var_dump() shows in its bounded preview.
+ *
+ * get_debug_info() is a read surface added after the mirror was, and it fetches
+ * values through the same collector toArray() uses. Left out of this matrix it
+ * would be the one ordered read nobody cross-examines. Only integer values are
+ * parsed, which is all the types in this file store.
+ */
+function preview(Judy $j): array
+{
+    ob_start();
+    var_dump($j);
+    $dump = ob_get_clean();
+    $at = strpos($dump, '["preview"]=>');
+    if ($at === false) {
+        return ['__no_preview__' => 0];
+    }
+    preg_match_all('/\["([^"]*)"\]=>\s*\n\s*int\((-?\d+)\)/',
+        substr($dump, $at), $m, PREG_SET_ORDER);
+    $out = [];
+    foreach ($m as $pair) {
+        $out[$pair[1]] = (int)$pair[2];
+    }
+    return $out;
 }
 
 // A destructor that walks the array it is being freed from inside.
@@ -83,11 +124,11 @@ class Walker {
     }
 }
 
-foreach ($types as $name => $type) {
+foreach ($types as $name => [$type, $opt]) {
     echo "== $name\n";
 
     // 1 + 2. write to a visited and an unvisited key while walking
-    $j = new Judy($type);
+    $j = new Judy($type, $opt);
     $model = seed($j);
     $order = array_keys($model);
     $first = $order[0];
@@ -104,7 +145,7 @@ foreach ($types as $name => $type) {
     echo "  values after mutation: ", ($j->toArray() === $model ? "ok" : "WRONG"), "\n";
 
     // 3. delete while walking
-    $j = new Judy($type);
+    $j = new Judy($type, $opt);
     $model = seed($j);
     $victim = array_keys($model)[3];
     foreach ($j as $k => $v) {
@@ -117,7 +158,7 @@ foreach ($types as $name => $type) {
     echo "  values after delete: ", ($j->toArray() === $model ? "ok" : "WRONG"), "\n";
 
     // 4. increment() while walking (INT_ADAPTIVE does not support increment)
-    $j = new Judy($type);
+    $j = new Judy($type, $opt);
     $model = seed($j);
     if ($type !== Judy::STRING_TO_INT_ADAPTIVE) {
         foreach ($j as $k => $v) {
@@ -132,7 +173,7 @@ foreach ($types as $name => $type) {
     }
 
     // 5. a destructor that iterates, released from inside an iteration
-    $j = new Judy($type);
+    $j = new Judy($type, $opt);
     $model = seed($j);
     $fromDtor = [];
     $w = new Walker($j, $fromDtor);
@@ -147,7 +188,7 @@ foreach ($types as $name => $type) {
 
     // 6. derived arrays build their stores directly rather than through the
     //    shared write path, so they get their own mirror
-    $j = new Judy($type);
+    $j = new Judy($type, $opt);
     $model = seed($j);
     $sliced = $j->slice('long_key_00', 'long_key_zz');
     echo "  slice: ", agrees($sliced), "\n";
@@ -159,6 +200,10 @@ foreach ($types as $name => $type) {
         ($mapped->toArray() === array_map(fn($v) => $v * 2, $model) ? "ok" : "WRONG"), "\n";
     $cloned = clone $j;
     echo "  clone: ", agrees($cloned), "\n";
+    $want = $j->isIterationOptimized();
+    $derived = [$sliced, $filtered, $mapped, $cloned, unserialize(serialize($j))];
+    $bad = array_filter($derived, fn(Judy $d) => $d->isIterationOptimized() !== $want);
+    echo "  derived setting: ", ($bad ? "DIVERGED on " . count($bad) : "match"), "\n";
 
     // 7. a write that throws must leave both stores untouched. A true
     //    allocation failure (PJERR) cannot be provoked from userland — libJudy
@@ -200,9 +245,10 @@ foreach ($types as $name => $type) {
   map: ok
   map values: ok
   clone: ok
+  derived setting: match
   after rejected writes: ok
   unchanged by rejected writes: ok
-== STRING_TO_INT_HASH
+== STRING_TO_INT_HASH off
   mutate during iteration: ok
   values after mutation: ok
   delete during iteration: ok
@@ -216,9 +262,27 @@ foreach ($types as $name => $type) {
   map: ok
   map values: ok
   clone: ok
+  derived setting: match
   after rejected writes: ok
   unchanged by rejected writes: ok
-== STRING_TO_INT_ADAPTIVE
+== STRING_TO_INT_HASH on
+  mutate during iteration: ok
+  values after mutation: ok
+  delete during iteration: ok
+  values after delete: ok
+  increment during iteration: ok
+  values after increment: ok
+  iterate inside a destructor: ok
+  after destructor walk: ok
+  slice: ok
+  filter: ok
+  map: ok
+  map values: ok
+  clone: ok
+  derived setting: match
+  after rejected writes: ok
+  unchanged by rejected writes: ok
+== STRING_TO_INT_ADAPTIVE off
   mutate during iteration: ok
   values after mutation: ok
   delete during iteration: ok
@@ -232,5 +296,23 @@ foreach ($types as $name => $type) {
   map: ok
   map values: ok
   clone: ok
+  derived setting: match
+  after rejected writes: ok
+  unchanged by rejected writes: ok
+== STRING_TO_INT_ADAPTIVE on
+  mutate during iteration: ok
+  values after mutation: ok
+  delete during iteration: ok
+  values after delete: ok
+  increment during iteration: n/a
+  values after increment: n/a
+  iterate inside a destructor: ok
+  after destructor walk: ok
+  slice: ok
+  filter: ok
+  map: ok
+  map values: ok
+  clone: ok
+  derived setting: match
   after rejected writes: ok
   unchanged by rejected writes: ok
