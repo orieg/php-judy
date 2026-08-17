@@ -33,6 +33,18 @@
  * a contiguous block, so a query is a range walk and a per-file report is a
  * block-to-block walk. No nested containers, one Judy object per index.
  *
+ * The user-visible payoff of that index is test-impact selection: given the
+ * file:line pairs a diff touched, run the 40 tests that reach them instead of
+ * the whole 12,000-test suite. Section 2 does exactly that, and section 3
+ * times it against the nested array, because for this query it is *selection
+ * wall time* that matters rather than the memory story.
+ *
+ * Selection is only sound while the index is current, and the failure mode is
+ * silent: a changed line with no recorded coverage must mean "cannot prove
+ * safe, run more", never "no tests affected". Getting that backwards is how a
+ * test-selection tool quietly stops catching regressions, so the selector
+ * below escalates instead of returning an empty set.
+ *
  * Judy memory is invisible to memory_get_usage(), so the comparison at the
  * bottom re-executes this script once per variant and reads peak RSS from
  * getrusage() in each child.
@@ -84,6 +96,12 @@ final class Interner
         $this->ids[$name]  = $id;
         $this->names[$id]  = $name;
         return $id;
+    }
+
+    /** Lookup without interning: a query must not invent ids for unknown names. */
+    public function id(string $name): ?int
+    {
+        return isset($this->ids[$name]) ? $this->ids[$name] : null;
     }
 
     public function name(int $id): ?string
@@ -174,6 +192,128 @@ function coveredLines(Judy $cov, int $fileId): array
     return $lines;
 }
 
+/* ── Test-impact selection ───────────────────────────────────────────── */
+
+/*
+ * Both selectors answer the same question — "which tests must run for this
+ * set of changed file:line pairs?" — and must answer it identically, which
+ * the digest check at the bottom enforces.
+ *
+ * Three outcomes per changed line, and only the first is the happy path:
+ *
+ *   covered      the line has recorded coverage: select exactly its tests.
+ *   line-unknown the file is tracked but nothing ever executed this line --
+ *                new code, or code the last coverage run never reached. The
+ *                index cannot bound the blast radius, so widen to every test
+ *                that touches the file. Returning an empty set here is the
+ *                bug that makes a selection tool stop catching regressions.
+ *   file-unknown the file is absent from the index entirely. Nothing about
+ *                the suite can be proven, so the selection is *unbounded*:
+ *                the honest answer is "run everything".
+ *
+ * The tiering is a policy choice, not a Judy detail; the array selector below
+ * implements the identical policy so the comparison is like for like.
+ */
+
+/** @param list<array{0:string,1:int}> $changed */
+function selectJudy(Judy $cov, Interner $fileIds, Interner $testIds, array $changed): array
+{
+    $hits      = new Judy(Judy::BITSET);   // union of selected test ids
+    $covered   = 0;
+    $widened   = 0;
+    $unbounded = 0;
+
+    foreach ($changed as [$path, $line]) {
+        $fileId = $fileIds->id($path);
+        if ($fileId === null) {
+            $unbounded++;                  // no coverage recorded for this file
+            continue;
+        }
+
+        $lo = covKey($fileId, $line, 0);
+        $hi = covKey($fileId, $line, TEST_MASK);
+        $k  = $cov->first($lo);
+        if ($k === null || $k > $hi) {
+            // Nothing in this line's block. Widen to the whole file's block:
+            // still one contiguous range, just a much longer walk.
+            $widened++;
+            $hi = covKey($fileId, LINE_MASK, TEST_MASK);
+            $k  = $cov->first(covKey($fileId, 0, 0));
+        } else {
+            $covered++;
+        }
+
+        for (; $k !== null && $k <= $hi; $k = $cov->searchNext($k)) {
+            $hits[$k & TEST_MASK] = true;
+        }
+    }
+
+    $names = [];
+    for ($id = $hits->first(); $id !== null; $id = $hits->searchNext($id)) {
+        $names[] = $testIds->name($id);
+    }
+    sort($names);                          // ids are dense, names are not
+
+    return [
+        'tests'     => $names,
+        'covered'   => $covered,
+        'widened'   => $widened,
+        'unbounded' => $unbounded,
+    ];
+}
+
+/** The same policy over the nested array. @param list<array{0:string,1:int}> $changed */
+function selectArray(array $cov, array $changed): array
+{
+    $hits      = [];
+    $covered   = 0;
+    $widened   = 0;
+    $unbounded = 0;
+
+    foreach ($changed as [$path, $line]) {
+        if (!isset($cov[$path])) {
+            $unbounded++;
+            continue;
+        }
+        if (isset($cov[$path][$line])) {
+            $covered++;
+            foreach ($cov[$path][$line] as $t) {
+                $hits[$t] = true;
+            }
+        } else {
+            $widened++;
+            foreach ($cov[$path] as $list) {
+                foreach ($list as $t) {
+                    $hits[$t] = true;
+                }
+            }
+        }
+    }
+
+    $names = array_keys($hits);
+    sort($names);
+
+    return [
+        'tests'     => $names,
+        'covered'   => $covered,
+        'widened'   => $widened,
+        'unbounded' => $unbounded,
+    ];
+}
+
+/** How a runner should read a selection result. */
+function selectionVerdict(array $sel, int $suiteSize): string
+{
+    if ($sel['unbounded'] > 0) {
+        return sprintf(
+            'UNBOUNDED - %d changed file(s) absent from the index; run all %s tests',
+            $sel['unbounded'],
+            number_format($suiteSize),
+        );
+    }
+    return sprintf('%s of %s tests', number_format(count($sel['tests'])), number_format($suiteSize));
+}
+
 /* ── Synthetic workload ──────────────────────────────────────────────── */
 
 const HOT_FILES    = 8;     // bootstrap/framework files nearly every test loads
@@ -234,6 +374,51 @@ function probeSet(int $files, int $linesPerFile): array
     return $probes;
 }
 
+const CHANGED_FILES = 24;   // file:line pairs in the synthetic diff
+
+/**
+ * A synthetic diff: the file:line pairs a change touched.
+ *
+ * Drawn from the same deterministic stream both variants index, so these are
+ * genuinely executed lines — a real diff mostly touches code that runs. Hot
+ * files are skipped on purpose: a diff in framework bootstrap selects the
+ * whole suite and there is nothing to demonstrate. Two pairs are appended
+ * that the index deliberately cannot answer, to exercise both escalations.
+ *
+ * @return list<array{0:string,1:int}>
+ */
+function changedLines(int $files, int $linesPerFile, int $tests): array
+{
+    $hot = [];
+    for ($f = 0; $f < min(HOT_FILES, $files); $f++) {
+        $hot[filePath($f)] = true;
+    }
+
+    $changed = [];
+    $seen    = 0;
+    foreach (coverageStream($files, $linesPerFile, $tests, 0, 2) as [, $path, $lines]) {
+        if ($lines === [] || isset($hot[$path])) {
+            continue;
+        }
+        if ($seen++ % 37 !== 0) {          // spread the diff across the suite
+            continue;
+        }
+        $changed[] = [$path, $lines[intdiv(count($lines), 2)]];
+        if (count($changed) >= CHANGED_FILES) {
+            break;
+        }
+    }
+
+    // A line inside a tracked file that no test has ever executed. Deliberately
+    // not a hot file: widening one of those selects the suite and hides the
+    // difference between "widened" and "unbounded".
+    $changed[] = [$changed[0][0] ?? filePath($files - 1), $linesPerFile + 7];
+    // A file the index has never seen: added by this very diff.
+    $changed[] = ['/app/src/BrandNewClass.php', 12];
+
+    return $changed;
+}
+
 /* ── Child: run one variant, report peak RSS ─────────────────────────── */
 
 $files        = (int) ($argv[1] ?? 800);
@@ -241,12 +426,16 @@ $linesPerFile = (int) ($argv[2] ?? 300);
 $tests        = (int) ($argv[3] ?? 2000);
 $mode         = $argv[4] ?? null;
 
+const SELECT_ROUNDS = 25;   // selection is fast; average over a few rounds
+
 if ($mode !== null) {
     $probes  = probeSet($files, $linesPerFile);
+    $changed = changedLines($files, $linesPerFile, $tests);
     $answers = [];
-    $t0      = $t1 = $t2 = $t3 = hrtime(true);
+    $t0      = $t1 = $t2 = $t3 = $t4 = hrtime(true);
     $triples = 0;
     $indexBytes = null;
+    $sel        = ['tests' => [], 'covered' => 0, 'widened' => 0, 'unbounded' => 0];
 
     if ($mode === 'floor') {
         // An otherwise identical process that builds no index: the PHP runtime's
@@ -280,6 +469,11 @@ if ($mode !== null) {
         }
         $t3 = hrtime(true);
 
+        for ($r = 0; $r < SELECT_ROUNDS; $r++) {
+            $sel = selectJudy($cov, $fileIds, $testIds, $changed);
+        }
+        $t4 = hrtime(true);
+
         $triples   = count($cov);
         $indexBytes = $cov->memoryUsage();
     } else {
@@ -299,6 +493,11 @@ if ($mode !== null) {
         }
         $t3 = hrtime(true);
 
+        for ($r = 0; $r < SELECT_ROUNDS; $r++) {
+            $sel = selectArray($cov, $changed);
+        }
+        $t4 = hrtime(true);
+
         $triples = 0;
         foreach ($cov as $lines) {
             foreach ($lines as $list) {
@@ -315,9 +514,15 @@ if ($mode !== null) {
         'accumulate' => ($t1 - $t0) / 1e9,
         'merge'      => ($t2 - $t1) / 1e9,
         'query'      => ($t3 - $t2) / 1e9,
+        'select'     => ($t4 - $t3) / 1e9 / SELECT_ROUNDS,
         'peak'       => getrusage()['ru_maxrss'] * (PHP_OS_FAMILY === 'Darwin' ? 1 : 1024),
         'indexBytes' => $indexBytes,
         'digest'     => md5(implode("\n", $answers)),
+        'selected'   => count($sel['tests']),
+        'covered'    => $sel['covered'],
+        'widened'    => $sel['widened'],
+        'unbounded'  => $sel['unbounded'],
+        'selDigest'  => md5(implode("\n", $sel['tests'])),
     ]), "\n";
     exit(0);
 }
@@ -365,7 +570,54 @@ printf(
     $fileIds->count(),
 );
 
-echo "2. Peak RSS and wall time, one process per variant\n\n";
+echo "2. Test-impact selection: which tests must this diff run?\n\n";
+
+// A diff against the tiny index above: one covered line, one line in a tracked
+// file that no test reaches, one file the index has never seen.
+$diff = [
+    ['/app/src/Auth.php', 10],
+    ['/app/src/Auth.php', 99],
+    ['/app/src/Clock.php', 7],
+];
+$suiteSize = $testIds->count();
+
+$sel = selectJudy($merged, $fileIds, $testIds, $diff);
+foreach ($diff as [$path, $line]) {
+    $id  = $fileIds->id($path);
+    $lo  = $id === null ? 0 : covKey($id, $line, 0);
+    $hi  = $id === null ? 0 : covKey($id, $line, TEST_MASK);
+    // populationCount answers "is this line covered, and by how many tests?"
+    // over the block without materialising a single test id.
+    $n   = $id === null ? 0 : $merged->populationCount($lo, $hi);
+    printf(
+        "   %-22s %-24s -> %s\n",
+        $path . ':' . $line,
+        $id === null ? 'file not in index' : $n . ' test(s) recorded',
+        $id === null
+            ? 'UNBOUNDED: run the whole suite'
+            : ($n === 0 ? 'no coverage: widen to every test touching the file' : 'select those tests'),
+    );
+}
+printf("   selection: %s\n", selectionVerdict($sel, $suiteSize));
+printf("   tests: %s\n", implode(', ', $sel['tests']));
+printf(
+    "   %d line(s) covered, %d widened to file scope, %d file(s) not indexed\n\n",
+    $sel['covered'],
+    $sel['widened'],
+    $sel['unbounded'],
+);
+
+// The same diff without the unindexed file: now the selection is bounded.
+$bounded = selectJudy($merged, $fileIds, $testIds, [['/app/src/Auth.php', 55]]);
+printf("   Auth.php:55 alone selects %s\n\n", selectionVerdict($bounded, $suiteSize));
+
+echo "   A changed line with no recorded coverage is NOT 'no tests affected'.\n";
+echo "   It is 'this index cannot prove which tests reach it', and the only\n";
+echo "   safe response is to widen — to the file, or to the whole suite when\n";
+echo "   the file is unknown. A selector that returns the empty set there\n";
+echo "   stops catching regressions without ever reporting a failure.\n\n";
+
+echo "3. Peak RSS and wall time, one process per variant\n\n";
 printf(
     "   workload: %s files x %s lines, %s tests (%d hot files every test loads)\n\n",
     number_format($files),
@@ -400,7 +652,7 @@ foreach (['floor', 'array', 'union', 'mergeWith'] as $variant) {
         continue;
     }
     printf(
-        "   %-20s pairs: %-12s index: %8.1f MB   peak RSS: %8.1f MB   accumulate: %6.2fs   merge: %6.3fs   query: %6.3fs\n",
+        "   %-20s pairs: %-12s index: %8.1f MB   peak RSS: %8.1f MB   accumulate: %6.2fs   merge: %6.3fs   query: %6.3fs   select: %8.3f ms\n",
         $variant === 'array' ? 'array (nested)' : "judy ($variant)",
         number_format($row['triples']),
         ($row['peak'] - $rows['floor']['peak']) / 1048576,
@@ -408,6 +660,7 @@ foreach (['floor', 'array', 'union', 'mergeWith'] as $variant) {
         $row['accumulate'],
         $row['merge'],
         $row['query'],
+        $row['select'] * 1000,
     );
 }
 
@@ -418,16 +671,45 @@ if (count($digests) !== 1) {
 } else {
     printf("   every variant answers every probe query identically (%s)\n", $rows['array']['digest']);
 }
+$selDigests = array_unique([$rows['array']['selDigest'], $rows['union']['selDigest'], $rows['mergeWith']['selDigest']]);
+if (count($selDigests) !== 1) {
+    echo "   WARNING: the variants select different test sets for the same diff.\n";
+} else {
+    printf("   every variant selects the identical test set for the diff (%s)\n", $rows['array']['selDigest']);
+}
 printf("   Judy::memoryUsage() for the merged index: %.1f MB\n", $rows['union']['indexBytes'] / 1048576);
+
+$sel = $rows['union'];
+printf(
+    "\n   diff of %d file:line pairs -> %s selected of %s tests in the suite\n",
+    $sel['covered'] + $sel['widened'] + $sel['unbounded'],
+    number_format($sel['selected']),
+    number_format($tests),
+);
+printf(
+    "   %d covered exactly, %d widened to file scope (line not in the index),\n   %d file(s) absent from the index\n",
+    $sel['covered'],
+    $sel['widened'],
+    $sel['unbounded'],
+);
+if ($sel['unbounded'] > 0) {
+    printf(
+        "   -> the selection is UNBOUNDED: a correct runner ignores the %s above\n"
+        . "      and runs all %s tests until the index covers those files.\n",
+        number_format($sel['selected']),
+        number_format($tests),
+    );
+}
 
 echo "\n   array / judy  (>1 favours Judy)\n";
 foreach (['union', 'mergeWith'] as $variant) {
     printf(
-        "     %-10s %5.2fx peak RSS   %5.2fx index   %5.2fx merge time\n",
+        "     %-10s %5.2fx peak RSS   %5.2fx index   %5.2fx merge time   %5.2fx selection time\n",
         $variant,
         $rows['array']['peak'] / max(1, $rows[$variant]['peak']),
         ($rows['array']['peak'] - $rows['floor']['peak']) / max(1, $rows[$variant]['peak'] - $rows['floor']['peak']),
         $rows['array']['merge'] / max(1e-9, $rows[$variant]['merge']),
+        $rows['array']['select'] / max(1e-9, $rows[$variant]['select']),
     );
 }
 
@@ -450,4 +732,25 @@ echo "    a structure as large as itself, while a BITSET's keys are a flat run o
 echo "    integers (pack('J*', ...) over keys(), or one packed key per line).\n";
 echo "  - the Judy index does not count against memory_limit at all; the array\n";
 echo "    one does, which is what turns a large coverage run into a fatal error.\n";
+echo "  - do not expect Judy to win the selection column, and do not read it as a\n";
+echo "    broken build if it does not. The array reaches a line's whole test list\n";
+echo "    in two hash lookups and then iterates it inside the VM; the block walk\n";
+echo "    crosses PHP into C once per test id (one first(), then one searchNext()\n";
+echo "    each). Per changed line the array does O(1) boundary crossings and Judy\n";
+echo "    does O(tests on that line), so the array can be ahead on a small diff\n";
+echo "    even though both walk the same number of entries.\n";
+echo "  - what Judy actually buys on this query is that the index still exists at\n";
+echo "    suite scale (section 3's memory columns), that populationCount() prices\n";
+echo "    a block without materialising it (section 2 uses it to ask 'is this line\n";
+echo "    covered at all, and how widely?' before deciding what to do), and that a\n";
+echo "    BITSET accumulator returns the union deduplicated and already in order.\n";
+echo "    Selection speed is the payoff of having the index, not of the walk.\n";
+echo "  - a widened line walks the file's whole block, which for a hot file is\n";
+echo "    most of the suite. Both shapes pay that; it is the price of being\n";
+echo "    sound rather than the price of the representation.\n";
+echo "  - selection is only as good as the index is fresh. Every line the last\n";
+echo "    coverage run did not reach widens, so a stale index degrades toward\n";
+echo "    'run everything' — which is safe. The dangerous variant is a selector\n";
+echo "    that treats an unrecorded line as 'no tests affected': it degrades\n";
+echo "    toward running nothing, silently, and no test failure ever reports it.\n";
 echo "  - a loaded machine invalidates every number above. Re-run when idle.\n";
