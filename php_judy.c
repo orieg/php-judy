@@ -30,6 +30,19 @@
 #include "zend_smart_str.h"
 #include "Judy_arginfo.h"
 
+/* Integer keys round-trip between PHP and Judy by plain reinterpretation: a
+ * zend_long key is cast to Word_t on the way in and back to zend_long on the
+ * way out, so -1 addresses the maximum index and reads back as -1. That is
+ * lossless only while the two types are the same width. Every supported
+ * platform satisfies this (LP64, ILP32, and Win64 via the Word_t typedef in
+ * php_judy.h), but nothing asserted it, so a mismatched build would silently
+ * truncate keys instead of failing.
+ *
+ * Spelled as a negative-size typedef rather than ZEND_STATIC_ASSERT, which is
+ * not available across every PHP version this extension builds against. */
+typedef char php_judy_word_width_check[
+	(sizeof(Word_t) == sizeof(zend_long)) ? 1 : -1];
+
 ZEND_DECLARE_MODULE_GLOBALS(judy)
 
 /* declare judy class entry */
@@ -817,9 +830,76 @@ static zend_always_inline void judy_slot_store_zval(Pvoid_t *slot, zval *value)
 }
 /* }}} */
 
+/* Resolve the target index for an append (`$j[] = v`).
+ *
+ * Append means "one past the highest key present", evaluated in the unsigned
+ * Word_t order Judy actually indexes by. Integer keys span the whole unsigned
+ * word, so a key sitting at Word_t max leaves nothing above it: that is key
+ * space exhaustion and it has to be reported, never wrapped. Computing
+ * `(zend_long)last_idx + 1` (as this code used to) is signed overflow at
+ * ZEND_LONG_MAX and wraps to 0 at Word_t max, silently overwriting key 0.
+ *
+ * PHP's own arrays take the same position: `$a[PHP_INT_MAX] = 1; $a[] = 2;`
+ * is an error rather than a wrap.
+ *
+ * On success *out_index holds the index to write, and the next_empty
+ * watermark has been advanced past it. Shared by the Judy1 and JudyL
+ * branches so the exhaustion rule cannot drift between them. */
+static int judy_resolve_append_index(judy_object *intern, Word_t *out_index)
+{
+	Word_t next;
+
+	if (intern->next_empty_is_valid) {
+		next = intern->next_empty;
+	} else if (intern->array == NULL) {
+		next = 0;
+	} else {
+		/* J1L/JLL take the index by address as Word_t*, so search from a
+		 * Word_t rather than a signed value. */
+		Word_t last_idx = (Word_t)-1;
+		int found;
+
+		if (intern->type == TYPE_BITSET) {
+			int Rc_int;
+			J1L(Rc_int, intern->array, last_idx);
+			found = (Rc_int == 1);
+		} else {
+			Pvoid_t *PValue;
+			JLL(PValue, intern->array, last_idx);
+			found = (PValue != NULL && PValue != PJERR);
+		}
+
+		if (!found) {
+			/* The array holds no entries (every key was deleted), so an
+			 * append starts over at 0. */
+			next = 0;
+		} else if (last_idx == (Word_t)-1) {
+			zend_throw_exception(NULL,
+				"Judy: cannot append, the integer key space is exhausted "
+				"(the highest index is already occupied)", 0);
+			return FAILURE;
+		} else {
+			next = last_idx + 1;
+		}
+	}
+
+	*out_index = next;
+
+	/* Handing out Word_t max leaves no room above it, so drop the cache and
+	 * let the next append re-derive the state and throw. */
+	if (next == (Word_t)-1) {
+		intern->next_empty_is_valid = 0;
+	} else {
+		intern->next_empty = next + 1;
+		intern->next_empty_is_valid = 1;
+	}
+	return SUCCESS;
+}
+
 int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) /* {{{ */
 {
 	zend_long index;
+	Word_t j_index = 0;
 	zval *pstring_key = NULL;
 	judy_object *intern = php_judy_object(Z_OBJ_P(object));
 	int error_flag = 0;
@@ -847,43 +927,23 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 	if (intern->type == TYPE_BITSET) {
 		int         Rc_int;
 
-		if (!offset || index <= -1) {
-			if (intern->array) {
-				if (!offset && intern->next_empty_is_valid) {
-					index = intern->next_empty++;
-				} else {
-					/* Find the highest set index (search from Word_t max).
-					 * J1L takes the index by address as Word_t*, so use a
-					 * Word_t rather than the signed `index`. */
-					Word_t last_idx = (Word_t)-1;
-					J1L(Rc_int, intern->array, last_idx);
-
-					if (Rc_int == 1) {
-						index = (zend_long)last_idx + 1;
-						if (!offset) {
-							intern->next_empty = index + 1;
-							intern->next_empty_is_valid = 1;
-						}
-					} else {
-						return FAILURE;
-					}
-				}
-			} else {
-				if (intern->next_empty_is_valid) {
-					index = intern->next_empty++;
-				} else {
-					index = 0;
-				}
+		if (!offset) {
+			if (judy_resolve_append_index(intern, &j_index) == FAILURE) {
+				return FAILURE;
 			}
 		} else {
+			/* An explicit offset is the key, reinterpreted as the unsigned
+			 * word Judy indexes by; see judy_object_read_dimension_helper(),
+			 * which has always done the same. */
+			j_index = (Word_t)index;
 			intern->next_empty_is_valid = 0;
 		}
 
 		if (zend_is_true(value)) {
-			J1S(Rc_int, intern->array, index);
+			J1S(Rc_int, intern->array, j_index);
 			if (Rc_int == 1) intern->counter++;
 		} else {
-			J1U(Rc_int, intern->array, index);
+			J1U(Rc_int, intern->array, j_index);
 			if (Rc_int == 1) intern->counter--;
 		}
 		/* JERR (-1) is truthy, so `Rc_int ?` would report an allocation
@@ -895,35 +955,15 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		Pvoid_t     *PValue;
 
 		/* Common: determine the target index (identical for all JudyL-backed types). */
-		if (!offset || index <= -1) {
-			if (intern->array) {
-				if (!offset && intern->next_empty_is_valid) {
-					index = intern->next_empty++;
-				} else {
-					/* Find the highest present index (search from Word_t max).
-					 * JLL takes the index by address as Word_t*, so use a
-					 * Word_t rather than the signed `index`. */
-					Word_t last_idx = (Word_t)-1;
-					JLL(PValue, intern->array, last_idx);
-
-					if (PValue != NULL && PValue != PJERR) {
-						index = (zend_long)last_idx + 1;
-						if (!offset) {
-							intern->next_empty = index + 1;
-							intern->next_empty_is_valid = 1;
-						}
-					} else {
-						return FAILURE;
-					}
-				}
-			} else {
-				if (intern->next_empty_is_valid) {
-					index = intern->next_empty++;
-				} else {
-					index = 0;
-				}
+		if (!offset) {
+			if (judy_resolve_append_index(intern, &j_index) == FAILURE) {
+				return FAILURE;
 			}
 		} else {
+			/* An explicit offset is the key, reinterpreted as the unsigned
+			 * word Judy indexes by; see judy_object_read_dimension_helper(),
+			 * which has always done the same. */
+			j_index = (Word_t)index;
 			intern->next_empty_is_valid = 0;
 		}
 
@@ -931,8 +971,8 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		if (intern->type == TYPE_INT_TO_INT) {
 			PWord_t PExisting;
 			zend_long lval = zval_get_long(value);
-			JLG(PExisting, intern->array, index);
-			JLI(PValue, intern->array, index);
+			JLG(PExisting, intern->array, j_index);
+			JLI(PValue, intern->array, j_index);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 				JUDY_LVAL_WRITE(PValue, lval);
 				if (PExisting == NULL) intern->counter++;
@@ -940,7 +980,7 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			}
 			return FAILURE;
 		} else if (intern->type == TYPE_INT_TO_MIXED) {
-			JLI(PValue, intern->array, index);
+			JLI(PValue, intern->array, j_index);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 				zval *old_value = JUDY_MVAL_READ(PValue);
 				zval *new_value = emalloc(sizeof(zval));
@@ -965,7 +1005,7 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			if (JUDY_UNLIKELY(!packed)) {
 				return FAILURE;
 			}
-			JLI(PValue, intern->array, index);
+			JLI(PValue, intern->array, j_index);
 			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 				judy_packed_value *old = JUDY_PVAL_READ(PValue);
 				if (old != NULL) {
