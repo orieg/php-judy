@@ -6,6 +6,13 @@ PHP_ARG_WITH(judy, for Judy support,
 [  --with-judy[=DIR]       Include Judy support.
                           DIR is the Judy install prefix [default=BUNDLED]])
 
+PHP_ARG_ENABLE(judy-debug-mirror, whether to enable Judy consistency assertions,
+[  --enable-judy-debug-mirror
+                          Compile the internal key_index/value-store
+                          consistency assertions. Aborts on violation; for
+                          development and CI only, never for a release
+                          build. [default=no]], no, no)
+
 judy_sources="judy_handlers.c judy_arrayaccess.c judy_iterator.c"
 
 if test "$PHP_JUDY" != "no"; then
@@ -48,7 +55,13 @@ if test "$PHP_JUDY" != "no"; then
   ])
 
   PHP_INSTALL_HEADERS([ext/judy], [php_judy.h judy_handlers.h judy_arrayaccess.h judy_iterator.h])
-  
+
+  dnl # Opt-in internal consistency assertions (see JUDY_ASSERT_MIRROR).
+  if test "$PHP_JUDY_DEBUG_MIRROR" = "yes"; then
+    AC_MSG_NOTICE([Judy mirror consistency assertions enabled])
+    CFLAGS="$CFLAGS -DJUDY_DEBUG_MIRROR"
+  fi
+
   dnl # Performance optimizations for production builds
   if test "$PHP_DEBUG" != "yes"; then
     dnl # Add optimization flags for production

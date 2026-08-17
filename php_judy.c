@@ -50,6 +50,11 @@ static Word_t judy_free_array_internal(judy_object *intern)
 {
 	Word_t Rc_word = 0;
 
+	/* Teardown is the one point every object reaches, whatever it was used
+	 * for, and it is already O(n) — so it is where the consistency check earns
+	 * its keep. Compiles to nothing without --enable-judy-debug-mirror. */
+	JUDY_ASSERT_MIRROR(intern, "free_array_internal");
+
 	/* key_index must be in the guard too: a partially-failed clone can leave
 	 * key_index non-NULL while array/hs_array are NULL, and skipping the free
 	 * here would leak the JudySL key_index. */
@@ -619,7 +624,11 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 				JHSD(rc_tmp, intern->array, (uint8_t *)key, klen);
 				return FAILURE;
 			}
-			intern->counter++;
+			/* The key_index registration above and this counter bump are what
+			   the JUDY_DEBUG_MIRROR checker cross-examines. ci.yml's negative
+			   control deletes this exact line and requires the assertions to
+			   fire, so that the harness cannot rot into a no-op. */
+			intern->counter++; /* judy-mirror-negative-control */
 		}
 		break;
 
@@ -1523,6 +1532,146 @@ static inline Pvoid_t *judy_string_value_slot(judy_object *intern, const uint8_t
 	return slot;
 }
 /* }}} */
+
+#ifdef JUDY_DEBUG_MIRROR
+/* {{{ judy_debug_check_mirror — internal consistency check.
+
+   The four *_HASH / *_ADAPTIVE types answer "which keys exist, in what order?"
+   from a JudySL key_index and "what is the value?" from a separate JudyHS (plus
+   a JudyL for the short keys ADAPTIVE packs inline). Nothing ties the two
+   together at the type level: a path that updates one and not the other leaves
+   two valid pointers holding different answers. There is no crash and no leak,
+   so valgrind cannot see it — only a check that walks both stores can.
+
+   What is checked:
+
+     1. Population agrees with intern->counter, for every type. That counter is
+        the bookkeeping every write branch maintains, and it is the cheapest
+        cross-examination of the two stores available.
+     2. Every key in key_index resolves to a live value slot, and for the MIXED
+        variants to a non-NULL zval*.
+     3. The reverse direction, as far as it is enumerable. JudyHS exposes no
+        enumeration primitive — the whole API is JHSG/JHSI/JHSD/JHSFA — so a
+        JudyHS entry that no key_index entry points at cannot be reached
+        directly. It is caught by (1) whenever the counter was bumped, and
+        shows up as a leak under valgrind otherwise. ADAPTIVE's short-key half
+        is an ordinary JudyL and *is* enumerable, so that half is checked in
+        both directions.
+
+   #85 step 1 (payload mirroring) extends (2) with "and the payload mirrored
+   into the key_index slot equals the one in the value store": the same walk,
+   one more comparison per key.
+
+   O(n). Call it only from operations that are already O(n) — object teardown,
+   clone — never once per element. */
+static void judy_debug_mirror_fail(const judy_object *intern, const char *where,
+	const char *what, const char *key)
+{
+	fprintf(stderr, "\n[judy] MIRROR INVARIANT VIOLATED at %s\n", where);
+	fprintf(stderr, "[judy]   %s\n", what);
+	fprintf(stderr, "[judy]   type=%ld counter=" ZEND_LONG_FMT "\n",
+		(long)intern->type, intern->counter);
+	if (key != NULL) {
+		fprintf(stderr, "[judy]   key=\"%s\"\n", key);
+	}
+	fflush(stderr);
+	abort();
+}
+
+void judy_debug_check_mirror(judy_object *intern, const char *where)
+{
+	zend_long seen = 0;
+
+	if (intern->array == NULL && intern->hs_array == NULL && intern->key_index == NULL) {
+		if (intern->counter != 0) {
+			judy_debug_mirror_fail(intern, where,
+				"object holds no store at all but the counter is non-zero", NULL);
+		}
+		return;
+	}
+
+	if (intern->type == TYPE_BITSET) {
+		Word_t count = 0;
+		J1C(count, intern->array, 0, (Word_t)-1);
+		seen = (zend_long)count;
+	} else if (JUDY_IS_INTEGER_KEYED(intern)) {
+		Word_t count = 0;
+		JLC(count, intern->array, 0, (Word_t)-1);
+		seen = (zend_long)count;
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+		/* Single store: the JudySL trie holds the values itself. */
+		uint8_t *cursor = emalloc(PHP_JUDY_MAX_LENGTH);
+		Pvoid_t *PValue;
+
+		cursor[0] = '\0';
+		JSLF(PValue, intern->array, cursor);
+		while (PValue != NULL && PValue != PJERR) {
+			seen++;
+			JSLN(PValue, intern->array, cursor);
+		}
+		efree(cursor);
+	} else {
+		/* The four key_index-backed types. A private cursor rather than
+		 * intern->key_scratch: a manual rewind()/next() iteration may be
+		 * holding that shared buffer. */
+		uint8_t *cursor = emalloc(PHP_JUDY_MAX_LENGTH);
+		Pvoid_t *KValue;
+
+		cursor[0] = '\0';
+		JSLF(KValue, intern->key_index, cursor);
+		while (KValue != NULL && KValue != PJERR) {
+			Word_t klen = (Word_t)strlen((char *)cursor);
+			Pvoid_t *VValue = judy_string_value_slot(intern, cursor, klen);
+
+			if (VValue == NULL) {
+				judy_debug_mirror_fail(intern, where,
+					"key listed in key_index has no entry in the value store",
+					(const char *)cursor);
+			}
+			if (JUDY_IS_MIXED_VALUE(intern) && JUDY_MVAL_READ(VValue) == NULL) {
+				judy_debug_mirror_fail(intern, where,
+					"key listed in key_index has a NULL zval in the value store",
+					(const char *)cursor);
+			}
+			seen++;
+			JSLN(KValue, intern->key_index, cursor);
+		}
+		efree(cursor);
+
+		if (JUDY_IS_ADAPTIVE(intern)) {
+			/* Reverse direction for the enumerable half: keys shorter than 8
+			 * bytes are packed into a JudyL index. */
+			Word_t sso_idx = 0;
+			Pvoid_t *PValue;
+
+			JLF(PValue, intern->array, sso_idx);
+			while (PValue != NULL && PValue != PJERR) {
+				uint8_t unpacked[9];
+				Pvoid_t *KFound;
+
+				memcpy(unpacked, &sso_idx, sizeof(Word_t));
+				unpacked[8] = '\0';
+				JSLG(KFound, intern->key_index, unpacked);
+				if (KFound == NULL || KFound == PJERR) {
+					judy_debug_mirror_fail(intern, where,
+						"short key present in the value store is missing from key_index",
+						(const char *)unpacked);
+				}
+				JLN(PValue, intern->array, sso_idx);
+			}
+		}
+	}
+
+	if (seen != intern->counter) {
+		char msg[128];
+		snprintf(msg, sizeof(msg),
+			"population %ld disagrees with counter %ld",
+			(long)seen, (long)intern->counter);
+		judy_debug_mirror_fail(intern, where, msg, NULL);
+	}
+}
+/* }}} */
+#endif /* JUDY_DEBUG_MIRROR */
 
 /* {{{ proto mixed Judy::first([mixed index])
    Search (inclusive) for the first index present that is equal to or greater than the passed Index */
