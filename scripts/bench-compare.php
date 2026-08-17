@@ -39,6 +39,24 @@
  * reported as "no measured separation", not as a regression — and both arms
  * are above the minimum-duration floor.
  *
+ * What a tight CI does NOT prove
+ * -----------------------------
+ * Interleaving cancels drift *between* arms. It cannot cancel an effect that
+ * makes one arm slower on one runner for the whole run — page/cache layout of
+ * that particular binary on that particular machine. Such an effect is
+ * internally consistent, so it produces a tight CI clear of the threshold and
+ * looks exactly like a real regression.
+ *
+ * A tight CI therefore means "consistent within this run", not "reproducible".
+ * Before believing a lone flag, re-run the same code: a real effect recurs, a
+ * layout artifact does not. Worked example — `api.setop.diff.bitset` was
+ * flagged +11.6% [+10.4, +11.9] on one run and read +0.9% on the very next
+ * run of the *same commit* after merge, +0.0% over 11 paired rounds on an idle
+ * host, with the BITSET branch of Judy::diff() byte-identical between the two
+ * arms and both linking the same system libJudy. Across the 23 runs on record
+ * it is the only SLOWER flag ever emitted out of 1610 evaluated rows, while
+ * the genuine adv.filter.* win recurs in 22 of 23. Recurrence is the signal.
+ *
  * Usage:
  *   php scripts/bench-compare.php \
  *       --baseline-so /path/to/baseline/judy.so \
