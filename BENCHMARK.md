@@ -281,17 +281,47 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pecl install apcu && docker-php-ext-enable apcu
 COPY . /usr/src/php-judy
 WORKDIR /usr/src/php-judy
-RUN phpize && ./configure --with-judy=/usr && make -j"$(nproc)" && make install \
-    && docker-php-ext-enable judy
+# Build only — deliberately NOT `docker-php-ext-enable judy`. See the warning
+# below: an ini-enabled copy silently wins over `-d extension=`.
+RUN phpize && ./configure --with-judy=/usr && make -j"$(nproc)"
 ```
 
 ```bash
 cat /proc/loadavg                      # confirm < cores/2 BEFORE and AFTER
 docker build -f Dockerfile.bench -t php-judy-bench .
 docker run --rm -w /usr/src/php-judy php-judy-bench \
-    php -d apc.enable_cli=1 -d apc.shm_size=2048M \
+    env PHP_INI_SCAN_DIR= php \
+        -d extension=apcu \
+        -d extension=/usr/src/php-judy/modules/judy.so \
+        -d apc.enable_cli=1 -d apc.shm_size=2048M \
         examples/benchmarks/judy-bench-alternatives.php
 ```
+
+`PHP_INI_SCAN_DIR=` disables **every** `conf.d` ini, APCu's included, so APCu
+has to be loaded explicitly too or the harness will skip its rows with a
+notice. Confirm both are present before trusting a run:
+
+```bash
+env PHP_INI_SCAN_DIR= php -d extension=apcu -d extension=.../modules/judy.so \
+    -r 'printf("judy=%s apcu=%s\n", extension_loaded("judy")?"yes":"no",
+                                     extension_loaded("apcu")?"yes":"no");'
+```
+
+> **Do not bake the extension into the image with `docker-php-ext-enable
+> judy`.** If an ini file in `conf.d/` loads `judy.so`, that copy wins and a
+> later `-d extension=/path/to/your/build.so` is **ignored** — PHP emits only
+> `Module "judy" is already loaded in Unknown on line 0` and carries on with
+> the baked-in build. Every measurement then silently describes the image's
+> extension rather than the one under test.
+>
+> This is easy to miss and expensive when missed: a verification round during
+> the #85 work concluded a memory-safety fix was ineffective, when in fact the
+> container was re-running the pre-fix binary. Re-measuring with
+> `PHP_INI_SCAN_DIR=` reversed the result outright.
+>
+> Build the extension in the image but load it explicitly at run time, with
+> `PHP_INI_SCAN_DIR=` (or `php -n`) so nothing is inherited. `judy_version()`
+> will **not** catch the mistake — both builds report the same version.
 
 ### 1. Prefix invalidation — a complexity-class difference
 
