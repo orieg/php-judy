@@ -203,18 +203,51 @@ typedef struct _judy_object {
 	zval            iterator_key;        /* 16 */
 	zval            iterator_data;       /* 16 */
 	uint8_t         *key_scratch;        /* 8 — heap-allocated PHP_JUDY_MAX_LENGTH buffer */
-	/* Pack all bools together */
-	zend_bool       next_empty_is_valid;
-	zend_bool       iterator_initialized;
-	zend_bool       is_integer_keyed;
-	zend_bool       is_string_keyed;
-	zend_bool       is_mixed_value;
-	zend_bool       is_packed_value;
-	zend_bool       is_hash_keyed;
-	zend_bool       is_adaptive;
+	/* {{{ The flag block. Read this before adding a flag.
+
+	   Zend MM serves small allocations from fixed size classes — ..., 112,
+	   128, 160, 192, ... — so the cost of an object is not sizeof() but the
+	   next class up from it. judy_object_new_ex() ecallocs
+	   sizeof(judy_object) + zend_object_properties_size(ce), and that total
+	   sits a few bytes below the 160-byte class with nothing to spare. One
+	   more plain byte in this block does not cost one byte per instance: it
+	   pushes the struct over the boundary into the 192-byte class and every
+	   Judy object on the heap costs 32 bytes more.
+
+	   That is not hypothetical. The block used to be eight zend_bools under
+	   a comment reading "Pack all bools together (8 bytes)" — true when
+	   written, and silently false the moment a ninth flag arrived.
+	   mirror_payload (PR #100) was that ninth flag, and it moved
+	   Judy::BITSET and Judy::INT_TO_INT from 160 B to 192 B per instance,
+	   +20%, for one bit of state.
+
+	   Hence bitfields. The seven below are read-mostly — six are pure caches
+	   of ->type, set once in judy_init_type_flags(); mirror_payload is fixed
+	   for the object's lifetime — so extracting a bit rather than loading a
+	   byte costs nothing measurable on the read path. The two mutated during
+	   iteration stay whole bytes: they are written often enough that a
+	   read-modify-write on a shared word is not worth the space, and the
+	   padding before ->std absorbs them for free.
+
+	   Flag number ten belongs in the bitfield group, not next to it. If the
+	   group ever fills, measure before spending a byte: the number that
+	   matters is the emalloc'd heap delta CI compares, the *.heap.judy
+	   entries of examples/benchmarks/judy-bench.php, which for BITSET and
+	   INT_TO_INT is the object allocation and nothing else. sizeof() on
+	   paper is not what gets allocated. */
+	unsigned int    is_integer_keyed : 1;
+	unsigned int    is_string_keyed  : 1;
+	unsigned int    is_mixed_value   : 1;
+	unsigned int    is_packed_value  : 1;
+	unsigned int    is_hash_keyed    : 1;
+	unsigned int    is_adaptive      : 1;
 	/* Set iff optimizeIteration was requested AND this type can honour it.
 	   Fixed for the object's lifetime — see judy_set_optimize_iteration(). */
-	zend_bool       mirror_payload;
+	unsigned int    mirror_payload   : 1;
+	/* Mutated during iteration; kept as bytes, see above. */
+	zend_bool       next_empty_is_valid;
+	zend_bool       iterator_initialized;
+	/* }}} */
 	zend_object     std;                 /* must be last */
 } judy_object;
 
