@@ -65,6 +65,30 @@ if (!extension_loaded('judy')) {
     exit(1);
 }
 
+/**
+ * optimizeIteration arm switch.
+ *
+ * The mirror is opt-in per instance, so comparing "mirror on" against a
+ * baseline build means constructing differently in the two arms, not just
+ * linking a different judy.so. Export JUDY_BENCH_OPTIMIZE_ITERATION=1 and every
+ * array below is built with it on — but only on a build that has the argument,
+ * so the same command line can drive an older baseline .so, which silently
+ * constructs the way it always did. That is exactly the A/B the trade needs:
+ * today's behaviour against opted-in behaviour.
+ *
+ * With the variable unset both arms construct plainly, which is the comparison
+ * that has to come out flat.
+ */
+$optimizeIteration = (bool)getenv('JUDY_BENCH_OPTIMIZE_ITERATION');
+$supportsOptimizeIteration = method_exists('Judy', 'isIterationOptimized');
+function judy_new(int $type): Judy
+{
+    global $optimizeIteration, $supportsOptimizeIteration;
+    return ($optimizeIteration && $supportsOptimizeIteration)
+        ? new Judy($type, true)
+        : new Judy($type);
+}
+
 // Same key shape as the issue's decomposition and as the C harness in
 // research/: a shared "user:" prefix every 10 keys, padded to $keylen.
 $keys = [];
@@ -107,7 +131,7 @@ $types = [
 ];
 
 foreach ($types as $tname => $type) {
-    $j = new Judy($type);
+    $j = judy_new($type);
     for ($i = 0; $i < $size; $i++) {
         $j[$keys[$i]] = $i;
     }
@@ -163,6 +187,10 @@ $document = [
         'size'         => $size,
         'keylen'       => $keylen,
         'iterations'   => $iters,
+        // Recorded per arm, so a JSON pair makes it obvious which side
+        // actually had the mirror on rather than leaving it to the shell
+        // history.
+        'optimize_iteration' => $optimizeIteration && $supportsOptimizeIteration,
         'groups'       => ['read'],
     ],
     'benchmarks' => $benchmarks,

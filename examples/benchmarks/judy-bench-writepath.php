@@ -60,6 +60,30 @@ if (!extension_loaded('judy')) {
     exit(1);
 }
 
+/**
+ * optimizeIteration arm switch.
+ *
+ * The mirror is opt-in per instance, so comparing "mirror on" against a
+ * baseline build means constructing differently in the two arms, not just
+ * linking a different judy.so. Export JUDY_BENCH_OPTIMIZE_ITERATION=1 and every
+ * array below is built with it on — but only on a build that has the argument,
+ * so the same command line can drive an older baseline .so, which silently
+ * constructs the way it always did. That is exactly the A/B the trade needs:
+ * today's behaviour against opted-in behaviour.
+ *
+ * With the variable unset both arms construct plainly, which is the comparison
+ * that has to come out flat.
+ */
+$optimizeIteration = (bool)getenv('JUDY_BENCH_OPTIMIZE_ITERATION');
+$supportsOptimizeIteration = method_exists('Judy', 'isIterationOptimized');
+function judy_new(int $type): Judy
+{
+    global $optimizeIteration, $supportsOptimizeIteration;
+    return ($optimizeIteration && $supportsOptimizeIteration)
+        ? new Judy($type, true)
+        : new Judy($type);
+}
+
 // Keys shaped like the issue's: a shared prefix every 10 keys, padded to
 // $keylen. Precomputed so key construction never lands inside a timed region.
 $keys = [];
@@ -121,7 +145,7 @@ foreach ($types as $tname => $type) {
 
     // insert: a fresh array each iteration, filled once
     record("$tname.insert", bench("$tname.insert", $size,
-        fn() => new Judy($type),
+        fn() => judy_new($type),
         function ($j) use ($keys, $size, $mixed) {
             for ($i = 0; $i < $size; $i++) { $j[$keys[$i]] = $mixed ? $i : $i; }
         }, $iters));
@@ -129,7 +153,7 @@ foreach ($types as $tname => $type) {
     // overwrite: the array is already full before the timer starts
     record("$tname.overwrite", bench("$tname.overwrite", $size,
         function () use ($type, $keys, $size, $mixed) {
-            $j = new Judy($type);
+            $j = judy_new($type);
             for ($i = 0; $i < $size; $i++) { $j[$keys[$i]] = $i; }
             return $j;
         },
@@ -140,7 +164,7 @@ foreach ($types as $tname => $type) {
     // control: point lookup, an untouched path
     record("$tname.get", bench("$tname.get", $size,
         function () use ($type, $keys, $size) {
-            $j = new Judy($type);
+            $j = judy_new($type);
             for ($i = 0; $i < $size; $i++) { $j[$keys[$i]] = $i; }
             return $j;
         },
@@ -154,13 +178,13 @@ foreach ($types as $tname => $type) {
 foreach (['str_int_adaptive' => Judy::STRING_TO_INT_ADAPTIVE,
           'str_mixed_adaptive' => Judy::STRING_TO_MIXED_ADAPTIVE] as $tname => $type) {
     record("$tname.insert_sso", bench("$tname.insert_sso", $size,
-        fn() => new Judy($type),
+        fn() => judy_new($type),
         function ($j) use ($short, $size) {
             for ($i = 0; $i < $size; $i++) { $j[$short[$i]] = $i; }
         }, $iters));
     record("$tname.overwrite_sso", bench("$tname.overwrite_sso", $size,
         function () use ($type, $short, $size) {
-            $j = new Judy($type);
+            $j = judy_new($type);
             for ($i = 0; $i < $size; $i++) { $j[$short[$i]] = $i; }
             return $j;
         },
@@ -173,13 +197,13 @@ foreach (['str_int_adaptive' => Judy::STRING_TO_INT_ADAPTIVE,
 // existing-key path that used to write the value word on its own.
 foreach (['str_int' => Judy::STRING_TO_INT, 'str_int_hash' => Judy::STRING_TO_INT_HASH] as $tname => $type) {
     record("$tname.increment_new", bench("$tname.increment_new", $size,
-        fn() => new Judy($type),
+        fn() => judy_new($type),
         function ($j) use ($keys, $size) {
             for ($i = 0; $i < $size; $i++) { $j->increment($keys[$i]); }
         }, $iters));
     record("$tname.increment_hot", bench("$tname.increment_hot", $size,
         function () use ($type, $keys, $size) {
-            $j = new Judy($type);
+            $j = judy_new($type);
             for ($i = 0; $i < $size; $i++) { $j->increment($keys[$i]); }
             return $j;
         },
@@ -191,7 +215,7 @@ foreach (['str_int' => Judy::STRING_TO_INT, 'str_int_hash' => Judy::STRING_TO_IN
 // control: increment() on INT_TO_INT, which B1 did not touch at all
 record('int_int.increment_hot', bench('int_int.increment_hot', $size,
     function () use ($size) {
-        $j = new Judy(Judy::INT_TO_INT);
+        $j = judy_new(Judy::INT_TO_INT);
         for ($i = 0; $i < $size; $i++) { $j->increment($i); }
         return $j;
     },
@@ -213,6 +237,10 @@ $document = [
         'size'         => $size,
         'keylen'       => $keylen,
         'iterations'   => $iters,
+        // Recorded per arm, so a JSON pair makes it obvious which side
+        // actually had the mirror on rather than leaving it to the shell
+        // history.
+        'optimize_iteration' => $optimizeIteration && $supportsOptimizeIteration,
         'groups'       => ['write'],
     ],
     // The map bench-compare.php reads. It selects on a `.judy` suffix (the
