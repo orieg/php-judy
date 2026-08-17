@@ -138,6 +138,20 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
 - Keys are `int` (platform word) or binary-safe `string` depending on type;
   mixing categories in set ops (`union` etc.) with a different key category
   throws.
+- **Integer keys sort in UNSIGNED order, so negative keys come last.** An
+  integer key is the full unsigned machine word: a negative PHP int is
+  reinterpreted as its bit pattern, so `-1` addresses the maximum index and
+  reads back as `-1`. Iteration, `keys()`, `first()`/`last()`, `slice()` and
+  every range bound see `0, 1, …, PHP_INT_MAX, PHP_INT_MIN, …, -2, -1`. This
+  is why `size(0, -1)` means "everything" — `-1` is the largest key, not the
+  smallest. (Before 2.5.0 `$j[-1] = $v` appended instead of storing the key;
+  see MIGRATION_2.5.0.md.)
+- **`$j[] =` throws once the maximum index is occupied.** Append means "one
+  past the highest key", so an array holding a key at `-1` has nowhere left to
+  append and raises *"cannot append, the integer key space is exhausted"* —
+  the same position PHP's own arrays take at `PHP_INT_MAX`. Note `PHP_INT_MAX`
+  is not the ceiling: in unsigned order the next key is `PHP_INT_MIN`, which is
+  free. If you mix negative keys with append on one array, write explicit keys.
 
 ### Debugging and profiling Judy code
 

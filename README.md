@@ -74,6 +74,7 @@ API.md               Complete API reference
 BENCHMARK.md         Performance benchmarks and analysis
 BACKEND_EVALUATION.md  Judy vs ART/Masstree/HOT/Wormhole as the C backend
 MIGRATION_2.2.0.md   Migration guide for version 2.2.0
+MIGRATION_2.5.0.md   Migration guide for version 2.5.0
 LICENSE              The PHP License used by this project
 
 tests/               Unit and regression tests (.phpt)
@@ -677,5 +678,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 - **API Reference**: [API.md](API.md) for complete method documentation
 - **Benchmarks**: [BENCHMARK.md](BENCHMARK.md) for performance analysis
-- **Migration Guide**: [MIGRATION_2.2.0.md](MIGRATION_2.2.0.md) for version 2.2.0 changes
+- **Migration Guide**: [MIGRATION_2.5.0.md](MIGRATION_2.5.0.md) for version 2.5.0 changes,
+  [MIGRATION_2.2.0.md](MIGRATION_2.2.0.md) for version 2.2.0 changes
 - **Examples**: Check the [examples/](examples/README.md) directory for runnable demos (dedup, range lookup, rate limiting, prefix invalidation, autocomplete, counters) — indexed by problem under [What people use it for](#what-people-use-it-for)
