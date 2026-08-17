@@ -48,8 +48,15 @@ Runnable, self-contained scripts — one per pattern Judy is chosen for.
 - [prefix-invalidation.php](https://github.com/orieg/php-judy/blob/main/examples/prefix-invalidation.php):
   namespace invalidation (`user:123:*`) walking only the matching key slice,
   with a keys-visited comparison against a hash table
+- [symbol-table-prefix.php](https://github.com/orieg/php-judy/blob/main/examples/symbol-table-prefix.php):
+  symbol table keyed by fully-qualified class name, queried by namespace
+  (`App\Domain\*`) for LSP completion, namespace-scoped analysis rules and
+  PHPUnit `--filter`: deriving inclusive key bounds from a prefix
+  binary-safely, then reading the slice with one `keys`/`values`/`toArray($lo,
+  $hi)` call, with keys-visited and crossing counts against a hash scan
 - [autocomplete-trie.php](https://github.com/orieg/php-judy/blob/main/examples/autocomplete-trie.php):
-  prefix search / typeahead via `first()` + `searchNext()`
+  prefix search / typeahead via `first()` + `searchNext()`, and when that walk
+  still beats a bounded bulk read
 - [worker-counters.php](https://github.com/orieg/php-judy/blob/main/examples/worker-counters.php):
   metrics accumulators in long-running workers with atomic `increment()`
 

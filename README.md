@@ -55,7 +55,8 @@ Each pattern below is a runnable script in [examples/](examples/README.md):
 | Which CIDR/tariff/shard does this value fall in? | `last()` resolves the greatest key ≤ N in one call; hash tables must scan | [ip-range-lookup.php](examples/ip-range-lookup.php) |
 | Rate limiting and rolling metrics over a time window | `deleteRange()` expires aged-out buckets without touching the retained set | [sliding-window-rate-limit.php](examples/sliding-window-rate-limit.php) |
 | Invalidate every cache key under `user:123:*` | Ordered keys make a namespace one contiguous slice — cost follows the slice, not the cache size | [prefix-invalidation.php](examples/prefix-invalidation.php) |
-| Autocomplete / typeahead over a string keyset | `first()` + `searchNext()` walk a prefix in sorted order | [autocomplete-trie.php](examples/autocomplete-trie.php) |
+| List every class under `App\Domain\` — LSP completion, namespace-scoped analysis rules, PHPUnit `--filter` | A namespace prefix is one contiguous key range; `keys($lo, $hi)` reads exactly that slice in a single traversal | [symbol-table-prefix.php](examples/symbol-table-prefix.php) |
+| Autocomplete / typeahead over a string keyset | `first()` + `searchNext()` walk a prefix in sorted order and stop once the dropdown is full | [autocomplete-trie.php](examples/autocomplete-trie.php) |
 | Per-metric counters in a long-running worker | Atomic `increment()` skips the read-modify-write round trip | [worker-counters.php](examples/worker-counters.php) |
 
 New to the extension? Start with [quickstart.php](examples/quickstart.php).

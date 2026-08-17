@@ -13,7 +13,8 @@ php examples/quickstart.php
 | ------ | ------- | -------------- |
 | [quickstart.php](quickstart.php) | The essentials in one file: array access, iteration, navigation, bulk ops | `INT_TO_INT`, `STRING_TO_MIXED` |
 | [dedup-large-stream.php](dedup-large-stream.php) | Membership "seen set" over millions of keys, with honest peak-RSS comparison of array vs exact-key Judy vs hashed-fingerprint BITSET | `STRING_TO_INT_HASH`, `BITSET` |
-| [autocomplete-trie.php](autocomplete-trie.php) | Prefix search / autocomplete via ordered keys — `first()` + `searchNext()` | `STRING_TO_MIXED` |
+| [autocomplete-trie.php](autocomplete-trie.php) | Prefix search / autocomplete via ordered keys — the `first()` + `searchNext()` walk, which is the right shape when a `$limit` lets it stop early | `STRING_TO_MIXED` |
+| [symbol-table-prefix.php](symbol-table-prefix.php) | Symbol table keyed by fully-qualified class name, queried by namespace (`App\Domain\*`) for LSP completion, namespace-scoped analysis rules and PHPUnit `--filter`: deriving inclusive key bounds from a prefix binary-safely (carry, unbounded and over-reach cases, all asserted), then reading the slice with one `keys`/`values`/`toArray($lo, $hi)` call, with keys-visited and PHP→C-crossing counts against a hash-table scan and against the per-element walk | `STRING_TO_MIXED`, `STRING_TO_MIXED_HASH` |
 | [worker-counters.php](worker-counters.php) | Metrics accumulators in long-running workers with atomic `increment()` | `STRING_TO_INT_HASH`, `INT_TO_INT` |
 | [ip-range-lookup.php](ip-range-lookup.php) | Floor lookup (`last()`) over range tables — IPs, tariffs, time buckets | `INT_TO_MIXED` |
 | [sliding-window-rate-limit.php](sliding-window-rate-limit.php) | Sliding-window rate limiting / rolling metrics — `deleteRange()` expiry that visits only aged-out buckets | `INT_TO_INT` |

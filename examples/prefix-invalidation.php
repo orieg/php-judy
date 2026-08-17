@@ -24,6 +24,10 @@ if (!extension_loaded('judy')) {
 /**
  * Delete every key starting with $prefix. Returns [deleted, keysVisited].
  *
+ * The walk is written out longhand so that keys visited stays countable — that
+ * count is what this example exists to show. In production the same deletion is
+ * one call, deleteRange($start, $end), over the same inclusive key bounds.
+ *
  * @return array{0:int,1:int}
  */
 function deletePrefix(Judy $store, string $prefix): array
@@ -94,13 +98,14 @@ printf(
 echo "That ratio is the whole point: Judy's cost follows the slice being\n";
 echo "dropped, the hash table's follows the cache size.\n";
 
-// Range reads work the same way — list a namespace without scanning.
-$listed = [];
-for (
-    $key = $judy->first('user:7:');
-    $key !== null && str_starts_with($key, 'user:7:');
-    $key = $judy->searchNext($key)
-) {
-    $listed[] = $key;
-}
+// Range reads work the same way — list a namespace without scanning. Here the
+// consumer wants the whole slice rather than the first few, so this is one
+// bounded bulk read instead of the per-element walk above: keys($start, $end)
+// makes a single C traversal writing straight into the PHP array.
+//
+// The bounds are inclusive KEYS, so the upper one is the prefix's successor
+// ('user:7;' — ':' is 0x3A, ';' is 0x3B), not the prefix itself. That bound can
+// over-reach by exactly one key, the one spelled like the bound. Deriving it
+// safely for arbitrary binary keys is examples/symbol-table-prefix.php.
+$listed = $judy->keys('user:7:', 'user:7;');
 printf("\nkeys under user:7: -> %s\n", implode(', ', $listed));
