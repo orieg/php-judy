@@ -630,8 +630,13 @@ Please report bugs and issues on the GitHub repository:
 
 - Eliminate redundant JLG+JLI double traversal in write hot paths for `INT_TO_INT`, `STRING_TO_INT`, and `STRING_TO_INT_HASH` types
 - Remove the per-element second lookup during ordered traversal of the
-  `*_HASH`/`*_ADAPTIVE` types — worth 22 ns/element at 16-byte keys and 98
-  ns/element (46% of `forEach()`) at 40-byte keys ([#85](https://github.com/orieg/php-judy/issues/85))
+  `STRING_TO_MIXED_HASH` and `STRING_TO_MIXED_ADAPTIVE` types
+  ([#85](https://github.com/orieg/php-judy/issues/85)). Done for the two `_INT`
+  variants, which mirror their payload into the `key_index` slot: ordered
+  traversal is 24-38% faster and `values()` 29-47% faster depending on key
+  length, against 8-20% on overwrite and `increment()`. The `_MIXED` payload is
+  a `zval*`, so mirroring it is a question about lifetime rather than about
+  lookups.
 - Binary serialization format for faster `__serialize`/`__unserialize`
 - Extend `increment()` to adaptive types
 

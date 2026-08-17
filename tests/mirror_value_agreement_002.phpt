@@ -41,22 +41,37 @@ function seed(Judy $j): array {
     return $model;
 }
 
-/** Every ordered read surface must agree with point lookup, key for key. */
+/**
+ * Every ordered read surface must agree with point lookup, key for key.
+ *
+ * The truth is built from keys() plus a point lookup each: keys() never reads
+ * a value, and point lookup deliberately still reads the value store, so the
+ * pair is independent of the mirror. Comparing the surfaces against each other
+ * instead would pass with a uniformly stale mirror — they would all be reading
+ * the same wrong word.
+ */
 function agrees(Judy $j): string {
     $problems = [];
-    $seen = [];
-    foreach ($j as $k => $v) {
-        $seen[$k] = $v;
-        if ($j[$k] !== $v) {
-            $problems[] = "foreach/lookup disagree at '$k'";
-        }
+    $truth = [];
+    foreach ($j->keys() as $k) {
+        $truth[$k] = $j[$k];
     }
-    if ($j->toArray() !== $seen)   { $problems[] = "toArray"; }
-    if ($j->values() !== array_values($seen)) { $problems[] = "values"; }
+
+    $seen = [];
+    foreach ($j as $k => $v) { $seen[$k] = $v; }
+    if ($seen !== $truth)          { $problems[] = "foreach"; }
+    if ($j->toArray() !== $truth)  { $problems[] = "toArray"; }
+    if ($j->values() !== array_values($truth)) { $problems[] = "values"; }
     $cb = [];
     $j->forEach(function ($v, $k) use (&$cb) { $cb[$k] = $v; });
-    if ($cb !== $seen)             { $problems[] = "forEach"; }
-    if (count($seen) !== $j->count()) { $problems[] = "count"; }
+    if ($cb !== $truth)            { $problems[] = "forEach"; }
+    if (count($truth) !== $j->count()) { $problems[] = "count"; }
+    // sumValues()/averageValues() are ordered walks too, and nothing else in
+    // the suite exercises them on the key_index-backed types.
+    if ($truth && $j->sumValues() !== array_sum($truth)) { $problems[] = "sumValues"; }
+    if ($truth && abs($j->averageValues() - array_sum($truth) / count($truth)) > 1e-9) {
+        $problems[] = "averageValues";
+    }
     return $problems ? "DIVERGED: " . implode(",", $problems) : "ok";
 }
 

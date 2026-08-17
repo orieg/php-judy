@@ -4075,6 +4075,8 @@ PHP_METHOD(Judy, sumValues)
 
 			if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
 				JLG(VValue, intern->array, sso_idx);
+			} else if (JUDY_MIRRORS_PAYLOAD(intern, key_len)) {
+				VValue = PValue;
 			} else {
 				JHSG(VValue, intern->hs_array, key, key_len);
 			}
@@ -4096,7 +4098,7 @@ PHP_METHOD(Judy, sumValues)
 
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 			Pvoid_t *VValue = PValue;
-			if (intern->is_hash_keyed) {
+			if (intern->is_hash_keyed && intern->type != TYPE_STRING_TO_INT_HASH) {
 				JHSG(VValue, intern->array, key, (Word_t)strlen((char *)key));
 			}
 			if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
@@ -4165,6 +4167,8 @@ PHP_METHOD(Judy, averageValues)
 
 			if (judy_pack_short_string_internal((char *)key, key_len, &sso_idx)) {
 				JLG(VValue, intern->array, sso_idx);
+			} else if (JUDY_MIRRORS_PAYLOAD(intern, key_len)) {
+				VValue = PValue;
 			} else {
 				JHSG(VValue, intern->hs_array, key, key_len);
 			}
@@ -4186,7 +4190,7 @@ PHP_METHOD(Judy, averageValues)
 
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 			Pvoid_t *VValue = PValue;
-			if (intern->is_hash_keyed) {
+			if (intern->is_hash_keyed && intern->type != TYPE_STRING_TO_INT_HASH) {
 				JHSG(VValue, intern->array, key, (Word_t)strlen((char *)key));
 			}
 			if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
@@ -4562,6 +4566,10 @@ PHP_METHOD(Judy, equals)
 			Word_t sso_idx;
 			Pvoid_t *V1 = NULL, *V2 = NULL;
 
+			/* equals() stays on the value store even for the mirrored types.
+			   Its `!V1` guard means "key_index lists a key the value store
+			   does not have", which reading the mirror would make unreachable
+			   — and this is the one traversal whose job is to disagree. */
 			if (judy_pack_short_string_internal((char *)key, klen, &sso_idx)) {
 				JLG(V1, intern->array, sso_idx);
 			} else {
