@@ -53,6 +53,11 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 > Choosing between Judy and **APCu, `SplFixedArray`, or a sorted array** rather
 > than a PHP array? Skip to [Versus the Alternatives](#versus-the-alternatives-apcu-splfixedarray-sorted-arrays).
 
+> Evaluating Judy for a **PHP developer tool** — a test runner, a static
+> analyser, a refactoring pass, a dependency manager? Several of those
+> candidates were examined and rejected. The reasons are in
+> [Judy in PHP Developer Tooling](#judy-in-php-developer-tooling).
+
 **Use Judy Arrays When:**
 - ✅ Memory is constrained (2-4x less memory usage)
 - ✅ Large datasets (> 1M elements) where memory efficiency matters
@@ -605,6 +610,144 @@ Memcached. It measures in-process data-structure behavior only.
 - High-frequency string key operations
 - When performance is more important than memory
 - **Reason**: Slower than PHP arrays for string keys
+
+---
+
+## Judy in PHP Developer Tooling
+
+Judy gets proposed for PHP developer tooling — test runners, static analysers,
+refactoring passes, dependency managers — more often than it fits there. This
+section records which candidates were examined and rejected, and **why**,
+because the reason is the part that transfers: it is what tells you whether the
+*next* candidate is like these or unlike them.
+
+**Nothing in this section is measured.** Every claim below is either a
+structural argument or a pointer to a figure already in this document, and
+where a figure is cited the section it comes from is named.
+[`examples/coverage-index.php`](examples/coverage-index.php) is runnable and
+prints its own numbers on your hardware; this section does not quote them.
+
+### ❌ Speeding up PHPUnit's core runtime
+
+This is the first idea most people have, and it is the wrong one. A test run's
+cost is autoloading, reflection, the assertion machinery, fixture setup and
+process bootstrap — not map lookups. There is no associative-array lookup in
+the runner hot enough for the data structure underneath it to be observable, so
+swapping a hash table for a trie buys nothing, and any swap you did make would
+pay Judy's random-access penalty (2-9x slower on integer keys — see Key
+Findings above) for that nothing.
+
+Worth stating explicitly because "make PHPUnit faster" is the obvious framing
+and it aims at the wrong layer. The place inside a test run where a data
+structure genuinely *is* the constraint is coverage collection — see the fit
+list below — and that is a different component with a different shape.
+
+### ❌ Token streams and per-file ASTs (Rector, PHP-CS-Fixer, anything on nikic/PHP-Parser)
+
+A tokenised file is a dense, small, sequentially-indexed integer array —
+thousands of entries, not millions — and the traversal is a linear pass, not a
+range query. That is squarely inside the existing "avoid Judy below ~100k
+elements with random access" rule above, and it also gives up nothing Judy has
+to offer: the keys are already contiguous and already in order, so ordered
+iteration is free either way.
+
+The memory argument does not rescue it. AST nodes are objects, so the Judy type
+would be `INT_TO_MIXED`, which stores a `zval` pointer per slot — the zval heap
+cost is identical to a PHP array's (see [When PHP Arrays Win](#when-php-arrays-win))
+and only the trie overhead differs. There is no memory saving to trade the
+traversal speed against.
+
+### ❌ Composer's `autoload_classmap.php`
+
+Already optimal, by a mechanism Judy cannot match. The classmap is a compiled
+PHP array literal: OPcache compiles it once and holds the immutable array in
+shared memory, so every process on the box maps the same copy at zero
+per-request build cost. A Judy version would have to be constructed at run time
+in each process, from some source, and would then hold a private copy per
+process. That is worse on both axes before the first lookup happens.
+
+### ⏸️ Composer's dependency solver — researched and deprioritised, not unexplored
+
+This one is recorded differently, because it is structurally a *good* fit and
+was parked anyway. The distinction matters: someone re-deriving this list
+should not spend the time rediscovering it.
+
+**Why it fits.** The solver works over package versions identified by dense
+integer literal ids, and spends its time on set operations — union,
+intersection, difference over candidate pools — which is the shape `BITSET`
+plus the C-level set methods exist for. Memory is a real, long-standing pain
+point there: `COMPOSER_MEMORY_LIMIT` exists because resolving a large graph can
+exhaust `memory_limit`, and a Judy array is allocated outside PHP's memory
+manager entirely, so it does not count against that limit at all.
+
+**Why it was parked anyway.**
+
+- **Invasive, in someone else's codebase.** The pool and rule representation is
+  load-bearing across the whole solver, so this is not a swap behind an
+  interface — it is a rewrite of the solver's core that introduces a hard
+  `ext-judy` dependency into a tool that has to run everywhere, including where
+  no extension can be installed. That pushes it toward an optional backend,
+  which doubles the code paths that must agree.
+- **The trade is not free even if it lands.** The solver does a great deal of
+  random access on integer ids, which is Judy's documented weakness (2-9x
+  slower — Key Findings above). The win would be memory and set-operation
+  throughput bought with lookup latency — favourable only if memory is the binding
+  constraint on the run, which is plausible on large graphs and unproven on
+  small ones.
+- **Nobody has measured it.** There is no benchmark in this repo for it, and
+  the two points above are entirely structural. Do not read this entry as a
+  claim that it would win.
+
+Honest status: **plausible, unmeasured, high cost**. If someone picks it up,
+the first artifact should be a standalone harness over a captured real
+dependency graph — not a patch.
+
+### The constraint underneath several of these: one process, one arena
+
+php-judy has no shared arena. A Judy array lives in the heap of the process
+that built it and cannot be read by another process. This is stated for the
+caching case in
+[Versus the Alternatives](#versus-the-alternatives-apcu-splfixedarray-sorted-arrays);
+[issue #83](https://github.com/orieg/php-judy/issues/83) and
+[`research/shm-arena/FINDINGS.md`](research/shm-arena/FINDINGS.md) carry the
+feasibility spike.
+
+For developer tooling the consequence is specific: **anything whose value comes
+from a cache shared across processes cannot use Judy.** A parallel test runner
+(ParaTest, `--process-isolation`) must have each worker accumulate its own
+structure and merge them in the coordinator, shipping each index across the
+process boundary like any other data. That is fine for a coverage index — the
+merge is one set-union call, and a `BITSET`'s keys serialise as a flat run of
+integers rather than as a nested map. It is fatal for anything that wants
+APCu-style cross-worker sharing, such as a static-analysis result cache several
+concurrent runs would all read.
+
+It is also the same reason the classmap rejection above holds: OPcache's shared
+memory is precisely the property Judy does not have.
+
+### ✅ What does fit
+
+Kept short on purpose — the rejections above are the point of this section.
+
+- **Coverage indexes.** `file -> line -> [test ids]` is a deep nested map of
+  tens of millions of live zvals, which is what turns a full-suite coverage run
+  into a `memory_limit` fatal. Flattened into one `BITSET` over a packed
+  `[file | line | test]` key it becomes sparse integer keys with no nested
+  containers, allocated outside `memory_limit`.
+- **Test-impact selection.** Because that key is ordered file-major, every test
+  id for one `file:line` is a contiguous block, so "which tests must this diff
+  run?" is a bounded range read rather than a scan.
+- **Prefix and namespace walks.** Ordered string keys make "everything under
+  `App\Foo\`" a `first()` + `searchNext()` walk that stops at the end of the
+  slice — the one place in this document where the difference is a complexity
+  class rather than a constant factor (Prefix invalidation, above).
+
+[`examples/coverage-index.php`](examples/coverage-index.php) is the worked
+example for the first two. It also documents where the nested array is *not*
+beaten: which side wins the merge column depends on how much two workers
+overlap, not on Judy — and it carries the soundness rule that makes selection
+safe, namely that a changed line with no recorded coverage must widen the
+selection, never return nothing.
 
 ---
 
