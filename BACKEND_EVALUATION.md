@@ -280,3 +280,39 @@ Any of these would justify redoing this evaluation:
   with no cursor primitive available — so php-judy cannot close it. If a
   workload emerges where ordered traversal dominates and memory does not, that
   is the case for revisiting this, and it is the strongest one available.
+
+### Three of those conditions have since been tested
+
+A separate investigation — *"given that we keep Judy, do we vendor it?"* — has
+since put evidence against several of the clauses above. Full record:
+[`research/libjudy-modernization/FINDINGS.md`](research/libjudy-modernization/FINDINGS.md)
+and [issue #113](https://github.com/orieg/php-judy/issues/113). It does **not**
+change the keep-Judy verdict, and it did not re-run ART. What it changes here:
+
+- **"No cursor primitive available" is true of the shipped library, not of the
+  design.** `JudyPrevNext.c:251-253` already maintains the branch-JP and
+  offset history a cursor needs, rebuilds it from the root on every call, and
+  discards it; `:156-161` carries upstream's own unimplemented TBD proposing
+  exactly this. It would be caller-owned state with **no in-memory layout
+  change**. So the clause holds only while php-judy does not vendor libJudy —
+  it is not the structural dead end this section implies. The item is gated on
+  a leaf-population histogram, which is the one number that decides whether the
+  win is real.
+- **"A different key distribution" was partially explored** — 13 corpora,
+  against libJudy alone rather than head-to-head with ART. The old
+  `user:%08lu:f%lu` corpus turned out to be degenerate (every branch a
+  `BRANCH_B` at identical density), which is enough to caution against
+  generalising any single-corpus result here, including this document's.
+- **The #85 flatness claim itself needs re-deriving.** Its harness could not
+  emit a key shorter than 16 bytes — see
+  [`research/README.md`](research/README.md#re-derivation-owed-the-jsln-flat-in-key-length-claim),
+  [#122](https://github.com/orieg/php-judy/issues/122) and
+  [PR #124](https://github.com/orieg/php-judy/pull/124). The published 16/24/40/64
+  points did vary key length, so this is not a retraction; the short-key half was
+  simply never tested, and `iteration-cost/iterbench.c` still carries the
+  unfixed generator.
+
+One correctness finding from that investigation is independent of all backend
+questions and applies today: stock libJudy 1.0.5 built with `gcc -O3` silently
+loses `Judy::BITSET` keys ([#131](https://github.com/orieg/php-judy/issues/131)),
+detected by `tests/bitset_immed_cascade_integrity_001.phpt`.
