@@ -563,14 +563,17 @@ jobs:
         # the built tarball, so a .phpt missing from package.xml still passes
         # CI while being absent from the shipped package. Compare explicitly.
         run: |
-          ls tests/*.phpt | sort > /tmp/tests-on-disk.txt
+          # git ls-files, not `ls tests/*.phpt`: support files (e.g. an .inc
+          # fixture a .phpt drives) must ship too, or the installed package's
+          # test suite breaks. Mirrors the libjudy/ check below.
+          git ls-files tests/ | sort > /tmp/tests-on-disk.txt
           grep -oP '(?<=name=")tests/[^"]+(?=")' package.xml | sort > /tmp/tests-in-package.txt
           if ! diff -u --label package.xml --label tests/ \
                /tmp/tests-in-package.txt /tmp/tests-on-disk.txt; then
             echo "ERROR: package.xml and tests/ have diverged."
-            echo "  '+' lines: on disk but not in package.xml — add"
-            echo '            <file name="tests/<name>.phpt" role="test" />'
-            echo "  '-' lines: in package.xml but not on disk — remove the entry"
+            echo "  '+' lines: tracked in git but not in package.xml — add"
+            echo '            <file name="tests/<name>" role="test" />'
+            echo "  '-' lines: in package.xml but not tracked — remove the entry"
             exit 1
           fi
 
