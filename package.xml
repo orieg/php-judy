@@ -316,6 +316,9 @@
          <file name="tests/size_range_string_001.phpt" role="test" />
          <file name="tests/range_named_args_001.phpt" role="test" />
          <file name="tests/merge_with.phpt" role="test" />
+         <file name="tests/merge_with_slot_reuse_001.phpt" role="test" />
+         <file name="tests/merge_with_mixed_refcount_001.phpt" role="test" />
+         <file name="tests/merge_with_reentrancy_001.phpt" role="test" />
          <file name="tests/packed_complex_fallback_001.phpt" role="test" />
          <file name="tests/packed_scalar_fastpath_001.phpt" role="test" />
          <file name="tests/phase3_adaptive_001.phpt" role="test" />
