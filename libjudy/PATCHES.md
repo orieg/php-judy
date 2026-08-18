@@ -28,6 +28,4 @@ appear in the ledger below.
 
 | Patch | Category | Files | Why | Date | Issue |
 | ----- | -------- | ----- | --- | ---- | ----- |
-
-_None yet — the tree is pristine Judy-1.0.5 (Stage 0 of the vendoring
-plan, tracked in [#142](https://github.com/orieg/php-judy/issues/142))._
+| P5 | Portability/Correctness | `src/Judy.h`, `src/JudyCommon/JudyInsArray.c`, `src/JudyCommon/JudyMallocIF.c`, `src/JudyCommon/JudyPrevNextEmpty.c`, `src/JudyCommon/JudyPrivate.h`, `src/JudyCommon/JudyPrivateBranch.h`, `src/JudySL/JudySL.c` | LLP64 (Windows/MSVC x64): `unsigned long` is 4 bytes there, so `Word_t` must be `unsigned __int64` under `_WIN64`, and every all-ones / shifted / masked `UL`/`L` constant used in a `Word_t` context truncated (`~0UL`, `(-1UL)`, `0x100UL`, `0xffL`) or vanished (`1UL << N` and sign-extending `1L << N` for N ≥ 32 — the `JudyPrevNextEmpty` infinite loop). These are the six mechanical fixes CI/release previously applied as download-time regexes, absorbed as real source diffs so the tree builds on Windows unpatched. | 2026-08-18 | [#127](https://github.com/orieg/php-judy/issues/127), [#142](https://github.com/orieg/php-judy/issues/142) |

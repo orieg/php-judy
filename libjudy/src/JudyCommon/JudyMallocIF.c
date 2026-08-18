@@ -1,3 +1,7 @@
+// Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
+// correctness -- see libjudy/PATCHES.md, issues #127/#142):
+// j__uMaxWords initializer uses ~(Word_t)0 instead of the 32-bit-truncating ~0UL.
+//
 // Copyright (C) 2000 - 2002 Hewlett-Packard Company
 //
 // This program is free software; you can redistribute it and/or modify it
@@ -55,7 +59,7 @@
 // Note:  To keep the MALLOC macro faster and simpler, set j__uMaxWords to
 // MAXINT, not zero, by default.
 
-Word_t j__uMaxWords = ~0UL;
+Word_t j__uMaxWords = ~(Word_t)0;
 
 // This macro hides the faking of a malloc failure:
 //

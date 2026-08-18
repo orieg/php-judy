@@ -1,3 +1,7 @@
+// Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
+// correctness -- see libjudy/PATCHES.md, issues #127/#142):
+// cJU_ALLONES, JU_LEASTBYTESMASK and JU_BITPOSMASKB/L use Word_t-width constants instead of UL/L constants that truncate or sign-extend on LLP64.
+//
 #ifndef _JUDYPRIVATE_INCLUDED
 #define _JUDYPRIVATE_INCLUDED
 // _________________
@@ -307,7 +311,7 @@ typedef int bool_t;
 
 // A word that is all-ones, normally equal to -1UL, but safer with ~0:
 
-#define cJU_ALLONES  (~0UL)
+#define cJU_ALLONES  (~(Word_t)0)
 
 // Note, these are forward references, but thats OK:
 
@@ -411,7 +415,7 @@ typedef PWord_t Pjv_t;   // pointer to JudyL value area.
 // processors.
 
 #define JU_LEASTBYTESMASK(BYTES) \
-        ((0x100UL << (cJU_BITSPERBYTE * ((BYTES) - 1))) - 1)
+        (((Word_t)0x100 << (cJU_BITSPERBYTE * ((BYTES) - 1))) - 1)
 
 #define JU_LEASTBYTES(INDEX,BYTES)  ((INDEX) & JU_LEASTBYTESMASK(BYTES))
 
@@ -801,8 +805,8 @@ static inline BITMAPL_t j__udyCountBitsL(BITMAPL_t word)
 //
 // TBD:  Perhaps use an array[32] of masks instead of calculating them.
 
-#define JU_BITPOSMASKB(BITNUM) (1L << ((BITNUM) % cJU_BITSPERSUBEXPB))
-#define JU_BITPOSMASKL(BITNUM) (1L << ((BITNUM) % cJU_BITSPERSUBEXPL))
+#define JU_BITPOSMASKB(BITNUM) ((Word_t)1 << ((BITNUM) % cJU_BITSPERSUBEXPB))
+#define JU_BITPOSMASKL(BITNUM) ((Word_t)1 << ((BITNUM) % cJU_BITSPERSUBEXPL))
 
 
 // TEST/SET/CLEAR A BIT IN A BITMAP LEAF:
@@ -1365,7 +1369,7 @@ assert((Word_t) (OFFSET) <= (Word_t) (POP1));                   \
 // return int or Word_t using JERR, which is type Word_t, for errors.  Lint
 // complains about this for functions that return int.  So, internally use
 // JERRI for error returns from the int functions.  Experiments show that
-// callers which compare int Foo() to (Word_t) JERR (~0UL) are OK, since JERRI
+// callers which compare int Foo() to (Word_t) JERR (~(Word_t)0) are OK, since JERRI
 // sign-extends to match JERR.
 
 #define JERRI ((int) ~0)                // see above.

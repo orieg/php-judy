@@ -1,3 +1,7 @@
+// Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
+// correctness -- see libjudy/PATCHES.md, issues #127/#142):
+// JU_BRANCHL/B_MAX_POP and cJU_MASKATSTATE use Word_t-width constants (0xffL made cJU_MASKATSTATE 0 for State >= 5 on LLP64).
+//
 #ifndef _JUDY_PRIVATE_BRANCH_INCLUDED
 #define _JUDY_PRIVATE_BRANCH_INCLUDED
 // _________________
@@ -340,10 +344,10 @@ typedef struct J__UDY_BRANCH_UNCOMPRESSED
 
 // These are set up to have conservative conversion schedules to BranchU:
 
-#define JU_BRANCHL_MAX_POP      (-1UL)
+#define JU_BRANCHL_MAX_POP      (~(Word_t)0)
 #define JU_BTOU_POP_INCREMENT      300
 #define JU_BRANCHB_MIN_POP        1000
-#define JU_BRANCHB_MAX_POP      (-1UL)
+#define JU_BRANCHB_MAX_POP      (~(Word_t)0)
 
 #endif // NO_BRANCHU
 
@@ -361,7 +365,7 @@ typedef struct J__UDY_BRANCH_UNCOMPRESSED
 
 // Produce 1-digit mask at specified state:
 
-#define cJU_MASKATSTATE(State)  (0xffL << (((State) - 1) * cJU_BITSPERBYTE))
+#define cJU_MASKATSTATE(State)  ((Word_t)0xff << (((State) - 1) * cJU_BITSPERBYTE))
 
 // Get byte (digit) from Index at the specified state, right justified:
 //

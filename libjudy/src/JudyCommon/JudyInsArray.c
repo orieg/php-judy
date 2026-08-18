@@ -1,3 +1,7 @@
+// Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
+// correctness -- see libjudy/PATCHES.md, issues #127/#142):
+// 1UL << N shifts use (Word_t)1 (1UL is 32-bit on LLP64, so N >= 32 shifted to 0).
+//
 // Copyright (C) 2000 - 2002 Hewlett-Packard Company
 //
 // This program is free software; you can redistribute it and/or modify it
@@ -849,7 +853,7 @@ BuildBranch2:   // come here directly for Level = levelsub = cJU_ROOTSTATE.
         Pjp               = Pjbu->jbu_jp;           // for convenience in loop.
         numJPs            = 0;                      // non-null in the BranchU.
         digitmask         = cJU_MASKATSTATE(levelsub);   // see above.
-        digitshincr       = 1UL << (cJU_BITSPERBYTE * (levelsub - 1));
+        digitshincr       = (Word_t)1 << (cJU_BITSPERBYTE * (levelsub - 1));
         retval            = TRUE;
 
 // Scan and populate JPs (subexpanses):

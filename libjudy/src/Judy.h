@@ -1,3 +1,7 @@
+// Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
+// correctness -- see libjudy/PATCHES.md, issues #127/#142):
+// Word_t is unsigned __int64 under _WIN64 (unsigned long is 4 bytes on LLP64); PJERR/PPJERR use ~(size_t)0 instead of the 32-bit-truncating ~0UL.
+//
 #ifndef _JUDY_INCLUDED
 #define _JUDY_INCLUDED
 // _________________
@@ -91,7 +95,11 @@ typedef void ** PPvoid_t;
 
 #ifndef _WORD_T
 #define _WORD_T
-typedef unsigned long    Word_t, * PWord_t;  // expect 32-bit or 64-bit words.
+#if defined(_WIN64)
+typedef unsigned __int64    Word_t, * PWord_t;
+#else
+typedef unsigned long       Word_t, * PWord_t;
+#endif  // expect 32-bit or 64-bit words.
 #endif
 
 #ifndef NULL
@@ -197,12 +205,12 @@ typedef struct J_UDY_ERROR_STRUCT
 // For checking return values from various Judy functions:
 //
 // Note:  Define JERR as -1, not as the seemingly more portable (Word_t)
-// (~0UL), to avoid a compiler "overflow in implicit constant conversion"
+// (~(size_t)0), to avoid a compiler "overflow in implicit constant conversion"
 // warning.
 
 #define   JERR (-1)                     /* functions returning int or Word_t */
-#define  PJERR ((Pvoid_t)  (~0UL))      /* mainly for use here, see below    */
-#define PPJERR ((PPvoid_t) (~0UL))      /* functions that return PPvoid_t    */
+#define  PJERR ((Pvoid_t)  (~(size_t)0))      /* mainly for use here, see below    */
+#define PPJERR ((PPvoid_t) (~(size_t)0))      /* functions that return PPvoid_t    */
 
 // Convenience macro for when detailed error information (PJError_t) is not
 // desired by the caller; a purposely short name:

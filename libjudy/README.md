@@ -44,7 +44,9 @@ and the root [THIRD-PARTY.md](../THIRD-PARTY.md).
 
 Every change to these sources is documented in [PATCHES.md](PATCHES.md)
 and available as a git diff against the pristine import commit.
-Currently: none — the tree is pristine.
+Currently: P5 (the LLP64/Windows-x64 constant-width fixes). Files added
+by php-judy (wrappers, pre-generated tables) are additions, not
+modifications — see PATCHES.md.
 
 ## Build integration
 
