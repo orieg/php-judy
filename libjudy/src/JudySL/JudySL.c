@@ -17,6 +17,14 @@
 // ("len > WORDSIZE") is replaced by the equivalent !LASTWORD_BY_VALUE()
 // test on the index word just copied, the same test JudySLGet has always
 // relied on exclusively.  The len parameter is deleted outright.
+// Modified from Judy-1.0.5 by the php-judy project, 2026-08-18 (patch O4b --
+// see libjudy/PATCHES.md, issue #142): JudySLIns no longer takes a whole-key
+// STRLEN() up front, nor a tail STRLEN() before the shortcut-leaf equality
+// check -- STRCMP alone decides equality, the new-Index-terminates test uses
+// LASTWORD_BY_VALUE() (same equivalence as O4a), and the tail length is
+// computed only on the carry-down path that actually consumes it.  An
+// overwrite of an existing key drops from three passes over the key bytes
+// to one (the STRCMP).
 //
 //
 // This program is free software; you can redistribute it and/or modify it
@@ -386,7 +394,6 @@ JudySLIns(PPvoid_t PPArray, const uint8_t * Index, PJError_t PJError)
     PPvoid_t  PPArrayOrig = PPArray;    // for error reporting.
     const uint8_t *pos = Index;         // place in Index.
     const uint8_t *pos2 = (uint8_t *) NULL;     // old Index (SCL being moved).
-    Word_t    len;                      // bytes remaining.
 
 // Note:  len2 is set when needed and only used when valid, but this is not
 // clear to gcc -Wall, so initialize it here to avoid a warning:
@@ -413,7 +420,10 @@ JudySLIns(PPvoid_t PPArray, const uint8_t * Index, PJError_t PJError)
         return (PPJERR);
     }
 
-    len = STRLEN(Index);        // bytes remaining.
+// Note:  No whole-key STRLEN() here.  The remaining-tail length is computed
+// only where a shortcut leaf is actually appended (APPEND_SCL below), and
+// "new Index terminates in this word" is decided from the copied index word
+// (LASTWORD_BY_VALUE()), as in JudySLGet().
 
 // APPEND SHORTCUT LEAF:
 //
@@ -429,7 +439,7 @@ JudySLIns(PPvoid_t PPArray, const uint8_t * Index, PJError_t PJError)
         {
             if (Pscl == (Pscl_t) NULL)  // no SCL being carried down.
             {
-                APPEND_SCL(Pscl, PPArray, pos, len, PJError);   // returns if error.
+                APPEND_SCL(Pscl, PPArray, pos, STRLEN(pos), PJError);   // returns if error.
                 return (&(Pscl->scl_Pvalue));
             }
             // else do nothing here; see below.
@@ -451,15 +461,17 @@ JudySLIns(PPvoid_t PPArray, const uint8_t * Index, PJError_t PJError)
             Pscl = CLEAR_PSCL(*PPArray);
 
             pos2 = Pscl->scl_Index;     // note: pos2 is always word-aligned.
-            len2 = STRLEN(pos2);        // bytes remaining.
 
-//          first check if string is already inserted
+//          first check if string is already inserted; STRCMP alone decides
+//          (equal strings have equal lengths), so the tail length is only
+//          computed below, on the carry-down path that consumes it
 
-            if ((len == len2) && (STRCMP(pos, pos2) == 0))
+            if (STRCMP(pos, pos2) == 0)
                 return (&(Pscl->scl_Pvalue));
 
             *PPArray = (Pvoid_t)NULL;   // disconnect SCL.
 
+            len2 = STRLEN(pos2);        // bytes remaining.
             scl2 = SCLSIZE(len2);       // save for JudyFree
 
             // continue with *PPArray now clear, and Pscl, pos2, len2 set.
@@ -551,14 +563,13 @@ JudySLIns(PPvoid_t PPArray, const uint8_t * Index, PJError_t PJError)
 // Note that if it does, and an old SCL was being carried down, it must have
 // diverged by this point, and is already handled.
 
-        if (len <= WORDSIZE)
+        if (LASTWORD_BY_VALUE(indexword))
         {
             assert(Pscl == (Pscl_t) NULL);
             return (PPValue);           // is value for whole Index string.
         }
 
         pos += WORDSIZE;
-        len -= WORDSIZE;
         if (Pscl != (Pscl_t) NULL)      // meaningless unless Pscl is set,
         {                               // and pos2 is NULL otherwise --
             pos2 += WORDSIZE;           // NULL + WORDSIZE is undefined.
