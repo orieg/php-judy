@@ -1183,17 +1183,35 @@ type accepts the constructor argument and ignores it.
 ### Bounded reads
 
 2.5.0's ranged forms (`keys()`, `values()`, `toArray()`, `size()`) are covered by
-`api.range.*` in the suite as of this release, pinning the two claims the docs
-make: that `keys($lo, $hi)` beats `slice($lo, $hi)->keys()`, and that
-`size($lo, $hi)` beats `count(keys($lo, $hi))` on string keys. Those benchmarks
-were added alongside the 2.5.0 baseline, so their first CI-measured figures land
-with the next release comparison and are deliberately not quoted here yet — the
-numbers in this document come from Linux CI runs, never from a developer laptop.
+`api.range.*` in the suite, pinning the two claims the docs make: that
+`keys($lo, $hi)` beats `slice($lo, $hi)->keys()`, and that `size($lo, $hi)` beats
+`count(keys($lo, $hi))` on string keys.
+
+All figures `(measured)` on **php-judy 2.5.0**, PHP 8.4.24, Linux x86_64,
+500,000 elements, 7 iterations, median of runs. The window is the middle 10% of
+the key space. Run-wide median delta +0.13% against a PHP-array control of
++0.10% — clean, not contention-inflated.
+
+| Operation | Time | vs the alternative |
+| --- | ---: | ---: |
+| `keys($lo, $hi)` | 1.03 ms | — |
+| `slice($lo, $hi)->keys()` | 3.36 ms | **3.3x slower** |
+| PHP-array scan with a bounds test | 25.58 ms | 24.9x slower |
+| `size($lo, $hi)` on `STRING_TO_INT` | 4.86 ms | — |
+| `count($j->keys($lo, $hi))` | 6.02 ms | **1.24x slower** |
+
+Both documented claims hold. The `slice()` gap is the larger one and the easier
+mistake to make: `slice($lo, $hi)->keys()` copies the range into a whole new Judy
+array and then traverses that copy, so it pays for the sub-array twice. The
+`size()` gap is narrower because both sides walk the same range — the win is that
+`size()` allocates nothing, which the wall-clock number understates and which
+matters more as the range grows.
 
 Note that on integer keys `size($lo, $hi)` is O(1) — libJudy answers it from the
-population cache — so it is recorded as a 1000-call loop and is *not* compared
-against `count(keys(...))`. That comparison would be definitional rather than
-measured: an O(range) walk cannot beat an O(1) cache read at any size.
+population cache — so it is recorded as a 1000-call loop (0.73 ms per 1000 calls)
+and is *not* compared against `count(keys(...))`. That comparison would be
+definitional rather than measured: an O(range) walk cannot beat an O(1) cache
+read at any size.
 
 ---
 
