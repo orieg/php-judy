@@ -92,7 +92,7 @@ jobs:
           # Compare against the most recent stable release (release-over-
           # release regression detection). Bump this to the just-published
           # release on each release — see the "Releasing" section in README.
-          sudo pie install --skip-enable-extension orieg/judy:2.5.0 \
+          sudo pie install --skip-enable-extension orieg/judy:2.5.2 \
             --with-judy=/usr
           BASELINE_SO="$(php-config --extension-dir)/judy.so"
           echo "BASELINE_SO=$BASELINE_SO" >> "$GITHUB_ENV"

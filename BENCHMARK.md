@@ -43,13 +43,24 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 - **Hardware**: Tests run on modern x86_64 systems with sufficient RAM to avoid memory pressure
 - **Operating System**: Linux (Docker containers for consistency)
 - **PHP Version**: 8.x with Judy extension 2.4.2 — the release these figures were
-  measured on. They still describe 2.5.0: the release-over-release comparison run
-  on 2026-08-17 (interleaved arms, 5 groups x 5 rounds, PHP 8.4.24, Linux x86_64)
-  found **0 regressions** across the 69 shared benchmarks, a run-wide median delta
-  of **-0.04%** against a PHP-array control of +0.36%, and one improvement —
-  `adv.filter.int_to_int` **-12.1%** [-12.8%, -10.1%], which is the iterator-value
-  reuse landing. The figures below are therefore representative rather than merely
-  unrefuted. What 2.5.0 adds on top is measured separately in
+  measured on. They still describe **2.5.2**, carried forward by two
+  release-over-release comparisons, each interleaved (5 groups x 5 rounds x 2
+  arms, PHP 8.4.24, Linux x86_64) with a PHP-array control to catch runner
+  contention:
+
+  | Comparison | Run-wide median | Control | Regressions | Improvement |
+  | --- | --- | --- | --- | --- |
+  | 2.4.2 -> 2.5.0 | -0.04% | +0.36% | **0** | `adv.filter.int_to_int` -12.1% |
+  | 2.5.0 -> 2.5.2 | +0.21% | -0.22% | **0** | `api.setop.union.string_to_int` -11.9% |
+
+  So the figures below are representative rather than merely unrefuted. Two
+  changes worth naming because they touch the write and merge paths and could
+  plausibly have cost something: the embedded-NUL guard added in 2.5.1 (a
+  `memchr` on every string-key write) and the `mergeWith` slot reuse in 2.5.2.
+  **Neither shows a measurable regression**; the second shows up as the union
+  improvement above, that set operation running through the merge machinery.
+
+  What 2.5.x adds on top is measured separately in
   [The optimizeIteration mirror](#the-optimizeiteration-mirror-measured) and in
   the bounded-read benchmarks described there.
 - **Test Methodology**: Multiple iterations with statistical analysis (min/max/median/percentiles)
