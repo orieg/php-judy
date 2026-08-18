@@ -19,8 +19,8 @@
    <date>2026-08-18</date>
    <time>00:00:00</time>
    <version>
-      <release>2.5.1</release>
-      <api>2.5.1</api>
+      <release>2.5.2</release>
+      <api>2.5.2</api>
    </version>
    <stability>
       <release>stable</release>
@@ -28,17 +28,24 @@
    </stability>
    <license uri="http://www.php.net/license">PHP</license>
    <notes>
-- FIX: string keys containing an embedded NUL byte are now rejected with an
-  exception on all six string-keyed types, instead of being silently truncated
-  at the NUL. Previously STRING_TO_INT and STRING_TO_MIXED truncated the key, so
-  "ab\0cd" and "ab" collided and one value was destroyed with no signal; the
-  four *_HASH/*_ADAPTIVE types already rejected such keys on write but still
-  truncated them on every ordered and range operation (first/last/searchNext/
-  prev/slice/deleteRange and the bounds of keys/values/toArray/size), because
-  all six seek through the same JudySL key index. JudySL keys are NUL-terminated
-  by construction, so rejecting is the only correct behaviour. High-byte keys
-  (0x80-0xFF) are unaffected and remain binary-safe, including 0xFF prefix-carry
-  arithmetic. See MIGRATION_2.5.0.md.
+- PERF: mergeWith() no longer re-descends from the root for a key its own
+  cursor is already standing on. The slot-to-zval conversion is shared with the
+  descending read path so the two cannot drift, and the cursor's slot is reused
+  only where it genuinely holds the value: directly on the integer-keyed and
+  trie types, and on *_HASH / *_ADAPTIVE only when the payload is mirrored
+  (an optimizeIteration instance of STRING_TO_INT_HASH, or long-keyed
+  STRING_TO_INT_ADAPTIVE). Behaviour-preserving: the three new .phpt files pass
+  against the pre-change build too. **No performance number is claimed** — the
+  redundant descend is gone, but no benchmark accompanies the change and none
+  should be inferred pending a run on an idle host. baselines/latest.json and
+  BENCHMARK.md figures are untouched.
+- DOC: API.md now documents that toArray() coerces integer-looking string keys
+  on string-keyed types ("42" comes back as int 42, while "07" and " 42" stay
+  strings) and that feeding such a key back as an offset throws. The warning
+  reached the stub and AGENTS.md in 2.5.1 but not API.md, which is the reference
+  composer.json advertises.
+- DOC: BENCHMARK.md records why php-code-coverage and Infection were examined
+  and rejected as Judy fits.
    </notes>
    <contents>
       <dir name="/">
@@ -341,6 +348,21 @@
       <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
    </extsrcrelease>
    <changelog>
+      <release>
+         <date>2026-08-18</date>
+         <version>
+            <release>2.5.1</release>
+            <api>2.5.1</api>
+         </version>
+         <stability>
+            <release>stable</release>
+            <api>stable</api>
+         </stability>
+         <notes>
+- Embedded NUL bytes in string keys are rejected on all six string-keyed types
+  instead of silently truncating; see the 2.5.1 release notes.
+         </notes>
+      </release>
       <release>
          <date>2026-08-17</date>
          <version>
