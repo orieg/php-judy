@@ -1376,20 +1376,23 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 			}
 		}
 	} else if (intern->type == TYPE_STRING_TO_INT_HASH) {
-		Pvoid_t     *HValue;
 		Word_t key_len = (Word_t)Z_STRLEN_P(pstring_key);
 
-		JHSG(HValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-		if (HValue != NULL && HValue != PJERR) {
-			/* No zval to free — value is stored inline as Word_t */
-			JHSD(Rc_int, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
-			if (Rc_int == 1) {
-				int Rc_del = 0;
-				JSLD(Rc_del, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
-				if (Rc_del == 1) {
-					intern->counter--;
-					judy_string_bytes_sub(intern, key_len);
-				}
+		/* No zval to free — the value is stored inline as a Word_t — so
+		 * nothing here needs to read the slot before dropping it. Delete
+		 * straight away rather than probing with JHSG first: JudyHSDel is
+		 * itself the existence test, returning 1 only when it removed a key
+		 * and 0 when the key was absent, which is exactly the signal the
+		 * key_index removal and the counter below are gated on. Probing
+		 * first would cost an extra full hash pass over the key plus two
+		 * JudyL descents for an answer JHSD already gives us. */
+		JHSD(Rc_int, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key), key_len);
+		if (Rc_int == 1) {
+			int Rc_del = 0;
+			JSLD(Rc_del, intern->key_index, (uint8_t *)Z_STRVAL_P(pstring_key));
+			if (Rc_del == 1) {
+				intern->counter--;
+				judy_string_bytes_sub(intern, key_len);
 			}
 		}
 	}
