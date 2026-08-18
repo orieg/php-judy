@@ -1,4 +1,9 @@
-# Migrating to php-judy 2.5.0
+# Migrating to php-judy 2.5.x
+
+> **2.5.1** adds one further change, in §6: string keys containing an embedded
+> NUL byte are now rejected instead of silently truncated. If you store binary
+> keys — serialized payloads, packed tuples, raw hash digests — read that
+> section. Everything else below applies from 2.5.0.
 
 2.5.0 changes what a **negative integer offset** means on the write path, and
 makes an append that has run out of key space fail loudly. Both changes are
@@ -225,6 +230,75 @@ and ignores it. Call `isIterationOptimized()` to see what actually took effect.
 - `map()` and `filter()` now preserve negative keys. In 2.x they relocated
   them, so a key-preserving transform silently moved entries.
 
+## 6. Embedded NUL bytes in string keys now throw (2.5.1)
+
+Added in **2.5.1**. Like §1 and §3 this had no runtime signal — it silently
+destroyed data rather than reporting anything.
+
+### Before (2.5.0 and earlier)
+
+`STRING_TO_INT` and `STRING_TO_MIXED` truncated a key at its first NUL byte, so
+two distinct PHP strings collided and one value was lost:
+
+```php
+$j = new Judy(Judy::STRING_TO_INT);
+$j["ab\x00cd"] = 1;
+$j["ab"]       = 2;
+
+$j->count();        // 1   <-- two keys written, one survived
+$j->keys();         // ["ab"]
+$j["ab\x00cd"];     // 2   <-- reads back the value written under "ab"
+```
+
+The four `*_HASH` and `*_ADAPTIVE` types already rejected such a key **on
+write** — but only on write. Every ordered and range operation still truncated
+it, because all six types seek through the same JudySL key index:
+
+```php
+$h = new Judy(Judy::STRING_TO_INT_HASH);
+$h["ab"] = 1; $h["zz"] = 2;
+
+$h->first("ab\x00cd");             // "ab"      <-- wrong; "ab" < "ab\0cd"
+$h->slice("ab\x00cd", "zz")->keys(); // ["ab","zz"]  <-- includes "ab"
+$h->deleteRange("ab\x00cd", "zz"); // deletes "ab"
+```
+
+### After (2.5.1)
+
+All six types throw, on every path that takes a string key — `offsetSet`,
+`offsetGet`, `offsetExists`, `offsetUnset`, `increment()`, `fromArray()`,
+`putAll()`, `getAll()`, `slice()`, `deleteRange()`, `first()`/`last()`/
+`searchNext()`/`prev()`, and the bounds of `keys()`/`values()`/`toArray()`/
+`size()`.
+
+### Why rejecting, rather than supporting
+
+JudySL keys are NUL-terminated C strings by construction. That is precisely why
+`JudyHS` (length-prefixed) can hold arbitrary bytes and `JudySL` cannot, and it
+is not something the extension can work around. Rejecting loudly is the only
+correct option once truncation is off the table.
+
+### High bytes are unaffected
+
+Keys containing `0x80`-`0xFF` were always binary-safe and remain so: they store,
+round-trip, and sort in unsigned byte order. The `0xFF` prefix-successor carry
+arithmetic in `examples/symbol-table-prefix.php` is unchanged. **Only `0x00` is
+rejected.**
+
+### What to check
+
+If you build keys from `pack()`, `serialize()`, raw hash digests (`hash(...,
+true)`), or any binary payload, they can contain a NUL. Those keys were already
+being corrupted — silently — so the exception is surfacing existing data loss
+rather than creating a new failure:
+
+```
+grep -rn 'pack(\|hash([^)]*,\s*true\|serialize(' --include='*.php' .
+```
+
+Encode such keys before use — `bin2hex()`, `base64_encode()`, or any NUL-free
+encoding — or switch that array to an integer-keyed type.
+
 ## Migration steps
 
 1. **Find writes whose index can be negative.** Grep for array-subscript writes
@@ -263,7 +337,14 @@ and ignores it. Call `isIterationOptimized()` to see what actually took effect.
    grep -rn 'index_start:\|index_end:' --include='*.php' .
    ```
 
-7. **Find `size()` calls that pass string bounds** (§3). They were silently
+7. **Check for binary string keys** (§6, 2.5.1). Keys from `pack()`,
+   `serialize()` or raw digests may contain a NUL and were silently truncated:
+
+   ```
+   grep -rn 'pack(\|hash([^)]*,\s*true\|serialize(' --include='*.php' .
+   ```
+
+8. **Find `size()` calls that pass string bounds** (§3). They were silently
    returning the whole-array count and now return the range count:
 
    ```
