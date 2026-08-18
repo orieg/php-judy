@@ -1,3 +1,11 @@
+// Modified for php-judy on 2026-08-18 (patch P4, out-of-scope array read
+// in the OOM recovery path -- see libjudy/PATCHES.md, issues #127/#142):
+// j__udyJLL2toJLB1 (JudyL only): pv[] hoisted out of the subexpanse loop.
+// It was declared inside the loop body while the out-of-memory recovery
+// (while (subexp--)) read pv[] entries written by earlier iterations --
+// lifetime-expired objects, formally indeterminate values passed to
+// j__udyLFreeJV() as pointer + size.
+//
 // Copyright (C) 2000 - 2002 Hewlett-Packard Company
 //
 // This program is free software; you can redistribute it and/or modify it
@@ -338,14 +346,19 @@ JUDYLCODE(int	   subexp;)
 #ifdef JUDYL
 
 // Build LeafVs from bitmap:
+//
+// Note:  pv[] must live OUTSIDE the loop:  the out-of-memory recovery
+// below (while (subexp--)) reads entries written by earlier iterations.
 
-	for (subexp = 0; subexp < cJU_NUMSUBEXPL; ++subexp)
 	{
 	    struct _POINTER_VALUES
 	    {
 		Word_t pv_Pop1;		// size of value area.
 		Pjv_t  pv_Pjv;		// raw pointer to value area.
 	    } pv[cJU_NUMSUBEXPL];
+
+	for (subexp = 0; subexp < cJU_NUMSUBEXPL; ++subexp)
+	{
 
 // Get the population of the subexpanse, and if any, allocate a LeafV:
 
@@ -385,6 +398,7 @@ JUDYLCODE(int	   subexp;)
 
 	    } // populated subexpanse.
 	} // each subexpanse.
+	} // pv[] scope.
 
 #endif // JUDYL
 
