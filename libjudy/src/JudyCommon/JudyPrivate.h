@@ -1,3 +1,10 @@
+// Modified for php-judy on 2026-08-18 (patch O1, hardware popcount --
+// see libjudy/PATCHES.md, issue #142): j__udyCountBits{B,L} gain
+// hardware-popcount arms at the existing HP-UX/Itanium seam, for x86-64
+// gcc/clang under __POPCNT__ (i.e. -mpopcnt, probed at configure), for
+// arm64 (base-ISA cnt, no flag needed), and for MSVC x64 (__popcnt,
+// POPCNT assumed per Nehalem-2008+). Builds defining none of those keep
+// the stock portable bit-counting code, textually unchanged.
 // Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
 // correctness -- see libjudy/PATCHES.md, issues #127/#142):
 // cJU_ALLONES, JU_LEASTBYTESMASK and JU_BITPOSMASKB/L use Word_t-width constants instead of UL/L constants that truncate or sign-extend on LLP64.
@@ -626,6 +633,38 @@ static inline BITMAPL_t j__udyCountBitsL(BITMAPL_t word)
         __asm__ ("popcnt %0=%1" : "=r" (result) : "r" (word));
         return(result);
 }
+
+#elif defined(__POPCNT__)
+
+// x86-64 gcc/clang compiling with -mpopcnt (php-judy's configure probes the
+// flag and appends it to the vendored-only CFLAGS; without it __POPCNT__ is
+// not predefined, the builtins would emit a libgcc call slower than the
+// portable code below, and this arm is skipped).  The casts zero-extend the
+// narrower BITMAP*_t configurations; the results are 6-bit counts, always in
+// range of the return types.
+
+#define j__udyCountBitsB(WORD)  ((BITMAPB_t)__builtin_popcount((uint32_t)(WORD)))
+#define j__udyCountBitsL(WORD)  ((BITMAPL_t)__builtin_popcountll((uint64_t)(WORD)))
+
+#elif defined(__aarch64__)
+
+// arm64 gcc/clang: the builtins lower to the base-ISA cnt/addv (or cnt/uaddlv)
+// sequence at any optimization level -- no feature flag required, so this arm
+// is unconditional on aarch64.
+
+#define j__udyCountBitsB(WORD)  ((BITMAPB_t)__builtin_popcount((uint32_t)(WORD)))
+#define j__udyCountBitsL(WORD)  ((BITMAPL_t)__builtin_popcountll((uint64_t)(WORD)))
+
+#elif defined(_MSC_VER) && defined(_M_X64)
+
+// MSVC x64: __popcnt/__popcnt64 emit POPCNT unconditionally; hardware POPCNT
+// is assumed present (every x86-64 CPU since Nehalem, 2008 -- the same
+// assumption MSVC users make for /arch defaults on x64 workloads).
+
+#include <intrin.h>
+
+#define j__udyCountBitsB(WORD)  ((BITMAPB_t)__popcnt((unsigned int)(WORD)))
+#define j__udyCountBitsL(WORD)  ((BITMAPL_t)__popcnt64((unsigned __int64)(WORD)))
 
 
 #else // No instructions available, use inline code
