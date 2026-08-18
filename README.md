@@ -77,7 +77,9 @@ BACKEND_EVALUATION.md  Judy vs ART/Masstree/HOT/Wormhole as the C backend
 MIGRATION_2.2.0.md   Migration guide for version 2.2.0
 MIGRATION_2.5.0.md   Migration guide for the 2.5.x line
 LICENSE              The PHP License used by this project
+THIRD-PARTY.md       License notices for bundled third-party code
 
+libjudy/             Bundled libJudy sources (LGPL-2.1-or-later, not compiled yet)
 tests/               Unit and regression tests (.phpt)
 examples/            Runnable demos (see examples/README.md) + benchmark suite
 research/            Standalone C harnesses backing measured claims (not shipped)
@@ -740,6 +742,10 @@ Then:
 ## License
 
 This project is licensed under the PHP License - see the [LICENSE](LICENSE) file for details.
+
+The source tree also bundles libJudy under `libjudy/`, licensed
+LGPL-2.1-or-later — see [THIRD-PARTY.md](THIRD-PARTY.md) and
+[libjudy/COPYING](libjudy/COPYING).
 
 ## Contributing
 
