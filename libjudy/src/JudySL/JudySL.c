@@ -1,6 +1,16 @@
 // Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
 // correctness -- see libjudy/PATCHES.md, issues #127/#142):
 // LASTWORD_BY_VALUE and JudySLPrevSub use Word_t-width constants instead of 0xffL / ~0UL.
+// Modified for php-judy on 2026-08-18 (patch P6, latent-UB hygiene -- see
+// libjudy/PATCHES.md, issues #127/#142):
+// - 32-bit COPYSTRINGtoWORD casts each byte to Word_t BEFORE shifting
+//   (uint8_t promotes to int, so byte << 24 overflowed int for bytes >=
+//   0x80 -- C99 6.5.7p4 UB; the 64-bit sibling already had the casts);
+// - the assert guard reads "#ifndef DEBUG", the library's own convention
+//   (JudyPrivate.h), instead of the misspelled "#ifndef NDEDUG" that
+//   compiled every assert in this file out unconditionally;
+// - JudySLIns advances pos2/len2 only while a shortcut leaf is being
+//   carried down (pos2 is NULL otherwise, and NULL + WORDSIZE is UB).
 //
 //
 // This program is free software; you can redistribute it and/or modify it
@@ -53,7 +63,7 @@
 #include <string.h>                     // for strcmp(), strlen(), strcpy()
 #include <Judy.h>
 
-#ifndef NDEDUG
+#ifndef DEBUG
 #define NDEBUG 1
 #endif
 #include <assert.h>
@@ -159,12 +169,12 @@
     do                                                  \
     {                                                   \
         uint8_t chr;                                    \
-        WORD =       (STR)[0] << 24;                    \
+        WORD = (Word_t)(STR)[0] << 24;                  \
         if (WORD == 0) break;                           \
         if (!(chr  = (STR)[1])) break;                  \
-        WORD += (Word_t)(chr << 16);                    \
+        WORD += ((Word_t)(chr) << 16);                  \
         if (!(chr  = (STR)[2])) break;                  \
-        WORD += (Word_t)(chr << 8) + (STR)[3];          \
+        WORD += ((Word_t)(chr) << 8) + (STR)[3];        \
     } while(0);                                         \
 }
 
@@ -543,8 +553,11 @@ JudySLIns(PPvoid_t PPArray, const uint8_t * Index, PJError_t PJError)
 
         pos += WORDSIZE;
         len -= WORDSIZE;
-        pos2 += WORDSIZE;               // useless unless Pscl is set.
-        len2 -= WORDSIZE;
+        if (Pscl != (Pscl_t) NULL)      // meaningless unless Pscl is set,
+        {                               // and pos2 is NULL otherwise --
+            pos2 += WORDSIZE;           // NULL + WORDSIZE is undefined.
+            len2 -= WORDSIZE;
+        }
 
         PPArray = PPValue;              // each value -> next array.
     }                                   // while.

@@ -1,3 +1,11 @@
+// Modified for php-judy on 2026-08-18 (patch P6, latent-UB hygiene -- see
+// libjudy/PATCHES.md, issues #127/#142): the top-level BranchL digit scan
+// in j__udyDelWalk uses the bounded j__udySearchLeaf1 (as the insert path
+// does) instead of an assert-only linear scan whose bound vanished under
+// NDEBUG -- a corrupt tree ran the scan off the end of jbl_Expanse[].
+// Not-found now reports JU_ERRNO_CORRUPT instead of deleting through an
+// out-of-bounds offset.
+//
 // Copyright (C) 2000 - 2002 Hewlett-Packard Company
 //
 // This program is free software; you can redistribute it and/or modify it
@@ -366,10 +374,20 @@ BranchLKeep:
             assert(numJPs > 0);
             DBGCODE(parentJPtype = JU_JPTYPE(Pjp);)
 
-// Search for a match to the digit (valid Index => must find digit):
+// Search for a match to the digit (valid Index => must find digit), with an
+// explicit bound (the insert path uses the same bounded search); under
+// NDEBUG the assert-only scan had no bound at all, so a corrupt tree ran
+// off the end of jbl_Expanse[]:
 
-            for (offset = 0; (Pjbl->jbl_Expanse[offset]) != digit; ++offset)
-                assert(offset < numJPs - 1);
+            offset = j__udySearchLeaf1((Pjll_t) (Pjbl->jbl_Expanse), numJPs,
+                                       digit);
+            assert(offset >= 0);        // digit must be present.
+
+            if (offset < 0)             // corrupt tree; do not delete blindly.
+            {
+                JU_SET_ERRNO_NONNULL(Pjpm, JU_ERRNO_CORRUPT);
+                return(-1);
+            }
 
             Pjp = (Pjbl->jbl_jp) + offset;
 
