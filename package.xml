@@ -90,6 +90,7 @@
          <file name="examples/benchmarks/run_comprehensive_benchmarks.php" role="doc" />
          <file name="baselines/latest.json" role="doc" />
          <file md5sum="abc7eb31bb88857463ec941514e5f019" name="tests/001.phpt" role="test" />
+         <file name="tests/arrayaccess_void_return_001.phpt" role="test" />
          <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />
          <file md5sum="9f3363cc4c6d15cb52184351cf710fd7" name="tests/bitset_002.phpt" role="test" />
          <file md5sum="e859b3b92086bc165b3ec98800920f03" name="tests/bitset_003.phpt" role="test" />

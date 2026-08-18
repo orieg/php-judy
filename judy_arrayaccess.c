@@ -19,7 +19,7 @@
 #include "php_judy.h"
 #include "judy_arrayaccess.h"
 
-/* {{{ proto int Judy::offsetSet(mixed offset, mixed value)
+/* {{{ proto void Judy::offsetSet(mixed offset, mixed value)
    Set the value at the given offset in the Judy Array */
 PHP_METHOD(Judy, offsetSet)
 {
@@ -30,14 +30,18 @@ PHP_METHOD(Judy, offsetSet)
 		Z_PARAM_ZVAL(value)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if (judy_object_write_dimension_helper(getThis(), offset, value) == SUCCESS) {
-		RETURN_TRUE;
-	}
-	RETURN_FALSE;
+	/* ArrayAccess::offsetSet() is `void`, so nothing may be returned here:
+	   returning a bool under an IS_VOID arginfo trips
+	   zend_verify_internal_return_type() on a debug build. The helper's
+	   FAILURE is not lost — every failure it can report has already thrown
+	   (bad key type, NUL in key, over-long key, keyless append on a
+	   string-keyed array) or is an allocation failure userland cannot act
+	   on. judy_object_write_dimension() discards it the same way. */
+	judy_object_write_dimension_helper(getThis(), offset, value);
 }
 /* }}} */
 
-/* {{{ proto int Judy::offsetUnset(mixed offset)
+/* {{{ proto void Judy::offsetUnset(mixed offset)
    Unset the given offset in the Judy Array */
 PHP_METHOD(Judy, offsetUnset)
 {
@@ -47,10 +51,12 @@ PHP_METHOD(Judy, offsetUnset)
 		Z_PARAM_ZVAL(offset)
 	ZEND_PARSE_PARAMETERS_END();
 
-	if (judy_object_unset_dimension_helper(getThis(), offset) == SUCCESS) {
-		RETURN_TRUE;
-	}
-	RETURN_FALSE;
+	/* `void`, as in offsetSet() above. The discarded bool was also actively
+	   misleading: the helper reports SUCCESS for a no-op delete of an absent
+	   key but FAILURE when neither backing array is allocated yet, so it read
+	   as "false on a fresh Judy, true on a populated one" — internal
+	   allocation state, not whether anything was unset. */
+	judy_object_unset_dimension_helper(getThis(), offset);
 }
 /* }}} */
 
