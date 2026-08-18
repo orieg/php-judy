@@ -91,6 +91,55 @@ and the payload comparison are driven from `key_index` outwards. A value-store
 entry that `key_index` does not list is reachable only through the population
 counter or as a valgrind leak.
 
+### Building against a debug PHP
+
+A PHP built with `--enable-debug` compiles in cross-checks that a release build
+drops, among them the arginfo checks: what an internal function actually
+returns, and how it parses its parameters, are compared against what its
+arginfo declares. They catch a class of bug nothing else here sees —
+`offsetSet()`/`offsetUnset()` were declared `IS_VOID` while returning a bool,
+which aborts *every* call under such a PHP, and the whole existing test suite
+passed anyway.
+
+`shivammathur/setup-php` ships no debug builds, so this means compiling PHP.
+From a PHP source tree:
+
+```sh
+./configure --enable-debug --disable-all --enable-cli --without-pear \
+  --prefix="$HOME/php-debug"
+make -j"$(nproc)" && make install
+```
+
+`--disable-all` is enough for this suite: `json` and `pcre` cannot be disabled
+and are the only extensions the `.phpt` files use. Then build the extension
+against it — a phpize build inherits `PHP_DEBUG` from the installed PHP, but
+pass `--enable-debug` explicitly so the intent does not rest on inheritance:
+
+```sh
+phpize --clean && "$HOME/php-debug/bin/phpize"
+./configure --with-php-config="$HOME/php-debug/bin/php-config" \
+  --with-judy=/usr --enable-debug
+make
+make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
+```
+
+Check the PHP you built really is a debug one before trusting a clean run:
+`php -r 'var_dump(PHP_DEBUG);'` must print `bool(true)` and `php -i` must say
+`Debug Build => yes`. Note also that the extension only compiles against such a
+PHP at all because `config.m4` accepts `PHP_DEBUG=1` as well as `"yes"` —
+PHP normalises the value before `config.m4` runs, and the production branch
+adds `-DNDEBUG`, which `Zend/zend_portability.h` rejects with a hard `#error`.
+
+CI runs this as the `debug-php-assertions` job, which compiles the PHP once and
+caches it on its version. One test is excluded there for now:
+`debug_info_empty_001.phpt` calls `new Judy()`, and `Judy::__construct`
+declares `$type` required in its arginfo while returning early without calling
+`zend_parse_parameters` at zero arguments, which a debug PHP rejects with
+`Arginfo / zpp mismatch during call of Judy::__construct()`. The job's last
+step re-runs that one test and requires it to keep failing *for that reason*,
+so the exclusion turns CI red the moment the constructor is fixed rather than
+quietly outliving the bug.
+
 ## Debugging the extension itself (lldb)
 
 This is the C-side story — a crash, a core dump, or a stop inside `php_judy.c`
