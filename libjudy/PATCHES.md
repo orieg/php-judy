@@ -17,6 +17,13 @@ modification since that import follows one discipline:
 No reformatting, no drive-by cleanups: a diff against the pristine
 import must show only deliberate, documented changes.
 
+The pre-generated table files (`src/Judy1/Judy1Tables.c`,
+`src/JudyL/JudyLTables.c`) and the build shims under `src/wrappers/`
+are php-judy **additions**, not modifications of upstream files —
+upstream generates its equivalents at build time — so they carry their
+own provenance headers instead of §2(b) change notices and do not
+appear in the ledger below.
+
 ## Patches
 
 | Patch | Category | Files | Why | Date | Issue |

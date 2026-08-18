@@ -34,9 +34,11 @@ and the root [THIRD-PARTY.md](../THIRD-PARTY.md).
 - `src/JudyHS/JudyHS.h` — a standalone compatibility header for
   pre-JudyHS `Judy.h`; nothing includes it (the `#include` in
   `JudyHS.c` is commented out upstream)
-- The Judy1/JudyL wrapper sources and generated tables — upstream
-  generates these at build time; Stage 1 of the vendoring plan adds
-  them as clearly-marked non-upstream files
+- Upstream's build-time-generated Judy1/JudyL wrapper sources and
+  size-class tables — php-judy ships its own clearly-marked equivalents
+  instead: the build shims under `src/wrappers/` and the pre-generated
+  `src/Judy1/Judy1Tables.c` / `src/JudyL/JudyLTables.c` (see the
+  provenance headers in those files)
 
 ## Modifications
 
