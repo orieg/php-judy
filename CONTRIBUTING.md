@@ -296,9 +296,12 @@ Reading the report:
   threshold, i.e. there is no measured separation.
 - **`unstable`** — the benchmark's own arms scattered by more than the effect
   being claimed, so it was not evaluated. Expect a few on a busy runner.
-- **"Comparison contaminated"** — the run-wide median delta moved past ±5%,
-  meaning the whole suite shifted together. That is a slower runner, not slower
-  code; individual flags are suppressed and the job should be re-run.
+- **"Comparison contaminated"** — the pure-PHP control (which runs no judy
+  code) moved past ±5%, meaning the runner itself changed speed under the
+  measurement; individual flags are suppressed and the job should be re-run.
+  A uniform shift of the judy benchmarks over a flat control is **not**
+  contamination — that is a real build-wide change (e.g. a libJudy-wide win
+  or regression) and the per-row verdicts stand.
 
 To reproduce a comparison locally:
 

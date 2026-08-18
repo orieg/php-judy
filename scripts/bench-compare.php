@@ -27,12 +27,18 @@
  *     doing during round r hits both members of that round's pair, so it
  *     divides out of the ratio instead of accumulating into a delta between
  *     two independently-estimated medians.
- *  4. Computes the run-wide median delta as a contamination estimate. A clean
- *     run centres near 0%; a run-wide median past the threshold means the
- *     runner state moved under the measurement, and the whole comparison is
- *     marked contaminated rather than emitting a page of individual flags.
- *  5. Divides each benchmark's ratio by that run-wide median, so a benchmark is
- *     only flagged when it moved differently from everything else in the run.
+ *  4. Uses the PHP-array control rows as the contamination detector. The
+ *     control runs no judy code, so it moves only when the runner itself
+ *     changed speed; when its median delta passes the threshold the whole
+ *     comparison is marked contaminated rather than emitting a page of
+ *     individual flags. The .judy run-wide median is NOT the detector: a
+ *     uniform .judy shift over a flat control is a real, build-wide change
+ *     (a libJudy-wide win or regression moves every cell together) and must
+ *     reach the per-cell verdicts. Only when no control row clears the
+ *     min-ms floor does the .judy median fall back to being the detector.
+ *  5. Divides each benchmark's ratio by the runner movement the control
+ *     measured, so runner speed divides out of every cell while whatever the
+ *     extension really did — uniform or not — stays in.
  *
  * A benchmark is flagged only when the *whole* drift-adjusted CI clears the
  * threshold — a point estimate past the threshold with a CI straddling it is
@@ -470,10 +476,27 @@ foreach ($ids as $id) {
 
 // ── Run-wide drift / contamination ──────────────────────────────────────────
 
-$drift        = $raw_deltas ? median($raw_deltas) : 0.0;
-$php_drift    = $php_deltas ? median($php_deltas) : null;
-$contaminated = abs($drift) > $drift_max;
-$scale        = 1.0 + $drift / 100.0;   // multiplicative common-mode factor
+$drift     = $raw_deltas ? median($raw_deltas) : 0.0;
+$php_drift = $php_deltas ? median($php_deltas) : null;
+
+// The control decides contamination. Thresholding the .judy median instead
+// would read any uniform shift as runner noise — muting a build-wide win and,
+// worse, reporting a build-wide regression as "same" with CI green.
+if ($php_drift === null) {
+    // No control row cleared the min-ms floor; without a second read on the
+    // runner, a run-wide shift can only be treated as runner movement.
+    $contaminated = abs($drift) > $drift_max;
+    $common_mode  = $drift;
+} else {
+    $contaminated = abs($php_drift) > $drift_max;
+    // Divide out what the control measured, not the .judy median: dividing by
+    // the .judy median re-centres the population on itself and erases exactly
+    // the uniform real change the control just vouched for. Under
+    // contamination the flags are suppressed anyway, so there the .judy
+    // median stays the better re-centring for the diagnostic numbers.
+    $common_mode  = $contaminated ? $drift : $php_drift;
+}
+$scale = 1.0 + $common_mode / 100.0;   // multiplicative common-mode factor
 
 $counts = ['faster' => 0, 'slower' => 0, 'same' => 0, 'unstable' => 0,
            'new' => count($new), 'removed' => count($removed)];
@@ -592,8 +615,11 @@ $result = [
     'drift' => [
         'median_delta_pct'             => round($drift, 2),
         'php_control_median_delta_pct' => $php_drift === null ? null : round($php_drift, 2),
+        'detector'                     => $php_drift === null ? 'judy_median_fallback' : 'php_control',
+        'common_mode_pct'              => round($common_mode, 2),
         'contaminated'                 => $contaminated,
         'sample_count'                 => count($raw_deltas),
+        'php_control_sample_count'     => count($php_deltas),
     ],
     'counts'     => $counts,
     'benchmarks' => $rows,
@@ -614,7 +640,11 @@ printf(
     "Run-wide median delta: %+.2f%% (PHP-array control %s) -> %s\n",
     $drift,
     $php_drift === null ? 'n/a' : sprintf('%+.2f%%', $php_drift),
-    $contaminated ? 'CONTAMINATED, flags suppressed' : 'clean'
+    $contaminated
+        ? ($php_drift === null
+            ? 'CONTAMINATED (no usable control; run-wide shift), flags suppressed'
+            : 'CONTAMINATED (control moved), flags suppressed')
+        : 'clean'
 );
 printf(
     "Summary: %d faster, %d regressions, %d unchanged, %d unstable, %d new, %d removed\n",
