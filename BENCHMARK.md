@@ -895,6 +895,82 @@ concurrent runs would all read.
 It is also the same reason the classmap rejection above holds: OPcache's shared
 memory is precisely the property Judy does not have.
 
+### ❌ A Judy-backed store inside `sebastian/php-code-coverage`
+
+The data-structure thesis holds and the packaging does not. Verified against the
+upstream source rather than recalled.
+
+Through 14.2.x the processed shape was
+`array<non-empty-string, array<positive-int, null|list<TestIdType>>>` — file, then
+line, then a list of test-identifier **strings**, which is what makes a full-suite
+coverage run exhaust `memory_limit`. In **14.3.0 (tagged 2026-08-07)** it became
+`array<non-empty-string, array<positive-int, null|array<TestIndexType, positive-int>>>`:
+test ids interned to integers (`testIdToIndex`, `nextTestIndex`) and per-line values
+changed from id lists to **hit counts**. Driven by issue #1090, where `.cov` files
+grew 8 MB to 467 MB and broke paratest; the serialization format was bumped v1 to v2.
+
+So test-id interning — one of the four properties the packed-key design in
+[`examples/coverage-index.php`](examples/coverage-index.php) relies on — is now
+upstream, in plain PHP arrays, with no extension involved.
+
+**Three reasons it still does not become a package**, none of which is about the
+data structure:
+
+- **No integration seam.** `CodeCoverage` is `final` and holds a private
+  `ProcessedCodeCoverageData`, which is itself `final`, marked
+  `@internal This class is not covered by the backward compatibility promise`, and
+  reshaped in a *minor* release. `src/` contains two interfaces and neither is a
+  data store. A third party cannot implement anything — fork or patch only.
+- **A fork wins nothing anyway.** Every report path calls `lineCoverage()` and
+  materialises the entire nested array; `Node\Builder` then builds a second full
+  tree over it. Peak becomes *array size plus Judy size* — strictly worse than
+  today. The memory win only exists while the data never becomes a PHP array, and
+  rendering anything turns it into one.
+- **The maintainer has ruled on the problem.** Issue #737 ("streaming coverage data
+  to file at runtime"), opened because reporting "might run out of gigabytes",
+  was closed 2026-04-24 with: partition the suite, `--coverage-php` per partition,
+  merge with PHPCOV, "I do not think that changes to php-code-coverage are needed
+  here."
+
+The strongest competing mitigation is not `memory_limit` either. ParaTest #924 —
+754k LOC, 2 GB `.cov` per worker, >20 GB merging — was answered with precise
+`#[CoversClass]` / `#[CoversMethod]` usage, which cuts the *number of pairs* and can
+cut it by far more than a bytes-per-pair win. It competes with this idea rather than
+composing with it.
+
+**What would reopen it:** the maintainer's own stated intent on #1090 to split
+`CodeCoverage` into a data object and a control object. If that lands *with an
+interface*, the seam exists. A per-file or streaming accessor replacing
+`lineCoverage(): array` on the report path would also change the answer — without
+one, no store can hold the peak down, whatever it is made of.
+
+### ❌ Infection's mutation-coverage index
+
+Rejected for the same two structural reasons, plus a third that is decisive on its
+own. Verified against `infection/infection` at 0.35.0.
+
+**It does not consume `php-code-coverage`.** Infection requires `sebastian/diff`
+only, reads PHPUnit's **XML** coverage report (`index.xml` plus one file per source
+file), and re-parses it into its own objects. So none of the 14.3.0 interning work
+above reaches it, and there is no shared representation to build on.
+
+- **The seam exists but is not injectable.** `Tracer`, `TraceProvider` and `Trace`
+  are interfaces — and all three are `@internal`. `Container` is `final`, its
+  `offsetSet` is `private`, `withValues()` accepts only scalar CLI options, and
+  `Container::create()` hard-wires `Tracer` to the XML-coverage chain with no
+  branch. The sanctioned extension points are enumerated in
+  `ProjectCodeProvider::EXTENSION_POINTS` and enforced by an architecture test;
+  coverage and tracing are not among them.
+- **It materialises and never evicts.** `TraceProviderAdapterTracer::$indexedTraces`
+  is written and never `unset`. `TestLocations` returns its line map **by
+  reference**, explicitly for performance. A Judy store would sit beside that array,
+  not replace it.
+- **The scale is wrong.** `TestLocations` is built **per source file** — hundreds of
+  integer keys, not millions. That is squarely inside the "avoid Judy below ~100k
+  elements with random access" rule above, the values are objects (so `INT_TO_MIXED`
+  stores the same zvals), and the hot lookup is `$byLine[$line] ?? []`, not a range
+  query — so the bounded-read primitive does not apply either.
+
 ### ✅ What does fit
 
 Kept short on purpose — the rejections above are the point of this section.
