@@ -340,6 +340,7 @@
          <file name="libjudy/src/JudyCommon/JudyMallocIF.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyMemActive.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyMemUsed.c" role="src" />
+         <file name="libjudy/src/JudyCommon/JudyNoInline.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyPrevNext.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyPrevNextEmpty.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyPrintJP.c" role="src" />

@@ -29,7 +29,7 @@ if (PHP_JUDY != "no") {
 		// has no -O3/LTO equivalent hazard here (#131 is a gcc -O3
 		// miscompile), but the default /O2 is all they get.
 
-		ADD_SOURCES(configure_module_dirname + "\\libjudy\\src\\JudyCommon", "JudyMalloc.c", "judy");
+		ADD_SOURCES(configure_module_dirname + "\\libjudy\\src\\JudyCommon", "JudyMalloc.c JudyNoInline.c", "judy");
 		ADD_SOURCES(configure_module_dirname + "\\libjudy\\src\\Judy1", "Judy1Tables.c", "judy");
 		ADD_SOURCES(configure_module_dirname + "\\libjudy\\src\\JudyL", "JudyLTables.c", "judy");
 		ADD_SOURCES(configure_module_dirname + "\\libjudy\\src\\JudySL", "JudySL.c", "judy");
