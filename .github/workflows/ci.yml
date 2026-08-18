@@ -28,9 +28,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Install Judy library
-        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
-
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -38,9 +35,11 @@ jobs:
           coverage: none
 
       - name: Build the extension
+        # No --with-judy: the bundled libJudy (libjudy/) is the default build,
+        # so this job also proves the tree builds with no system libJudy at all.
         run: |
           phpize
-          ./configure --with-judy=/usr
+          ./configure
           # Fail the build on any compiler warning (captured to a log so the
           # next step can gate on it). The extension is expected to compile
           # cleanly; a new warning is usually a real portability/UB signal.
@@ -57,6 +56,9 @@ jobs:
           # (form "<file>.c:<line>:<col>: warning:"). Ignore unrelated noise
           # such as autoconf's AC_PROG_LIBTOOL-obsolete and the LTO
           # lto-wrapper "serial compilation" notes.
+          # The vendored libjudy/ sources are deliberately excluded: third-party
+          # code at -Wall warns copiously, and patch hygiene (libjudy/PATCHES.md)
+          # beats chasing upstream warnings.
           if grep -E '(php_judy|judy_handlers|judy_arrayaccess|judy_iterator)\.[ch]:[0-9]+:[0-9]+: warning:' /tmp/build.log; then
             echo "::error::Compiler warnings detected in extension sources — see log above"
             exit 1
@@ -92,6 +94,11 @@ jobs:
           # Compare against the most recent stable release (release-over-
           # release regression detection). Bump this to the just-published
           # release on each release — see the "Releasing" section in README.
+          #
+          # The 2.5.2 baseline predates the vendored libJudy, so IT still
+          # needs the system library; installed only now, after the bundled
+          # build above already proved itself without one.
+          sudo apt-get update && sudo apt-get install -y libjudy-dev
           sudo pie install --skip-enable-extension orieg/judy:2.5.2 \
             --with-judy=/usr
           BASELINE_SO="$(php-config --extension-dir)/judy.so"
@@ -172,6 +179,11 @@ jobs:
             make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
 
   debug-mirror-assertions:
+    # Permanent system-lib guard: this job deliberately keeps installing
+    # libjudy-dev and building --with-judy=/usr so the system-lib mode of
+    # config.m4 stays exercised forever (issue #142). Everything else is CI
+    # policy for the mirror assertions:
+    #
     # The four *_HASH / *_ADAPTIVE types keep the key set in a JudySL
     # key_index and the values in a separate store. A path that updates one
     # and not the other produces two valid pointers holding different answers:
@@ -353,9 +365,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Install Judy library
-        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
-
       - name: Resolve the PHP 8.4 release to build
         run: |
           # Track the current 8.4 patch release so the assertions stay current,
@@ -418,13 +427,16 @@ jobs:
           # A phpize build inherits PHP_DEBUG from the installed PHP; pass
           # --enable-debug anyway so the intent does not rest on inheritance.
           "$HOME/php-debug/bin/phpize"
+          # Bundled libJudy (no --with-judy); the vendored units keep their
+          # own -O2 -fno-lto flags even in a debug build.
           ./configure --with-php-config="$HOME/php-debug/bin/php-config" \
-            --with-judy=/usr --enable-debug
+            --enable-debug
           set -o pipefail
           make 2>&1 | tee /tmp/build-debug-php.log
 
       - name: Fail on compiler warnings
         run: |
+          # Vendored libjudy/ sources deliberately excluded (see build-linux).
           if grep -E '(php_judy|judy_handlers|judy_arrayaccess|judy_iterator)\.[ch]:[0-9]+:[0-9]+: warning:' /tmp/build-debug-php.log; then
             echo "::error::Compiler warnings detected building against a debug PHP"
             exit 1
@@ -559,8 +571,21 @@ jobs:
             exit 1
           fi
 
-      - name: Install Judy library
-        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
+      - name: Verify package.xml lists every file under libjudy/
+        # Same rationale as the tests/ check above: the bundled libJudy only
+        # builds from the shipped tarball if every git-tracked file under
+        # libjudy/ is in package.xml (and package.xml lists nothing stale).
+        # .gitattributes is repo plumbing and deliberately not shipped.
+        run: |
+          git ls-files libjudy/ | grep -v '^libjudy/\.gitattributes$' | sort > /tmp/libjudy-on-disk.txt
+          grep -oP '(?<=name=")libjudy/[^"]+(?=")' package.xml | sort > /tmp/libjudy-in-package.txt
+          if ! diff -u --label package.xml --label libjudy/ \
+               /tmp/libjudy-in-package.txt /tmp/libjudy-on-disk.txt; then
+            echo "ERROR: package.xml and libjudy/ have diverged."
+            echo "  '+' lines: on disk but not in package.xml — add a <file> entry"
+            echo "  '-' lines: in package.xml but not on disk — remove the entry"
+            exit 1
+          fi
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -613,151 +638,9 @@ jobs:
         with:
           arch: ${{ matrix.arch }}
 
-      - name: Build libjudy from source
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $ProgressPreference = "SilentlyContinue"
-
-          # Download Judy-1.0.5 source from SourceForge
-          Write-Host "Downloading Judy-1.0.5 source..."
-          & curl.exe -fsSL -o judy.tar.gz --retry 5 --retry-delay 5 -L `
-            "https://downloads.sourceforge.net/project/judy/judy/Judy-1.0.5/Judy-1.0.5.tar.gz"
-          if ($LASTEXITCODE -ne 0) { throw "Failed to download Judy source" }
-
-          # Extract
-          tar -xzf judy.tar.gz
-          $judyDir = Get-ChildItem -Directory | Where-Object { $_.Name -match '^[Jj]udy-' } | Select-Object -First 1
-          if (-not $judyDir) { throw "Could not find extracted Judy directory" }
-          $srcDir = Join-Path $judyDir.FullName "src"
-          if (-not (Test-Path (Join-Path $srcDir "build.bat"))) {
-            throw "build.bat not found in $srcDir"
-          }
-          Write-Host "Source: $srcDir"
-
-          # Patch Judy.h: Fix Word_t for 64-bit Windows and PJERR sentinel
-          Write-Host "Patching Judy.h..."
-          $judyH = Join-Path $srcDir "Judy.h"
-          $content = Get-Content $judyH -Raw
-
-          # Fix Word_t: unsigned long is only 4 bytes on MSVC x64 (LLP64),
-          # use unsigned __int64 for proper 64-bit Word_t
-          $wordTPatch = @'
-          #if defined(_WIN64)
-          typedef unsigned __int64    Word_t, * PWord_t;
-          #else
-          typedef unsigned long       Word_t, * PWord_t;
-          #endif
-          '@
-          # Trim indentation added by YAML here-string
-          $wordTPatch = ($wordTPatch.Trim() -split "`n" | ForEach-Object { $_.Trim() }) -join "`n"
-          $content = $content -replace 'typedef\s+unsigned\s+long\s+Word_t\s*,\s*\*\s*PWord_t\s*;', $wordTPatch
-
-          # Fix PJERR/PPJERR: ~0UL is 32-bit on MSVC x64, use ~(size_t)0
-          # to get the correct 64-bit error sentinel
-          $content = $content.Replace('(~0UL)', '(~(size_t)0)')
-
-          # Validate patches applied
-          if ($content -notmatch 'unsigned __int64\s+Word_t') { throw "Failed to patch Word_t in Judy.h" }
-          if ($content -notmatch '~\(size_t\)0') { throw "Failed to patch PJERR in Judy.h" }
-          Set-Content $judyH -Value $content -NoNewline
-          Write-Host "Patched Judy.h"
-
-          # Patch build.bat: Add -DJU_64BIT for proper 64-bit internal data structures
-          # and /MD to use the dynamic C runtime (matching PHP's CRT linkage)
-          Write-Host "Patching build.bat..."
-          $buildBat = Join-Path $srcDir "build.bat"
-          $batContent = Get-Content $buildBat -Raw
-          $batContent = $batContent.Replace('-DJU_WIN', '-DJU_WIN -DJU_64BIT /MD')
-          if ($batContent -notmatch 'JU_64BIT') { throw "Failed to patch build.bat" }
-          Set-Content $buildBat -Value $batContent -NoNewline
-          Write-Host "Patched build.bat"
-
-          # Fix all unsigned-long constants that break on MSVC x64 (LLP64 model).
-          # On MSVC x64, `unsigned long` is 4 bytes, so any UL constant used in a
-          # 64-bit context silently truncates:
-          #
-          #   ~0UL       -> 0xFFFFFFFF  (breaks cJU_ALLONES, memory ceiling, etc.)
-          #   (-1UL)     -> 0xFFFFFFFF  (breaks max-pop sentinels in JudyPrivateBranch.h)
-          #   1UL << N   -> 0 when N>=32 (breaks JudyInsArray.c, JudyPrevNextEmpty.c)
-          #   1L  << N   -> sign-extends to 0xFFFFFFFF80000000 when N=31; 0 when N>=32
-          #                 (breaks JU_BITPOSMASKB/L in JudyPrivate.h)
-          #   0x100UL    -> 0x100 as 32-bit; JU_LEASTBYTESMASK wrong for BYTES>4
-          #   0xffL      -> 0xff as 32-bit; cJU_MASKATSTATE yields 0 for State>=5
-          #                 (breaks JU_SETDIGIT/cascade for JudySL with long strings)
-          #
-          # The root cause of the 17-min hang in PrevNextEmpty: bitposmaskL was
-          # initialised to `1UL << 63` = 0 on MSVC x64, creating an infinite loop.
-          Write-Host "Fixing UL constants in Judy source files..."
-          $fixCount = 0
-          Get-ChildItem -Path $judyDir.FullName -Recurse -Include "*.c","*.h" | ForEach-Object {
-            $orig = Get-Content $_.FullName -Raw
-            $text = $orig
-            # All-ones patterns
-            $text = $text.Replace('~0UL',    '~(Word_t)0')
-            $text = $text.Replace('(-1UL)',  '(~(Word_t)0)')
-            # Shift-base patterns (order matters: 1UL before 1L to avoid double-replace)
-            $text = [regex]::Replace($text, '\b1UL\s*<<', '(Word_t)1 <<')
-            $text = [regex]::Replace($text, '\b1L\s*<<',  '(Word_t)1 <<')
-            # Least-bytes mask base constant
-            $text = $text.Replace('0x100UL', '(Word_t)0x100')
-            # Byte-mask base constant (cJU_MASKATSTATE in JudyPrivateBranch.h)
-            $text = $text.Replace('0xffL', '(Word_t)0xff')
-            if ($text -ne $orig) {
-              Set-Content $_.FullName -Value $text -NoNewline
-              $fixCount++
-            }
-          }
-          Write-Host "Fixed UL constants in $fixCount files"
-
-          # Build
-          Write-Host "Building libjudy..."
-          Push-Location $srcDir
-          & cmd.exe /c "build.bat 2>&1"
-          Pop-Location
-
-          # Verify build output
-          $judyLib = Get-ChildItem -Path $srcDir -Recurse -Filter "Judy.lib" -ErrorAction SilentlyContinue |
-            Sort-Object Length -Descending | Select-Object -First 1
-          if (-not $judyLib) {
-            Write-Host "Build artifacts found:"
-            Get-ChildItem -Path $srcDir -Recurse -Include "*.lib","*.dll","*.obj" -ErrorAction SilentlyContinue |
-              ForEach-Object { Write-Host "  $($_.FullName) ($($_.Length) bytes)" }
-            throw "Judy.lib not found after build"
-          }
-          Write-Host "Built: $($judyLib.FullName) ($($judyLib.Length) bytes)"
-
-          # Install to libjudy/{include,lib,bin} outside workspace.
-          # php-windows-builder runs git clean -ffdx which removes untracked
-          # files from the workspace, so we install to RUNNER_TEMP instead.
-          $installDir = Join-Path $env:RUNNER_TEMP "libjudy"
-          foreach ($sub in @("include", "lib", "bin")) {
-            New-Item -ItemType Directory -Force (Join-Path $installDir $sub) | Out-Null
-          }
-
-          Copy-Item $judyH "$installDir\include\"
-          Copy-Item $judyLib.FullName "$installDir\lib\libJudy.lib"
-          Copy-Item $judyLib.FullName "$installDir\lib\libJudy_a.lib"
-
-          # Copy DLL if produced (for dynamic linking)
-          $judyDll = Get-ChildItem -Path $srcDir -Recurse -Filter "Judy.dll" -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-          if ($judyDll) {
-            Copy-Item $judyDll.FullName "$installDir\bin\"
-            Write-Host "Installed DLL: $($judyDll.Length) bytes"
-          }
-
-          Write-Host "=== libjudy installed ==="
-          Get-ChildItem -Path $installDir -Recurse -File | ForEach-Object {
-            $rel = $_.FullName.Substring($installDir.Length)
-            Write-Host "  $rel ($($_.Length) bytes)"
-          }
-
-      - name: Add libjudy to PATH
-        shell: pwsh
-        run: |
-          Add-Content $env:GITHUB_PATH "${{ runner.temp }}\libjudy\bin"
-
+      # The bundled libJudy (libjudy/) builds via config.w32, and the P5 LLP64
+      # patches are real source diffs now — the historical SourceForge
+      # download + regex-patch step is gone (issue #142).
       - name: Disable Windows Error Reporting
         shell: pwsh
         run: |
@@ -781,7 +664,6 @@ jobs:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
           ts: ${{ matrix.ts }}
-          args: --with-judy=${{ runner.temp }}\libjudy
           test-workers: "1"
           test-runner-args: "--set-timeout 30"
         env:
@@ -862,15 +744,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Continue"
 
-          Write-Host "=== libjudy install ==="
-          $dir = Join-Path $env:RUNNER_TEMP "libjudy"
-          if (Test-Path $dir) {
-            Get-ChildItem -Path $dir -Recurse -File | ForEach-Object {
-              Write-Host "  $($_.FullName.Substring($dir.Length)) ($($_.Length) bytes)"
-            }
-          }
-
-          Write-Host "`n=== Configure log (tail) ==="
+          Write-Host "=== Configure log (tail) ==="
           Get-ChildItem -Path ".\build" -Recurse -Filter "config*.log" -ErrorAction SilentlyContinue |
             Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Tail 50 }
 
