@@ -1129,6 +1129,66 @@ table for yours.
 
 ---
 
+## Bundled libJudy optimizations (measured)
+
+Since the extension began bundling its own patched libJudy
+([#142](https://github.com/orieg/php-judy/issues/142); decision record in
+[`research/libjudy-modernization/FINDINGS.md`](research/libjudy-modernization/FINDINGS.md)),
+two engine-level optimizations have merged with measured gates. Both tables are
+`(measured)` 2026-08-18 on an idle 24-core i9-12900F (Alder Lake, x86-64,
+gcc 11.4.0), with a C harness driving the bundled library directly — PHP-level
+per-op figures include extension call overhead not measured here. Protocol, per
+the standing discipline: 3 arms including a control whose objects were verified
+**byte-identical** to base (flag-only for O1, comment-only for O3), **5
+independent builds per arm with randomized link order**, interleaved trials,
+per-build medians, percentile-bootstrap CIs over builds, runs pinned with
+`taskset`. Ratios are time treatment/base — **below 1.0 is faster** — and a
+cell is claimed only when its CI clears the control-calibrated **~1.3% noise
+floor**.
+
+### O1 — hardware popcount for bitmap leaves (merged, [PR #149](https://github.com/orieg/php-judy/pull/149))
+
+| corpus | get ratio [95% CI] | insert ratio [95% CI] |
+| --- | --- | --- |
+| `wdense` (dense integer keys) | **x0.8249 [0.8003, 0.8284]** | **x0.9053 [0.8897, 0.9188]** |
+| `wbase16` | **x0.8413 [0.8369, 0.8481]** | **x0.9691 [0.9616, 0.9783]** |
+| `wdense`, out-of-cache (n=4×10⁷, ~330 MB) | **x0.9270 [0.9261, 0.9299]** | **x0.9206 [0.9092, 0.9273]** |
+| `wbase4` / `urand16` (string keys) | null / not claimed | null |
+
+**Scope**: `Judy::INT_TO_*` with dense-ish integer keys only. The duty-cycle
+census behind this is in FINDINGS.md §5.1 — high-entropy string keys make
+**zero** popcount calls per lookup, so the `Judy::STRING_*` types see nothing,
+and `Judy::BITSET` sees nothing (Judy1's bitmap-leaf arm is a plain bit test,
+not a popcount). **Not claimed**: `wclust` get (−2.4%, sharing its cell with a
+control excursion) and `urand16` (−0.7%) — both inside the noise floor the
+byte-identical control calibrated.
+
+### O3 — word-access node metadata (merged, [PR #150](https://github.com/orieg/php-judy/pull/150))
+
+The stock library reassembles a 7-byte big-endian field with 7 dependent byte
+loads on every branch descend; O3 replaces that with one word load + byte-swap.
+Measured on top of the O1-merged tree, so the two stack:
+
+| corpus | get ratio [95% CI] | insert ratio [95% CI] |
+| --- | --- | --- |
+| `wdense` | **x0.6939 [0.6796, 0.7014]** | **x0.8341 [0.8226, 0.8396]** |
+| `wbase16` | **x0.8132 [0.8068, 0.8187]** | **x0.8651 [0.8444, 0.8726]** |
+| `wbase4` | **x0.8881 [0.8763, 0.9028]** | **x0.8519 [0.8477, 0.8590]** |
+| `wclust` | **x0.8947 [0.8909, 0.9005]** | **x0.8811 [0.8738, 0.8901]** |
+| `wdense`, out-of-cache (n=4×10⁷) | **x0.6944 [0.6931, 0.6971]** | **x0.8172 [0.8106, 0.8228]** |
+| `urand16` (string keys) | ≤1.2%, not claimed | not claimed |
+
+Unlike O1 — whose gain shrinks from ~17% cache-resident to ~7% out of cache —
+**the O3 win survives out-of-cache fully intact** (x0.694 at both residencies),
+because it shortens the serial load-to-use chain per descend level rather than
+a compute chain that DRAM latency dilutes. All 36 control cells were null, and
+`J1MU`/`JLMU` memory accounting is byte-identical pre/post for both
+optimizations — memory, the one axis this project measurably wins, is untouched.
+Full mechanism, controls, and the execution history:
+[FINDINGS.md §11](research/libjudy-modernization/FINDINGS.md).
+
+---
+
 ## Optimal Usage Patterns
 
 ### **✅ DO: Use Judy's Iterator (Best Performance)**
