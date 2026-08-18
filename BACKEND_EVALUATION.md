@@ -118,14 +118,28 @@ discriminators, all against it:
 
 | Test | Expectation if key materialization dominates | Measured |
 | ---- | -------------------------------------------- | -------- |
-| Key length 16 → 64 bytes (4x the bytes to write) | ~proportional rise | 70.5 → 77.8 ns, **+10%** |
-| n 100K → 1M (10x working set) | cache effects | 66.4 → 70.2 ns, **+6%** |
-| `JSLN − JSLG` replayed in iteration order — same descend and locality, no key written back | falls with shorter keys | 33.1 / 30.7 / 31.1 / 32.9 ns at keylen 16/24/40/64 — **flat** |
+| Key length 8 → 64 bytes (8x the bytes to write) | ~proportional rise | 102.1 → 132.8 ns, **+30%** — a **0.44 ns/byte** marginal slope |
+| `JSLN − JSLG` replayed in iteration order — same descend and locality, no key written back | scales with the bytes written | **0.22 ns/byte** marginal; 8x the bytes costs +44%, not 8x |
+| Same delta, at fixed keylen 16, as n goes 100K → 3.16M | no effect — reconstruction cannot depend on working-set size | 23.0 → **61.7 ns**, 2.7x |
 
-The actual decomposition of that ~70 ns is roughly **37 ns stateless root
-descend + 32 ns successor search + ~1 ns of key bytes.** The cost is JudySL's
+Figures are `(measured)` 2026-08-17, n = 1,000,000, uniform-random keys; see
+[`research/README.md`](research/README.md#the-jsln-flatness-claim-re-derived).
+The third row is the decisive one: a cost that grows with working set at
+constant key length is not key bytes being copied. The cost is JudySL's
 structure and libJudy's *stateless* API — every `JSLN` re-descends from the
 root — not the caller-supplied buffer.
+
+**An earlier version of this table read differently**, and its numbers are
+withdrawn. It reported `JSLN` as flat in key length (+10% over 16→64) and flat
+in working-set size (+6% over 100K→1M), with a decomposition of *"37 ns root
+descend + 32 ns successor search + ~1 ns of key bytes"*. Both flat results were
+artifacts of the `user:%08lu:f%lu` corpus, whose shared prefixes compress into
+a tree that barely grows with n; on uniform-random keys the same working-set
+sweep rises **+140%**. The harness could also not emit a key shorter than 16
+bytes at all ([#122](https://github.com/orieg/php-judy/issues/122)), hiding a
+**2.9x step between keylen 7 and 8** — the machine-word boundary — which is the
+largest key-length effect there is. The conclusion below is unchanged; only the
+evidence for it is, and it is now stronger.
 
 This makes the gap **more** significant, not less. `Judy.h` exposes no cursor
 or iterator primitive, so there is no cheaper call for php-judy to switch to:
@@ -303,14 +317,17 @@ change the keep-Judy verdict, and it did not re-run ART. What it changes here:
   `user:%08lu:f%lu` corpus turned out to be degenerate (every branch a
   `BRANCH_B` at identical density), which is enough to caution against
   generalising any single-corpus result here, including this document's.
-- **The #85 flatness claim itself needs re-deriving.** Its harness could not
-  emit a key shorter than 16 bytes — see
-  [`research/README.md`](research/README.md#re-derivation-owed-the-jsln-flat-in-key-length-claim),
-  [#122](https://github.com/orieg/php-judy/issues/122) and
-  [PR #124](https://github.com/orieg/php-judy/pull/124). The published 16/24/40/64
-  points did vary key length, so this is not a retraction; the short-key half was
-  simply never tested, and `iteration-cost/iterbench.c` still carries the
-  unfixed generator.
+- **The #85 flatness claim has been re-derived, and it does not hold.** The
+  generator in `iteration-cost/iterbench.c` is fixed
+  ([#122](https://github.com/orieg/php-judy/issues/122)) and the sweep re-run
+  across the short half and across two non-degenerate corpora: `JSLN` is
+  **neither flat in key length nor flat in working-set size** — both flat
+  results came from the same degenerate corpus flagged above. The
+  key-reconstruction hypothesis stays refuted on stronger evidence, and the
+  discriminator table in
+  [The iteration number](#the-iteration-number-first-explanation-was-wrong) has
+  been rewritten around it. Full record in
+  [`research/README.md`](research/README.md#the-jsln-flatness-claim-re-derived).
 
 One correctness finding from that investigation is independent of all backend
 questions and applies today: stock libJudy 1.0.5 built with `gcc -O3` silently
