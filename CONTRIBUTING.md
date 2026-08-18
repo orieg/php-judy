@@ -14,6 +14,17 @@ needed to build, test, and submit changes.
   - Windows: build libJudy from source (see the Windows section in [README.md](README.md))
 - Standard C toolchain (`gcc`/`clang`, `make`, `autoconf`)
 
+**If you build libJudy yourself, build it at `-O2` — never `gcc -O3`.** Stock
+libJudy 1.0.5 writes up to 15 bytes into an 8-byte `jp_1Index` field when a
+Judy1 leaf splays into immediates, and gcc at `-O3` exploits the out-of-bounds
+write by truncating the copy, which **silently loses `Judy::BITSET` keys**:
+`count()` over-reports while iteration and `isset()` under-report. Debian,
+Ubuntu and Fedora ship the widening patch; Homebrew ships stock sources but
+builds with clang, which does not exploit it. `tests/bitset_immed_cascade_integrity_001.phpt`
+detects a miscompiled library at `make test` time — if it fails, the installed
+libJudy is the problem, not this extension. Full analysis:
+[#131](https://github.com/orieg/php-judy/issues/131).
+
 ## Building from source
 
 ```sh
