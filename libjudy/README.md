@@ -54,7 +54,10 @@ These sources are the **default build** (`--with-judy` absent, `yes`
 or `bundled`): `config.m4`/`config.w32` compile them into the extension
 directly. `--with-judy=DIR` instead links against a system libJudy and
 compiles nothing under this directory. The vendored units are compiled
-at `-O2 -fno-lto` only — never `-O3`/LTO, and the flags are attached
-per-source so the extension's own optimization flags cannot leak in
-(see [#131](https://github.com/orieg/php-judy/issues/131); `-O2` is
-load-bearing for correctness).
+at `-O2 -fno-lto -fno-unroll-loops` only — never `-O3`/LTO/loop
+unrolling — and the flags are attached per-source so the extension's
+own optimization flags cannot leak in (see
+[#131](https://github.com/orieg/php-judy/issues/131); measured on
+gcc 13/14, `-funroll-loops` at any -O level makes gcc exploit the
+out-of-bounds immediate copy and silently lose keys, so these flags
+are load-bearing for correctness).

@@ -176,19 +176,24 @@ if test "$PHP_JUDY" != "no"; then
       AC_MSG_ERROR([the bundled libJudy currently supports 64-bit targets only (its pre-generated tables assume JU_64BIT); use --with-judy=DIR to link a system libJudy instead])
     ])
 
-    dnl # Vendored-only compile flags. -O2 -fno-lto is LOAD-BEARING, not a
-    dnl # preference: stock libJudy miscompiles at gcc -O3 (silently lost
-    dnl # Judy1/BITSET keys, #131), and LTO would let the link step
-    dnl # re-optimize across the same boundary. PHP_ADD_SOURCES_X places
-    dnl # these AFTER the global $(CFLAGS_CLEAN) on each vendored compile
-    dnl # line, and with gcc/clang the later flag wins -- so the -O3/-flto
-    dnl # set above never takes effect for these units. Verified by
-    dnl # tests/bitset_immed_cascade_integrity_001.phpt (the #131 detector).
-    dnl # JU_64BIT lives here, not in the wrapper files, so a 32-bit build
-    dnl # remains possible later. No other platform define is needed on
-    dnl # unix: JudyPrivate.h keys only on JU_WIN (Windows) and the Itanium
-    dnl # JU_*_IPF defines beyond it.
-    judy_vendor_cflags="-O2 -fno-lto -DJU_64BIT"
+    dnl # Vendored-only compile flags. These are LOAD-BEARING, not a
+    dnl # preference: stock libJudy's out-of-bounds immediate-index copy
+    dnl # (#131) miscompiles under aggressive loop optimization -- gcc
+    dnl # silently loses Judy1/BITSET keys -- and LTO would let the link
+    dnl # step re-optimize across the same boundary. PHP_ADD_SOURCES_X
+    dnl # places these AFTER the global $(CFLAGS_CLEAN) on each vendored
+    dnl # compile line, and with gcc/clang the later flag wins, so the
+    dnl # global -O3/-flto never take effect for these units. The global
+    dnl # -funroll-loops needs its own negation: a later -O2 does NOT
+    dnl # cancel it, and measured on gcc 13/14 it is -funroll-loops (at
+    dnl # -O2 or -O3 alike) that makes gcc exploit the UB and truncate the
+    dnl # copy -- caught by tests/bitset_immed_cascade_integrity_001.phpt
+    dnl # (the #131 detector) when this flag set briefly lacked
+    dnl # -fno-unroll-loops. JU_64BIT lives here, not in the wrapper
+    dnl # files, so a 32-bit build remains possible later. No other
+    dnl # platform define is needed on unix: JudyPrivate.h keys only on
+    dnl # JU_WIN (Windows) and the Itanium JU_*_IPF defines beyond it.
+    judy_vendor_cflags="-O2 -fno-lto -fno-unroll-loops -DJU_64BIT"
 
     dnl # -mpopcnt: probe compiler acceptance (x86-64 gcc/clang accept it,
     dnl # other targets reject it, so acceptance doubles as the arch test).
