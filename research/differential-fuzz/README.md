@@ -10,7 +10,7 @@ self-contained reproduction line on any divergence.
 | Judy1 | `std::set<Word_t>` | uniform, clustered, dense, ffbias, lowent, mixed |
 | JudyL | `std::map<Word_t, Word_t>` | same six |
 | JudySL | `std::map<std::string, Word_t>` | struct, rand, varlen, boundary, ffbias, mixed |
-| JudyHS | `std::unordered_map<std::string, Word_t>` | rand, boundary, ffbias, short, mixed |
+| JudyHS | `std::unordered_map<std::string, Word_t>` | rand, boundary, ffbias, short, collide, mixed |
 
 Why it exists: [#131](https://github.com/orieg/php-judy/issues/131) — stock
 libJudy 1.0.5 built with `gcc -O3` silently loses Judy1 keys: inserted, then
@@ -48,9 +48,15 @@ Corpus shapes deliberately include what historically hid bugs
 lesson): the `(rnd()&0xFF)|((i/64)<<8)` clustered shape that reproduces #131's
 IMMED_1_15 cascade, 0xFF-biased bytes (the ASan corpus), keys crossing the
 8-byte SSO/word boundary (lengths 4..9 exactly), embedded NUL and empty keys
-for JudyHS, the empty string for JudySL, and the struct/rand/varlen
+for JudyHS, the empty string for JudySL, the struct/rand/varlen
 generators ported from `research/iteration-cost/iterbench.c` post-#139 —
-including the #122 truncation fix and the unconditional exact-length check.
+including the #122 truncation fix and the unconditional exact-length check —
+and engineered 32-bit hash collisions for JudyHS (`collide`: 2-byte blocks
+`Aa`/`BB`/`C#` each contribute the same `c*31+b` increment, so same-length
+keys share their full hash and pile into one bucket), added for the O4d
+JudyHSDel gate (#142): the delete path's leaf-compare and null-branch guards
+only fire under colliding deletes, which random keys essentially never
+produce.
 
 Not covered (known gaps, stated rather than implied): `Judy*Empty` /
 `Judy*ByCount` APIs are not driven; `JudyMemUsed` is not compared; a key
@@ -63,7 +69,7 @@ correctness tool.
 ```sh
 make                 # plain -O2 harness vs system libJudy
 make diffuzz-san     # harness instrumented with ASan+UBSan
-./diffuzz smoke [ops]                  # fixed seeds, full 46-cell grid (CI shape)
+./diffuzz smoke [ops]                  # fixed seeds, full 48-cell grid (CI shape)
 ./diffuzz soak <seconds> [seed]        # time-bounded, random seeds
 ./diffuzz one <domain> <corpus> <seed> [ops]   # reproduce a single cell
 ./diffuzz list                         # print the grid
