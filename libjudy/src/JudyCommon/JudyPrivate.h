@@ -1,3 +1,10 @@
+// Modified for php-judy on 2026-08-18 (patch O3, jp second-word access --
+// see libjudy/PATCHES.md, issue #142): on targets whose byte order is known
+// at compile time (__BYTE_ORDER__ for GNU C, _MSC_VER implies little-endian),
+// JU_JPDCDPOP0/JU_JPSETADT (64-bit forms) access the jp's second word as one
+// word (byte-swapped on little-endian) instead of 7 byte accesses assembled
+// with shifts; the stored bytes are identical.  Builds where the byte order
+// is not known keep the byte-wise original, textually unchanged.
 // Modified for php-judy on 2026-08-18 (patch O1, hardware popcount --
 // see libjudy/PATCHES.md, issue #142): j__udyCountBits{B,L} gain
 // hardware-popcount arms at the existing HP-UX/Itanium seam, for x86-64
@@ -786,6 +793,86 @@ static inline BITMAPL_t j__udyCountBitsL(BITMAPL_t word)
 
 #ifdef JU_64BIT
 
+// The byte array stores the value big-endian, so the second word of the jp
+// (the 8-byte j_po_Bytes union member: jp_DcdP0[0..6] then jp_Type) read as
+// a big-endian word is exactly ((DcdPop0 << 8) | jp_Type).  On targets whose
+// byte order is known at compile time, both macros therefore reduce to one
+// word access (plus a byte swap on little-endian) instead of 7 byte accesses
+// assembled with shifts -- 5 dependent byte loads collapse to 1 word load on
+// the descend's critical path (JU_DCDNOTMATCHINDEX), and JU_JPSETADT's 7
+// byte stores collapse to 1 word store on every level of every insert.
+// The word is accessed through __builtin_memcpy (GNU C) so no strict-
+// aliasing or alignment assumption is introduced; it compiles to a single
+// load/store.  JU_JPSETADT also writes jp_Type, exactly as the byte-wise
+// original does.  Note configure's JU_LITTLE_ENDIAN cannot be used here:
+// it is computed into config.h, which no library source includes.
+
+#if defined(__GNUC__) && defined(__BYTE_ORDER__)                        \
+    && defined(__ORDER_LITTLE_ENDIAN__)                                 \
+    && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
+
+#define JU_JPDCDPOP0(PJP)                                               \
+    (__extension__ ({                                                   \
+        Word_t j__dp0Word;                                              \
+        __builtin_memcpy(&j__dp0Word, (PJP)->j_po.jpo_u.j_po_Bytes,     \
+                         sizeof(j__dp0Word));                           \
+        (Word_t)__builtin_bswap64(j__dp0Word) >> 8;                     \
+    }))
+
+#define JU_JPSETADT(PJP,ADDR,DCDPOP0,TYPE)                              \
+{                                                                       \
+    Word_t j__adtWord;                                                  \
+    (PJP)->jp_Addr = (ADDR);                                            \
+    j__adtWord = ((Word_t)(DCDPOP0) << 8) | (uint8_t)(TYPE);            \
+    j__adtWord = (Word_t)__builtin_bswap64(j__adtWord);                 \
+    __builtin_memcpy((PJP)->j_po.jpo_u.j_po_Bytes, &j__adtWord,         \
+                     sizeof(j__adtWord));                               \
+}
+
+#elif defined(__GNUC__) && defined(__BYTE_ORDER__)                      \
+    && defined(__ORDER_BIG_ENDIAN__)                                    \
+    && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+
+// Big-endian: the storage order IS the arithmetic order -- plain word access.
+
+#define JU_JPDCDPOP0(PJP)                                               \
+    (__extension__ ({                                                   \
+        Word_t j__dp0Word;                                              \
+        __builtin_memcpy(&j__dp0Word, (PJP)->j_po.jpo_u.j_po_Bytes,     \
+                         sizeof(j__dp0Word));                           \
+        j__dp0Word >> 8;                                                \
+    }))
+
+#define JU_JPSETADT(PJP,ADDR,DCDPOP0,TYPE)                              \
+{                                                                       \
+    Word_t j__adtWord;                                                  \
+    (PJP)->jp_Addr = (ADDR);                                            \
+    j__adtWord = ((Word_t)(DCDPOP0) << 8) | (uint8_t)(TYPE);            \
+    __builtin_memcpy((PJP)->j_po.jpo_u.j_po_Bytes, &j__adtWord,         \
+                     sizeof(j__adtWord));                               \
+}
+
+#elif defined(_MSC_VER)
+
+// MSVC: little-endian on all supported targets; no statement expressions,
+// so access the (8-aligned) second word directly -- MSVC performs no
+// type-based aliasing optimization.  _byteswap_uint64 is declared by
+// <stdlib.h>, already included via Judy.h.
+
+#define JU_JPDCDPOP0(PJP)                                               \
+    ((Word_t)(_byteswap_uint64(                                         \
+        *(const unsigned __int64 *)(const void *)                       \
+            ((PJP)->j_po.jpo_u.j_po_Bytes)) >> 8))
+
+#define JU_JPSETADT(PJP,ADDR,DCDPOP0,TYPE)                              \
+{                                                                       \
+    (PJP)->jp_Addr = (ADDR);                                            \
+    *(unsigned __int64 *)(void *)((PJP)->j_po.jpo_u.j_po_Bytes) =       \
+        _byteswap_uint64(((Word_t)(DCDPOP0) << 8) | (uint8_t)(TYPE));   \
+}
+
+#else   // byte order unknown at compile time: original byte-wise forms
+
 #define JU_JPDCDPOP0(PJP)               \
     ((Word_t)(PJP)->jp_DcdP0[0] << 48 | \
      (Word_t)(PJP)->jp_DcdP0[1] << 40 | \
@@ -808,6 +895,8 @@ static inline BITMAPL_t j__udyCountBitsL(BITMAPL_t word)
     (PJP)->jp_DcdP0[6] = (uint8_t)((Word_t)(DCDPOP0));          \
     (PJP)->jp_Type     = (TYPE);                                \
 }
+
+#endif  // byte-order arms
 
 #else   // 32 Bit
 
