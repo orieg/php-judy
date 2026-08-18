@@ -80,16 +80,65 @@ static const char key_alphabet[] = "0123456789abcdefghijklmnopqrstuvwxyz";
  * format's 16 characters were emitted regardless of keylen, so every keylen
  * below 16 silently produced a 16-byte key and the SSO branch then memcpy'd
  * 16 bytes into an 8-byte Word_t. See issue #118. */
+static unsigned long short_key_space(int keylen);
+
+/* A multiplier coprime with 36^keylen, sized to the space so the mix actually
+   spans it. A fixed constant does not: at keylen 12 the space is 36^12 ~ 4.7e18
+   while i * 2654435761 tops out near 1.3e15 for a 500k corpus, leaving the two
+   leading digits stuck at '0'. Scaling by the golden-ratio conjugate spreads
+   indices across the whole range (Fibonacci hashing), and forcing the result
+   odd and not divisible by 3 keeps gcd(mix, 36^k) = 1, so it stays a bijection.
+
+   Above keylen 12 the space exceeds ULONG_MAX and a 64-bit index cannot reach
+   the high digits at all — those keys keep some leading '0's no matter what.
+   That is a property of the index type, not something the mix can fix. */
+static unsigned long key_mix_for(unsigned long cap)
+{
+    unsigned long m = (unsigned long)((long double) cap * 0.6180339887498949L);
+    if (m < 3) return 1;
+    if ((m & 1UL) == 0) m++;
+    while (m % 3 == 0) m += 2;
+    return m;
+}
+
 static void make_key(char *buf, unsigned long i, int keylen) {
+    unsigned long v;
+    unsigned long cap;
+    unsigned long mix;
+
     if (keylen >= LONGKEY_MIN) {
         int m = snprintf(buf, MAXK, "user:%08lu:f%lu", i / 10, i % 10);
         while (m < keylen) buf[m++] = 'x';
         buf[m] = '\0';
         return;
     }
+
+    /* Spread the index across every byte before encoding it.
+     *
+     * Encoding i directly leaves a uniform prefix: base-36 needs only
+     * ceil(log36(n)) digits, so at n = 500k every keylen-8 key began with four
+     * identical '0's and every keylen-12 key with eight. That is a degenerate
+     * corpus for anything trie-shaped — JudySL compresses the shared run, so a
+     * "longer key" run measured the same 4 bytes of entropy behind more
+     * padding, and length and entropy could not be varied independently.
+     *
+     * KEY_MIX is odd and not divisible by 3, so it is coprime with 36^keylen
+     * and i -> (i * KEY_MIX) mod 36^keylen is a bijection: every key stays
+     * distinct, and the capacity guard in main() still bounds the space
+     * exactly. Above keylen 12 the space exceeds ULONG_MAX, where the wrap
+     * modulo 2^64 is itself bijective (KEY_MIX odd) and fits in keylen digits.
+     */
+    cap = short_key_space(keylen);
+    mix = key_mix_for(cap);
+    if (cap == ULONG_MAX) {
+        v = i * mix;                      /* wrap mod 2^64; mix odd => bijective */
+    } else {
+        v = (unsigned long)(((unsigned __int128) i * mix) % cap);
+    }
+
     for (int p = keylen - 1; p >= 0; p--) {
-        buf[p] = key_alphabet[i % KEY_RADIX];
-        i /= KEY_RADIX;
+        buf[p] = key_alphabet[v % KEY_RADIX];
+        v /= KEY_RADIX;
     }
     buf[keylen] = '\0';
 }

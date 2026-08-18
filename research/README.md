@@ -61,42 +61,67 @@ bytes into an 8-byte `Word_t` and aborted. **The `JLG hit (SSO packed)` row had
 therefore never been produced**; any pre-#118 note claiming a number for it is
 wrong.
 
+The short shape also has to spread the index across all `keylen` bytes rather
+than encode it directly. Base-36 needs only `ceil(log36(n))` digits, so a direct
+encoding left the leading bytes uniformly `'0'` — four of them at n = 500k and
+`keylen` 8, eight at `keylen` 12. That is a degenerate corpus for anything
+trie-shaped, and it made length and entropy impossible to vary independently.
+`make_key()` therefore multiplies the index by a capacity-scaled constant
+coprime with 36 before encoding: still a bijection, so keys stay unique and the
+capacity guard still bounds the space exactly.
+
 ## The ADAPTIVE/SSO probe, measured
 
-`(measured)` 2026-08-18, first run of this probe in its life — it aborted for
-every `keylen < 8` until [#118](https://github.com/orieg/php-judy/issues/118),
-so no earlier figure for it exists and any claim of one predates the fix.
+`(measured)` 2026-08-18. This probe aborted for every `keylen < 8` until
+[#118](https://github.com/orieg/php-judy/issues/118), so no figure for it
+existed before then.
+
+**These numbers supersede an earlier set taken on a degenerate corpus.** The
+short-key generator encoded the index directly, and base-36 needs only
+`ceil(log36(n))` digits — so at n = 500k every `keylen`-8 key carried four
+identical leading `'0'`s and every `keylen`-12 key eight. Length varied while
+entropy stayed fixed, and JudySL compresses a shared run, so the trie was handed
+a corpus that flattered it. The generator now spreads the index across every
+byte (see the mix in `make_key()`); the earlier numbers should not be quoted.
 
 **Environment.** Dedicated Linux x86_64 host — 24 cores, 62 GB, Ubuntu 22.04,
 kernel 6.8. Docker `debian:bookworm`, gcc 12.2.0, libJudy 1.0.5-5+b2. Load
-average `0.00` before and `0.25` after, nothing above 2% CPU: idle, well under
-the cores/2 = 12 threshold.
+average `0.00` throughout, nothing above 2% CPU.
 
-**Parameters.** `probebench 1000000 6 5` — 1,000,000 keys, `keylen = 6`
-(inside the SSO window), 5 reps, median ns/op.
+**Parameters.** `probebench 500000 <keylen> 5`, median ns/op, random-order hits.
+n is held at 500,000 across the sweep so length is the only variable —
+`keylen` 4 is the floor at which base-36 can hold n present plus n absent keys.
 
-| Probe | ns/op | across two runs |
-| --- | ---: | --- |
-| `JSLG` hit, random order | **107.8** | 107.76, 108.07 |
-| `JHSG` hit, random order | **115.8** | 115.70, 115.77 |
-| `JLG` hit (SSO packed), random order | **115.9** | 115.94, 115.96 |
+| keylen | `JHSG` (hash) | `JSLG` (trie) | `JLG` (SSO packed) |
+| ---: | ---: | ---: | ---: |
+| 4 | 102.1 | 110.3 | **100.6** |
+| 5 | **101.5** | 109.4 | 104.7 |
+| 6 | **111.7** | 111.7 | 112.1 |
+| 7 | **103.1** | 111.2 | 107.9 |
+| 8 | **116.6** | 142.8 | — (SSO is `keylen < 8`) |
+| 12 | 150.0 | **141.3** | — |
 
-Reproduced across two independent invocations; the SSO row agreed to within
-0.02 ns.
+**What it says.**
 
-**The result contradicts the branch's premise.** The SSO path exists on the
-theory that packing a short key into a `Word_t` and reading it from a JudyL
-beats hashing it. At 6-byte keys it does not: SSO packed and `JudyHS` are within
-noise of each other, and the plain `JudySL` trie beats both by roughly 7%. For
-random-order point reads at this key length the ADAPTIVE type's SSO store buys
-nothing over `JudyHS`.
+- **SSO's advantage is real but tiny and narrow.** It wins only at `keylen` 4,
+  by ~1.4% over `JudyHS`. At 5 and 7 it is 3-5% slower, and at 6 the three are
+  indistinguishable. Nothing here justifies choosing a type for the SSO path.
+- **`JudyHS` beats the trie for random point lookups at 4-8 byte keys**, by
+  6-8% at 4-7 and by 22% at 8. This supports the existing guidance that the
+  `_HASH` types are the ones to reach for on point lookups.
+- **The trie overtakes by `keylen` 12** (141.3 vs 150.0). Where the crossover
+  sits between 8 and 12 is not measured here.
 
-**Limits of this number, which are wide.** One key length on one machine. 6 sits
-mid-range of the SSO window (1-7) and nothing here says where the curve
-crosses, if it does. It also must not be read next to the 16-byte rows
-elsewhere in this directory: the short regime uses a different key shape (see
-above), so trie depth and fan-out differ, not just key length. A sweep across
-`keylen` 1-7 is what would turn this into an answer rather than a data point.
+**Limits.** One machine, one n, one value distribution. Only random-order hits;
+iteration-order and miss probes are in the full output and behave differently.
+`keylen` 1-3 cannot reach n = 500,000 at all — base-36 over 3 bytes holds 46,656
+keys — so the sweep starts at 4 rather than 1, and any run at those lengths is
+cache-resident and not comparable. Above `keylen` 12 the index space exceeds
+`ULONG_MAX`, so a 64-bit index cannot fill the leading digits and some padding
+returns; that is a property of the index type, not of Judy.
+
+Note also that `keylen >= 16` switches to the long key shape (see above), so the
+16-byte rows elsewhere in this directory are not on the same curve as this table.
 
 ## Reading probebench's absolute numbers
 
