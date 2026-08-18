@@ -1,13 +1,17 @@
-# libJudy modernization and vendoring: the investigation record (issue #113)
+# libJudy modernization and vendoring: the investigation and execution record (issue #113)
 
 Canonical record for the question *"we are keeping Judy — do we vendor it, and
-what do we patch?"* Investigation only. Nothing here is a committed feature and
-nothing in `research/` ships; the extension source is untouched by everything
-below except [PR #134](https://github.com/orieg/php-judy/pull/134), which
-shipped a detection test and needed none of the rest.
+what do we patch?"* — and, since the decision fired, for what executing it
+found. §1–§10 are the investigation, preserved as written; nothing in them is
+reopened. [§11](#11-execution-record-stages-03) is the execution record.
 
-**Superseded when**: the vendoring decision is executed, or explicitly declined.
-Until then this is the live record and new results update it in place.
+**Status: the superseded-when condition has fired.** The vendoring decision was
+executed — Stage 1 made the bundled `libjudy/` tree the default build
+([PR #146](https://github.com/orieg/php-judy/pull/146)) — and implementation is
+tracked by [#142](https://github.com/orieg/php-judy/issues/142). This document
+is no longer a live decision record; it is the completed history the
+implementation traces back to, and new execution results are appended to §11
+until #142 closes.
 
 **Why this is a separate document.**
 [BACKEND_EVALUATION.md](../../BACKEND_EVALUATION.md) answers *"which backend?"*
@@ -18,9 +22,11 @@ require vendoring the library? The evidence for that question is far larger than
 BACKEND_EVALUATION.md's tight single-question structure can absorb without
 damaging it, so it lives here and is linked from there.
 
-**Current verdict: vendor stock 1.0.5 plus patches, gated. The strongest
-argument is correctness, not performance.** See
-[§10](#10-verdict-and-the-gates-that-remain-open).
+**Verdict — executed: vendor stock 1.0.5 plus patches, gated. The strongest
+argument is correctness, not performance.** The decision record is
+[§10](#10-verdict-and-the-gates-that-remained-open-at-decision-time); the
+execution record is
+[§11](#11-execution-record-stages-03).
 
 ---
 
@@ -29,12 +35,12 @@ argument is correctness, not performance.** See
 | | |
 | --- | --- |
 | **Question** | Does libJudy 1.0.5 have exploitable headroom, and what does realising it cost? |
-| **Status** | Open. First verdict retracted; round 2 measured; external review round-trip closed. |
-| **Primary issue** | [#113](https://github.com/orieg/php-judy/issues/113) |
-| **Correctness issues raised** | [#131](https://github.com/orieg/php-judy/issues/131), [#127](https://github.com/orieg/php-judy/issues/127) |
+| **Status** | Investigation closed; decision executed. First verdict retracted; round 2 measured; external review round-trip closed; vendoring executed via [#142](https://github.com/orieg/php-judy/issues/142) (Stages 0–2 plus optimizations O1 and O3 merged — see [§11](#11-execution-record-stages-03)). |
+| **Primary issue** | [#113](https://github.com/orieg/php-judy/issues/113) (investigation, closed); [#142](https://github.com/orieg/php-judy/issues/142) (implementation tracker) |
+| **Correctness issues raised** | [#131](https://github.com/orieg/php-judy/issues/131), [#127](https://github.com/orieg/php-judy/issues/127) — both fixed and closed by [PR #147](https://github.com/orieg/php-judy/pull/147) |
 | **Harness defects raised** | [#122](https://github.com/orieg/php-judy/issues/122), fixed by [PR #124](https://github.com/orieg/php-judy/pull/124) |
-| **Shipped from it so far** | [PR #134](https://github.com/orieg/php-judy/pull/134) — a `.phpt` detecting a miscompiled system libJudy |
-| **Superseded when** | the vendoring decision is executed or explicitly declined |
+| **Shipped from it** | [PR #134](https://github.com/orieg/php-judy/pull/134) (the miscompile detector), then the whole #142 series: PRs [#143](https://github.com/orieg/php-judy/pull/143), [#144](https://github.com/orieg/php-judy/pull/144), [#145](https://github.com/orieg/php-judy/pull/145), [#146](https://github.com/orieg/php-judy/pull/146), [#147](https://github.com/orieg/php-judy/pull/147), [#148](https://github.com/orieg/php-judy/pull/148), [#149](https://github.com/orieg/php-judy/pull/149), [#150](https://github.com/orieg/php-judy/pull/150) |
+| **Superseded when** | **fired** — the decision was executed (Stage 1, [PR #146](https://github.com/orieg/php-judy/pull/146)); this record is history plus the ongoing [§11](#11-execution-record-stages-03) execution log |
 
 Related but out of scope: [#111](https://github.com/orieg/php-judy/issues/111)
 asks whether a *different* structure (Roaring / burst-trie / MPHF) closes gaps
@@ -164,7 +170,7 @@ claim falls via MLP; the underlying natural experiment is sound.
 Two things also went wrong in the *reporting* rather than the measurement: the
 summary over-generalised what the POC had measured, and an earlier
 recommendation in the same thread to apply the one-line `SEARCH_LINEAR` guard
-fix was actively dangerous (see [§6.2](#62-127-searchlinear-is-a-no-op-masking-a-data-loss-defect-and-the-obvious-fix-makes-it-worse)).
+fix was actively dangerous (see [§6.2](#62-127--search_linear-is-a-no-op-masking-a-data-loss-defect-and-the-obvious-fix-makes-it-worse)).
 
 ## 5. Findings — measured
 
@@ -275,7 +281,7 @@ already inlined at `-O2`. LTO is not rescued either — it emits *more* copies o
 the bit-count helpers, not fewer (46/134 against base's 36/108).
 
 **`-O2` is correct on performance grounds and load-bearing on correctness
-grounds** — see [§6.1](#61-131-gcc--o3-silently-loses-judybitset-keys-live).
+grounds** — see [§6.1](#61-131--gcc--o3-silently-loses-judybitset-keys-live).
 
 `BITMAP_BRANCH16x16` is mixed and not a clear ship (`get` −0.5…−0.9%, `iterate`
 −3…−5%, but a **+1.2% `get` regression** on `wclust`). PGO was built but not run
@@ -1091,7 +1097,15 @@ over-reporting `count()`** (`count=135 walked=71 isset=87` in PR #134), not
 corrupted neighbouring fields. A memory-corruption hunt would look in the wrong
 place.
 
-## 10. Verdict, and the gates that remain open
+## 10. Verdict, and the gates that remained open at decision time
+
+**This verdict has since been executed.** [#142](https://github.com/orieg/php-judy/issues/142)
+is the implementation tracker; Stages 0–2 and optimizations O1 and O3 are
+merged, and [§11](#11-execution-record-stages-03) is the execution record. The
+section below is preserved as written at decision time; where execution revised
+a detail — the #131 trigger conditions ([§11.2](#112-stage-1--the-bundled-build-and-the-gate-that-caught-a-flag-pr-146)),
+the O3 magnitude ([§11.7](#117-stage-3-o3--the-projection-was-wrong-and-why-pr-150-merged)) —
+§11 supersedes it.
 
 **Vendor stock 1.0.5 plus patches. Agreed on both sides of the external review.**
 Do not adopt the C modernization as proposed. Do not rewrite in Rust *for
@@ -1176,6 +1190,297 @@ Homebrew as a stable packaged dependency; vendoring replaces that with owning th
 above across every platform CI builds on, indefinitely. **Budget the decision
 against this, not against the C sources.**
 
+## 11. Execution record (Stages 0–3)
+
+Everything above is investigation. This section records what executing the
+verdict found — findings of the same kind as §5–§7, in the same voice:
+`(measured)` where measured, negatives kept, sub-floor results declined. Every
+claim below traces to a merged PR body, an issue comment, or a gate comment on
+the [#142](https://github.com/orieg/php-judy/issues/142) tracker. State at the
+time of writing: Stages 0–2 and optimizations O1 and O3 are merged; O2/O4/O5
+have not landed (O5 has passed its gate measurement, §11.5, but no in-tree
+implementation exists yet).
+
+### 11.1 Stage 0 — hotfix, pristine import, licensing (PRs #143, #144)
+
+**Build exploration found release drift before it found anything else.**
+`ci.yml`'s Windows job patched libJudy's UL constants with six replacements
+before building; the near-duplicate patch block in `release.yml` carried only
+five — missing `0xffL → (Word_t)0xff`. On MSVC x64 (LLP64) `0xffL` is a 32-bit
+`long`, so `cJU_MASKATSTATE` yields 0 for `State >= 5`, breaking
+`JU_SETDIGIT`/cascade for JudySL with long strings: **released Windows DLLs had
+been built without a fix that CI builds applied.** One-line hotfix in
+[PR #143](https://github.com/orieg/php-judy/pull/143); Stage 1 then deleted
+both patch blocks entirely, replacing the download-time regexes with real
+source diffs (P5, §11.4).
+
+**The pristine import is provable, not asserted.**
+[PR #144](https://github.com/orieg/php-judy/pull/144) imported the 29-file,
+24,748-line Judy-1.0.5 subset (sha256 `d2704089…414a63eb`, verified on a fresh
+download) as its own commit — so every later patch in the series is a
+reviewable diff against it — and verified byte-identity three ways: `cmp` of
+every committed blob against the freshly-extracted tarball, a tree-level
+`diff -r`, and re-verification of the packaged bytes **inside the built PECL
+tarball**. Two import decisions recorded: `JudyPrintJP.c` is live, not dead
+(`#include`d by Get/Ins/Del/PrevNextEmpty under trace ifdefs), and
+`src/JudyHS/JudyHS.h` is excluded (a standalone compat header whose upstream
+include is commented out; nothing references it).
+
+**The licensing review round-trip confirmed the approach — and needed
+correcting in three places before its template could propagate.** A
+senior-engineering licensing review endorsed the structure: source distribution
+satisfies LGPL-2.1 §6 (full source plus build definitions ship via GitHub and
+PECL, so relinking is trivially available), `libjudy/PATCHES.md` plus per-file
+headers carry the modified-work notices, and the license boundary is the
+`libjudy/` subtree. Three of its refinements were adopted. Two of its errors
+were corrected on the tracker: the file-change-notice clause is **§2(b), not
+§2(a)** (§2(a) requires the modified work itself to be a library; the review's
+template cited the wrong clause), and **three of the six rows in its
+illustrative patch ledger named wrong files** — P1 lives in
+`JudyPrivateBranch.h` (not `Judy1.h`/`JudyPrivate1L.h`), P2 in `JudyPrivate.h`
+(the review's `JudySearchLeaf.c` does not exist), O1 in `JudyPrivate.h` (not
+`JudyCount.c`/`JudyLTables.c`). Recorded on
+[#142](https://github.com/orieg/php-judy/issues/142) so Stage 2's real ledger
+was filled from verified paths, not the template.
+
+### 11.2 Stage 1 — the bundled build, and the gate that caught a flag (PR #146)
+
+The build architecture, from
+[PR #146](https://github.com/orieg/php-judy/pull/146): pre-generated
+`Judy1Tables.c`/`JudyLTables.c`, byte-identical between arm64 (Apple clang 17)
+and x86-64 (gcc 13), carrying provenance headers and negative-controlled
+compile-time pins; the full **40-wrapper set** enumerated from the per-variant
+`Makefile.am`s rather than guessed — `src/obj/Makefile.am` only globs `*.lo`
+and would have hidden the three specials: `JudyGet.c` compiles **twice** per
+variant (public entry plus a `-DJUDYGETINLINE` internal copy),
+`JudyPrevNext[Empty].c` twice (`-DJUDYNEXT`/`-DJUDYPREV`), and `JudyByCount.c`
+needs three `NOSMART*` defines. Flag isolation is per-source via
+`PHP_ADD_SOURCES_X`, whose flags the PHP build system emits **after** the
+global `$(CFLAGS_CLEAN)` on each vendored compile line, so later flags win.
+
+**The headline finding: the gate caught `-funroll-loops`.** The first Linux gcc
+bundled build failed exactly one test — `bitset_immed_cascade_integrity_001.phpt`,
+the #131 detector shipped by [PR #134](https://github.com/orieg/php-judy/pull/134)
+— in two independent full-suite runs. The vendored `-O2` overrides the global
+`-O3`, but **`-funroll-loops` has no implicit off switch** and leaked through.
+The bisect (gcc 13.4, a minimal C driver of the same cascade shape) then
+revised #131's trigger conditions:
+
+| build | detector |
+| --- | --- |
+| `-O2` | OK |
+| **`-O2 -funroll-loops`** | **BROKEN** (walked 71/135) on gcc 13/14 |
+| `-O3`, `-O3 -funroll-loops`, full php-src globals | OK on gcc 13/14 |
+| `-O3` | **BROKEN on gcc 15** — independently re-confirmed by the differential fuzzer ([PR #145](https://github.com/orieg/php-judy/pull/145)) the same day |
+
+The trigger is compiler-version- and flag-combination-dependent: gcc 13/14
+miscompile at `-O2 -funroll-loops` but **not** at bare `-O3`; gcc 15 at `-O3`.
+The conclusion, recorded on
+[#131](https://github.com/orieg/php-judy/issues/131): **no flag recipe is
+trustworthy across compiler versions — only the runtime detector is.** The
+bundled tree pins `-O2 -fno-lto -fno-unroll-loops` per source and keeps the
+detector in the suite unconditionally.
+
+**A negative control that legitimately did not fail, reported as such.** The
+literal "force `-O3` and watch the detector fail" experiment was run — config
+level, clean rebuild, compile line verified — and did **not** fail on gcc
+13/14, where bare `-O3` happens to generate correct code. That was reported as
+an honest caveat rather than manufactured into a pass; the real control was the
+genuine hazardous build failing the detector twice before the fix and the full
+suite going 220/220 (Linux gcc, macOS clang, Alpine musl) after it.
+
+### 11.3 Stage 4 preparation — the fuzzer, validated to fail (PRs #145, #148)
+
+The differential fuzzer
+([PR #145](https://github.com/orieg/php-judy/pull/145): Judy1/JudyL/JudySL/JudyHS
+against `std::set`/`std::map`/`std::unordered_map` oracles) was **validated
+against both historical bug classes before being trusted**:
+
+- **#131**: against stock sources built at gcc-15 `-O3`, the Judy1 differential
+  diverges in the **second smoke cell** — `key 0x3a4 in oracle, J1T says
+  absent`, the exact "inserted key denied by lookup" symptom §9.1 predicted a
+  fuzzer would find first. Same sources at `-O2`: full 46-cell smoke green.
+- **#127**: driving the bulk API against an ASan-built stock library trips the
+  `JudyInsArray` off-by-one at `Count == 31` — `global-buffer-overflow … 0
+  bytes after 'j__L_LeafWPopToWords'`, the same signature as §6.3.
+
+A 377-cell soak against Homebrew's stock 1.0.5 (classic APIs only) found no
+divergence. One repo defect found on the way: the root `.gitignore` ignores
+every `Makefile` unanchored (intended for the phpize-generated one at the repo
+root), which kept the harness's hand-written Makefile silently untracked —
+never shown by `git status`, never staged, absent from #145 without anyone
+noticing. Recovered verbatim with a `!Makefile` re-include in
+[PR #148](https://github.com/orieg/php-judy/pull/148).
+
+### 11.4 Stage 2 — the correctness series (PR #147)
+
+All seven patches landed — P5 in Stage 1, P1–P4/P6/P7 in
+[PR #147](https://github.com/orieg/php-judy/pull/147) — one commit, one
+`PATCHES.md` ledger row and one LGPL §2(b) change notice each, with
+`git diff <pristine-import> -- libjudy/` equal to exactly the ledger.
+[#127](https://github.com/orieg/php-judy/issues/127) and
+[#131](https://github.com/orieg/php-judy/issues/131) closed on merge. What the
+validation work itself found:
+
+- **P1's definitive proof is a fix table, not a flag rule.** The patched tree
+  built with the exact hazardous flag combinations passes the detector on every
+  compiler that previously miscompiled it — gcc 15.3 at `-O3`, gcc 14.4 and
+  13.4 at `-O2 -funroll-loops`: pre-P1 FAIL (keys lost) → patched **PASS**, all
+  three — and gcc's `-Waggressive-loop-optimizations` warning vanishes with the
+  widening. **The UB is removed, not avoided**; the conservative per-source
+  flags stay pinned as defense in depth.
+- **P2's negative control proved the pairing was load-bearing.** The guard fix
+  with `COPYINDEX` still hardcoded diverges immediately under the fuzzer —
+  exactly the data-loss class §6.2 predicted — while the paired patch is green
+  through a 46-cell smoke plus 1,442-cell `-DSEARCH_LINEAR` soak. The control
+  also proves the linear path is genuinely selected once the guard is fixed.
+- **The `NDEDUG` fix as specified would have been a semantic no-op.**
+  Correcting the spelling to `#ifndef NDEBUG` still ends with `NDEBUG` defined
+  in every build that lacked it, so the file's asserts stay unreachable either
+  way. The applied fix follows the library's own convention instead —
+  `#ifndef DEBUG` (`JudyPrivate.h:250`) — which actually makes the asserts
+  enableable. And the asserts-live build (`-UNDEBUG -DDEBUG`) fired **no
+  dormant assert** across the full suite plus a 50K-key JudySL stress: the
+  invariants unchecked for 20 years (§6.5) hold.
+- **P4's limit is stated rather than papered over.** The pre-fix out-of-scope
+  `pv[]` read is **not ASan-observable** — the compiler reuses a single stack
+  slot, which is precisely why the code "works today" — so the evidence is the
+  structural fix plus a 200-budget OOM-injection sweep (2..400 step 2, driven
+  through the exact `pv[]` recovery window via a `-DTRACEMI` build) with **zero
+  consistency failures**, not a sanitizer diff.
+- **P3's secondary effect was verified gone by interception, because the
+  library's own accounting structurally cannot see it.** Logging `JudyMalloc`
+  words shows pre-P3 allocating {5, 11, 23, 47, 63} words at Counts
+  {1, 3, 7, 15, 23} and post-P3 {3, 7, 15, 32, 47} (plus 63 at the
+  previously-corrupting Count 31) — exactly the size classes `JudyFreeArray`
+  frees, so allocation and free agree again. `JudyLMemUsed` cannot show any of
+  this: it derives from population, not from the allocation (§6.3).
+
+### 11.5 The O5 gate — AMAC at full leaf coverage (gate measurement on #142; prototype only, nothing landed)
+
+The stated prerequisite for O5 — extend the §5.2 prototype past
+`BRANCH_U*`/`BRANCH_B*`/`LEAF_B1` to the full leaf set and prove the win
+survives — was run on the benchmark host and **passed**
+([#142 gate comment](https://github.com/orieg/php-judy/issues/142)). Speedups
+quoted as ×N faster, the §5.2 convention; all `(measured)`, single library
+build per config (no per-build replication yet — magnitudes ±10% until the
+in-tree round):
+
+- **Full coverage, zero fallbacks — and the win grew.** The extended prototype
+  mirrors the complete JudyL GET dispatch **including the DCD narrow-pointer
+  checks the prior prototype omitted**; the `default:` fallback counter reads 0
+  across all 115 correctness gates and all timed runs. `wsparse` — previously
+  100% fallback, its ×1.23 unusable (§5.2) — now measures **×2.02**
+  [1.99, 2.05]; out-of-cache `wdense` (n = 4×10^7, the bulk-op regime) reaches
+  **×3.28** [3.21, 3.43] (10.3 → 33.7 Mops/s). The DCD checks cost ~5–7% of the
+  prior speedup on the already-covered corpora — their absence had slightly
+  flattered §5.2's ×1.62–1.79, which is recorded here as the honest correction.
+- **Phasing is load-bearing, discovered by ablation.** Giving BRANCH_B its own
+  prefetch epoch *collapsed* `wbase16` to ×0.65 with negative lane scaling;
+  resolving small branch structs on demand and spending epochs only on lines
+  worth waiting for restored ×1.97. Spec for the in-tree implementation:
+  **branches one-phase, leaves two-phase.**
+- **The lane optimum moved from 4–8 to 16–32** once leaf search entered the
+  work phase — an in-tree `judy_l_multi_get` should default to ~16 lanes.
+- **Tiny fully-cached trees regress** (×0.86–0.95; nothing to overlap, lane
+  overhead only), so O5 needs a serial fallback below a small population
+  threshold.
+
+### 11.6 Stage 3, O1 — popcount, independently replicated and merged (PR #149)
+
+[PR #149](https://github.com/orieg/php-judy/pull/149) landed the
+`j__udyCountBits{B,L}` hardware-popcount arms at the existing HP-UX/Itanium
+seam and re-ran the §5.1 A/B against the vendored, fully-patched tree under the
+round-2 protocol (three arms including a flag-only control, 5 randomized-link
+builds per arm, per-build medians, percentile-bootstrap CIs). Ratios below are
+time treatment/base — below 1.0 is faster; all `(measured)`:
+
+- **Near-exact independent replication.** `wbase16` get **×0.8413** against the
+  prior round's ×0.8414; `wdense` ×0.8249 against ×0.8290 — different tree
+  (P1–P7 applied), different builds, same protocol, same answer.
+- **The control calibrated a claim floor, and sub-floor cells were declined.**
+  All 45 flag-only-control objects are **byte-identical** to base, yet 2 of its
+  18 cells came back nominally non-null — so those excursions are residual
+  layout/measurement noise slipping past the 5-build randomization, and they
+  set the claim floor at **~1.3%**. Consequence drawn: `wclust` get (−2.4%,
+  same cell as a −1.25% control excursion) and `urand16` (−0.7%) are **not
+  claimed**; every claimed cell is 6–70× above the floor with a null same-cell
+  control.
+- **The arm64 arm is new.** `__builtin_popcount{,ll}` lowers to base-ISA
+  `cnt`/`addv` at any optimization level, so aarch64 gets the arm
+  unconditionally (§5.1's numbers were x86-only); x86-64 stays gated on
+  `__POPCNT__` via the configure probe, so flagless builds compile
+  byte-identical stock SWAR (verified: defeated-probe objects contain 0 popcnt);
+  MSVC x64 uses `__popcnt64`, hardware POPCNT assumed and documented.
+- **The P7 `JudyNoInline.c` copies mirror the fast arms**, so a `-DJU_NOINLINE`
+  profiling build measures the algorithm production builds actually run.
+
+Full tables with CIs: [BENCHMARK.md](../../BENCHMARK.md), "Bundled libJudy
+optimizations (measured)".
+
+### 11.7 Stage 3, O3 — the projection was wrong, and why (PR #150, merged)
+
+§7.6 priced the word-access `JU_JPDCDPOP0`/`JU_JPSETADT` rewrite from
+instruction counts, and the tracker projected low-single-digit get /
+mid-single-digit insert gains. Measured
+([PR #150](https://github.com/orieg/php-judy/pull/150), same protocol as O1
+with a comment-only control, all arms carrying O1): get `wdense` **×0.6939**
+[0.6796, 0.7014] cache-resident — speedup CI-low **1.426** — and **×0.6944**
+[0.6931, 0.6971] out-of-cache (n = 4×10^7, CI-low 1.434); `wbase16` get
+×0.8132; insert ×0.834–0.881 across the four word corpora. All 36 control cells
+null (the control objects came out byte-identical to base). `urand16` (JudySL,
+string keys) sits at ≤1.2%, below the ~1.3% floor, and is **not claimed**. Code
+size falls too: `JudyLGet.o` `.text` **−27.6%**, whole library **−14.9%**
+(gcc 11.4 x86-64).
+
+**The mechanistically important part: the win survives out-of-cache fully
+intact** — ×0.694 at both residencies — where O1's popcount gain shrank from
+~17% cache-resident to ~7% out of cache. The difference is the mechanism:
+popcount shortens a compute chain that Amdahl dilutes once DRAM round trips
+dominate, while O3 collapses **5 dependent byte loads into 1 word load per
+descend level**, shortening the serial load-to-use chain itself — the resource
+§4's MLP measurement identified as the constraint, and the same bottleneck AMAC
+(§5.2, §11.5) attacks from the other end by overlapping whole descends.
+
+**Why the projection missed**: it was priced as instruction-count savings under
+the Amdahl frame — even though §7.6's own text said "the instruction count is
+not the point" — and dependency-chain shortening compounds per level and does
+not dilute out of cache. It is the mirror image of §4: round 1 over-claimed
+from a model, this projection under-claimed from one, and both were settled the
+same way — by measuring.
+
+### 11.8 What the execution phase taught
+
+Transferable lessons, one instance each:
+
+- **A gate you never watched fail is not a gate.** Stage 1's flag isolation was
+  proven by the detector failing on the leaked `-funroll-loops` build (§11.2);
+  the fuzzer was validated to fail against both historical bug classes before
+  being trusted (§11.3); P2 shipped with a negative control that diverges
+  (§11.4).
+- **Controls calibrate floors, and sub-floor results are declined.** O1's
+  byte-identical-code control set a ~1.3% claim floor and `wclust`/`urand16`
+  were not claimed (§11.6); O3 declined `urand16` against the same floor
+  (§11.7).
+- **A projection built on the wrong mechanism can be an order of magnitude off
+  in either direction.** Round 1 over-claimed stall time from an MLP = 1 model
+  and was retracted (§4); §7.6's instruction-count frame under-priced O3, which
+  measured ×0.694 where "low single digits" was projected (§11.7).
+- **Provenance discipline caught three errors before they entered the record**:
+  negative results that constrain the decision as much as the positives did but
+  had never been filed — caught and filed at
+  [#113 (negative results)](https://github.com/orieg/php-judy/issues/113#issuecomment-5324250328);
+  the two colliding 91s of §7.1, whose conflation inverts the conclusion; and a
+  dangling cross-reference — an earlier #127 comment pointed at string-layer
+  findings that existed nowhere until
+  [#113 (string-layer performance)](https://github.com/orieg/php-judy/issues/113#issuecomment-5324314505)
+  filed them. Each was caught by requiring every written claim to trace to a
+  durable source.
+- **A semantic no-op can hide inside an "obvious" typo fix.** The literal
+  `NDEDUG → NDEBUG` correction changes nothing; only following the library's
+  actual `#ifndef DEBUG` convention makes the asserts live — and running them
+  was what showed the 20-year invariants hold (§11.4).
+
 ---
 
 ## Limits of this record
@@ -1210,3 +1515,10 @@ anyone re-deriving §5, and is itself an open item.
 The one thing in this investigation that **is** committed and re-runnable ships
 with the extension: `tests/bitset_immed_cascade_integrity_001.phpt`, which fails
 on a miscompiled system libJudy.
+
+Execution improved this position: the differential fuzzer is committed under
+[`research/differential-fuzz/`](../differential-fuzz/) ([PR #145](https://github.com/orieg/php-judy/pull/145),
+[#148](https://github.com/orieg/php-judy/pull/148)), and the O1/O3 measurement
+protocol runs against the vendored tree in this repository (raw CSVs, drivers
+and build trees for those rounds remain on the benchmark host, per the PR
+records). The §5 investigation-round harnesses remain uncommitted.
