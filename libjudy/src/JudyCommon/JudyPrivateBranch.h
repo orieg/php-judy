@@ -1,6 +1,16 @@
 // Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
 // correctness -- see libjudy/PATCHES.md, issues #127/#142):
 // JU_BRANCHL/B_MAX_POP and cJU_MASKATSTATE use Word_t-width constants (0xffL made cJU_MASKATSTATE 0 for State >= 5 on LLP64).
+// Modified for php-judy on 2026-08-18 (patch P1, Judy1 immediate-index
+// out-of-bounds -- see libjudy/PATCHES.md, issues #131/#127/#142):
+// jpi_t: j_pi_1Index widened from sizeof(Word_t) to (2 * sizeof(Word_t)) - 1
+// bytes via an anonymous-member-free union that keeps j_pi_LIndex at its old
+// offset (sizeof(Word_t)) and sizeof(jp_t) unchanged.  Judy1 immediates hold
+// up to cJ1_IMMED1_MAXPOP1 = 15 one-byte indexes, written/read contiguously
+// through jp_1Index (JudyCascade.c:604, JudyGet.c IMMED cases); the old
+// 8-byte declared bound made every such access past index 7 undefined
+// behavior, which gcc 15 at -O3 and gcc 13/14 at -O2 -funroll-loops exploit
+// (silent Judy1 key loss).  jp_1Index/jp_LIndex accessor macros redirected.
 //
 #ifndef _JUDY_PRIVATE_BRANCH_INCLUDED
 #define _JUDY_PRIVATE_BRANCH_INCLUDED
@@ -84,8 +94,13 @@ typedef struct J_UDY_POINTER_OTHERS      // JPO.
 
 typedef struct _JUDY_POINTER_IMMED      // JPI.
         {
-            uint8_t j_pi_1Index[sizeof(Word_t)];        // see above.
-            uint8_t j_pi_LIndex[sizeof(Word_t) - 1];    // see above.
+            union {
+                uint8_t j_pi_1Index[(2 * sizeof(Word_t)) - 1];  // see above.
+                struct {
+                    uint8_t j_pi_pad[sizeof(Word_t)];
+                    uint8_t j_pi_LIndex[sizeof(Word_t) - 1];    // see above.
+                } j_pi_s;
+            } j_pi_u;
             uint8_t j_pi_Type;                  // JP type, 1 of cJ*_JPIMMED*.
         } jpi_t;
 
@@ -107,8 +122,8 @@ typedef union J_UDY_POINTER             // JP.
 //
 // Note, jp_Type has the same bits in jpo_t and jpi_t.
 
-#define jp_1Index  j_pi.j_pi_1Index     // for storing Indexes in first  word.
-#define jp_LIndex  j_pi.j_pi_LIndex     // for storing Indexes in second word.
+#define jp_1Index  j_pi.j_pi_u.j_pi_1Index          // Indexes, first word on.
+#define jp_LIndex  j_pi.j_pi_u.j_pi_s.j_pi_LIndex   // Indexes in second word.
 #define jp_Addr    j_po.j_po_Addr
 //#define       jp_DcdPop0 j_po.jpo_u.j_po_DcdPop0
 #define jp_Type    j_po.jpo_u.j_po_Bytes[sizeof(Word_t) - 1]

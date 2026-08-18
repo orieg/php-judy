@@ -1,6 +1,15 @@
 // Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
 // correctness -- see libjudy/PATCHES.md, issues #127/#142):
 // cJU_ALLONES, JU_LEASTBYTESMASK and JU_BITPOSMASKB/L use Word_t-width constants instead of UL/L constants that truncate or sign-extend on LLP64.
+// Modified for php-judy on 2026-08-18 (patch P2, SEARCH_LINEAR
+// correctness -- see libjudy/PATCHES.md, issues #127/#142): the leaf-search
+// method guard uses && (the || form defined SEARCH_BINARY even when
+// -DSEARCH_LINEAR was given, so the linear method was unselectable), and the
+// linear SEARCHLEAFNONNAT honors its COPYINDEX parameter (it hardcoded
+// JU_COPY3_PINDEX_TO_LONG, silently reading 3 bytes per index in every
+// LEAF5/6/7 search -- data loss for every non-native index size != 3).
+// Fixed together deliberately: the guard fix alone would turn an inert flag
+// into a data-losing one.
 //
 #ifndef _JUDYPRIVATE_INCLUDED
 #define _JUDYPRIVATE_INCLUDED
@@ -496,7 +505,7 @@ extern const uint8_t j__L_BranchBJPPopToWords[];
 
 // Fast LeafL search routine used for inlined code:
 
-#if (! defined(SEARCH_BINARY)) || (! defined(SEARCH_LINEAR))
+#if (! defined(SEARCH_BINARY)) && (! defined(SEARCH_LINEAR))
 // default a binary search leaf method
 #define SEARCH_BINARY 1
 //#define SEARCH_LINEAR 1
@@ -524,7 +533,7 @@ extern const uint8_t j__L_BranchBJPPopToWords[];
     P_leafEnd = P_leaf + ((POP1) * (LFBTS));                    \
                                                                 \
     do {                                                        \
-        JU_COPY3_PINDEX_TO_LONG(i_ndex, P_leaf);                \
+        COPYINDEX(i_ndex, P_leaf);                              \
         if (I_ndex <= i_ndex) break;                            \
         P_leaf += (LFBTS);                                      \
     } while (P_leaf < P_leafEnd);                               \

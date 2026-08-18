@@ -25,6 +25,7 @@ dnl # defines); the enumeration follows upstream's per-variant Makefile.am
 dnl # (issue #142). Judy1Tables.c/JudyLTables.c are pre-generated (JU_64BIT).
 judy_bundled_sources="\
   libjudy/src/JudyCommon/JudyMalloc.c \
+  libjudy/src/JudyCommon/JudyNoInline.c \
   libjudy/src/JudySL/JudySL.c \
   libjudy/src/JudyHS/JudyHS.c \
   libjudy/src/Judy1/Judy1Tables.c \

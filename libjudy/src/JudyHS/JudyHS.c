@@ -1,3 +1,9 @@
+// Modified for php-judy on 2026-08-18 (patch P6, latent-UB hygiene -- see
+// libjudy/PATCHES.md, issues #127/#142): COPYSTRING4toWORD casts each byte
+// to Word_t BEFORE shifting -- the cast was applied to the shift RESULT, so
+// uint8_t promoted to int and byte << 24 overflowed int for bytes >= 0x80
+// (C99 6.5.7p4 UB).  The 64-bit COPYSTRING8toWORD already casts first.
+//
 // @(#) $Revision: 4.1 $ $Source: /judy/src/JudyHS/JudyHS.c
 //=======================================================================
 //   Author Douglas L. Baskins, Dec 2003.
@@ -173,11 +179,11 @@ typedef struct L_EAFSTRING
     {                                                   \
     default:    /* four and greater */                  \
     case 4:                                             \
-        WORD += (Word_t)(((uint8_t *)(STR))[3] << 24);  \
+        WORD += ((Word_t)((uint8_t *)(STR))[3] << 24);  \
     case 3:                                             \
-        WORD += (Word_t)(((uint8_t *)(STR))[2] << 16);  \
+        WORD += ((Word_t)((uint8_t *)(STR))[2] << 16);  \
     case 2:                                             \
-        WORD += (Word_t)(((uint8_t *)(STR))[1] <<  8);  \
+        WORD += ((Word_t)((uint8_t *)(STR))[1] <<  8);  \
     case 1:                                             \
         WORD += (Word_t)(((uint8_t *)(STR))[0]);        \
     case 0: break;                                      \
