@@ -311,6 +311,8 @@ $arr = $judy[2]; // Returns [1, 2, 3]
 
 Trie-based types use JudySL internally. Keys are stored in sorted lexicographic order, making iteration ordered and range queries efficient. Lookup is O(key-length).
 
+> **String keys are binary-safe for every byte except `0x00`.** High bytes (`0x80`, `0xFE`, `0xFF`) store, compare and sort as unsigned bytes on all six string-keyed types. A key containing an embedded NUL is rejected with an exception on all six, on every method that takes a string key — every type orders its keys through a JudySL trie, which indexes NUL-terminated C strings. Encode `pack()` output, raw digests and serialized payloads (base64, hex, or any NUL-free framing) before using them as keys. Values are unaffected.
+
 #### 5. Judy::STRING_TO_INT
 
 A Judy array with string keys and integer values.
