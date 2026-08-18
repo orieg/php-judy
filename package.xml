@@ -225,6 +225,7 @@
          <file name="tests/string_to_mixed_hash_004.phpt" role="test" />
          <file name="tests/string_to_mixed_hash_005.phpt" role="test" />
          <file name="tests/string_to_mixed_hash_006.phpt" role="test" />
+         <file name="tests/string_key_length_sweep_001.phpt" role="test" />
          <file name="tests/from_array_roundtrip_string_to_mixed_hash.phpt" role="test" />
          <file name="tests/json_serialize_string_to_mixed_hash.phpt" role="test" />
          <file name="tests/serialize_roundtrip_string_to_mixed_hash.phpt" role="test" />

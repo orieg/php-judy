@@ -315,9 +315,9 @@ struct StrGen {
 };
 
 /* JudyHS keys are (pointer, length): arbitrary bytes, NUL and empty legal. */
-enum HCorpus { H_RAND, H_BOUNDARY, H_FFBIAS, H_SHORT, H_MIXED };
-static const char *const hcorpus_name[] = {"rand", "boundary", "ffbias",
-                                           "short", "mixed"};
+enum HCorpus { H_RAND, H_BOUNDARY, H_FFBIAS, H_SHORT, H_COLLIDE, H_MIXED };
+static const char *const hcorpus_name[] = {"rand",  "boundary", "ffbias",
+                                           "short", "collide",  "mixed"};
 
 struct HashGen {
     Rng &rng;
@@ -332,7 +332,28 @@ struct HashGen {
         case H_BOUNDARY: len = 4 + rng.below(6); break; /* 4..9 exactly */
         case H_FFBIAS:   len = rng.below(25); ffbias = true; break;
         case H_SHORT:    len = rng.below(4); break;     /* 0..3 */
-        default:         return gen((int)rng.below(4)); /* H_MIXED */
+        case H_COLLIDE: {
+            /* Engineered 32-bit hash collisions: under JudyHS's
+             * c' = c*31 + byte hash, the 2-byte blocks "Aa", "BB", "C#"
+             * each contribute 65*31+97 = 66*31+66 = 67*31+35 = 2112, so
+             * every key with the same block count shares its full hash
+             * AND its length -- all land in one hash bucket, driving the
+             * collision subtree that random keys essentially never reach:
+             * ls_t splits on insert, word-tree descends, leaf compares
+             * and structural misses on get/delete. Block counts 5..9
+             * give lengths 10..18 (> WORDSIZE, so the hash path is
+             * active, spanning the 16-byte word boundary). Added for the
+             * O4d JudyHSDel gate (#142): the folded-in presence check --
+             * leaf memcmp and null-branch guards -- only fires under
+             * colliding deletes. */
+            static const char *const blk[3] = {"Aa", "BB", "C#"};
+            size_t nb = 5 + rng.below(5);
+            std::string k;
+            k.reserve(nb * 2);
+            for (size_t b = 0; b < nb; b++) k += blk[rng.below(3)];
+            return k;
+        }
+        default:         return gen((int)rng.below(5)); /* H_MIXED */
         }
         std::string k(len, '\0');
         for (size_t p = 0; p < len; p++) {
@@ -1130,7 +1151,7 @@ static const Domain domains[] = {
     {"judy1", wdist_name, 6, run_judy1},
     {"judyl", wdist_name, 6, run_judyl},
     {"judysl", scorpus_name, 6, run_judysl},
-    {"judyhs", hcorpus_name, 5, run_judyhs},
+    {"judyhs", hcorpus_name, 6, run_judyhs},
 };
 static const int ndomains = 4;
 
