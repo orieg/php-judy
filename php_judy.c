@@ -1525,20 +1525,26 @@ PHP_METHOD(Judy, __construct)
 
 	JUDY_METHOD_GET_OBJECT
 
+	/* Parse unconditionally, before any other check. Judy_arginfo.h declares
+	   one required argument, and a PHP debug build aborts any call that returns
+	   without having reached zpp ("Arginfo / zpp mismatch during call of
+	   Judy::__construct()"). Guarding zpp behind ZEND_NUM_ARGS() > 0 meant
+	   `new Judy()` never parsed at all: fatal on a debug build, and on a release
+	   build a silently UNINITIALIZED object whose type is 0 -- getType() and
+	   count() report 0, memoryUsage() reports null, and any write warns
+	   "invalid Judy Array type, please report". $type has always been required
+	   by the documented signature, so it is now enforced. */
+	ZEND_PARSE_PARAMETERS_START(1, 2) /* judy-arginfo-negative-control */
+		Z_PARAM_LONG(type)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_BOOL(optimize_iteration)
+	ZEND_PARSE_PARAMETERS_END();
+
 	JUDY_METHOD_ERROR_HANDLING;
 
 	if (intern->type) {
 		zend_throw_exception(NULL, "Judy Array already instantiated", 0);
-	} else if (ZEND_NUM_ARGS() > 0) {
-		ZEND_PARSE_PARAMETERS_START(1, 2)
-			Z_PARAM_LONG(type)
-			Z_PARAM_OPTIONAL
-			Z_PARAM_BOOL(optimize_iteration)
-		ZEND_PARSE_PARAMETERS_END_EX(
-			zend_restore_error_handling(&error_handling);
-			return;
-		);
-
+	} else {
 		JTYPE(jtype, type);
 		if (jtype == 0) {
 			zend_restore_error_handling(&error_handling);
