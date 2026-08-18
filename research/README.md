@@ -11,7 +11,7 @@ Each subdirectory owns one question and names the artifact it supports.
 | --------- | -------- | -------- |
 | [`shm-arena/`](shm-arena/) | Can libJudy live in a shared-memory arena, giving an ordered cache shared across FPM workers? | [issue #83](https://github.com/orieg/php-judy/issues/83) — closed, not planned. Five feasibility gates; writer death corrupts the tree 15% of the time (Wilson CI [8.8%, 24.4%]) and macOS has no robust mutexes. `FINDINGS.md` has the per-gate verdicts. |
 | [`iteration-cost/`](iteration-cost/) | Is JudySL's ordered-iteration cost the caller-supplied key buffer, or a stateless re-descend from the root? | [issue #85](https://github.com/orieg/php-judy/issues/85) and [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). The key-reconstruction hypothesis stays refuted, but the evidence originally given for it does not: **`JSLN` is not flat in key length, and not flat in working-set size** — both flat results were artifacts of one degenerate corpus. Re-derived on a fixed generator; see [The `JSLN` flatness claim, re-derived](#the-jsln-flatness-claim-re-derived) below. |
-| [`write-probe-cost/`](write-probe-cost/) | Issue #85 step B3 wants ordered traversal to read the value out of the `key_index` cursor. That means locating the `key_index` slot on every write. What does moving the existence probe from JudyHS to JudySL cost the write path? | [issue #85](https://github.com/orieg/php-judy/issues/85) step B3. The probe swap itself is roughly neutral on a hit (+3% at 16-byte keys, −9% at 40-byte) and a large win on a miss (JudySL fails at the first differing byte; JudyHS digests the whole key first). End-to-end random-order overwrite still regresses, because today's `JHSG`+`JHSI` pair reuses one warm structure and the mirrored write touches two. That regression is why the mirror ships behind the opt-in `optimizeIteration` constructor argument rather than on by default: the unmirrored path keeps the `JHSG` probe and this swap never happens on it. |
+| [`write-probe-cost/`](write-probe-cost/) | Issue #85 step B3 wants ordered traversal to read the value out of the `key_index` cursor. That means locating the `key_index` slot on every write. What does moving the existence probe from JudyHS to JudySL cost the write path? | [issue #85](https://github.com/orieg/php-judy/issues/85) step B3. The probe swap itself is roughly neutral on a hit (+3% at 16-byte keys, −9% at 40-byte) and a large win on a miss (JudySL fails at the first differing byte; JudyHS digests the whole key first) — but see [Absent keys and divergence depth](#absent-keys-and-divergence-depth): the miss figure was taken at the one divergence depth most favourable to the trie, so for long keys it is granted rather than measured. End-to-end random-order overwrite still regresses, because today's `JHSG`+`JHSI` pair reuses one warm structure and the mirrored write touches two. That regression is why the mirror ships behind the opt-in `optimizeIteration` constructor argument rather than on by default: the unmirrored path keeps the `JHSG` probe and this swap never happens on it. |
 | [`backend-comparison/`](backend-comparison/) | Should the extension keep libJudy, or move to a modern ordered index? | [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). `amdahl.c`/`amdahl.php` bound how much a backend swap could possibly buy through the PHP boundary; `cmp.c` runs ART against JudySL. Verdict: keep Judy. Needs libart cloned alongside — not vendored. |
 | [`libjudy-modernization/`](libjudy-modernization/) | Given that we keep Judy, does the incumbent have exploitable headroom — and does realising it mean vendoring libJudy? | [issue #113](https://github.com/orieg/php-judy/issues/113), plus [#131](https://github.com/orieg/php-judy/issues/131) / [#127](https://github.com/orieg/php-judy/issues/127) for the upstream defects it turned up. A first "no headroom" verdict was retracted; round 2 measured popcount-L at 17% cache-resident (JudyL only) and memory-level parallelism at 1.62–1.79x. The decisive finding is correctness, not speed: stock libJudy built with `gcc -O3` silently loses `Judy::BITSET` keys. Verdict: vendor stock 1.0.5 + patches, gated. `FINDINGS.md` has the full record, including the retraction and the negatives. **No harnesses are committed** — they were built in throwaway trees; re-deriving the timings needs them written again. |
 
@@ -231,13 +231,52 @@ gcc -O2 -Wall -Wextra -o iterbench research/iteration-cost/iterbench.c -lJudy
 
 # write-probe-cost
 gcc -O2 -Wall -Wextra -o probebench research/write-probe-cost/probebench.c -lJudy
-./probebench 1000000 16 5       # n, key length, reps; keylen < 8 adds the
-                                # ADAPTIVE short-string (SSO) probe
+./probebench 1000000 16 5       # n, key length, reps, corpus, absent-key
+                                # divergence (defaults: struct, offset);
+                                # keylen < 8 adds the ADAPTIVE short-string
+                                # (SSO) probe
 ./probebench 200000 6 5         # the SSO probe itself
+./probebench 1000000 16 5 rand  # same corpus options as iterbench
+./probebench 1000000 16 5 struct last   # absent keys that diverge at the
+                                        # final byte, not at byte 5
 
 # shm-arena
 cd research/shm-arena && make && make run
 ```
+
+Both harnesses take the corpus as their fourth argument, with the same three
+names and the same generation code, so a figure from one sits on the same
+curve as a figure from the other. `probebench` takes the absent-key
+divergence as a fifth.
+
+## The CI gate
+
+`research/ci-smoke.sh` builds every harness here with `-Wall -Wextra -Werror`
+and runs a small ASan/UBSan pass across the whole parameter grid — every
+corpus, key lengths bracketing 8 and 16, and every absent-key divergence.
+`.github/workflows/ci.yml`'s `build-research` job runs it on every PR, ending
+with a negative control that reinstates the [#122](https://github.com/orieg/php-judy/issues/122)
+generator bug and requires the grid to reject the tree.
+
+It exists because this directory had no CI at all, and that is how both of the
+defects recorded above survived: nothing compiled `research/`, so a generator
+could ignore its own length argument for years and a documented probe path
+could ship without ever having executed. Run it before committing anything
+here:
+
+```sh
+./research/ci-smoke.sh          # n = 1000; seconds, not minutes
+```
+
+Two things it does not cover, both deliberately:
+
+- **`backend-comparison/cmp.c`** is not built. It includes `art.h` from
+  libart, which is cloned alongside rather than vendored, and vendoring a
+  dependency into a tree whose whole point is that nothing in it ships is the
+  wrong trade.
+- **`shm-arena/`** is compiled but not run. Its gates fork, kill writers
+  mid-write and probe robust mutexes; that is a feasibility study, not a smoke
+  test, and issue #83 is already closed on its results.
 
 ## The structured corpus's key shapes
 
@@ -326,6 +365,48 @@ returns; that is a property of the index type, not of Judy.
 
 Note also that `keylen >= 16` switches to the long key shape (see above), so the
 16-byte rows elsewhere in this directory are not on the same curve as this table.
+
+## Absent keys and divergence depth
+
+`probebench`'s miss cases exist to compare a trie miss against a hash miss. A
+trie can fail at the first byte that differs from anything stored; a hash has
+to digest the whole key before it can answer. So how deep into the key the
+absent keys diverge is not a detail of the corpus — it is the independent
+variable of that comparison, and holding it at one value reports a point where
+a curve is needed.
+
+The original generator held it at one value, and at the value most favourable
+to the trie. Absent keys were the present ones offset by `ABSENT_OFFSET_LONG`
+(500,000,000), which pushes `i / 10` into 8-digit territory and therefore
+changes the third digit of the `user:%08lu` field. At `keylen >= 16` **every**
+absent key diverged at byte 5 of 16 — the earliest position the format can
+express — while JudyHS still digested all 16 bytes. For long keys the miss
+comparison was granted to the trie by construction rather than measured, and
+the generator's comment asserted the opposite.
+
+The fifth argument now selects it:
+
+| value | absent key first differs at |
+| ----- | --------------------------- |
+| `offset` (default) | wherever the historical index offset happens to put it — byte 5 of 16 for the long shape |
+| `shallow` | byte 0 |
+| `mid` | byte `len / 2` |
+| `deep` | byte `len - 2` |
+| `last` | the final byte |
+
+The four named modes copy a stored key and change exactly one byte at that
+position, so the absent key keeps the stored key's length: the hash's work is
+held constant while the trie's varies, which is the contrast the comparison
+is about. `offset` is kept as the default so every miss figure published
+before this option existed stays reproducible without a flag.
+
+Two limits. The realised divergence is a **lower bound**, not an exact depth:
+the mutated key shares `depth` bytes with its source, but some other stored key
+may share more, and Judy exposes no way to read back the longest common prefix
+it actually walked. And **the curve has not been run** — this change makes the
+measurement possible and states that the existing long-key miss number is a
+best case; it does not replace that number. Doing so needs an idle host, per
+the warning above.
 
 ## Reading probebench's absolute numbers
 
