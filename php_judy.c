@@ -526,6 +526,47 @@ static zend_always_inline int judy_reject_nul_key_zval(judy_object *intern, zval
 			_return_;						\
 	}
 
+/* {{{ judy_value_from_slot — materialise a live value slot into a zval.
+
+   The single place that knows how each type encodes its payload in the
+   Word_t slot libJudy hands back, so a caller already standing on that slot
+   never has to descend from the root a second time for a key it is holding.
+   judy_object_read_dimension_helper() below does the descend and then calls
+   this, which is what keeps the two conversions from drifting.
+
+   `PValue` must be a slot from the *value store* of `intern`. For the four
+   key_index-backed types (*_HASH / *_ADAPTIVE) an ordered cursor walks
+   `key_index`, whose slot is NOT the value — unless JUDY_MIRRORS_PAYLOAD()
+   holds for that key, which is exactly what the optimizeIteration mirror
+   makes true. Callers resolve that before calling here. BITSET has no value
+   slot and never reaches this function.
+
+   MIXED goes through ZVAL_COPY, so the result owns a reference and stays
+   valid even if the source entry is destroyed afterwards. That is what makes
+   it safe to materialise a value *before* an operation that may run
+   arbitrary user code. */
+static zend_always_inline void judy_value_from_slot(judy_object *intern, Pvoid_t *PValue, zval *rv)
+{
+	if (JUDY_IS_MIXED_VALUE(intern)) {
+		zval *value = JUDY_MVAL_READ(PValue);
+		if (JUDY_LIKELY(value != NULL)) {
+			ZVAL_COPY(rv, value);
+		} else {
+			ZVAL_NULL(rv);
+		}
+	} else if (JUDY_IS_PACKED_VALUE(intern)) {
+		judy_packed_value *packed = JUDY_PVAL_READ(PValue);
+		if (JUDY_LIKELY(packed != NULL)) {
+			judy_unpack_value(packed, rv);
+		} else {
+			ZVAL_NULL(rv);
+		}
+	} else {
+		ZVAL_LONG(rv, JUDY_LVAL_READ(PValue));
+	}
+}
+/* }}} */
+
 zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv) /* {{{ */
 {
 	zend_long index = 0;
@@ -580,20 +621,7 @@ zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv) /*
 	}
 
 	if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-		if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_STRING_TO_INT
-				|| intern->type == TYPE_STRING_TO_INT_HASH || intern->type == TYPE_STRING_TO_INT_ADAPTIVE) {
-			ZVAL_LONG(rv, JUDY_LVAL_READ(PValue));
-		} else if (intern->type == TYPE_INT_TO_MIXED || intern->type == TYPE_STRING_TO_MIXED
-				|| intern->type == TYPE_STRING_TO_MIXED_HASH || intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
-			ZVAL_COPY(rv, JUDY_MVAL_READ(PValue));
-		} else if (intern->type == TYPE_INT_TO_PACKED) {
-			judy_packed_value *packed = JUDY_PVAL_READ(PValue);
-			if (JUDY_LIKELY(packed != NULL)) {
-				judy_unpack_value(packed, rv);
-			} else {
-				ZVAL_NULL(rv);
-			}
-		}
+		judy_value_from_slot(intern, PValue, rv);
 		return rv;
 	}
 	return NULL;
@@ -5209,11 +5237,20 @@ static void judy_object_merge_with_helper(judy_object *intern, judy_object *othe
 			while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 				zval zidx, zval_val;
 				ZVAL_LONG(&zidx, (zend_long)index);
-				ZVAL_UNDEF(&zval_val);
-				judy_object_read_dimension_helper_zv(other, &zidx, &zval_val);
+				/* The cursor is already standing on the value slot for
+				 * `index`, so materialise it here instead of descending from
+				 * the root again. This must happen BEFORE the write: the
+				 * write can run a MIXED value's destructor, which can re-enter
+				 * and mutate `other`, and judy_value_from_slot() has taken a
+				 * reference by then (ZVAL_COPY for MIXED, a plain read for the
+				 * others), so `zval_val` survives it. */
+				judy_value_from_slot(other, PValue, &zval_val);
 				judy_object_write_dimension_helper_zv(intern, &zidx, &zval_val);
 				zval_ptr_dtor(&zval_val);
 				if (UNEXPECTED(EG(exception))) break;
+				/* PValue is NOT dereferenced across the write — JLN re-descends
+				 * from `index`, so a re-entrant mutation of `other` cannot
+				 * leave us reading a freed slot. */
 				JLN(PValue, other->array, index);
 			}
 		}
@@ -5231,14 +5268,39 @@ static void judy_object_merge_with_helper(judy_object *intern, judy_object *othe
 
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 			zval zkey, zval_val;
+			Pvoid_t *VValue;
+
 			ZVAL_STRING(&zkey, (const char *)key);
 			ZVAL_UNDEF(&zval_val);
-			judy_object_read_dimension_helper_zv(other, &zkey, &zval_val);
+
+			/* Which store the cursor is walking decides whether its slot is
+			 * the value. The two plain trie types keep the value in `array`,
+			 * which is what JSLF/JSLN walked, so PValue IS the value slot.
+			 * The four key_index-backed types walked `key_index` instead, and
+			 * there the value lives in the separate JudyHS (or, for short
+			 * ADAPTIVE keys, the packed JudyL) — so the second lookup stays,
+			 * except on an instance where optimizeIteration mirrored the
+			 * payload into the key_index slot we are holding. */
+			if (other->is_hash_keyed) {
+				Word_t klen = (Word_t)strlen((char *)key);
+				VValue = JUDY_MIRRORS_PAYLOAD(other, klen)
+					? PValue : judy_string_value_slot(other, key, klen);
+			} else {
+				VValue = PValue;
+			}
+			/* Materialise before the write, for the reason spelled out on the
+			 * private cursor above: the write can run user code. */
+			if (JUDY_LIKELY(VValue != NULL)) {
+				judy_value_from_slot(other, VValue, &zval_val);
+			}
+
 			judy_object_write_dimension_helper_zv(intern, &zkey, &zval_val);
 			zval_ptr_dtor(&zval_val);
 			zval_ptr_dtor(&zkey);
 			if (UNEXPECTED(EG(exception))) break;
 
+			/* Neither PValue nor VValue is dereferenced past the write; JSLN
+			 * re-descends from the key bytes in the private cursor. */
 			if (other->is_hash_keyed) {
 				JSLN(PValue, other->key_index, key);
 			} else {
