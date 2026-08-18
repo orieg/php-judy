@@ -265,6 +265,14 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
 - **Test**: `make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1`.
   Every behavior change needs a `.phpt` regression test in `tests/`.
 - **Zero compiler warnings** — CI fails on any warning in extension sources.
+- **The system libJudy must not be built with `gcc -O3`.** Stock 1.0.5 copies
+  up to 15 bytes into an 8-byte `jp_1Index`, and gcc at `-O3` truncates the
+  copy — `Judy::BITSET` then loses keys silently, with `count()` over-reporting
+  while iteration and `isset()` under-report.
+  `tests/bitset_immed_cascade_integrity_001.phpt` fails on such a build; a
+  failure there means the installed library needs rebuilding at `-O2`, not that
+  the extension regressed. See
+  [#131](https://github.com/orieg/php-judy/issues/131).
 - **API changes**: edit `Judy.stub.php` (canonical), regenerate arginfo, and
   regenerate `API.md` with `php scripts/generate-api-docs.php` — CI fails if
   `API.md` is stale.

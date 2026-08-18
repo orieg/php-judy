@@ -98,6 +98,7 @@
          <file md5sum="a401657315fae5182d412cbc0b02e312" name="tests/bitset_006.phpt" role="test" />
          <file md5sum="be3498c9fa543d91672b839ca190b3b4" name="tests/bitset_007.phpt" role="test" />
          <file name="tests/bitset_diff_001.phpt" role="test" />
+         <file name="tests/bitset_immed_cascade_integrity_001.phpt" role="test" />
          <file name="tests/bitset_intersect_001.phpt" role="test" />
          <file name="tests/bitset_setops_independence_001.phpt" role="test" />
          <file name="tests/bitset_setops_type_error_001.phpt" role="test" />
