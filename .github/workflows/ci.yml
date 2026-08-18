@@ -440,52 +440,41 @@ jobs:
             -r 'if (!PHP_DEBUG) { fwrite(STDERR, "not a debug runtime\n"); exit(1); }
                 printf("judy %s loaded into a debug PHP\n", judy_version());'
 
-      - name: Run the suite, minus one test that a known bug fails
-        run: |
-          # tests/debug_info_empty_001.phpt calls `new Judy()`. Judy::__construct
-          # declares $type as required in its arginfo but returns early without
-          # calling zend_parse_parameters when given no arguments, which a
-          # debug PHP rejects outright:
-          #
-          #   Fatal error: Arginfo / zpp mismatch during call of Judy::__construct()
-          #
-          # That is a real unfixed bug in the extension, not a test problem,
-          # and it is being fixed separately. It is excluded here so the other
-          # 214 tests can gate today; the step below pins the exclusion so it
-          # cannot outlive the bug.
-          KNOWN_FAILURE=tests/debug_info_empty_001.phpt
-          SUITE=$(ls tests/*.phpt | grep -vxF "$KNOWN_FAILURE" | tr '\n' ' ')
-          make test TESTS="$SUITE" NO_INTERACTION=1 REPORT_EXIT_STATUS=1
+      - name: Run the full suite on the debug PHP
+        run: make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
 
-      - name: Pin the exclusion — require the known failure to still fail
+      - name: Negative control — restore the mismatch, require the fatal
         run: |
-          # An excluded test is only honest if the exclusion expires. This
-          # step fails the moment tests/debug_info_empty_001.phpt starts
-          # passing on a debug build, i.e. when Judy::__construct is fixed:
-          # that PR should delete this step and drop the exclusion from the
-          # step above, so the whole suite gates again.
+          # The whole suite gates again now that Judy::__construct calls zpp
+          # unconditionally, so the exclusion and the step that pinned it are
+          # gone. This replaces the self-check they provided: an engine check
+          # that has never fired is not known to be switched on, so CI puts the
+          # bug back and requires the abort.
           #
-          # It also fails if the test breaks for some *other* reason, which an
-          # exclusion on its own would hide.
-          KNOWN_FAILURE=tests/debug_info_empty_001.phpt
-          rm -f tests/debug_info_empty_001.out tests/debug_info_empty_001.diff
+          # Restoring the old guard means returning before zpp when called with
+          # no arguments -- exactly the arginfo/zpp mismatch, which only a debug
+          # engine notices.
+          sed -i 's|ZEND_PARSE_PARAMETERS_START(1, 2) /\* judy-arginfo-negative-control \*/|if (ZEND_NUM_ARGS() == 0) { RETURN_NULL(); } /* CI negative control */ ZEND_PARSE_PARAMETERS_START(1, 2)|' php_judy.c
+          grep -q 'CI negative control' php_judy.c \
+            || { echo "::error::negative control did not apply — the anchor line in php_judy.c moved"; exit 1; }
+          make
 
           set +e
-          make test TESTS="$KNOWN_FAILURE" NO_INTERACTION=1 REPORT_EXIT_STATUS=1
+          "$HOME/php-debug/bin/php" -d extension="$(pwd)/modules/judy.so" \
+            -r 'new Judy();' > /tmp/negative-control-arginfo.log 2>&1
           rc=$?
           set -e
+          cat /tmp/negative-control-arginfo.log
 
           if [ "$rc" -eq 0 ]; then
-            echo "::error::$KNOWN_FAILURE now passes on a debug build — Judy::__construct is fixed. Delete this step and drop the exclusion from the previous step so the full suite gates."
+            echo "::error::a deliberate arginfo/zpp mismatch ran to completion — the debug engine checks are not in effect"
             exit 1
           fi
-          if ! grep -q 'Arginfo / zpp mismatch during call of Judy::__construct' \
-               tests/debug_info_empty_001.out; then
-            echo "::error::$KNOWN_FAILURE failed for a different reason than the known Judy::__construct arginfo/zpp mismatch — see the diff below"
-            cat tests/debug_info_empty_001.diff
-            exit 1
-          fi
-          echo "Known failure reproduced: Judy::__construct arginfo/zpp mismatch."
+          grep -q 'Arginfo / zpp mismatch' /tmp/negative-control-arginfo.log \
+            || { echo "::error::process failed but not via the arginfo/zpp check — see the log above"; exit 1; }
+          echo "Negative control passed: the debug build caught the mismatch."
+
+          git checkout -- php_judy.c
 
   build-research:
     # research/ holds standalone C harnesses that back measured claims in

@@ -24,8 +24,10 @@ $j["a"] = 1;
 unset($j["a"]);
 var_dump($j);
 
-// Never constructed (no type argument): must not crash.
-var_dump(new Judy());
+// Never constructed: __construct() now requires $type, but the UNINITIALIZED
+// state stays reachable through any path that bypasses the constructor, so
+// var_dump() must still not crash on it.
+var_dump((new ReflectionClass(Judy::class))->newInstanceWithoutConstructor());
 ?>
 --EXPECTF--
 object(Judy)#%d (6) {
