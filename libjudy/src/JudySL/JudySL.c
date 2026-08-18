@@ -1,3 +1,7 @@
+// Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
+// correctness -- see libjudy/PATCHES.md, issues #127/#142):
+// LASTWORD_BY_VALUE and JudySLPrevSub use Word_t-width constants instead of 0xffL / ~0UL.
+//
 //
 // This program is free software; you can redistribute it and/or modify it
 // under the term of the GNU Lesser General Public License as published by the
@@ -101,7 +105,7 @@
 // word is null (assume big-endian, including in a register on a little-endian
 // machine):
 
-#define LASTWORD_BY_VALUE(WORD) (! ((WORD) & 0xffL))
+#define LASTWORD_BY_VALUE(WORD) (! ((WORD) & (Word_t)0xff))
 
 #ifdef JU_64BIT
 
@@ -836,7 +840,7 @@ JudySLPrevSub(Pcvoid_t PArray, uint8_t * Index, int orig,
             return (&PSCLVALUE(PArray));
         }
 
-        indexword = ~0UL;
+        indexword = ~(Word_t)0;
         if ((PPValue = JudyLLast(PArray, &indexword, PJError)) == PPJERR)
         {
             JudySLModifyErrno(PJError, PArray, orig ? PArray : (Pvoid_t)NULL);

@@ -34,20 +34,30 @@ and the root [THIRD-PARTY.md](../THIRD-PARTY.md).
 - `src/JudyHS/JudyHS.h` — a standalone compatibility header for
   pre-JudyHS `Judy.h`; nothing includes it (the `#include` in
   `JudyHS.c` is commented out upstream)
-- The Judy1/JudyL wrapper sources and generated tables — upstream
-  generates these at build time; Stage 1 of the vendoring plan adds
-  them as clearly-marked non-upstream files
+- Upstream's build-time-generated Judy1/JudyL wrapper sources and
+  size-class tables — php-judy ships its own clearly-marked equivalents
+  instead: the build shims under `src/wrappers/` and the pre-generated
+  `src/Judy1/Judy1Tables.c` / `src/JudyL/JudyLTables.c` (see the
+  provenance headers in those files)
 
 ## Modifications
 
 Every change to these sources is documented in [PATCHES.md](PATCHES.md)
 and available as a git diff against the pristine import commit.
-Currently: none — the tree is pristine.
+Currently: P5 (the LLP64/Windows-x64 constant-width fixes). Files added
+by php-judy (wrappers, pre-generated tables) are additions, not
+modifications — see PATCHES.md.
 
 ## Build integration
 
-These sources are **not compiled yet**. Stage 1 of the vendoring plan
-([#142](https://github.com/orieg/php-judy/issues/142)) wires them into
-`config.m4`/`config.w32`, compiling them at `-O2 -fno-lto` only — never
-`-O3`/LTO (see [#131](https://github.com/orieg/php-judy/issues/131);
-`-O2` is load-bearing for correctness).
+These sources are the **default build** (`--with-judy` absent, `yes`
+or `bundled`): `config.m4`/`config.w32` compile them into the extension
+directly. `--with-judy=DIR` instead links against a system libJudy and
+compiles nothing under this directory. The vendored units are compiled
+at `-O2 -fno-lto -fno-unroll-loops` only — never `-O3`/LTO/loop
+unrolling — and the flags are attached per-source so the extension's
+own optimization flags cannot leak in (see
+[#131](https://github.com/orieg/php-judy/issues/131); measured on
+gcc 13/14, `-funroll-loops` at any -O level makes gcc exploit the
+out-of-bounds immediate copy and silently lose keys, so these flags
+are load-bearing for correctness).

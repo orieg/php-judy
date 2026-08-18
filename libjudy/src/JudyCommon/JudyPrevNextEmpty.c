@@ -1,3 +1,7 @@
+// Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
+// correctness -- see libjudy/PATCHES.md, issues #127/#142):
+// 1UL << N shift uses (Word_t)1 (1UL << 63 evaluated to 0 on LLP64, an infinite loop).
+//
 // Copyright (C) 2000 - 2002 Hewlett-Packard Company
 //
 // This program is free software; you can redistribute it and/or modify it
@@ -1238,7 +1242,7 @@ LeafB1NextSubexp:	// return here to check next bitmap subexpanse.
 	    if (subexp-- > 0)		// more subexpanses.
 	    {
 		LEAFB1_STARTSUBEXP(SETLEASTDIGITS_D);
-		bitposmaskL = (1UL << (cJU_BITSPERSUBEXPL - 1));
+		bitposmaskL = ((Word_t)1 << (cJU_BITSPERSUBEXPL - 1));
 		goto LeafB1NextSubexp;
 	    }
 

@@ -323,6 +323,7 @@
          <file md5sum="22726a237f203a685b2f6b81c1bad5d1" name="php_judy.h" role="src" />
          <file name="libjudy/src/Judy.h" role="src" />
          <file name="libjudy/src/Judy1/Judy1.h" role="src" />
+         <file name="libjudy/src/Judy1/Judy1Tables.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyByCount.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyCascade.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyCount.c" role="src" />
@@ -348,7 +349,49 @@
          <file name="libjudy/src/JudyCommon/JudyTables.c" role="src" />
          <file name="libjudy/src/JudyHS/JudyHS.c" role="src" />
          <file name="libjudy/src/JudyL/JudyL.h" role="src" />
+         <file name="libjudy/src/JudyL/JudyLTables.c" role="src" />
          <file name="libjudy/src/JudySL/JudySL.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1ByCount.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1Cascade.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1Count.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1CreateBranch.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1Decascade.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1First.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1FreeArray.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1InsertBranch.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1MallocIF.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1MemActive.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1MemUsed.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1Next.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1NextEmpty.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1Prev.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1PrevEmpty.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1Set.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1SetArray.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1Test.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1TestInline.c" role="src" />
+         <file name="libjudy/src/wrappers/Judy1Unset.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLByCount.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLCascade.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLCount.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLCreateBranch.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLDecascade.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLDel.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLFirst.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLFreeArray.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLGet.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLGetInline.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLIns.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLInsArray.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLInsertBranch.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLMallocIF.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLMemActive.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLMemUsed.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLNext.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLNextEmpty.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLPrev.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLPrevEmpty.c" role="src" />
+         <file name="libjudy/src/wrappers/judy_static_asserts.c" role="src" />
          <file name="libjudy/COPYING" role="doc" />
          <file name="libjudy/PATCHES.md" role="doc" />
          <file name="libjudy/README.md" role="doc" />
@@ -383,7 +426,7 @@
    </dependencies>
    <providesextension>Judy</providesextension>
    <extsrcrelease>
-      <configureoption default="autodetect" name="with-judy" prompt="Please provide the prefix of libJudy installation" />
+      <configureoption default="bundled" name="with-judy" prompt="libJudy to build against: &quot;bundled&quot; compiles the bundled copy (default); give the install prefix DIR of a system libJudy to link against it instead" />
    </extsrcrelease>
    <changelog>
       <release>

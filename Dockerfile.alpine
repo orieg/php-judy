@@ -9,8 +9,9 @@
 
 FROM php:8.4-cli-alpine
 
-RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS judy-dev \
-    && apk add --no-cache judy
+# No judy/judy-dev packages: the bundled libJudy (libjudy/) is the default
+# build, so a clean musl environment only needs the toolchain.
+RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS
 
 COPY . /usr/src/php-judy
 WORKDIR /usr/src/php-judy
@@ -18,13 +19,14 @@ WORKDIR /usr/src/php-judy
 RUN find . -name "*.lo" -delete && find . -name "*.dep" -delete \
     && rm -f Makefile Makefile.objects Makefile.fragments \
     && phpize \
-    && ./configure --with-judy=/usr \
+    && ./configure \
     && make 2>&1 | tee /tmp/build.log \
     && make install \
     && docker-php-ext-enable judy
 
 # Same warning gate as the Linux CI job: a musl-only warning is a real
-# portability signal.
+# portability signal. The vendored libjudy/ sources are deliberately excluded
+# (third-party at -Wall warns copiously; see libjudy/PATCHES.md).
 RUN if grep -E '(php_judy|judy_handlers|judy_arrayaccess|judy_iterator)\.[ch]:[0-9]+:[0-9]+: warning:' /tmp/build.log; then \
         echo "Compiler warnings detected in extension sources"; exit 1; \
     fi; \

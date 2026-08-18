@@ -1,8 +1,6 @@
 FROM php:8.4-cli
 
-# Install dependencies for judy extension
-RUN apt-get update && apt-get install -y libjudy-dev
-
+# No libjudy-dev: the PECL package builds the bundled libJudy by default.
 # Copy the new package into the container
 COPY Judy-*.tgz /tmp/judy.tgz
 
