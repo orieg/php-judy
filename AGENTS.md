@@ -157,6 +157,17 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   JudySL/JudyHS do not have, and throws on a string-keyed array. `size()` on a
   string-keyed range walks the key index instead: the cost of the range, not
   of the array.
+- **`toArray()` coerces integer-looking string keys; `keys()` does not.** The
+  result is a PHP array, which cannot hold the string key `"42"`, so a canonical
+  decimal integer in `PHP_INT` range comes back as an `int` (`"42"`, `"-7"`),
+  while `"07"`, `"-0"`, `" 42"`, `"4.0"` and out-of-range values stay strings.
+  Round-tripping bites: `foreach ($j->toArray() as $k => $v) { unset($j[$k]); }`
+  throws `TypeError` on a string-keyed array the moment one key is numeric,
+  because the offset arrives as an `int`. Use `keys()` (always strings) when the
+  key has to go back into the Judy, or cast with `(string)`. This is a PHP array
+  limitation, not something the extension can fix — but it is silent until a
+  numeric key shows up, so code that only ever saw `"user.3"`-shaped keys will
+  pass its tests and fail in production.
 - **A string upper bound is a bound, not a prefix match.** `keys('bl', 'bl')`
   does not return `blackcurrant` — `blackcurrant` sorts *after* `bl`. For a
   prefix sweep, bound with the prefix and its successor: `keys('bl', 'bm')`.

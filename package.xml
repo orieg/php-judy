@@ -162,6 +162,7 @@
          <file name="tests/to_array_string_to_int_001.phpt" role="test" />
          <file name="tests/to_array_string_to_mixed_001.phpt" role="test" />
          <file name="tests/to_array_empty_001.phpt" role="test" />
+         <file name="tests/to_array_numeric_key_coercion_001.phpt" role="test" />
          <file name="tests/from_array_roundtrip_001.phpt" role="test" />
          <file name="tests/from_array_error_001.phpt" role="test" />
          <file name="tests/put_all_001.phpt" role="test" />

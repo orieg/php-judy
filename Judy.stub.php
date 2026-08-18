@@ -246,6 +246,20 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
      * With $start and/or $end, only the inclusive [$start, $end] key range is
      * returned; null leaves that side unbounded. String-keyed types compare
      * bounds lexicographically and require string bounds.
+     *
+     * **On string-keyed types, a key that looks like an integer comes back as
+     * one.** The result is a PHP array, and PHP array keys cannot hold the
+     * string "42" — a canonical decimal integer within PHP_INT range is
+     * coerced, so "42" and "-7" return as int, while "07", "-0", " 42", "4.0"
+     * and out-of-range values stay strings. Feeding such a key straight back
+     * into the array throws, because a string-keyed Judy rejects an integer
+     * offset:
+     *
+     *     foreach ($j->toArray() as $k => $v) { unset($j[$k]); }  // TypeError
+     *
+     * keys() does not coerce — it returns every key as a string. Use it when
+     * you need keys to round-trip, or cast with (string) when iterating
+     * toArray().
      */
     public function toArray(mixed $start = null, mixed $end = null): array {}
 
