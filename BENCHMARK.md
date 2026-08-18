@@ -1256,7 +1256,7 @@ php examples/benchmarks/run-benchmarks-robust.php
 
 Our methodology and insights are informed by the [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which demonstrates Judy's strengths in ordered access patterns and memory efficiency.
 
-**Describes**: php-judy 2.5.0
+**Describes**: php-judy 2.5.1
 **Figures measured on**: 2.4.2, verified unchanged on 2.5.0 (0 regressions, run-wide
 median -0.04%; see Benchmarking Environment)
 **Last Updated**: August 2026
