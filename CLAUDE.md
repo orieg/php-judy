@@ -22,6 +22,15 @@ Single test: `make test TESTS=tests/<name>.phpt`. Failures leave
 - **`Judy.stub.php` is the canonical API definition.** After changing it,
   regenerate arginfo and run `php scripts/generate-api-docs.php` (CI gates
   `API.md` freshness). Keep AGENTS.md's type table in sync for API changes.
+- **A stub docblock edit does NOT reach `API.md` on its own.** The generator
+  prefers the `description` in `scripts/api-metadata.php` and only falls back to
+  the stub PHPDoc when there isn't one — and 33 methods have one. So prose meant
+  for readers of `API.md` must be added *there*, not just to the stub. The
+  freshness gate cannot catch this: regeneration reproduces the committed file
+  byte-for-byte and `--check` passes, which is exactly how #116's `toArray()`
+  coercion warning reached the stub and AGENTS.md but never `API.md`.
+  **Verify `git diff --stat API.md` shows a change, rather than trusting the
+  gate.**
 - **Version lockstep**: `PHP_JUDY_VERSION` in `php_judy.h` == version in
   `package.xml`. Full release checklist: README.md "Releasing" section.
 - **`package.xml` lists every shipped file** — adding/moving tests, examples,

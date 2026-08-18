@@ -433,6 +433,14 @@ public function toArray(mixed $start = null, mixed $end = null): array
 
 Converts the Judy array to a PHP array. Uses native C iteration internally, 2-3x faster than manual `foreach`. With `$start` and/or `$end`, only the inclusive `[$start, $end]` key range is returned; `null` leaves that side unbounded.
 
+**On string-keyed types, a key that looks like an integer comes back as one.** The result is a PHP array, and PHP array keys cannot hold the string `"42"` — a canonical decimal integer within `PHP_INT` range is coerced, so `"42"` and `"-7"` return as `int`, while `"07"`, `"-0"`, `" 42"`, `"4.0"` and out-of-range values stay strings. Feeding such a key straight back into the array throws `TypeError`, because a string-keyed Judy rejects an integer offset:
+
+```php
+foreach ($judy->toArray() as $k => $v) { unset($judy[$k]); }  // TypeError
+```
+
+`keys()` does not coerce — it returns every key as a string. Use it when keys need to round-trip, or cast with `(string)` when iterating `toArray()`.
+
 **Supported types**: All types. String-keyed types require string bounds and compare them lexicographically.
 
 ```php
