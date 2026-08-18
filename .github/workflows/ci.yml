@@ -329,6 +329,164 @@ jobs:
 
           git checkout -- php_judy.c
 
+  debug-php-assertions:
+    # A --enable-debug PHP compiles in checks that a release build drops,
+    # among them the arginfo cross-checks: zend_verify_internal_return_type
+    # compares what an internal function returns against what its arginfo
+    # declares, and the zpp bookkeeping catches a function whose parameter
+    # parsing disagrees with its declared signature. No other job here runs
+    # against such a PHP, and that gap is why Judy::offsetSet()/offsetUnset()
+    # could be declared IS_VOID while returning a bool -- an abort on every
+    # call under a debug build -- without CI noticing (#137).
+    #
+    # This job depends on the config.m4 fix that ships alongside it: PHP
+    # normalises PHP_DEBUG from "yes" to 1 before an extension's config.m4
+    # runs, so the old `!= "yes"` guard matched debug builds too and appended
+    # -DNDEBUG, which Zend/zend_portability.h rejects with a hard #error.
+    # Before that fix the extension could not be compiled against a debug PHP
+    # at all.
+    #
+    # setup-php ships no --enable-debug builds, so the PHP is compiled from
+    # source here and cached on its version.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Install Judy library
+        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
+
+      - name: Resolve the PHP 8.4 release to build
+        run: |
+          # Track the current 8.4 patch release so the assertions stay current,
+          # and fall back to a known-good pin if the release feed changes
+          # shape: the patch level is not what this job is testing, so a feed
+          # hiccup should not turn the job red.
+          FALLBACK=8.4.24
+          VERSION=$(curl -fsSL --max-time 30 \
+                      'https://www.php.net/releases/?json&version=8.4' \
+                    | grep -oE '"version":"8\.4\.[0-9]+"' \
+                    | grep -oE '8\.4\.[0-9]+' | head -1 || true)
+          if [ -z "$VERSION" ]; then
+            echo "::warning::could not resolve the current PHP 8.4 release — falling back to $FALLBACK"
+            VERSION=$FALLBACK
+          fi
+          echo "PHP_DEBUG_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Debug PHP to build: $VERSION"
+
+      - name: Restore the cached debug PHP
+        id: php-debug-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/php-debug
+          # The configure line is part of the key: a build made with different
+          # flags is a different PHP and must not be reused.
+          key: php-debug-${{ runner.os }}-${{ env.PHP_DEBUG_VERSION }}-enable-debug-disable-all-cli
+
+      - name: Build PHP ${{ env.PHP_DEBUG_VERSION }} with --enable-debug
+        if: steps.php-debug-cache.outputs.cache-hit != 'true'
+        run: |
+          # --disable-all keeps the build to what the suite actually needs:
+          # json and pcre cannot be disabled and are the only extensions the
+          # .phpt files use, and the whole suite runs under it with zero
+          # skipped tests. Add an extension back here if a test starts
+          # needing one, rather than enabling everything.
+          curl -fsSL --retry 3 -o /tmp/php.tar.xz \
+            "https://www.php.net/distributions/php-${PHP_DEBUG_VERSION}.tar.xz"
+          tar -xf /tmp/php.tar.xz -C /tmp
+          cd "/tmp/php-${PHP_DEBUG_VERSION}"
+          ./configure --enable-debug --disable-all --enable-cli --without-pear \
+            --prefix="$HOME/php-debug"
+          make -j"$(nproc)"
+          make install
+
+      - name: Confirm the PHP really is a debug build
+        run: |
+          # Without this the job degrades into a slower duplicate of
+          # build-linux the moment --enable-debug stops taking effect, and a
+          # PHP with no assertions in it would make every step below pass
+          # vacuously.
+          "$HOME/php-debug/bin/php" -v
+          "$HOME/php-debug/bin/php" -r 'var_dump(PHP_DEBUG);' | grep -qx 'bool(true)' \
+            || { echo "::error::PHP_DEBUG is not true — this is not a debug PHP"; exit 1; }
+          "$HOME/php-debug/bin/php" -i | grep -qE '^Debug Build => yes$' \
+            || { echo "::error::php -i does not report a debug build"; exit 1; }
+          echo "Confirmed: NTS DEBUG PHP ${PHP_DEBUG_VERSION}."
+
+      - name: Build the extension against the debug PHP
+        run: |
+          # A phpize build inherits PHP_DEBUG from the installed PHP; pass
+          # --enable-debug anyway so the intent does not rest on inheritance.
+          "$HOME/php-debug/bin/phpize"
+          ./configure --with-php-config="$HOME/php-debug/bin/php-config" \
+            --with-judy=/usr --enable-debug
+          set -o pipefail
+          make 2>&1 | tee /tmp/build-debug-php.log
+
+      - name: Fail on compiler warnings
+        run: |
+          if grep -E '(php_judy|judy_handlers|judy_arrayaccess|judy_iterator)\.[ch]:[0-9]+:[0-9]+: warning:' /tmp/build-debug-php.log; then
+            echo "::error::Compiler warnings detected building against a debug PHP"
+            exit 1
+          fi
+          echo "No compiler warnings in extension sources."
+
+      - name: Confirm the extension loads into the debug PHP
+        run: |
+          # A module built for a release PHP cannot load into a debug one --
+          # the build IDs differ -- so a successful load is also the proof
+          # that the .so under test was compiled with ZEND_DEBUG on.
+          "$HOME/php-debug/bin/php" -d extension="$(pwd)/modules/judy.so" \
+            -r 'if (!PHP_DEBUG) { fwrite(STDERR, "not a debug runtime\n"); exit(1); }
+                printf("judy %s loaded into a debug PHP\n", judy_version());'
+
+      - name: Run the suite, minus one test that a known bug fails
+        run: |
+          # tests/debug_info_empty_001.phpt calls `new Judy()`. Judy::__construct
+          # declares $type as required in its arginfo but returns early without
+          # calling zend_parse_parameters when given no arguments, which a
+          # debug PHP rejects outright:
+          #
+          #   Fatal error: Arginfo / zpp mismatch during call of Judy::__construct()
+          #
+          # That is a real unfixed bug in the extension, not a test problem,
+          # and it is being fixed separately. It is excluded here so the other
+          # 214 tests can gate today; the step below pins the exclusion so it
+          # cannot outlive the bug.
+          KNOWN_FAILURE=tests/debug_info_empty_001.phpt
+          SUITE=$(ls tests/*.phpt | grep -vxF "$KNOWN_FAILURE" | tr '\n' ' ')
+          make test TESTS="$SUITE" NO_INTERACTION=1 REPORT_EXIT_STATUS=1
+
+      - name: Pin the exclusion — require the known failure to still fail
+        run: |
+          # An excluded test is only honest if the exclusion expires. This
+          # step fails the moment tests/debug_info_empty_001.phpt starts
+          # passing on a debug build, i.e. when Judy::__construct is fixed:
+          # that PR should delete this step and drop the exclusion from the
+          # step above, so the whole suite gates again.
+          #
+          # It also fails if the test breaks for some *other* reason, which an
+          # exclusion on its own would hide.
+          KNOWN_FAILURE=tests/debug_info_empty_001.phpt
+          rm -f tests/debug_info_empty_001.out tests/debug_info_empty_001.diff
+
+          set +e
+          make test TESTS="$KNOWN_FAILURE" NO_INTERACTION=1 REPORT_EXIT_STATUS=1
+          rc=$?
+          set -e
+
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::$KNOWN_FAILURE now passes on a debug build — Judy::__construct is fixed. Delete this step and drop the exclusion from the previous step so the full suite gates."
+            exit 1
+          fi
+          if ! grep -q 'Arginfo / zpp mismatch during call of Judy::__construct' \
+               tests/debug_info_empty_001.out; then
+            echo "::error::$KNOWN_FAILURE failed for a different reason than the known Judy::__construct arginfo/zpp mismatch — see the diff below"
+            cat tests/debug_info_empty_001.diff
+            exit 1
+          fi
+          echo "Known failure reproduced: Judy::__construct arginfo/zpp mismatch."
+
   validate-pecl:
     runs-on: ubuntu-latest
     steps:
