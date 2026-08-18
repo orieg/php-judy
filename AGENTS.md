@@ -299,7 +299,12 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   measures libJudy against ART (tie on lookup, 27% worse memory for ART) and
   explains why Masstree/HOT/Wormhole don't apply to a single-threaded,
   short-key, per-process extension. Verdict: keep Judy. Read it before
-  proposing a backend swap.
+  proposing a backend swap. The follow-on question — *optimise or vendor
+  libJudy itself* — is recorded in
+  `research/libjudy-modernization/FINDINGS.md` (issue #113). Read it before
+  proposing popcount, SIMD, prefetch, an arena, `-O3`/LTO/PGO, or a fork:
+  most of those are measured negatives there, and one of them (`-O3`) is a
+  correctness hazard.
 - **Benchmarks**: suite in `examples/benchmarks/`; CI compares PRs against
   `baselines/latest.json`. Don't update the baseline in a feature PR.
 - **Verify you are testing the build you think you are.** If any ini file

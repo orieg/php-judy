@@ -10,9 +10,56 @@ Each subdirectory owns one question and names the artifact it supports.
 | Directory | Question | Supports |
 | --------- | -------- | -------- |
 | [`shm-arena/`](shm-arena/) | Can libJudy live in a shared-memory arena, giving an ordered cache shared across FPM workers? | [issue #83](https://github.com/orieg/php-judy/issues/83) — closed, not planned. Five feasibility gates; writer death corrupts the tree 15% of the time (Wilson CI [8.8%, 24.4%]) and macOS has no robust mutexes. `FINDINGS.md` has the per-gate verdicts. |
-| [`iteration-cost/`](iteration-cost/) | Is JudySL's ordered-iteration cost the caller-supplied key buffer, or a stateless re-descend from the root? | [issue #85](https://github.com/orieg/php-judy/issues/85) and [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). Refuted the key-reconstruction hypothesis: `JSLN` is flat in key length and flat in working-set size. |
+| [`iteration-cost/`](iteration-cost/) | Is JudySL's ordered-iteration cost the caller-supplied key buffer, or a stateless re-descend from the root? | [issue #85](https://github.com/orieg/php-judy/issues/85) and [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). Concluded that the key-reconstruction hypothesis is refuted — `JSLN` flat in key length and flat in working-set size. **That conclusion needs re-deriving before it is relied on again**; see [Re-derivation owed](#re-derivation-owed-the-jsln-flat-in-key-length-claim) below. |
 | [`write-probe-cost/`](write-probe-cost/) | Issue #85 step B3 wants ordered traversal to read the value out of the `key_index` cursor. That means locating the `key_index` slot on every write. What does moving the existence probe from JudyHS to JudySL cost the write path? | [issue #85](https://github.com/orieg/php-judy/issues/85) step B3. The probe swap itself is roughly neutral on a hit (+3% at 16-byte keys, −9% at 40-byte) and a large win on a miss (JudySL fails at the first differing byte; JudyHS digests the whole key first). End-to-end random-order overwrite still regresses, because today's `JHSG`+`JHSI` pair reuses one warm structure and the mirrored write touches two. That regression is why the mirror ships behind the opt-in `optimizeIteration` constructor argument rather than on by default: the unmirrored path keeps the `JHSG` probe and this swap never happens on it. |
 | [`backend-comparison/`](backend-comparison/) | Should the extension keep libJudy, or move to a modern ordered index? | [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). `amdahl.c`/`amdahl.php` bound how much a backend swap could possibly buy through the PHP boundary; `cmp.c` runs ART against JudySL. Verdict: keep Judy. Needs libart cloned alongside — not vendored. |
+| [`libjudy-modernization/`](libjudy-modernization/) | Given that we keep Judy, does the incumbent have exploitable headroom — and does realising it mean vendoring libJudy? | [issue #113](https://github.com/orieg/php-judy/issues/113), plus [#131](https://github.com/orieg/php-judy/issues/131) / [#127](https://github.com/orieg/php-judy/issues/127) for the upstream defects it turned up. A first "no headroom" verdict was retracted; round 2 measured popcount-L at 17% cache-resident (JudyL only) and memory-level parallelism at 1.62–1.79x. The decisive finding is correctness, not speed: stock libJudy built with `gcc -O3` silently loses `Judy::BITSET` keys. Verdict: vendor stock 1.0.5 + patches, gated. `FINDINGS.md` has the full record, including the retraction and the negatives. **No harnesses are committed** — they were built in throwaway trees; re-deriving the timings needs them written again. |
+
+## Re-derivation owed: the `JSLN` flat-in-key-length claim
+
+This directory's `iteration-cost/` row used to record the #85 result flatly as
+*"refuted the key-reconstruction hypothesis"*. That wording is withdrawn pending
+a re-run. **The claim is not refuted and it may well be true — it is simply not
+currently established**, and the distinction matters.
+
+**Why.** [#122](https://github.com/orieg/php-judy/issues/122) established that
+`make_key()` only ever padded a key *up* and never truncated it, while its format
+(`"user:" + 8 digits + ":f" + >=1 digit`) is **16 characters at minimum**. Every
+requested length at or below 16 therefore produced the identical 16-byte key. The
+`JSLN` sweep's published points are keylen 16 / 24 / 40 / 64, all at or above that
+floor, so those specific points *did* vary the independent variable — this is not
+a claim that the published numbers are wrong. But two things follow that the
+original conclusion did not account for:
+
+1. **The short half of "flat in key length" was never testable.** The harness
+   could not emit a key shorter than 16 bytes at all, so "flat" is established
+   only across 16→64, over a range where the trie is already several levels deep.
+2. **The corpus is degenerate.** Enumerating the full key set: 8 of 16 byte
+   positions are invariant, six carry entropy over 10 of 256 values, and 10^6
+   keys exactly saturate a 10^6 key space. With `cJU_BRANCHLMAXJPS` = 7 and 10
+   populated subexpanses, **every branch in the tree is a `BRANCH_B` bitmap at
+   identical density**; `BRANCH_L`, `BRANCH_U` and every transition between them
+   are never observed. Whatever `JSLN` does, it was observed in exactly one
+   node-type regime. The same defect invalidated a popcount conclusion in
+   [#113](https://github.com/orieg/php-judy/issues/113) — see
+   [`libjudy-modernization/FINDINGS.md`](libjudy-modernization/FINDINGS.md) §4.
+
+**The generator is still unfixed here.**
+[PR #124](https://github.com/orieg/php-judy/pull/124) repaired
+`write-probe-cost/probebench.c` (two key shapes split at `keylen = 16`, a
+capacity guard, an exact-length assertion), **but `iteration-cost/iterbench.c`
+still carries the original `make_key()`** — verify before quoting any figure
+from it.
+
+**What would settle it.** Port PR #124's two-shape generator into
+`iterbench.c`, then re-run the three #85 discriminators across lengths spanning
+both regimes *and* against at least one non-degenerate corpus (uniform-random
+bytes, and variable-length), reporting Judy's node-type histogram per corpus so
+the regime is visible rather than assumed. If flatness survives that, the
+conclusion is re-established and this section goes away — along with the caveat
+it forces onto
+[BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md#what-would-change-the-verdict),
+which carries the same claim.
 
 ## Running these
 
