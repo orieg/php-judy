@@ -10,56 +10,209 @@ Each subdirectory owns one question and names the artifact it supports.
 | Directory | Question | Supports |
 | --------- | -------- | -------- |
 | [`shm-arena/`](shm-arena/) | Can libJudy live in a shared-memory arena, giving an ordered cache shared across FPM workers? | [issue #83](https://github.com/orieg/php-judy/issues/83) — closed, not planned. Five feasibility gates; writer death corrupts the tree 15% of the time (Wilson CI [8.8%, 24.4%]) and macOS has no robust mutexes. `FINDINGS.md` has the per-gate verdicts. |
-| [`iteration-cost/`](iteration-cost/) | Is JudySL's ordered-iteration cost the caller-supplied key buffer, or a stateless re-descend from the root? | [issue #85](https://github.com/orieg/php-judy/issues/85) and [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). Concluded that the key-reconstruction hypothesis is refuted — `JSLN` flat in key length and flat in working-set size. **That conclusion needs re-deriving before it is relied on again**; see [Re-derivation owed](#re-derivation-owed-the-jsln-flat-in-key-length-claim) below. |
+| [`iteration-cost/`](iteration-cost/) | Is JudySL's ordered-iteration cost the caller-supplied key buffer, or a stateless re-descend from the root? | [issue #85](https://github.com/orieg/php-judy/issues/85) and [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). The key-reconstruction hypothesis stays refuted, but the evidence originally given for it does not: **`JSLN` is not flat in key length, and not flat in working-set size** — both flat results were artifacts of one degenerate corpus. Re-derived on a fixed generator; see [The `JSLN` flatness claim, re-derived](#the-jsln-flatness-claim-re-derived) below. |
 | [`write-probe-cost/`](write-probe-cost/) | Issue #85 step B3 wants ordered traversal to read the value out of the `key_index` cursor. That means locating the `key_index` slot on every write. What does moving the existence probe from JudyHS to JudySL cost the write path? | [issue #85](https://github.com/orieg/php-judy/issues/85) step B3. The probe swap itself is roughly neutral on a hit (+3% at 16-byte keys, −9% at 40-byte) and a large win on a miss (JudySL fails at the first differing byte; JudyHS digests the whole key first). End-to-end random-order overwrite still regresses, because today's `JHSG`+`JHSI` pair reuses one warm structure and the mirrored write touches two. That regression is why the mirror ships behind the opt-in `optimizeIteration` constructor argument rather than on by default: the unmirrored path keeps the `JHSG` probe and this swap never happens on it. |
 | [`backend-comparison/`](backend-comparison/) | Should the extension keep libJudy, or move to a modern ordered index? | [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). `amdahl.c`/`amdahl.php` bound how much a backend swap could possibly buy through the PHP boundary; `cmp.c` runs ART against JudySL. Verdict: keep Judy. Needs libart cloned alongside — not vendored. |
 | [`libjudy-modernization/`](libjudy-modernization/) | Given that we keep Judy, does the incumbent have exploitable headroom — and does realising it mean vendoring libJudy? | [issue #113](https://github.com/orieg/php-judy/issues/113), plus [#131](https://github.com/orieg/php-judy/issues/131) / [#127](https://github.com/orieg/php-judy/issues/127) for the upstream defects it turned up. A first "no headroom" verdict was retracted; round 2 measured popcount-L at 17% cache-resident (JudyL only) and memory-level parallelism at 1.62–1.79x. The decisive finding is correctness, not speed: stock libJudy built with `gcc -O3` silently loses `Judy::BITSET` keys. Verdict: vendor stock 1.0.5 + patches, gated. `FINDINGS.md` has the full record, including the retraction and the negatives. **No harnesses are committed** — they were built in throwaway trees; re-deriving the timings needs them written again. |
 
-## Re-derivation owed: the `JSLN` flat-in-key-length claim
+## The `JSLN` flatness claim, re-derived
 
-This directory's `iteration-cost/` row used to record the #85 result flatly as
-*"refuted the key-reconstruction hypothesis"*. That wording is withdrawn pending
-a re-run. **The claim is not refuted and it may well be true — it is simply not
-currently established**, and the distinction matters.
+`(measured)` 2026-08-17. **Verdict: `JSLN` is not flat in key length, and not
+flat in working-set size.** Both flat results reproduce exactly — but only on
+the structured corpus, and only inside the window that was actually swept. Off
+that corpus they fail by margins far larger than the noise floor.
 
-**Why.** [#122](https://github.com/orieg/php-judy/issues/122) established that
-`make_key()` only ever padded a key *up* and never truncated it, while its format
-(`"user:" + 8 digits + ":f" + >=1 digit`) is **16 characters at minimum**. Every
-requested length at or below 16 therefore produced the identical 16-byte key. The
-`JSLN` sweep's published points are keylen 16 / 24 / 40 / 64, all at or above that
-floor, so those specific points *did* vary the independent variable — this is not
-a claim that the published numbers are wrong. But two things follow that the
-original conclusion did not account for:
+The underlying #85 *conclusion* — that per-key key reconstruction is not what
+makes ordered `JSLN` traversal expensive — survives, and is in fact better
+supported now than it was. What does not survive is the flatness evidence
+offered for it, and any use of "flat" as a general property of `JSLN`.
 
-1. **The short half of "flat in key length" was never testable.** The harness
-   could not emit a key shorter than 16 bytes at all, so "flat" is established
-   only across 16→64, over a range where the trie is already several levels deep.
-2. **The corpus is degenerate.** Enumerating the full key set: 8 of 16 byte
-   positions are invariant, six carry entropy over 10 of 256 values, and 10^6
-   keys exactly saturate a 10^6 key space. With `cJU_BRANCHLMAXJPS` = 7 and 10
-   populated subexpanses, **every branch in the tree is a `BRANCH_B` bitmap at
-   identical density**; `BRANCH_L`, `BRANCH_U` and every transition between them
-   are never observed. Whatever `JSLN` does, it was observed in exactly one
-   node-type regime. The same defect invalidated a popcount conclusion in
-   [#113](https://github.com/orieg/php-judy/issues/113) — see
-   [`libjudy-modernization/FINDINGS.md`](libjudy-modernization/FINDINGS.md) §4.
+### Why this needed re-deriving
 
-**The generator is still unfixed here.**
-[PR #124](https://github.com/orieg/php-judy/pull/124) repaired
-`write-probe-cost/probebench.c` (two key shapes split at `keylen = 16`, a
-capacity guard, an exact-length assertion), **but `iteration-cost/iterbench.c`
-still carries the original `make_key()`** — verify before quoting any figure
-from it.
+[#122](https://github.com/orieg/php-judy/issues/122) established that
+`make_key()` only ever padded a key *up* and never truncated it, while its
+format (`"user:" + 8 digits + ":f" + >=1 digit`) is **16 characters at
+minimum**. Every requested length at or below 16 therefore produced the
+identical 16-byte key:
 
-**What would settle it.** Port PR #124's two-shape generator into
-`iterbench.c`, then re-run the three #85 discriminators across lengths spanning
-both regimes *and* against at least one non-degenerate corpus (uniform-random
-bytes, and variable-length), reporting Judy's node-type histogram per corpus so
-the regime is visible rather than assumed. If flatness survives that, the
-conclusion is re-established and this section goes away — along with the caveat
-it forces onto
-[BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md#what-would-change-the-verdict),
-which carries the same claim.
+```
+old  keylen= 4 -> strlen=16  user:00123456:f7
+old  keylen= 6 -> strlen=16  user:00123456:f7
+old  keylen=12 -> strlen=16  user:00123456:f7
+old  keylen=16 -> strlen=16  user:00123456:f7
+old  keylen=24 -> strlen=24  user:00123456:f7xxxxxxxx
+```
+
+The published sweep points are keylen 16 / 24 / 40 / 64, all at or above that
+floor, so those points *did* vary the independent variable — this was never a
+claim that the published numbers were wrong, and they reproduce here. But the
+short half of the sweep had never executed, and the corpus was degenerate: 8 of
+16 byte positions invariant, six carrying 10 of 256 values, 10^6 keys exactly
+saturating a 10^6 key space, so every branch in the tree is a `BRANCH_B` bitmap
+at identical density.
+
+`iterbench.c` now carries the same two-shape generator as
+`write-probe-cost/probebench.c` ([PR #124](https://github.com/orieg/php-judy/pull/124)),
+plus an unconditional `key_check()` that aborts if an emitted key is not
+exactly the requested length — `assert()` is not used, because a generator that
+silently ignores its length argument is the whole defect. It also takes an
+optional fourth argument selecting the corpus, so the conclusion is no longer
+scoped to one key shape:
+
+- **`struct`** (default) — the original shape above 16 bytes, a mixed
+  fixed-width base-36 counter below it. Byte-for-byte identical to
+  `probebench.c`.
+- **`rand`** — uniform-random bytes, exactly `keylen` of them, drawn from
+  1..255. One shape across the whole sweep, so there is no regime break at 16
+  and key length is the only variable.
+- **`varlen`** — uniform-random bytes with the length drawn uniformly from
+  `[4, keylen]`.
+
+### Method
+
+**Environment.** Dedicated Linux x86_64 host — 24 cores, 62 GB, kernel 6.8.
+Docker `php-judy-bench:latest` (Debian 13, gcc 14.2.0, libJudy 1.0.5-5.1),
+`gcc -O2 -Wall -Wextra`. Load average was 0.00 before the first run and never
+exceeded 1.00 (the benchmark is single-threaded, so 1.00 *is* the job) —
+checked before every one of the 36 configurations.
+
+**Sampling.** `iterbench 1000000 <keylen> 7 <corpus>`, five independent
+processes per configuration, seven reps each — 35 samples per point. Reported
+figure is the median of the five process medians. Process-to-process median
+spread was ≤ 5% for 22 of the 24 key-length configurations, and 9.1% at worst.
+
+**Tolerance for "flat".** A quantity counts as flat across a swept range if its
+median varies by **≤ 10%** end to end. That is roughly twice the worst
+process-to-process spread observed and about double the typical one, so a
+change that clears it is not noise. This threshold is stated up front rather
+than fitted afterwards.
+
+### Key length, at fixed n = 1,000,000
+
+`JSLN` is the ordered walk; `JSLG` replays the same keys in the same order as
+point lookups — same descend, same locality, no key written back — so
+`JSLN − JSLG` is the discriminator #85 leaned on hardest.
+
+| keylen | `JSLN` struct | `JSLN` rand | `JSLN` varlen | Δ struct | Δ rand | Δ varlen |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 | 30.8 | 31.8 | 31.7 | 10.2 | 10.2 | 10.1 |
+| 5 | — | 32.2 | — | — | 10.1 | — |
+| 6 | 31.9 | 32.8 | 39.3 | 10.7 | 10.2 | 13.8 |
+| 7 | — | 35.2 | — | — | 12.5 | — |
+| 8 | 113.6 | 102.1 | 55.0 | 31.5 | 35.0 | 18.0 |
+| 9 | — | 114.4 | — | — | 40.6 | — |
+| 10 | — | 114.6 | — | — | 40.7 | — |
+| 12 | 124.1 | 116.1 | 87.3 | 31.3 | 42.1 | 32.2 |
+| 16 | 70.3 | 115.5 | 98.7 | 32.9 | 41.6 | 37.2 |
+| 24 | 78.9 | 118.1 | 114.4 | 31.4 | 43.5 | 46.6 |
+| 40 | 78.5 | 125.4 | 126.6 | 32.4 | 45.8 | 54.2 |
+| 64 | 78.7 | 132.8 | 140.5 | 33.8 | 50.5 | 56.1 |
+
+Median ns/key; Δ is `JSLN − JSLG`. The widest min..max band across all 35 reps
+of any single row is ±4%, so no two rows differing by more than ~8% overlap.
+
+**Against the 10% tolerance:**
+
+| Claim | Corpus and range | Measured | Flat? |
+| ----- | ---------------- | -------- | ----- |
+| `JSLN` flat in key length | struct, 16→64 | 70.3 → 78.7, **+12%** | marginally no (published as +10%) |
+| `JSLN − JSLG` flat | struct, 16→64 | 32.9 → 33.8, **+3%** | **yes** — reproduces |
+| `JSLN` flat in key length | rand, 16→64 | 115.5 → 132.8, **+15%** | no |
+| `JSLN − JSLG` flat | rand, 16→64 | 41.6 → 50.5, **+21%** | no |
+| `JSLN` flat in key length | rand, 4→64 | 31.8 → 132.8, **4.2x** | no |
+| `JSLN` flat in key length | varlen, 8→64 | 55.0 → 140.5, **+155%** | no |
+
+So the flat result is not merely untested below 16 — it is **specific to the
+degenerate corpus**. Swept over the same 16→64 window that was originally
+published, but with uniform-random keys instead of `user:%08lu:f%lu`, the
+discriminator rises 21%.
+
+### The step at 8 bytes
+
+The largest key-length effect in the whole study sits in the half that had
+never run. On the `rand` corpus, `JSLN` is 35.2 ns at keylen 7 and 102.1 ns at
+keylen 8 — a **2.9x discontinuity across one byte** — then essentially level
+at 114.4 / 114.6 for 9 and 10.
+
+That is the machine word boundary: a key of 7 bytes plus its NUL fits in a
+single `Word_t`, so JudySL resolves it in one JudyL level; at 8 bytes it needs
+a second. It is the same boundary the `*_ADAPTIVE` types use for their packed
+short-string path, and it is invisible to any sweep that starts at 16.
+
+Above the step, growth is real but sub-linear. Least-squares over keylen 8→64
+on `rand` gives **0.44 ns/byte** for `JSLN`, **0.22 ns/byte** for `JSLG`, and
+**0.22 ns/byte** for the delta — 8x the bytes buys +30% on `JSLN`, not 8x.
+
+### Working-set size, at fixed keylen = 16
+
+| n | `JSLN` struct | `JSLN` rand |
+| ---: | ---: | ---: |
+| 100,000 | 67.6 | 48.3 |
+| 316,228 | 67.3 | 72.6 |
+| 1,000,000 | 67.7 | 115.9 |
+| 3,162,278 | 71.6 | 134.7 |
+
+`struct` reproduces the published result — +0.1% over 100K→1M, +6% out to
+3.16M, flat by any tolerance. `rand` over the same 100K→1M range is
+**+140%**, and **+179%** out to 3.16M. Flatness in working-set size is an
+artifact of the structured corpus, which shares one `user:` prefix across every
+10 keys and compresses into a tree that barely grows with n.
+
+### What this does and does not change
+
+**Refuted as stated.** "`JSLN` is flat in key length and flat in working-set
+size" is wrong as a property of `JSLN`. It is true only of the
+`user:%08lu:f%lu` corpus, and for key length only over 16→64.
+
+**The #85 conclusion survives — on different evidence.** The hypothesis under
+test was that ordered traversal is expensive because `JSLN` materialises each
+key into a caller buffer, and is therefore fixable inside php-judy. Three
+things still argue against it, more strongly than flatness did:
+
+1. **The delta is far too shallow to be byte copying.** 0.22 ns/byte marginal:
+   8x the key bytes costs +44% on the delta, not 8x.
+2. **The delta grows with n at fixed key length** — 23.0 → 61.7 ns as n goes
+   100K → 3.16M on `rand`, at a constant keylen 16. Key reconstruction cannot
+   depend on working-set size; a memory-bound successor search can. This is
+   evidence the old flat reading could not produce, because the structured
+   corpus does not grow.
+3. **The delta is a roughly constant *share* of `JSLN`, not a constant cost** —
+   34-38% across keylen 8→64 on `rand`. It tracks the traversal, rather than
+   the key.
+
+The `JSLN − JSLG` delta was therefore never a clean measure of key
+reconstruction: it also contains the successor search, and that is what its n
+dependence exposes. The right reading of it is "descend plus successor", not
+"key bytes".
+
+**The decomposition figure is withdrawn.** *"~37 ns stateless root descend +
+32 ns successor search + ~1 ns of key bytes"* was derived on the structured
+corpus at keylen 16 and does not generalise: the marginal per-byte term is
+0.22 ns/byte, all three terms move with corpus, and the second term moves with
+n. Quote the slope, not the split.
+
+**`BACKEND_EVALUATION.md` is unaffected in direction.** Ordered `JSLN`
+traversal is a genuine JudySL property that php-judy cannot call its way out
+of — and on a realistic corpus it is *more* expensive than the structured
+numbers suggested (115.9 vs 67.7 ns/key at n = 1M, keylen 16), not less.
+
+### Limits
+
+- One host, one libJudy build, one n per key-length sweep. Absolute ns/op
+  include harness overhead (see *Reading probebench's absolute numbers* below,
+  which applies equally here) and should not be quoted as pure Judy cost.
+- **No node-type histogram.** `Judy.h` exposes no way to count `BRANCH_L` /
+  `BRANCH_B` / `BRANCH_U` populations from outside the library, so the claim
+  that `rand` and `varlen` are non-degenerate rests on the corpora's
+  construction — every byte position carries ~8 bits, so no position can be
+  invariant — rather than on a measured histogram. Getting the histogram needs
+  the vendored tree that [#113](https://github.com/orieg/php-judy/issues/113)
+  is gated on.
+- `rand` keys diverge within the first two or three bytes whatever their
+  length, so above the 8-byte step it varies bytes-to-copy far more than it
+  varies trie depth. `varlen`, which does vary depth, rises about 2.7x faster
+  per byte. Neither is "the" realistic corpus; the point is that the two
+  non-degenerate ones agree with each other and disagree with `struct`.
 
 ## Running these
 
@@ -72,7 +225,9 @@ benchmark suite produced two wrong conclusions before being discarded.
 ```sh
 # iteration-cost
 gcc -O2 -Wall -Wextra -o iterbench research/iteration-cost/iterbench.c -lJudy
-./iterbench 1000000 16 5        # n, key length, reps
+./iterbench 1000000 16 5        # n, key length, reps, corpus (default struct)
+./iterbench 1000000 16 5 rand   # uniform-random bytes — the non-degenerate one
+./iterbench 1000000 16 5 varlen # random bytes, length uniform in [4, keylen]
 
 # write-probe-cost
 gcc -O2 -Wall -Wextra -o probebench research/write-probe-cost/probebench.c -lJudy
@@ -84,14 +239,16 @@ gcc -O2 -Wall -Wextra -o probebench research/write-probe-cost/probebench.c -lJud
 cd research/shm-arena && make && make run
 ```
 
-## probebench key shapes
+## The structured corpus's key shapes
 
-`probebench` emits two different key shapes, split at `keylen = 16`:
+Both `probebench` and `iterbench`'s default `struct` corpus emit the same two
+key shapes, split at `keylen = 16` — the generators are byte-for-byte identical
+so the two harnesses' figures sit on one curve:
 
-- **`keylen >= 16`** — `user:00001234:f5` padded with `x`, the same shape as
-  `iteration-cost/iterbench.c`, so those figures sit next to the ones in
-  [#85](https://github.com/orieg/php-judy/issues/85). Ten keys share each
-  `user:` prefix.
+- **`keylen >= 16`** — `user:00001234:f5` padded with `x`, the shape used
+  throughout [#85](https://github.com/orieg/php-judy/issues/85). Ten keys share
+  each `user:` prefix. This is the degenerate corpus — see
+  [the re-derivation](#the-jsln-flatness-claim-re-derived) for what it hides.
 - **`keylen < 16`** — a fixed-width base-36 counter filling exactly `keylen`
   bytes. The long format is 16 characters at minimum and cannot be squeezed
   shorter while staying unique, so a second shape is required to reach the
