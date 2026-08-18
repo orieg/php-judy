@@ -1,3 +1,6 @@
+# The top-level .gitignore ignores every "Makefile" (phpize generates one at
+# the repo root); this harness's Makefile is hand-written and must be tracked.
+!Makefile
 diffuzz
 diffuzz-san
 *.dSYM/
