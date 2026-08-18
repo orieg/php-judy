@@ -37,7 +37,7 @@
         "configure-options": [
             {
                 "name": "with-judy",
-                "description": "Specify the path to the libJudy installation prefix",
+                "description": "libJudy install prefix to link a system libJudy; omit (or pass \"bundled\") to compile the bundled copy",
                 "needs-value": true
             }
         ]

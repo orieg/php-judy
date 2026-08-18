@@ -50,8 +50,11 @@ modifications — see PATCHES.md.
 
 ## Build integration
 
-These sources are **not compiled yet**. Stage 1 of the vendoring plan
-([#142](https://github.com/orieg/php-judy/issues/142)) wires them into
-`config.m4`/`config.w32`, compiling them at `-O2 -fno-lto` only — never
-`-O3`/LTO (see [#131](https://github.com/orieg/php-judy/issues/131);
-`-O2` is load-bearing for correctness).
+These sources are the **default build** (`--with-judy` absent, `yes`
+or `bundled`): `config.m4`/`config.w32` compile them into the extension
+directly. `--with-judy=DIR` instead links against a system libJudy and
+compiles nothing under this directory. The vendored units are compiled
+at `-O2 -fno-lto` only — never `-O3`/LTO, and the flags are attached
+per-source so the extension's own optimization flags cannot leak in
+(see [#131](https://github.com/orieg/php-judy/issues/131); `-O2` is
+load-bearing for correctness).

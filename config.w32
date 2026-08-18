@@ -1,10 +1,60 @@
 // $Id$
 // vim:ft=javascript
 
-ARG_WITH("judy", "Judy support", "no");
+ARG_WITH("judy", "Judy support: bundled libJudy (yes/bundled, the default) or DIR of a system libJudy", "no");
 
 if (PHP_JUDY != "no") {
-	if (CHECK_LIB("libJudy_a.lib;libJudy.lib", "judy", PHP_JUDY) && CHECK_HEADER_ADD_INCLUDE("Judy.h", "CFLAGS_JUDY", PHP_JUDY + ";" + PHP_JUDY + "\\include")) {
+	if (PHP_JUDY == "yes" || PHP_JUDY == "bundled") {
+		// Bundled libJudy (libjudy/, Judy-1.0.5 + the documented patch
+		// series -- see libjudy/PATCHES.md). The P5 LLP64 patches are
+		// real source diffs now, so no download/patch step is needed.
+		EXTENSION("judy", "php_judy.c judy_arrayaccess.c judy_handlers.c judy_iterator.c");
+		ADD_EXTENSION_DEP("judy", "json");
+		AC_DEFINE('HAVE_JUDY', 1, 'Have Judy library');
+		AC_DEFINE('HAVE_JUDY_BUNDLED', 1, 'Judy support uses the bundled libJudy');
+
+		var judy_src = configure_module_dirname + "\\libjudy\\src";
+		ADD_FLAG("CFLAGS_JUDY", '/I "' + judy_src + '" /I "' + judy_src + '\\JudyCommon" /I "' + judy_src + '\\Judy1" /I "' + judy_src + '\\JudyL"');
+
+		// JU_WIN selects upstream's Windows arms; JU_64BIT only on x64
+		// (LLP64 correctness comes from the P5 source patches, but the
+		// internal structures are sized by JU_64BIT, and the committed
+		// tables were generated under it -- x86 builds must not get it,
+		// and would need regenerated 32-bit tables besides).
+		ADD_FLAG("CFLAGS_JUDY", "/D JU_WIN");
+		if (X64) {
+			ADD_FLAG("CFLAGS_JUDY", "/D JU_64BIT");
+		}
+		// No aggressive optimization flags for the vendored units: MSVC
+		// has no -O3/LTO equivalent hazard here (#131 is a gcc -O3
+		// miscompile), but the default /O2 is all they get.
+
+		ADD_SOURCES(configure_module_dirname + "\\libjudy\\src\\JudyCommon", "JudyMalloc.c", "judy");
+		ADD_SOURCES(configure_module_dirname + "\\libjudy\\src\\Judy1", "Judy1Tables.c", "judy");
+		ADD_SOURCES(configure_module_dirname + "\\libjudy\\src\\JudyL", "JudyLTables.c", "judy");
+		ADD_SOURCES(configure_module_dirname + "\\libjudy\\src\\JudySL", "JudySL.c", "judy");
+		ADD_SOURCES(configure_module_dirname + "\\libjudy\\src\\JudyHS", "JudyHS.c", "judy");
+		ADD_SOURCES(configure_module_dirname + "\\libjudy\\src\\wrappers",
+			"judy_static_asserts.c " +
+			"Judy1Test.c Judy1TestInline.c Judy1Set.c Judy1SetArray.c " +
+			"Judy1Unset.c Judy1Cascade.c Judy1Decascade.c Judy1Count.c " +
+			"Judy1ByCount.c Judy1CreateBranch.c Judy1InsertBranch.c " +
+			"Judy1First.c Judy1Next.c Judy1Prev.c Judy1NextEmpty.c " +
+			"Judy1PrevEmpty.c Judy1FreeArray.c Judy1MallocIF.c " +
+			"Judy1MemActive.c Judy1MemUsed.c " +
+			"JudyLGet.c JudyLGetInline.c JudyLIns.c JudyLInsArray.c " +
+			"JudyLDel.c JudyLCascade.c JudyLDecascade.c JudyLCount.c " +
+			"JudyLByCount.c JudyLCreateBranch.c JudyLInsertBranch.c " +
+			"JudyLFirst.c JudyLNext.c JudyLPrev.c JudyLNextEmpty.c " +
+			"JudyLPrevEmpty.c JudyLFreeArray.c JudyLMallocIF.c " +
+			"JudyLMemActive.c JudyLMemUsed.c",
+			"judy");
+
+		if (PHP_JUDY_SHARED) {
+			ADD_FLAG("CFLAGS_JUDY", "/D PHP_JUDY_EXPORTS ");
+		}
+	} else if (CHECK_LIB("libJudy_a.lib;libJudy.lib", "judy", PHP_JUDY) && CHECK_HEADER_ADD_INCLUDE("Judy.h", "CFLAGS_JUDY", PHP_JUDY + ";" + PHP_JUDY + "\\include")) {
+		// --with-judy=DIR: link a system/prebuilt libJudy.
 		EXTENSION("judy", "php_judy.c judy_arrayaccess.c judy_handlers.c judy_iterator.c");
 		ADD_EXTENSION_DEP("judy", "json");
 		AC_DEFINE('HAVE_JUDY', 1, 'Have Judy library');
