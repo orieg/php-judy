@@ -487,6 +487,56 @@ jobs:
           fi
           echo "Known failure reproduced: Judy::__construct arginfo/zpp mismatch."
 
+  build-research:
+    # research/ holds standalone C harnesses that back measured claims in
+    # BENCHMARK.md and BACKEND_EVALUATION.md. Nothing there ships, so until
+    # this job existed nothing compiled it and nothing ran it -- which is how
+    # a generator came to ignore its own length argument for years (#122) and
+    # how a documented probe path shipped without ever having executed (#118).
+    #
+    # The parameter grid is what does the work here, not the sample size.
+    # Every defect those two issues found is reachable at n = 1000; none of
+    # them are reachable at the single (corpus, keylen, absent-key) point the
+    # harnesses were habitually run at. The last step is the negative control:
+    # an unfired gate is not a known-working gate.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Install Judy library
+        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
+
+      - name: Build every harness and run the sanitized smoke grid
+        run: ./research/ci-smoke.sh 1000
+
+      - name: Negative control -- reinstate the #122 bug, require the grid to catch it
+        run: |
+          # Put the defect back: make_key() padding a key up and never
+          # truncating it, so every keylen below 16 silently emits the same
+          # 16-byte key. Then require the grid to reject the tree.
+          sed -i 's|if (keylen >= LONGKEY_MIN) {|if (keylen >= 0) {   /* CI negative control */|' \
+            research/write-probe-cost/probebench.c
+          grep -q 'CI negative control' research/write-probe-cost/probebench.c \
+            || { echo "::error::negative control did not apply -- the anchor line in probebench.c moved"; exit 1; }
+
+          set +e
+          ./research/ci-smoke.sh 1000 > /tmp/research-negative-control.log 2>&1
+          rc=$?
+          set -e
+
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::the smoke grid passed on a tree with the issue #122 generator bug reinstated"
+            tail -40 /tmp/research-negative-control.log
+            exit 1
+          fi
+          grep -q 'make_key: emitted 16 bytes, wanted' /tmp/research-negative-control.log \
+            || { echo "::error::the grid failed, but not via the key-length guard -- check the log"; \
+                 tail -40 /tmp/research-negative-control.log; exit 1; }
+          echo "Negative control passed: the grid caught the reinstated generator bug."
+
+          git checkout -- research/write-probe-cost/probebench.c
+
   validate-pecl:
     runs-on: ubuntu-latest
     steps:

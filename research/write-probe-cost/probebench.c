@@ -33,7 +33,30 @@
  *                 branch, whose probe today is a JudyL lookup on the packed
  *                 index rather than a JHSG.
  *
- * ./probebench <n> <keylen> <reps>
+ * ./probebench <n> <keylen> <reps> [corpus] [absent]
+ *
+ * corpus is one of, matching research/iteration-cost/iterbench.c exactly so
+ * the two harnesses emit comparable corpora:
+ *   struct   (default) the original two-shape corpus: "user:00001234:f5"
+ *            padded with 'x' at keylen >= 16, a fixed-width mixed base-36
+ *            counter below it.
+ *   rand     uniform-random bytes, exactly keylen of them, drawn from 1..255.
+ *            One shape across the whole sweep, so key length is the only
+ *            variable and there is no regime break at 16.
+ *   varlen   uniform-random bytes with the length itself drawn uniformly from
+ *            [4, keylen]. Deliberately ragged, to exercise a mix of trie
+ *            depths rather than a single uniform depth.
+ *
+ * absent selects how far into the key an absent key first differs from a
+ * stored one. This is the independent variable of the miss comparison -- see
+ * make_divergent_key() below for why a single setting of it is not a
+ * measurement:
+ *   offset   (default) the historical generator, kept so every miss figure
+ *            published before this option existed stays reproducible.
+ *   shallow  diverge at byte 0
+ *   mid      diverge at byte len/2
+ *   deep     diverge at byte len-2
+ *   last     diverge at the final byte
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,6 +80,22 @@ static double med(double *v, int k) { qsort(v, k, sizeof(double), cmpd); return 
 #define MAXK 128
 #define MAXREPS 64
 
+/* Corpus selection, identical to research/iteration-cost/iterbench.c. A single
+ * corpus hides real effects: issue #122 / PR #139 found "JSLN is flat in key
+ * length" to be a property of the structured corpus rather than of JudySL. */
+#define CORPUS_STRUCT 0
+#define CORPUS_RAND   1
+#define CORPUS_VARLEN 2
+static const char *corpus_name[] = { "struct", "rand", "varlen" };
+
+/* Where an absent key first differs from a stored one. */
+#define DIVERGE_OFFSET  0
+#define DIVERGE_SHALLOW 1
+#define DIVERGE_MID     2
+#define DIVERGE_DEEP    3
+#define DIVERGE_LAST    4
+static const char *diverge_name[] = { "offset", "shallow", "mid", "deep", "last" };
+
 /* The long format is at minimum 16 characters ("user:" + 8 digits + ":f" +
  * 1 digit), so it cannot express a shorter key at all. Keys below that width
  * therefore use a different shape: a fixed-width base-36 counter, which fills
@@ -65,9 +104,30 @@ static double med(double *v, int k) { qsort(v, k, sizeof(double), cmpd); return 
 #define KEY_RADIX 36
 static const char key_alphabet[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
-/* Absent keys are drawn from an index range disjoint from the populated one.
- * The long regime has room to spare; the short regime does not, so it offsets
- * by n and main() checks the space is big enough. */
+/* An exact-length guard that survives -DNDEBUG. assert() is not used: this
+ * repo compiles asserts out in places, and a generator that silently ignores
+ * the requested length is exactly the defect issue #122 is about, so the check
+ * has to be unconditional. Identical to iterbench.c's. */
+static void key_check(const char *buf, int want) {
+    size_t got = strlen(buf);
+    if ((int)got != want) {
+        fprintf(stderr, "make_key: emitted %zu bytes, wanted %d (\"%s\")\n",
+                got, want, buf);
+        abort();
+    }
+}
+
+/* The DIVERGE_OFFSET absent-key generator draws from an index range disjoint
+ * from the populated one. The long regime has room to spare; the short regime
+ * does not, so it offsets by n and main() checks the space is big enough.
+ *
+ * This offset is NOT depth-neutral, and an earlier version of this file said
+ * it was. Pushing i/10 into 8-digit territory changes the third byte of the
+ * "user:%08lu" field, so at keylen >= LONGKEY_MIN every absent key diverges
+ * from the stored set at byte 5 of 16 -- the earliest position the format can
+ * express -- while JudyHS still digests all 16 bytes. Under this mode the
+ * long-key miss comparison is therefore granted to the trie by construction.
+ * The DIVERGE_* modes exist to measure it instead; see make_divergent_key(). */
 #define ABSENT_OFFSET_LONG 500000000UL
 
 /* keylen >= LONGKEY_MIN keeps the exact shape of
@@ -75,8 +135,9 @@ static const char key_alphabet[] = "0123456789abcdefghijklmnopqrstuvwxyz";
  * ones in issue #85: "user:00001234:f5" padded with 'x'. 10 keys share each
  * user: prefix.
  *
- * keylen < LONGKEY_MIN emits base-36 of i, zero-padded to exactly keylen. This
- * is what makes the ADAPTIVE/SSO probe (keylen < 8) reachable: before, the
+ * keylen < LONGKEY_MIN emits base-36 of a mixed index (see key_mix_for), in
+ * exactly keylen bytes. This is what makes the ADAPTIVE/SSO probe (keylen < 8)
+ * reachable: before, the
  * format's 16 characters were emitted regardless of keylen, so every keylen
  * below 16 silently produced a 16-byte key and the SSO branch then memcpy'd
  * 16 bytes into an 8-byte Word_t. See issue #118. */
@@ -110,6 +171,7 @@ static void make_key(char *buf, unsigned long i, int keylen) {
         int m = snprintf(buf, MAXK, "user:%08lu:f%lu", i / 10, i % 10);
         while (m < keylen) buf[m++] = 'x';
         buf[m] = '\0';
+        key_check(buf, keylen);
         return;
     }
 
@@ -141,10 +203,7 @@ static void make_key(char *buf, unsigned long i, int keylen) {
         v /= KEY_RADIX;
     }
     buf[keylen] = '\0';
-}
-
-static void make_absent_key(char *buf, unsigned long i, int keylen, unsigned long n) {
-    make_key(buf, i + (keylen >= LONGKEY_MIN ? ABSENT_OFFSET_LONG : n), keylen);
+    key_check(buf, keylen);
 }
 
 /* How many distinct keys the short regime can express, saturating rather than
@@ -164,26 +223,136 @@ static unsigned long xs(unsigned long *s) {
     return *s;
 }
 
+/* How many distinct keys the random corpora can express at a given length,
+ * saturating rather than overflowing. 255 values per byte, NUL excluded.
+ * Without this the redraw loop below spins forever once n approaches the
+ * space -- a hang rather than a wrong number, but the same class of defect
+ * as a generator that ignores its length argument (issue #122). */
+static unsigned long rand_key_space(int len) {
+    unsigned long cap = 1;
+    for (int p = 0; p < len; p++) {
+        if (cap > ULONG_MAX / 255) return ULONG_MAX;
+        cap *= 255;
+    }
+    return cap;
+}
+
+/* Uniform-random bytes over 1..255. NUL is excluded because JudySL keys are
+ * NUL-terminated. Every byte position carries ~8 bits, so no position is
+ * invariant and the branch mix is not pinned to a single node type -- the
+ * degeneracy that scoped the original issue #85 conclusion to one regime.
+ * Identical to iterbench.c's. */
+static void make_random_key(char *buf, int len, unsigned long *seed) {
+    for (int p = 0; p < len; p++) buf[p] = (char)(1 + (xs(seed) % 255));
+    buf[len] = '\0';
+    key_check(buf, len);
+}
+
+/* Byte position at which an absent key should first differ from a stored one. */
+static int absent_depth(int mode, int len) {
+    switch (mode) {
+        case DIVERGE_SHALLOW: return 0;
+        case DIVERGE_MID:     return len / 2;
+        case DIVERGE_DEEP:    return len >= 2 ? len - 2 : 0;
+        default:              return len - 1;          /* DIVERGE_LAST */
+    }
+}
+
+/* Copy a stored key and change exactly one byte, at `depth`, keeping the
+ * length. The result is absent (checked against the tree) and shares a
+ * `depth`-byte prefix with a stored key.
+ *
+ * Divergence depth is the independent variable the miss comparison needs. A
+ * trie fails at the first differing byte, so its miss cost tracks `depth`; a
+ * hash digests all `len` bytes whatever `depth` is. Sweeping `depth` at fixed
+ * length turns "the trie wins on a miss" from one favourable point into a
+ * curve, and the point DIVERGE_OFFSET happens to land on for long keys is the
+ * most favourable one there is (byte 5 of 16).
+ *
+ * The realised divergence is *at least* `depth`, not exactly it: the mutated
+ * key shares `depth` bytes with its source, but another stored key may share
+ * more. Judy exposes no way to read back the longest common prefix it actually
+ * walked, so this is a lower bound on depth, not a measured one. */
+static int make_divergent_key(char *dst, const char *src, int depth,
+                              int corpus, Pvoid_t sl, unsigned long *seed) {
+    size_t len = strlen(src);
+    PWord_t chk;
+
+    if (depth < 0 || (size_t)depth >= len) return -1;
+    memcpy(dst, src, len + 1);
+    for (int t = 0; t < 512; t++) {
+        /* Prefer a replacement from the corpus's own alphabet, so the absent
+         * keys stay the same shape as the present ones; fall back to arbitrary
+         * bytes only if every in-alphabet candidate is already stored. */
+        char c = (corpus == CORPUS_STRUCT && t < KEY_RADIX)
+                     ? key_alphabet[t]
+                     : (char)(1 + (xs(seed) % 255));
+        if (c == src[depth]) continue;
+        dst[depth] = c;
+        JSLG(chk, sl, (uint8_t *)dst);
+        if (chk == NULL) return 0;
+    }
+    return -1;
+}
+
 int main(int argc, char **argv) {
     unsigned long n = (argc > 1) ? strtoul(argv[1], NULL, 10) : 1000000;
     int keylen = (argc > 2) ? atoi(argv[2]) : 16;
     int reps = (argc > 3) ? atoi(argv[3]) : 5;
+    int corpus = CORPUS_STRUCT;
+    int diverge = DIVERGE_OFFSET;
     char key[MAXK];
+    unsigned long gen_seed = 0x9e3779b97f4a7c15UL;
+    unsigned long collisions = 0;
     PWord_t pv;
+
+    if (argc > 4) {
+        if      (!strcmp(argv[4], "struct")) corpus = CORPUS_STRUCT;
+        else if (!strcmp(argv[4], "rand"))   corpus = CORPUS_RAND;
+        else if (!strcmp(argv[4], "varlen")) corpus = CORPUS_VARLEN;
+        else { fprintf(stderr, "corpus must be struct|rand|varlen\n"); return 1; }
+    }
+    if (argc > 5) {
+        if      (!strcmp(argv[5], "offset"))  diverge = DIVERGE_OFFSET;
+        else if (!strcmp(argv[5], "shallow")) diverge = DIVERGE_SHALLOW;
+        else if (!strcmp(argv[5], "mid"))     diverge = DIVERGE_MID;
+        else if (!strcmp(argv[5], "deep"))    diverge = DIVERGE_DEEP;
+        else if (!strcmp(argv[5], "last"))    diverge = DIVERGE_LAST;
+        else { fprintf(stderr, "absent must be offset|shallow|mid|deep|last\n"); return 1; }
+    }
 
     if (reps > MAXREPS) reps = MAXREPS;
     if (keylen >= MAXK - 1) { fprintf(stderr, "keylen too large\n"); return 1; }
     if (keylen < 1) { fprintf(stderr, "keylen must be >= 1\n"); return 1; }
-    /* The short regime encodes the index in base-36 across keylen bytes, so it
-     * can only express so many distinct keys. n present + n absent must fit,
-     * or keys collide and every number below is meaningless. */
-    if (keylen < LONGKEY_MIN) {
-        unsigned long cap = short_key_space(keylen);
+    if (corpus == CORPUS_VARLEN && keylen < 4) {
+        fprintf(stderr, "varlen needs keylen >= 4\n"); return 1;
+    }
+    if (corpus != CORPUS_STRUCT) {
+        /* varlen's shortest draw is 4 bytes, so that is where its space is
+         * tightest. Demand headroom of 2n, not n: the redraw loop's expected
+         * cost blows up as the corpus saturates its own key space. */
+        int shortest = (corpus == CORPUS_VARLEN) ? 4 : keylen;
+        unsigned long cap = rand_key_space(shortest);
         if (cap / 2 < n) {
             fprintf(stderr,
-                "keylen %d holds only %lu distinct keys; need %lu "
-                "(n present + n absent). Raise keylen or lower n.\n",
-                keylen, cap, 2 * n);
+                "%s at keylen %d draws from only %lu distinct keys; need "
+                "headroom for %lu. Raise keylen or lower n.\n",
+                corpus_name[corpus], keylen, cap, n);
+            return 1;
+        }
+    }
+    /* The struct corpus's short regime encodes the index in base-36 across
+     * keylen bytes, so it can only express so many distinct keys. They must
+     * fit, or keys collide and every number below is meaningless. DIVERGE_OFF-
+     * SET draws its absent keys from the same space, so it needs room for 2n;
+     * the DIVERGE_* modes mutate a stored key instead and only need n. */
+    if (corpus == CORPUS_STRUCT && keylen < LONGKEY_MIN) {
+        unsigned long cap = short_key_space(keylen);
+        unsigned long need = (diverge == DIVERGE_OFFSET) ? 2 * n : n;
+        if (cap < need) {
+            fprintf(stderr,
+                "keylen %d holds only %lu distinct keys; need %lu. "
+                "Raise keylen or lower n.\n", keylen, cap, need);
             return 1;
         }
     }
@@ -195,9 +364,25 @@ int main(int argc, char **argv) {
     int sso = (keylen < 8);
 
     for (unsigned long i = 0; i < n; i++) {
-        make_key(key, i, keylen);
-        JSLI(pv, sl, (uint8_t *)key);
-        if (pv == PJERR) { fprintf(stderr, "JSLI OOM\n"); return 1; }
+        if (corpus == CORPUS_STRUCT) {
+            make_key(key, i, keylen);
+            JSLI(pv, sl, (uint8_t *)key);
+            if (pv == PJERR) { fprintf(stderr, "JSLI OOM\n"); return 1; }
+        } else {
+            /* Random corpora can collide; redraw until the key is new. The
+             * value word of a freshly inserted JudySL slot is 0, and every
+             * stored value below is i + 1 >= 1, so 0 means "new". */
+            int len = keylen;
+            for (;;) {
+                if (corpus == CORPUS_VARLEN)
+                    len = 4 + (int)(xs(&gen_seed) % (unsigned long)(keylen - 3));
+                make_random_key(key, len, &gen_seed);
+                JSLI(pv, sl, (uint8_t *)key);
+                if (pv == PJERR) { fprintf(stderr, "JSLI OOM\n"); return 1; }
+                if (*pv == 0) break;
+                collisions++;
+            }
+        }
         *pv = i + 1;
         JHSI(pv, hs, key, (Word_t)strlen(key));
         if (pv == PJERR) { fprintf(stderr, "JHSI OOM\n"); return 1; }
@@ -230,11 +415,36 @@ int main(int argc, char **argv) {
         if (c != n) { fprintf(stderr, "walk got %lu of %lu\n", c, n); return 1; }
     }
     for (unsigned long i = 0; i < n; i++) {
-        make_absent_key(absent + (size_t)i * MAXK, i, keylen, n);
-        /* sanity: must really be absent */
-        if (i < 4) {
+        char *a = absent + (size_t)i * MAXK;
+        const char *src = keys + (size_t)i * MAXK;
+
+        if (diverge != DIVERGE_OFFSET) {
+            int depth = absent_depth(diverge, (int)strlen(src));
+            if (make_divergent_key(a, src, depth, corpus, sl, &gen_seed) != 0) {
+                fprintf(stderr, "no absent key diverging at byte %d of \"%s\"\n",
+                        depth, src);
+                return 1;
+            }
+        } else if (corpus == CORPUS_STRUCT) {
+            /* The historical generator, kept verbatim so every miss figure
+             * published before this option existed stays reproducible. */
+            make_key(a, i + (keylen >= LONGKEY_MIN ? ABSENT_OFFSET_LONG : n), keylen);
+        } else {
+            /* The random corpora's equivalent of an independent index range:
+             * an independently drawn key, redrawn until it is absent. */
             PWord_t chk;
-            JSLG(chk, sl, (uint8_t *)(absent + (size_t)i * MAXK));
+            int len = (int)strlen(src);
+            for (;;) {
+                make_random_key(a, len, &gen_seed);
+                JSLG(chk, sl, (uint8_t *)a);
+                if (chk == NULL) break;
+            }
+        }
+        /* Every absent key is checked, not just a sample of them: a miss
+         * benchmark that is quietly measuring hits reports nothing at all. */
+        {
+            PWord_t chk;
+            JSLG(chk, sl, (uint8_t *)a);
             if (chk != NULL) { fprintf(stderr, "absent key %lu is present\n", i); return 1; }
         }
     }
@@ -395,7 +605,9 @@ int main(int argc, char **argv) {
         for (int pass = 0; pass < 2; pass++) {
             int which = (r % 2 == 0) ? pass : (1 - pass);
             Pvoid_t s2 = (Pvoid_t)NULL, h2 = (Pvoid_t)NULL;
-            Word_t freed;
+            /* long, not Word_t: JSLFA/JHSFA compare the result against JERR
+             * (-1), which is -Wsign-compare noise on an unsigned. */
+            long freed;
 
             if (which == 0) {           /* A: today's insert */
                 t0 = now_ns();
@@ -425,12 +637,15 @@ int main(int argc, char **argv) {
                 }
                 t1 = now_ns(); r_ins_b[r] = (t1 - t0) / (double)n;
             }
-            JSLFA(freed, s2); sink += freed;
-            JHSFA(freed, h2); sink += freed;
+            JSLFA(freed, s2); sink += (unsigned long)freed;
+            JHSFA(freed, h2); sink += (unsigned long)freed;
         }
     }
 
-    printf("n=%lu keylen=%d reps=%d (median ns/op; min..max)\n", n, keylen, reps);
+    printf("n=%lu keylen=%d reps=%d corpus=%s absent=%s (median ns/op; min..max)\n",
+           n, keylen, reps, corpus_name[corpus], diverge_name[diverge]);
+    if (corpus != CORPUS_STRUCT)
+        printf("  (redraws to avoid duplicate keys: %lu)\n", collisions);
 #define REPORT(label, arr) do { \
         double tmp[MAXREPS]; memcpy(tmp, arr, sizeof(double) * reps); \
         double m = med(tmp, reps); \
@@ -451,6 +666,10 @@ int main(int argc, char **argv) {
     REPORT("insert B: JSLG+JHSI+JSLI (B3 swap)", r_ins_b);
     fprintf(stderr, "sink=%lu\n", sink);
 
+    /* Released rather than left to exit(2) so a leak checker has something to
+     * say. long, not Word_t: the J*FA macros compare against JERR (-1). */
+    { long freed;
+      JSLFA(freed, sl); JHSFA(freed, hs); JLFA(freed, jl); (void)freed; }
     free(keys); free(absent); free(order);
     return 0;
 }
