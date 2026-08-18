@@ -62,8 +62,14 @@ if test "$PHP_JUDY" != "no"; then
     CFLAGS="$CFLAGS -DJUDY_DEBUG_MIRROR"
   fi
 
-  dnl # Performance optimizations for production builds
-  if test "$PHP_DEBUG" != "yes"; then
+  dnl # Performance optimizations for production builds.
+  dnl # PHP normalises PHP_DEBUG to 1/0 before an extension's config.m4 runs, so
+  dnl # a debug build arrives here as PHP_DEBUG=1, not "yes". Testing only
+  dnl # against "yes" therefore matched debug builds too and forced -DNDEBUG in,
+  dnl # which Zend/zend_portability.h rejects outright ("NDEBUG must not be
+  dnl # defined when ZEND_DEBUG is enabled") -- the extension could not be built
+  dnl # against a debug PHP at all. Both spellings are accepted here.
+  if test "$PHP_DEBUG" != "yes" && test "$PHP_DEBUG" != "1"; then
     dnl # Add optimization flags for production
     CFLAGS="$CFLAGS -O3"
     CFLAGS="$CFLAGS -fomit-frame-pointer"
