@@ -61,6 +61,43 @@ bytes into an 8-byte `Word_t` and aborted. **The `JLG hit (SSO packed)` row had
 therefore never been produced**; any pre-#118 note claiming a number for it is
 wrong.
 
+## The ADAPTIVE/SSO probe, measured
+
+`(measured)` 2026-08-18, first run of this probe in its life — it aborted for
+every `keylen < 8` until [#118](https://github.com/orieg/php-judy/issues/118),
+so no earlier figure for it exists and any claim of one predates the fix.
+
+**Environment.** Dedicated Linux x86_64 host — 24 cores, 62 GB, Ubuntu 22.04,
+kernel 6.8. Docker `debian:bookworm`, gcc 12.2.0, libJudy 1.0.5-5+b2. Load
+average `0.00` before and `0.25` after, nothing above 2% CPU: idle, well under
+the cores/2 = 12 threshold.
+
+**Parameters.** `probebench 1000000 6 5` — 1,000,000 keys, `keylen = 6`
+(inside the SSO window), 5 reps, median ns/op.
+
+| Probe | ns/op | across two runs |
+| --- | ---: | --- |
+| `JSLG` hit, random order | **107.8** | 107.76, 108.07 |
+| `JHSG` hit, random order | **115.8** | 115.70, 115.77 |
+| `JLG` hit (SSO packed), random order | **115.9** | 115.94, 115.96 |
+
+Reproduced across two independent invocations; the SSO row agreed to within
+0.02 ns.
+
+**The result contradicts the branch's premise.** The SSO path exists on the
+theory that packing a short key into a `Word_t` and reading it from a JudyL
+beats hashing it. At 6-byte keys it does not: SSO packed and `JudyHS` are within
+noise of each other, and the plain `JudySL` trie beats both by roughly 7%. For
+random-order point reads at this key length the ADAPTIVE type's SSO store buys
+nothing over `JudyHS`.
+
+**Limits of this number, which are wide.** One key length on one machine. 6 sits
+mid-range of the SSO window (1-7) and nothing here says where the curve
+crosses, if it does. It also must not be read next to the 16-byte rows
+elsewhere in this directory: the short regime uses a different key shape (see
+above), so trie depth and fan-out differ, not just key length. A sweep across
+`keylen` 1-7 is what would turn this into an answer rather than a data point.
+
 ## Reading probebench's absolute numbers
 
 The ns/op figures include real harness overhead and should not be quoted as
