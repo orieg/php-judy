@@ -198,9 +198,11 @@ if test "$PHP_JUDY" != "no"; then
 
     dnl # -mpopcnt: probe compiler acceptance (x86-64 gcc/clang accept it,
     dnl # other targets reject it, so acceptance doubles as the arch test).
-    dnl # Deliberately INERT for now: the vendored sources have no
-    dnl # __POPCNT__ arm yet -- that is Stage 3's O1 patch (#142). Probing
-    dnl # now keeps the vendored compile lines stable across that stage.
+    dnl # The flag activates patch O1's __POPCNT__ arm in JudyPrivate.h
+    dnl # (hardware popcount for j__udyCountBits{B,L} -- see
+    dnl # libjudy/PATCHES.md, #142); without it those builds use the
+    dnl # portable SWAR code, and arm64 selects its own popcount arm
+    dnl # with no flag at all.
     AC_MSG_CHECKING([whether $CC accepts -mpopcnt])
     judy_save_CFLAGS="$CFLAGS"
     CFLAGS="$CFLAGS -Werror -mpopcnt"

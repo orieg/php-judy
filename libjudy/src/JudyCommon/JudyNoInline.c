@@ -6,9 +6,15 @@
  * under -DJU_NOINLINE (a profiling aid: out-of-line copies are visible to
  * profilers and breakpoints), but upstream ships no definitions -- the
  * knob could never link.  The bodies below are the header's own inline
- * versions (JudyPrivate.h), verbatim: the portable bit-counting folds and
- * the SEARCHLEAF* macros, which are defined by the header regardless of
+ * versions (JudyPrivate.h), verbatim: the bit-counting arms and the
+ * SEARCHLEAF* macros, which are defined by the header regardless of
  * JU_NOINLINE.
+ *
+ * Updated for php-judy on 2026-08-18 (patch O1, see libjudy/PATCHES.md,
+ * issue #142): j__udyCountBits{B,L} mirror the header's new hardware-
+ * popcount arms (__POPCNT__ / aarch64 / MSVC x64), so a JU_NOINLINE
+ * profiling build measures the same algorithm production builds run;
+ * builds selecting none of those arms keep the portable folds verbatim.
  *
  * This TU is variant-free (no JUDY1/JUDYL): all of these routines are
  * shared between the variants, which is why upstream gives them no 1/L
@@ -22,6 +28,10 @@ typedef int judy_php_noinline_placeholder;
 
 #include "JudyPrivate.h"
 
+#if defined(_MSC_VER) && defined(_M_X64)
+#include <intrin.h>
+#endif
+
 // ****************************************************************************
 // __ J U D Y   C O U N T   B I T S   B
 //
@@ -31,6 +41,11 @@ typedef int judy_php_noinline_placeholder;
 
 BITMAPB_t j__udyCountBitsB(BITMAPB_t word)
 {
+#if defined(__POPCNT__) || defined(__aarch64__)
+        return((BITMAPB_t)__builtin_popcount((uint32_t)word));
+#elif defined(_MSC_VER) && defined(_M_X64)
+        return((BITMAPB_t)__popcnt((unsigned int)word));
+#else
         word = (word & 0x55555555) + ((word & 0xAAAAAAAA) >>  1);
         word = (word & 0x33333333) + ((word & 0xCCCCCCCC) >>  2);
         word = (word & 0x0F0F0F0F) + ((word & 0xF0F0F0F0) >>  4); // >= 8 bits.
@@ -42,6 +57,7 @@ BITMAPB_t j__udyCountBitsB(BITMAPB_t word)
         word = (word & 0x0000FFFF) + ((word & 0xFFFF0000) >> 16); // >= 32 bits.
 #endif
         return(word);
+#endif // portable folds
 
 } // j__udyCountBitsB()
 
@@ -56,6 +72,11 @@ BITMAPB_t j__udyCountBitsB(BITMAPB_t word)
 
 BITMAPL_t j__udyCountBitsL(BITMAPL_t word)
 {
+#if defined(__POPCNT__) || defined(__aarch64__)
+        return((BITMAPL_t)__builtin_popcountll((uint64_t)word));
+#elif defined(_MSC_VER) && defined(_M_X64)
+        return((BITMAPL_t)__popcnt64((unsigned __int64)word));
+#else
 #ifndef JU_64BIT
 
         word = (word & 0x55555555) + ((word & 0xAAAAAAAA) >>  1);
@@ -85,6 +106,7 @@ BITMAPL_t j__udyCountBitsL(BITMAPL_t word)
 #endif // JU_64BIT
 
         return(word);
+#endif // portable folds
 
 } // j__udyCountBitsL()
 
