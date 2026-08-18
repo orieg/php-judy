@@ -113,7 +113,10 @@ jobs:
           # arms alternate per benchmark group and repeat over several rounds,
           # so runner drift hits both arms and cancels in the paired ratio —
           # see scripts/bench-compare.php and issue #87 for why running the
-          # two suites back to back reported false regressions instead.
+          # two suites back to back reported false regressions instead. A
+          # pure-PHP control decides whether any residual run-wide shift is
+          # runner movement (contaminated, flags suppressed) or a real
+          # build-wide change (per-cell verdicts stand).
           #
           # Deliberately smaller than the headline benchmark below: this job
           # needs to detect *changes* reliably, not produce publishable
@@ -1275,22 +1278,38 @@ jobs:
                   )
 
                   php_ctl = drift.get("php_control_median_delta_pct")
+                  common = drift.get(
+                      "common_mode_pct", drift.get("median_delta_pct", 0)
+                  )
                   drift_note = (
                       f"Run-wide median delta "
                       f"{drift.get('median_delta_pct', 0):+.2f}% "
                       f"(PHP-array control "
                       + ("n/a" if php_ctl is None else f"{php_ctl:+.2f}%")
-                      + "), divided out of every row."
+                      + f"); runner common-mode {common:+.2f}% "
+                      f"divided out of every row."
                   )
                   if drift.get("contaminated"):
+                      thr = meta.get("drift_threshold_pct", 5)
+                      if php_ctl is None:
+                          why = (
+                              f"No PHP-array control row was usable, and "
+                              f"the whole suite moved together past the "
+                              f"±{thr:.0f}% threshold — read as runner "
+                              f"movement, not code."
+                          )
+                      else:
+                          why = (
+                              f"The control runs no judy code, so its "
+                              f"shift past the ±{thr:.0f}% threshold "
+                              f"means the runner itself changed speed "
+                              f"under the measurement."
+                          )
                       lines.append(
                           f"> ⚠️ **Comparison contaminated.** "
-                          f"{drift_note} That is past the "
-                          f"±{meta.get('drift_threshold_pct', 5):.0f}% "
-                          f"threshold: the whole suite moved together, which "
-                          f"is a slower runner rather than slower code. "
-                          f"Individual flags are suppressed — re-run the "
-                          f"job for a usable comparison.\n"
+                          f"{drift_note} {why} Individual flags are "
+                          f"suppressed — re-run the job for a usable "
+                          f"comparison.\n"
                       )
                   else:
                       lines.append(f"> {drift_note}\n")
