@@ -303,6 +303,9 @@
          <file name="tests/regression_mixed_destructor_reentrancy_001.phpt" role="test" />
          <file name="tests/regression_packed_equals_001.phpt" role="test" />
          <file name="tests/regression_unserialize_reinit_leak_001.phpt" role="test" />
+         <file name="tests/regression_unset_hash_adaptive_untouched_001.phpt" role="test" />
+         <file name="tests/regression_unset_string_to_int_hash_001.phpt" role="test" />
+         <file name="tests/regression_unset_string_to_int_hash_002.phpt" role="test" />
          <file md5sum="f4c1dde3511c574eef8fbf6a99f9d27b" name="config.m4" role="src" />
          <file md5sum="14c238115fee50dfe70b13bc8da311d3" name="config.w32" role="src" />
          <file name="Judy.stub.php" role="src" />
