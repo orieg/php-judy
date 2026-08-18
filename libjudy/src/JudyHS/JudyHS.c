@@ -3,6 +3,13 @@
 // to Word_t BEFORE shifting -- the cast was applied to the shift RESULT, so
 // uint8_t promoted to int and byte << 24 overflowed int for bytes >= 0x80
 // (C99 6.5.7p4 UB).  The 64-bit COPYSTRING8toWORD already casts first.
+// Modified from Judy-1.0.5 by the php-judy project, 2026-08-18 (patch O4d --
+// see libjudy/PATCHES.md, issue #142): JudyHSDel no longer pre-verifies the
+// string with a full JudyHSGet() (which hashed the key and descended the
+// tree once, only for JudyHSDel to hash and descend again).  The hash is
+// computed once, and the presence check is folded into the delete walk:
+// delStrJudyLTree() now compares the leaf string before freeing it and
+// treats a missing tree branch as "not found" instead of assuming presence.
 //
 // @(#) $Revision: 4.1 $ $Source: /judy/src/JudyHS/JudyHS.c
 //=======================================================================
@@ -505,6 +512,11 @@ JudyHSIns(PPvoid_t PPArray,             // ^ to JudyHashArray name
 }
 
 // Delete string from tree of JudyL arrays (all Lens must be same)
+//
+// Returns 1 = deleted, 0 = string not present (nothing modified),
+// JERR = error.  The presence check is folded into the walk (rather than
+// pre-verified by the caller with a separate get): the leaf string is
+// compared before it is freed, and a missing branch is "not found".
 
 static int
 delStrJudyLTree(uint8_t * String,      // delete from tree of JudyL arrays
@@ -521,6 +533,10 @@ delStrJudyLTree(uint8_t * String,      // delete from tree of JudyL arrays
     {
         Pls_t     Pls;
         Pls = (Pls_t) CLEAR_PLS(*PPValue);      // demangle pointer
+
+        if (memcmp(String, Pls->ls_String, Len) != 0)
+            return (0);                 // string does not match, not present
+
         JudyFree((Pvoid_t)Pls, LS_WORDLEN(Len));        // free the ls_t
 
         *PPValue = (Pvoid_t)NULL;       // clean pointer
@@ -531,6 +547,8 @@ delStrJudyLTree(uint8_t * String,      // delete from tree of JudyL arrays
     {
         COPYSTRINGtoWORD(Index, String, WORDSIZE);      // get Index
         JLG(PPValueN, *PPValue, Index); // get pointer to next JudyL array
+        if (PPValueN == (PPvoid_t) NULL)
+            return (0);                 // no such branch, not present
 
         String += WORDSIZE;             // advance to next 4[8] bytes
         Len -= WORDSIZE;
@@ -575,15 +593,20 @@ JudyHSDel(PPvoid_t PPArray,             // ^ to JudyHashArray struct
     if (PPArray == NULL)
         return (0);                     // no pointer, return not found
 
-//  This is a little slower than optimum method, but not much in new CPU
-//  Verify that string is in the structure -- simplifies future assumptions
+//  check for caller error (null pointer)
 
-    if (JudyHSGet(*PPArray, String, Len) == (PPvoid_t) NULL)
-        return (0);                     // string not found, return
+    if ((String == (uint8_t *) NULL) && (Len != 0))
+        return (0);                     // avoid null-pointer dereference
 
-//  string is in structure, so testing for absence is not necessary
+//  No up-front JudyHSGet() verification pass: it hashed the key and
+//  descended the tree once, only for the code below to hash and descend
+//  again.  The hash is computed once here, and the absence checks are
+//  folded into the walk (null JLG results and the leaf compare in
+//  delStrJudyLTree()), so a delete makes one pass over the key bytes.
 
     JLG(PPHtble, *PPArray, Len);        // JudyL hash table for strings of Len
+    if (PPHtble == (PPvoid_t) NULL)
+        return (0);                     // no strings of this Len, not found
 
 #ifdef DONOTUSEHASH
     PPBucket = PPHtble;                 // simulate below code
@@ -595,6 +618,8 @@ JudyHSDel(PPvoid_t PPArray,             // ^ to JudyHashArray struct
 //  get pointer to hash bucket
 
         JLG(PPBucket, *PPHtble, (Word_t)HValue);
+        if (PPBucket == (PPvoid_t) NULL)
+            return (0);                 // no hash bucket, not found
     }
     else
     {
@@ -605,6 +630,8 @@ JudyHSDel(PPvoid_t PPArray,             // ^ to JudyHashArray struct
 // delete from JudyL tree
 //
     Ret = delStrJudyLTree(String, Len, PPBucket, PJError);
+    if (Ret == 0)
+        return (0);                     // string not found, nothing deleted
     if (Ret != 1)
     {
         JU_SET_ERRNO(PJError, 0);
