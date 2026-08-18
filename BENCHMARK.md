@@ -1035,22 +1035,62 @@ This is the clause that matters for the motivating problem: a full-suite
 coverage run dying on `memory_limit`. Judy's index is also allocated outside
 `memory_limit` entirely, which the ratio above does not capture.
 
-#### ❌ Merge: the nested array wins, narrowly and consistently
+#### ⚖️ Merge: the array wins below ~2.2M pairs, Judy wins above
 
-`mergeWith()` is **~10% slower** than the in-place nested-array merge at the
-large scale (57.55 ms vs 52.31 ms, CI on the ratio [0.898, 0.913]) and ~16%
-slower at the small one. Zero of 32 runs reached parity. This is not noise —
-the spread is tight and the CI does not approach 1.0.
+The two configurations originally measured both favoured the array — `mergeWith()`
+~10% slower at the large scale (57.55 ms vs 52.31 ms, CI [0.898, 0.913]) and ~16%
+slower at the small one, with zero of 32 runs at parity. That section also
+predicted that "a larger or more heavily overlapping workload may close it".
 
-The mechanism is the one the example predicts: where a line is new to the
-target, the in-place array merge moves a whole test list by refcount, making it
-O(distinct lines) + overlap, while `mergeWith()` is O(keys). At this workload's
-overlap ratio the refcount shortcut wins. The gap narrows as scale grows
-(0.862 → 0.908), so a larger or more heavily overlapping workload may close it
-— but on both configurations measured, it does not.
+**A later scale sweep confirms the prediction and locates the crossover.** Ratio is
+array/judy, so **>1.0 means Judy wins**. 12 build pairs, percentile-bootstrap CI:
+
+| scale | line/test pairs | array | judy | array/judy | 95% CI |
+| ----- | --------------- | ----- | ---- | ---------- | ------ |
+| 800x300x2000 | 185,700 | 5.75 ms | 6.82 ms | 0.845 | [0.840, 0.850] |
+| 2000x400x5000 | 626,481 | 21.07 | 22.23 | 0.947 | [0.945, 0.950] |
+| 5000x500x10000 | 1,578,994 | 52.71 | 57.59 | 0.915 | [0.913, 0.916] |
+| 6000x500x12000 | 1,894,786 | 66.73 | 68.42 | 0.974 | [0.974, 0.976] |
+| **7000x500x14000** | **2,209,864** | **78.31** | **77.65** | **1.005** | **[0.999, 1.017]** |
+| 8000x500x16000 | 2,525,044 | 87.72 | 86.59 | 1.012 | [1.009, 1.015] |
+| 9000x500x18000 | 2,840,768 | 98.18 | 95.25 | 1.030 | [1.028, 1.032] |
+| 10000x500x20000 | 3,157,478 | 106.31 | 100.12 | 1.059 | [1.058, 1.065] |
+| 16000x500x32000 | 5,053,012 | 172.83 | 143.86 | **1.201** | [1.199, 1.203] |
+
+Parity lands at roughly **2.2M pairs** (the CI straddles 1.0 there), the CI lower
+bound clears 1.0 from about **2.5M**, and Judy is **20% faster by 5.05M**.
+
+The mechanism is unchanged and is exactly what the asymptotics predict: the
+in-place array merge moves a whole test list by refcount where a line is new to
+the target, making it O(distinct lines) + overlap against `mergeWith()`'s O(keys).
+The refcount shortcut wins while the number of distinct lines is small relative to
+the pairs; Judy's flat per-pair constant wins once it is not.
+
+One caveat on reading the table: the 626k row (0.947) sits off the monotone trend
+because that shape's overlap ratio differs. This is a scale trend, not a smooth
+curve — the crossover moves with overlap ratio as well as with size.
 
 `union()` is excluded from the comparison by construction: it allocates a third
 index and lands at 0.46x.
+
+#### Note: PR #123 did not move this
+
+`mergeWith()` was made 10-24% faster for most types by removing a redundant full
+descend per element (#121, PR #123). Measured on the same host, 12 build pairs:
+`INT_TO_INT` 0.786, `INT_TO_PACKED` 0.779, `INT_TO_MIXED` 0.777, `STRING_TO_INT`
+0.840, `STRING_TO_MIXED` 0.818, and the `*_HASH`/`*_ADAPTIVE` types 0.876 with
+`optimizeIteration` on. Unmirrored `*_HASH`/`*_ADAPTIVE` gain ~3% (the fix removes
+a zval-boundary wrapper there, not a descend). Effect is flat per element across a
+16x scale sweep — a constant-factor win, as designed.
+
+**It changes nothing in the table above, and could not have.** The coverage index
+is built as a `Judy::BITSET`, and `BITSET` is the one type the change explicitly
+excludes because its merge branch reads no value at all. Measured end to end on
+the gate workload: **1.0001, CI [0.9981, 1.0012]** — and `BITSET` is the true
+zero-control for the whole change, straddling 1.0 at every scale.
+
+The lesson worth keeping: the workload that motivated the optimisation was the
+single type the optimisation could not touch.
 
 #### ❌ Selection: also not a Judy win here
 
@@ -1063,11 +1103,18 @@ iterates inside the VM.
 
 #### What to take from this
 
-The coverage index is a **memory** result, not a speed result. Reach for it
-when the array shape is what is killing the run — and keep the array when it
-fits in memory, because it is faster at both merging and selecting. These
-numbers are one workload at one overlap ratio on one host; the example is
-runnable and prints the same table for yours.
+The coverage index is primarily a **memory** result. Reach for it when the array
+shape is what is killing the run.
+
+On speed, the answer is scale-dependent and was originally stated too flatly:
+**below ~2.2M line/test pairs the array is faster at merging; above ~2.5M Judy
+is, reaching +20% by 5M.** Selection remains a Judy loss at every scale measured.
+So "keep the array when it fits in memory" holds for small and mid-size suites,
+and stops holding for merging on large ones.
+
+These numbers are one workload family on one host, and the crossover moves with
+overlap ratio as well as with size; the example is runnable and prints the same
+table for yours.
 
 ---
 
