@@ -31,7 +31,47 @@ gcc -O2 -Wall -Wextra -o iterbench research/iteration-cost/iterbench.c -lJudy
 gcc -O2 -Wall -Wextra -o probebench research/write-probe-cost/probebench.c -lJudy
 ./probebench 1000000 16 5       # n, key length, reps; keylen < 8 adds the
                                 # ADAPTIVE short-string (SSO) probe
+./probebench 200000 6 5         # the SSO probe itself
 
 # shm-arena
 cd research/shm-arena && make && make run
 ```
+
+## probebench key shapes
+
+`probebench` emits two different key shapes, split at `keylen = 16`:
+
+- **`keylen >= 16`** — `user:00001234:f5` padded with `x`, the same shape as
+  `iteration-cost/iterbench.c`, so those figures sit next to the ones in
+  [#85](https://github.com/orieg/php-judy/issues/85). Ten keys share each
+  `user:` prefix.
+- **`keylen < 16`** — a fixed-width base-36 counter filling exactly `keylen`
+  bytes. The long format is 16 characters at minimum and cannot be squeezed
+  shorter while staying unique, so a second shape is required to reach the
+  short-key regime at all.
+
+The boundary matters when reading results: a `keylen = 6` run and a
+`keylen = 16` run differ in key *shape* as well as key *length*, so trie depth
+and fan-out are not directly comparable across it. Within a regime they are.
+
+Before [#118](https://github.com/orieg/php-judy/issues/118) the short shape did
+not exist: `make_key()` only padded up, never truncated, so every `keylen`
+below 16 silently produced a 16-byte key, and the SSO branch then copied 16
+bytes into an 8-byte `Word_t` and aborted. **The `JLG hit (SSO packed)` row had
+therefore never been produced**; any pre-#118 note claiming a number for it is
+wrong.
+
+## Reading probebench's absolute numbers
+
+The ns/op figures include real harness overhead and should not be quoted as
+pure Judy cost. On a 1,000,000 x 16-byte run, `__strlen_avx2` and
+`__strcpy_avx2` over the key array account for ~31% of the run's DRAM misses,
+and `snprintf` in `make_key` for ~7% of instructions.
+
+*Relative* comparisons are unaffected — the harness is identical across the
+configurations being compared, which is what the flag-matrix study on
+[#113](https://github.com/orieg/php-judy/issues/113) relies on.
+
+As with every benchmark in this repo, check machine load before believing a
+number: a load average above cores/2, or any non-target process over ~50% CPU,
+makes the run uninterpretable.
