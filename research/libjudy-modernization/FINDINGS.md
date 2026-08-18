@@ -922,6 +922,41 @@ where `STRCMP` alone decides equality; and `JudySLDelSub:642` recomputes a lengt
 it was handed. None of these touch #85's 25×, which is pointer-chase cost rather
 than linear-scan cost.
 
+> **Outcome (2026-08-18): run as Stage 3 O4 and gated per patch on honeycomb**
+> (x86-64 gcc 11.4; 3 arms x 5 randomized-link-order builds, interleaved
+> pinned trials, per-build medians, percentile bootstrap over builds, CI-low
+> \> 1.0 + control-calibrated claim floor; [#142](https://github.com/orieg/php-judy/issues/142)
+> O4 gate comment). **Three of the four merged, one dropped:**
+>
+> - **O4a** (`JSLN`/`JSLP` strlen removal): `(measured)` ordered-walk
+>   speedups x1.0324/x1.0471/x1.0501 (struct16/struct32/urand16, CI-lows
+>   1.0264/1.0378/1.0161), reverse walks x1.0294-x1.0400, out-of-cache
+>   x1.0208/x1.0209 — controls null. MERGED.
+> - **O4b** (`JudySLIns` 3→1 passes): `(measured)` overwrite x1.0448
+>   (struct32, CI [1.0354,1.0542]) and x1.0850 out-of-cache (struct16,
+>   CI [1.0777,1.0890]), controls x0.9973/x0.9987. MERGED.
+> - **O4c** (`JudySLDelSub` `SCLSIZE(STRLEN())` recompute): **DROPPED at the
+>   gate.** Exact and zero-risk by construction — the interposed-allocator
+>   parity harness confirms byte-identical allocation totals and per-free
+>   sizes — but **null in time on every delete cell**: best cell struct16 L3
+>   x1.0321 [1.0009,1.0410] sat on a contaminated control (ctl x1.0297),
+>   out-of-cache x0.9971; nothing cleared the claim floor. One strlen over a
+>   <=word-ish tail inside a ~350-770 ns delete is below the measurement
+>   floor, and per the house rule (null => drop, not "merge anyway", as with
+>   O2) it stays out of the vendored tree.
+> - **O4d** (`JudyHSDel` single hash+descend): `(measured)` delete
+>   x1.0625/x1.0672 (hstruct16/hurand16 L3, CI-lows 1.0544/1.0527), x1.0382
+>   out-of-cache (CI [1.0324,1.0423]) — controls null. The `(projected)`
+>   ~40% for the full non-free work was optimistic; the measured ~6% whole-op
+>   effect is what two saved JudyL descents + one saved hash pass buy at
+>   16-byte keys. MERGED.
+>
+> Equivalence evidence for the merged three: 48-cell differential-fuzz grid
+> (plain + ASan/UBSan library, incl. a new engineered-hash-collision corpus
+> that watched-to-fail catches a guard-stripped O4d at op 34), length-sweep
+> `tests/string_key_length_sweep_001.phpt`, byte-identical `JudyMalloc`
+> accounting across arms, and 221/221 .phpt on macOS + Alpine/musl.
+
 **Three things that look like targets and are not — do not chase them.**
 
 - **The `memcmp`/`strcmp` DRAM attributions are not shavable.**
