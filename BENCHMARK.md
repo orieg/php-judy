@@ -43,8 +43,15 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 - **Hardware**: Tests run on modern x86_64 systems with sufficient RAM to avoid memory pressure
 - **Operating System**: Linux (Docker containers for consistency)
 - **PHP Version**: 8.x with Judy extension 2.4.2 — the release these figures were
-  measured on. They have not been re-measured on 2.5.0; the ranged reads and the
-  opt-in `optimizeIteration` mirror that 2.5.0 adds are not represented here.
+  measured on. They still describe 2.5.0: the release-over-release comparison run
+  on 2026-08-17 (interleaved arms, 5 groups x 5 rounds, PHP 8.4.24, Linux x86_64)
+  found **0 regressions** across the 69 shared benchmarks, a run-wide median delta
+  of **-0.04%** against a PHP-array control of +0.36%, and one improvement —
+  `adv.filter.int_to_int` **-12.1%** [-12.8%, -10.1%], which is the iterator-value
+  reuse landing. The figures below are therefore representative rather than merely
+  unrefuted. What 2.5.0 adds on top is measured separately in
+  [The optimizeIteration mirror](#the-optimizeiteration-mirror-measured) and in
+  the bounded-read benchmarks described there.
 - **Test Methodology**: Multiple iterations with statistical analysis (min/max/median/percentiles)
 - **Memory Measurement**: Using `memory_get_usage(true)` and `Judy::memoryUsage()`
 
@@ -1135,6 +1142,61 @@ This script compares Judy vs PHP arrays at 1K, 10K, 100K, and 1M elements across
 
 ---
 
+## The optimizeIteration mirror (measured)
+
+New in 2.5.0 and **off by default**. `new Judy($type, optimizeIteration: true)`
+mirrors payloads into the key index so ordered reads do not pay a second lookup.
+Only `STRING_TO_INT_HASH` and `STRING_TO_INT_ADAPTIVE` honour it.
+
+All figures below are `(measured)` on **php-judy 2.5.0**, from the CI run on the
+tagged commit — PHP 8.4.24, Linux x86_64, 500,000 elements, 7 iterations, median
+of runs. This is the same run that produced `baselines/latest.json`, so the
+contention control applies: run-wide median delta -0.04% against a PHP-array
+control of +0.36%.
+
+| Operation | Type | default | optimized | Delta |
+| --- | --- | ---: | ---: | ---: |
+| `values()` | `STRING_TO_INT_HASH` | 49.77 ms | 27.21 ms | **-45.3%** |
+| `toArray()` | `STRING_TO_INT_HASH` | 62.30 ms | 35.76 ms | **-42.6%** |
+| `values()` | `STRING_TO_INT_ADAPTIVE` | 60.06 ms | 36.08 ms | **-39.9%** |
+| `foreach` | `STRING_TO_INT_HASH` | 56.38 ms | 35.22 ms | **-37.5%** |
+| `toArray()` | `STRING_TO_INT_ADAPTIVE` | 75.43 ms | 47.71 ms | **-36.7%** |
+| `foreach` | `STRING_TO_INT_ADAPTIVE` | 68.52 ms | 44.98 ms | **-34.4%** |
+| `overwrite` | `STRING_TO_INT_ADAPTIVE` | 58.11 ms | 51.13 ms | -12.0% |
+| `increment()` | `STRING_TO_INT_HASH` | 39.93 ms | 43.81 ms | **+9.7%** |
+| `overwrite` | `STRING_TO_INT_HASH` | 38.80 ms | 42.73 ms | **+10.1%** |
+
+**Read the last two rows before turning this on.** Ordered reads get 34-45%
+faster, which is the headline. But `increment()` and overwrite on
+`STRING_TO_INT_HASH` get ~10% *slower*, because every write now maintains the
+mirror as well. A counter-heavy workload pays that on every operation and
+collects none of the read win. The trade is real in both directions, which is
+why the flag is opt-in and per-instance rather than a default.
+
+`overwrite` on `STRING_TO_INT_ADAPTIVE` is the one write that improves (-12.0%),
+because the adaptive type's short keys already live in a JudyL the mirror does
+not duplicate.
+
+Call `isIterationOptimized()` to confirm what actually took effect — every other
+type accepts the constructor argument and ignores it.
+
+### Bounded reads
+
+2.5.0's ranged forms (`keys()`, `values()`, `toArray()`, `size()`) are covered by
+`api.range.*` in the suite as of this release, pinning the two claims the docs
+make: that `keys($lo, $hi)` beats `slice($lo, $hi)->keys()`, and that
+`size($lo, $hi)` beats `count(keys($lo, $hi))` on string keys. Those benchmarks
+were added alongside the 2.5.0 baseline, so their first CI-measured figures land
+with the next release comparison and are deliberately not quoted here yet — the
+numbers in this document come from Linux CI runs, never from a developer laptop.
+
+Note that on integer keys `size($lo, $hi)` is O(1) — libJudy answers it from the
+population cache — so it is recorded as a 1000-call loop and is *not* compared
+against `count(keys(...))`. That comparison would be definitional rather than
+measured: an O(range) walk cannot beat an O(1) cache read at any size.
+
+---
+
 ## Running the Benchmarks
 
 ### **Quick Benchmarks**
@@ -1177,5 +1239,6 @@ php examples/benchmarks/run-benchmarks-robust.php
 Our methodology and insights are informed by the [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which demonstrates Judy's strengths in ordered access patterns and memory efficiency.
 
 **Describes**: php-judy 2.5.0
-**Figures measured on**: 2.4.2 (see Benchmarking Environment — not yet re-run on 2.5.0)
+**Figures measured on**: 2.4.2, verified unchanged on 2.5.0 (0 regressions, run-wide
+median -0.04%; see Benchmarking Environment)
 **Last Updated**: August 2026

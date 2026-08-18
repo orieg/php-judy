@@ -677,6 +677,57 @@ printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n"
     'values() INT_TO_INT', sprintf('%.2f', $t_judy['median']),
     sprintf('%.2f', $t_php['median']), fmt_ratio($t_php['median'], $t_judy['median']));
 
+// ── Bounded reads ───────────────────────────────────────────────────────────
+// The docs make two performance claims about ranges that nothing measured
+// until now: that keys($lo, $hi) beats slice($lo, $hi)->keys(), and that
+// size($lo, $hi) beats count(keys($lo, $hi)). Both are the kind of claim that
+// rots silently, so they are pinned here. The window is 10% of the key space
+// in the middle, so a bound is genuinely cheaper than a full traversal.
+$lo = (int)($size * 0.45);
+$hi = (int)($size * 0.55);
+
+// keys($lo, $hi) vs the slice() anti-pattern vs a PHP-array scan
+$t_judy = bench_median(function() use ($j_int, $lo, $hi) { $j_int->keys($lo, $hi); }, $iterations);
+$t_slice = bench_median(function() use ($j_int, $lo, $hi) { $j_int->slice($lo, $hi)->keys(); }, $iterations);
+$t_php = bench_median(function() use ($j_int, $lo, $hi) {
+    $keys = []; foreach ($j_int as $k => $v) { if ($k >= $lo && $k <= $hi) { $keys[] = $k; } }
+}, $iterations);
+record('api.range.keys.int_to_int.judy',  $t_judy['median'],  $t_judy['runs']);
+record('api.range.keys.int_to_int.slice', $t_slice['median'], $t_slice['runs']);
+record('api.range.keys.int_to_int.php',   $t_php['median'],   $t_php['runs']);
+printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n",
+    'keys($lo,$hi) INT_TO_INT', sprintf('%.2f', $t_judy['median']),
+    sprintf('%.2f', $t_php['median']), fmt_ratio($t_php['median'], $t_judy['median']));
+printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n",
+    '  vs slice()->keys()', sprintf('%.2f', $t_slice['median']), '-',
+    fmt_ratio($t_slice['median'], $t_judy['median']));
+
+// size($lo, $hi) on integer keys is O(1) — libJudy answers it from the
+// population cache without walking. A single call lands under timer
+// resolution, which would record 0.000 and make every future comparison
+// ratio meaningless, so it is measured over 1000 calls. Deliberately NOT
+// compared against count(keys($lo, $hi)) here: that is O(range) by
+// construction and can never win, so the ratio would be definitional rather
+// than measured. The string pair below is the comparison that means something,
+// because there both sides walk.
+$t_judy = bench_median(function() use ($j_int, $lo, $hi) {
+    for ($n = 0; $n < 1000; $n++) { $j_int->size($lo, $hi); }
+}, $iterations);
+record('api.range.size1000.int_to_int.judy', $t_judy['median'], $t_judy['runs']);
+printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n",
+    'size($lo,$hi) INT x1000', sprintf('%.2f', $t_judy['median']), '-', '     O(1)');
+
+// The same pair on string keys, where 2.5.0 made size($lo, $hi) work at all
+$s_lo = 'key_' . (int)($size * 0.45);
+$s_hi = 'key_' . (int)($size * 0.55);
+$t_judy = bench_median(function() use ($j_str, $s_lo, $s_hi) { $j_str->size($s_lo, $s_hi); }, $iterations);
+$t_cnt = bench_median(function() use ($j_str, $s_lo, $s_hi) { count($j_str->keys($s_lo, $s_hi)); }, $iterations);
+record('api.range.size.string_to_int.judy',      $t_judy['median'], $t_judy['runs']);
+record('api.range.size.string_to_int.countkeys', $t_cnt['median'],  $t_cnt['runs']);
+printf("  %-{$col_api[0]}s  %{$col_api[1]}s  %{$col_api[2]}s  %{$col_api[3]}s\n",
+    'size($lo,$hi) STRING_TO_INT', sprintf('%.2f', $t_judy['median']),
+    sprintf('%.2f', $t_cnt['median']), fmt_ratio($t_cnt['median'], $t_judy['median']));
+
 // sumValues() INT_TO_INT
 $t_judy = bench_median(function() use ($j_int) { $j_int->sumValues(); }, $iterations);
 $t_php = bench_median(function() use ($j_int) {
