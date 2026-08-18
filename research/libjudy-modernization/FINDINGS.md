@@ -818,6 +818,32 @@ rather than ~19 KB means it already is not happening), or if `InsWalk`'s I-cache
 footprint is not a miss source, which an L1i counter would settle and no PMU is
 available to provide.
 
+> **Outcome (2026-08-18): item 2 was run as Stage 3 O2 and DROPPED on
+> measurement** ([#142](https://github.com/orieg/php-judy/issues/142), O2 gate
+> comment). Both falsification conditions effectively fired. On gcc the first
+> fired outright: gcc ≤ 11 does not vectorise at `-O2` at all, and gcc 14.2's
+> `-O2` very-cheap-cost-model residue sits outside these macros —
+> `j__udyInsWalk` is already at the "not happening" size (~13.4 KB), so the
+> shipped flag pinning (Stage 1's `-O2 -fno-unroll-loops`) had ALREADY avoided
+> the tax on every gcc build. On clang the dispatch is real under shipped flags
+> and the pragma removes 21-32% of code size (Apple clang 21 arm64 and Debian
+> clang 19 x86-64 both measured on the current tree), **but the time gate on
+> clang 19/x86-64 (honeycomb, Docker, O1/O3 protocol incl. comment-only control
+> and a new randomized-order full-delete phase) came back null-to-negative: no
+> cell met CI-low > 1.0, and delete REGRESSED 1.3-2.6% (CI-high < 1.0, clear of
+> the control) on three of five corpora, GET null everywhere.** The premise
+> error, recorded: "never-taken dispatch" was true of the 32-wide interleaved
+> loops measured here on pristine `-O2`, but `-fno-unroll-loops` already
+> deletes those; what the pragma additionally removes includes narrow 2-word
+> vector loops whose entry guards Judy's shift lengths DO satisfy (documented
+> leaf maxima 13-51, average shift about half) — the mechanism hypothesis
+> consistent with the measured sign (no PMU; not a counter measurement) is
+> that those narrow loops were doing the shifts at half the iterations, so
+> the review measured the I-cache cost of the wide paths and never the
+> compute benefit of the narrow ones ("what it buys in time is unmeasured"
+> was the load-bearing caveat above). The code-size win is real; the time
+> win does not exist. Item 1 (bswap) shipped as O3 and is unaffected.
+
 `JudyLInsArray` was audited alongside and is **correct** — a 126-case
 differential (6 key distributions × 21 sizes to 300,000) comparing full ordered
 traversal of keys and values, `JLC` and `JLMU`, all passing once the §6.3
@@ -1492,7 +1518,10 @@ Stated plainly, because they bound everything above.
   sanitizer work used arm64 Darwin with gcc-15.2.0 and Apple clang 21.
 - **No PMU, ever.** Every cache and stall figure is cachegrind simulation and
   every derived stall time is a bound, not a measurement.
-- **The write-path code-size findings have no timing at all** (§7.6), and the
+- **The write-path code-size findings had no timing when first recorded** (§7.6;
+  both have since been timed under [#142](https://github.com/orieg/php-judy/issues/142):
+  item 1 shipped as O3 with measured wins, item 2 was dropped as O2 — see the
+  outcome note in §7.6), and the
   strict-aliasing null is Judy1-only on one compiler and one target (§7.3).
 - **The 32-bit path was syntax-checked, never built or run** (§7.4).
 - **The expert panels are synthetic** and are not peer review (§8); the panel run
