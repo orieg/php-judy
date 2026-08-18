@@ -744,8 +744,11 @@ Then:
 This project is licensed under the PHP License - see the [LICENSE](LICENSE) file for details.
 
 The source tree also bundles libJudy under `libjudy/`, licensed
-LGPL-2.1-or-later — see [THIRD-PARTY.md](THIRD-PARTY.md) and
-[libjudy/COPYING](libjudy/COPYING).
+LGPL-2.1-or-later, Copyright (c) 2002 Hewlett-Packard Company — see
+[THIRD-PARTY.md](THIRD-PARTY.md) and [libjudy/COPYING](libjudy/COPYING).
+Users are free to modify the files under `libjudy/` and recompile the
+extension under the terms of LGPL-2.1; all applied patches are documented
+in [libjudy/PATCHES.md](libjudy/PATCHES.md).
 
 ## Contributing
 

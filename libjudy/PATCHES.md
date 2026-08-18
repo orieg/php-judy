@@ -19,8 +19,8 @@ import must show only deliberate, documented changes.
 
 ## Patches
 
-| Patch | Files | Why | Date | Issue |
-| ----- | ----- | --- | ---- | ----- |
+| Patch | Category | Files | Why | Date | Issue |
+| ----- | -------- | ----- | --- | ---- | ----- |
 
 _None yet — the tree is pristine Judy-1.0.5 (Stage 0 of the vendoring
 plan, tracked in [#142](https://github.com/orieg/php-judy/issues/142))._
