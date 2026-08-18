@@ -1,6 +1,14 @@
 // Modified for php-judy on 2026-08-18 (patch P5, LLP64/Windows-x64
 // correctness -- see libjudy/PATCHES.md, issues #127/#142):
 // 1UL << N shifts use (Word_t)1 (1UL is 32-bit on LLP64, so N >= 32 shifted to 0).
+// Modified for php-judy on 2026-08-18 (patch P3, small-Count leaf
+// allocation off-by-one -- see libjudy/PATCHES.md, issues #127/#142):
+// the small-count path allocates j__udyAllocJLW(Count), not Count + 1.
+// j__udyAllocJLW(Pop1) already accounts for the pop0 word; Count + 1 at
+// Count == cJU_LEAFW_MAXPOP1 (31) read one past j__*_LeafWPopToWords[]
+// (ASan-confirmed), yielding a zero-word allocation that the two
+// JU_COPYMEMs then overran by 63 words, and over-allocated one size
+// class for Count in {1, 3, 7, 15, 23}.
 //
 // Copyright (C) 2000 - 2002 Hewlett-Packard Company
 //
@@ -285,7 +293,7 @@ const   Word_t *  const PValue, // list of corresponding values.
         if (Count == 0) return(1);              // *PPArray remains null.
 
         {
-            Pjlw      = j__udyAllocJLW(Count + 1);
+            Pjlw      = j__udyAllocJLW(Count);
                         JU_CHECKALLOC(Pjlw_t, Pjlw, JERRI);
             *PPArray  = (Pvoid_t) Pjlw;
             Pjlw[0]   = Count - 1;              // set pop0.
