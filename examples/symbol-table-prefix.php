@@ -54,7 +54,8 @@ if (!extension_loaded('judy')) {
  * P itself is the correct inclusive $start.
  *
  * The upper bound is where prefix-to-range conversions go wrong. Two shortcuts
- * circulate, and both are subtly incorrect on binary-safe keys:
+ * circulate, and both are subtly incorrect on keys carrying high bytes (Judy
+ * string keys are binary-safe for every byte except 0x00, which is rejected):
  *
  *   P . "\xFF"   fails when a key actually has a 0xFF byte right after the
  *                prefix: that key sorts AFTER P."\xFF" (the bound is a proper
@@ -438,10 +439,13 @@ echo "  - a namespace prefix must include its trailing separator. \"App\\Domain\
 echo "    is a legitimate string prefix and it matches App\\DomainEvents\\* too;\n";
 echo "    only \"App\\Domain\\\" is the namespace. The bounds are correct either\n";
 echo "    way — the question changes, not the answer.\n";
-echo "  - Judy string keys are binary-safe, so a prefix-to-range helper has to\n";
-echo "    be as well. Appending \"\\xFF\" is not: it silently drops any key with a\n";
-echo "    0xFF byte immediately after the prefix. Increment-with-carry plus the\n";
-echo "    one-key trim has no such hole, and costs one array_pop.\n";
+echo "  - Judy string keys are binary-safe for every byte except 0x00, so a\n";
+echo "    prefix-to-range helper has to be as well. Appending \"\\xFF\" is not: it\n";
+echo "    silently drops any key with a 0xFF byte immediately after the prefix.\n";
+echo "    Increment-with-carry plus the one-key trim has no such hole, and costs\n";
+echo "    one array_pop. (An embedded NUL is rejected with an exception on all\n";
+echo "    six string-keyed types — JudySL indexes NUL-terminated C strings —\n";
+echo "    so encode pack() output or raw digests before using them as keys.)\n";
 echo "  - the trim is not paranoia about class names (no PHP identifier is\n";
 echo "    spelled \"App\\Domain]\"). It is what makes the helper reusable for keys\n";
 echo "    you did not choose — cache keys, file paths, serialised tuples.\n";

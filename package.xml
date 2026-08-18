@@ -207,6 +207,7 @@
          <file name="tests/boundary_long_string_001.phpt" role="test" />
          <file name="tests/boundary_empty_string_key_001.phpt" role="test" />
          <file name="tests/boundary_special_chars_001.phpt" role="test" />
+         <file name="tests/boundary_binary_keys_001.phpt" role="test" />
          <file name="tests/batch_empty_input_001.phpt" role="test" />
          <file name="tests/batch_large_001.phpt" role="test" />
          <file name="tests/increment_boundary_001.phpt" role="test" />

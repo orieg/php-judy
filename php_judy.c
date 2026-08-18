@@ -440,6 +440,63 @@ PHP_INI_BEGIN()
 PHP_INI_END()
 /* }}} */
 
+/* {{{ Embedded-NUL key precondition.
+
+   Every string-keyed type orders its keys through a JudySL trie: the two plain
+   trie types store the value in it directly, and the four *_HASH / *_ADAPTIVE
+   types keep a JudySL `key_index` alongside their length-prefixed value store.
+   A JudySL index is a NUL-terminated C string by construction, so a key
+   containing 0x00 is truncated at the first one. That is silent data loss on a
+   write ("ab\0cd" and "ab" become one key), a wrong answer on a plain-trie
+   read, and a wrong bound on every ordered/range operation of all six types.
+
+   Only 0x00 is affected. Every other byte value, 0x01 through 0xFF, is stored,
+   compared and ordered as an unsigned byte — high-byte keys are binary-safe and
+   examples/symbol-table-prefix.php relies on that.
+
+   There is no representation to fall back on: JudyHS accepts a NUL because it
+   is length-prefixed, JudySL cannot be made to. So a NUL byte is rejected at
+   every entry point that takes a caller-supplied string key, uniformly across
+   the six types, rather than accepted by some and truncated by others.
+   See GitHub issue #117. */
+static const char *judy_nul_key_error(judy_type type)
+{
+	switch (type) {
+		case TYPE_STRING_TO_INT:
+			return "Judy STRING_TO_INT keys must not contain embedded null bytes";
+		case TYPE_STRING_TO_MIXED:
+			return "Judy STRING_TO_MIXED keys must not contain embedded null bytes";
+		case TYPE_STRING_TO_INT_HASH:
+			return "Judy STRING_TO_INT_HASH keys must not contain embedded null bytes";
+		case TYPE_STRING_TO_MIXED_HASH:
+			return "Judy STRING_TO_MIXED_HASH keys must not contain embedded null bytes";
+		default:
+			return "Judy adaptive keys must not contain embedded null bytes";
+	}
+}
+
+/* Throws and returns 1 when the key contains a NUL; returns 0 otherwise.
+   Callers that already know the array is string-keyed use this directly. */
+static zend_always_inline int judy_reject_nul_key(judy_type type, const char *key, size_t klen)
+{
+	if (JUDY_UNLIKELY(memchr(key, '\0', klen) != NULL)) {
+		zend_throw_exception(NULL, judy_nul_key_error(type), 0);
+		return 1;
+	}
+	return 0;
+}
+
+/* Same check for a bound/key that arrives as a zval and may legitimately be a
+   non-string (integer-keyed arrays, optional null bounds). */
+static zend_always_inline int judy_reject_nul_key_zval(judy_object *intern, zval *z)
+{
+	if (z == NULL || Z_TYPE_P(z) != IS_STRING || !JUDY_IS_STRING_KEYED(intern)) {
+		return 0;
+	}
+	return judy_reject_nul_key(intern->type, Z_STRVAL_P(z), Z_STRLEN_P(z));
+}
+/* }}} */
+
 #define CHECK_ARRAY_AND_ARG_TYPE(_index_, _string_key_, _error_flag_, _return_)	\
 	switch (intern->type) {					\
 		case TYPE_BITSET:					\
@@ -456,6 +513,9 @@ PHP_INI_END()
 		case TYPE_STRING_TO_INT_ADAPTIVE:	\
 			if (UNEXPECTED(Z_TYPE_P(offset) != IS_STRING)) {	\
 				zend_throw_error(zend_ce_type_error, "Judy offset must be of type string for string-based arrays"); \
+				_error_flag_ = 1; \
+			} else if (UNEXPECTED(judy_reject_nul_key(intern->type,		\
+					Z_STRVAL_P(offset), Z_STRLEN_P(offset)))) {			\
 				_error_flag_ = 1; \
 			} else {								\
 				_string_key_ = offset;	\
@@ -605,12 +665,19 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 		*mirror_out = NULL;
 	}
 
+	/* One check for all six types rather than one per case: every one of them
+	   indexes through a JudySL (the trie itself, or the key_index), which
+	   cannot hold a key past its first NUL. See judy_nul_key_error(). */
+	if (JUDY_UNLIKELY(judy_reject_nul_key(intern->type, (const char *)key, (size_t)klen))) {
+		return FAILURE;
+	}
+
 	switch (intern->type) {
 
 	case TYPE_STRING_TO_INT:
 		/* Plain JudySL: the trie is itself the value store, so there is no
-		   mirror to keep and no NUL restriction. 0 is a legal stored value,
-		   hence the separate existence probe. */
+		   mirror to keep. 0 is a legal stored value, hence the separate
+		   existence probe. */
 		JSLG(existing, intern->array, (uint8_t *)key);
 		JSLI(slot, intern->array, (uint8_t *)key);
 		if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
@@ -640,11 +707,6 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 	   refactor is not allowed to spend. The repetition stays inside this one
 	   function, so nothing outside it learns about the key_index. */
 	case TYPE_STRING_TO_INT_HASH:
-		if (JUDY_UNLIKELY(memchr(key, '\0', (size_t)klen) != NULL)) {
-			zend_throw_exception(NULL,
-				"Judy STRING_TO_INT_HASH keys must not contain embedded null bytes", 0);
-			return FAILURE;
-		}
 		/* 0 is a legal stored value, so existence has to come from a probe
 		   either way — the only question is which structure answers it.
 
@@ -690,11 +752,6 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 		break;
 
 	case TYPE_STRING_TO_MIXED_HASH:
-		if (JUDY_UNLIKELY(memchr(key, '\0', (size_t)klen) != NULL)) {
-			zend_throw_exception(NULL,
-				"Judy STRING_TO_MIXED_HASH keys must not contain embedded null bytes", 0);
-			return FAILURE;
-		}
 		JHSI(slot, intern->array, (uint8_t *)key, klen);
 		if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
 			return FAILURE;
@@ -711,11 +768,6 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 		break;
 
 	case TYPE_STRING_TO_INT_ADAPTIVE:
-		if (JUDY_UNLIKELY(memchr(key, '\0', (size_t)klen) != NULL)) {
-			zend_throw_exception(NULL,
-				"Judy adaptive keys must not contain embedded null bytes", 0);
-			return FAILURE;
-		}
 		if (judy_pack_short_string_internal((const char *)key, (size_t)klen, &sso_idx)) {
 			/* Short keys keep the JudyL probe and are never mirrored, even on
 			   an opted-in instance: JLG costs 17.6 ns against 184.7 ns for a
@@ -765,11 +817,6 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 		break;
 
 	case TYPE_STRING_TO_MIXED_ADAPTIVE:
-		if (JUDY_UNLIKELY(memchr(key, '\0', (size_t)klen) != NULL)) {
-			zend_throw_exception(NULL,
-				"Judy adaptive keys must not contain embedded null bytes", 0);
-			return FAILURE;
-		}
 		if (judy_pack_short_string_internal((const char *)key, (size_t)klen, &sso_idx)) {
 			JLI(slot, intern->array, sso_idx);
 			if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
@@ -1886,6 +1933,12 @@ PHP_METHOD(Judy, first)
 			Z_PARAM_STRING(str, str_length)
 		ZEND_PARSE_PARAMETERS_END();
 
+		/* The bound is seeked as a NUL-terminated C string, so a NUL
+		   inside it would silently search from its truncation instead. */
+		if (judy_reject_nul_key(intern->type, str, str_length)) {
+			RETURN_THROWS();
+		}
+
 		/* JudySL require null terminated strings */
 		if (str_length == 0) {
 			key[0] = '\0';
@@ -1911,6 +1964,12 @@ PHP_METHOD(Judy, first)
 			Z_PARAM_OPTIONAL
 			Z_PARAM_STRING(str, str_length)
 		ZEND_PARSE_PARAMETERS_END();
+
+		/* The bound is seeked as a NUL-terminated C string, so a NUL
+		   inside it would silently search from its truncation instead. */
+		if (judy_reject_nul_key(intern->type, str, str_length)) {
+			RETURN_THROWS();
+		}
 
 		if (str_length == 0) {
 			key[0] = '\0';
@@ -1980,6 +2039,12 @@ PHP_METHOD(Judy, searchNext)
 			Z_PARAM_STRING(str, str_length)
 		ZEND_PARSE_PARAMETERS_END();
 
+		/* The bound is seeked as a NUL-terminated C string, so a NUL
+		   inside it would silently search from its truncation instead. */
+		if (judy_reject_nul_key(intern->type, str, str_length)) {
+			RETURN_THROWS();
+		}
+
 		/* JudySL require null terminated strings */
 		if (str_length == 0) {
 			key[0] = '\0';
@@ -2004,6 +2069,12 @@ PHP_METHOD(Judy, searchNext)
 		ZEND_PARSE_PARAMETERS_START(1, 1)
 			Z_PARAM_STRING(str, str_length)
 		ZEND_PARSE_PARAMETERS_END();
+
+		/* The bound is seeked as a NUL-terminated C string, so a NUL
+		   inside it would silently search from its truncation instead. */
+		if (judy_reject_nul_key(intern->type, str, str_length)) {
+			RETURN_THROWS();
+		}
 
 		if (str_length == 0) {
 			key[0] = '\0';
@@ -2325,6 +2396,12 @@ PHP_METHOD(Judy, last)
 			Z_PARAM_STRING(str, str_length)
 		ZEND_PARSE_PARAMETERS_END();
 
+		/* The bound is seeked as a NUL-terminated C string, so a NUL
+		   inside it would silently search from its truncation instead. */
+		if (judy_reject_nul_key(intern->type, str, str_length)) {
+			RETURN_THROWS();
+		}
+
 		/* JudySL require null terminated strings */
 		if (str_length == 0) {
 			memset(key, 0xff, PHP_JUDY_MAX_LENGTH);
@@ -2351,6 +2428,12 @@ PHP_METHOD(Judy, last)
 			Z_PARAM_OPTIONAL
 			Z_PARAM_STRING(str, str_length)
 		ZEND_PARSE_PARAMETERS_END();
+
+		/* The bound is seeked as a NUL-terminated C string, so a NUL
+		   inside it would silently search from its truncation instead. */
+		if (judy_reject_nul_key(intern->type, str, str_length)) {
+			RETURN_THROWS();
+		}
 
 		if (str_length == 0) {
 			memset(key, 0xff, PHP_JUDY_MAX_LENGTH);
@@ -2415,6 +2498,12 @@ PHP_METHOD(Judy, prev)
 			Z_PARAM_STRING(str, str_length)
 		ZEND_PARSE_PARAMETERS_END();
 
+		/* The bound is seeked as a NUL-terminated C string, so a NUL
+		   inside it would silently search from its truncation instead. */
+		if (judy_reject_nul_key(intern->type, str, str_length)) {
+			RETURN_THROWS();
+		}
+
 		/* JudySL require null terminated strings */
 		if (str_length == 0) {
 			key[0] = '\0';
@@ -2439,6 +2528,12 @@ PHP_METHOD(Judy, prev)
 		ZEND_PARSE_PARAMETERS_START(1, 1)
 			Z_PARAM_STRING(str, str_length)
 		ZEND_PARSE_PARAMETERS_END();
+
+		/* The bound is seeked as a NUL-terminated C string, so a NUL
+		   inside it would silently search from its truncation instead. */
+		if (judy_reject_nul_key(intern->type, str, str_length)) {
+			RETURN_THROWS();
+		}
 
 		if (str_length == 0) {
 			key[0] = '\0';
@@ -3237,6 +3332,13 @@ PHP_METHOD(Judy, slice)
 		Z_PARAM_ZVAL(zend_val)
 	ZEND_PARSE_PARAMETERS_END();
 
+	/* Checked before the result array exists so the failure leaves nothing
+	   half-built; both bounds seek through a JudySL and would truncate. */
+	if (judy_reject_nul_key_zval(intern, zstart)
+			|| judy_reject_nul_key_zval(intern, zend_val)) {
+		RETURN_THROWS();
+	}
+
 	result = judy_create_result(return_value, intern->type, intern->mirror_payload);
 
 	if (intern->type == TYPE_BITSET) {
@@ -3651,6 +3753,13 @@ static int judy_parse_collect_range(judy_object *intern, zval *zstart, zval *zen
 			|| (zend_val != NULL && Z_TYPE_P(zend_val) != IS_STRING)) {
 		zend_throw_error(zend_ce_type_error,
 			"Judy::%s() expects string arguments for string-keyed arrays", method);
+		return FAILURE;
+	}
+
+	/* Both bounds are compared and seeked as NUL-terminated C strings, so a
+	   NUL inside one silently widens the range instead of bounding it. */
+	if (judy_reject_nul_key_zval(intern, zstart)
+			|| judy_reject_nul_key_zval(intern, zend_val)) {
 		return FAILURE;
 	}
 
@@ -4496,6 +4605,11 @@ PHP_METHOD(Judy, deleteRange)
 			Z_PARAM_STRING(str_end, str_end_len)
 		ZEND_PARSE_PARAMETERS_END();
 
+		if (judy_reject_nul_key(intern->type, str_start, str_start_len)
+				|| judy_reject_nul_key(intern->type, str_end, str_end_len)) {
+			RETURN_THROWS();
+		}
+
 		if (strcmp(str_start, str_end) > 0) RETURN_LONG(0);
 
 		/* Private cursor rather than intern->key_scratch: a stored value's
@@ -4570,6 +4684,11 @@ PHP_METHOD(Judy, deleteRange)
 			Z_PARAM_STRING(str_start, str_start_len)
 			Z_PARAM_STRING(str_end, str_end_len)
 		ZEND_PARSE_PARAMETERS_END();
+
+		if (judy_reject_nul_key(intern->type, str_start, str_start_len)
+				|| judy_reject_nul_key(intern->type, str_end, str_end_len)) {
+			RETURN_THROWS();
+		}
 
 		if (strcmp(str_start, str_end) > 0) RETURN_LONG(0);
 
@@ -5451,6 +5570,24 @@ PHP_METHOD(Judy, getAll)
 	ZEND_PARSE_PARAMETERS_START(1, 1)
 		Z_PARAM_ARRAY(keys)
 	ZEND_PARSE_PARAMETERS_END();
+
+	/* Validate every key before building the result, so a rejected key leaves
+	   no half-populated array behind and getAll() stays all-or-nothing. */
+	if (JUDY_IS_STRING_KEYED(intern)) {
+		ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(keys), key_entry) {
+			zend_string *skey = zval_get_string(key_entry);
+			int bad;
+			if (JUDY_UNLIKELY(EG(exception) != NULL)) {
+				zend_string_release(skey);
+				RETURN_THROWS();
+			}
+			bad = judy_reject_nul_key(intern->type, ZSTR_VAL(skey), ZSTR_LEN(skey));
+			zend_string_release(skey);
+			if (JUDY_UNLIKELY(bad)) {
+				RETURN_THROWS();
+			}
+		} ZEND_HASH_FOREACH_END();
+	}
 
 	array_init(return_value);
 

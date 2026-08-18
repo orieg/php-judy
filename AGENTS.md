@@ -171,7 +171,7 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
 - **A string upper bound is a bound, not a prefix match.** `keys('bl', 'bl')`
   does not return `blackcurrant` — `blackcurrant` sorts *after* `bl`. For a
   prefix sweep, bound with the prefix and its successor: `keys('bl', 'bm')`.
-  Two details that bite on binary-safe keys, both worked through and asserted
+  Two details that bite on high-byte keys, both worked through and asserted
   in `examples/symbol-table-prefix.php`: the successor needs a **carry** when
   the prefix ends in `"\xff"` (and an all-`"\xff"` prefix has no successor at
   all — pass `null` for "to the end"), and because the upper bound is
@@ -183,9 +183,30 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
 - **Random access on small dense datasets is faster with native arrays.**
   Judy wins on memory at scale, ordered navigation, and sparse keysets —
   see BENCHMARK.md before claiming performance.
-- Keys are `int` (platform word) or binary-safe `string` depending on type;
-  mixing categories in set ops (`union` etc.) with a different key category
-  throws.
+- Keys are `int` (platform word) or `string` depending on type; mixing
+  categories in set ops (`union` etc.) with a different key category throws.
+- **String keys are binary-safe for every byte EXCEPT `0x00`.** `0x80`,
+  `0xFE`, `0xFF` and everything else store, compare and order as unsigned
+  bytes on all six string-keyed types, which is what the prefix-successor
+  arithmetic above relies on. A key containing an embedded NUL is **rejected
+  with an exception on all six types** — `Judy … keys must not contain
+  embedded null bytes` — on every method that takes a string key: `offsetSet`
+  /`offsetGet`/`offsetExists`/`offsetUnset`, `increment()`, `fromArray()`,
+  `putAll()`, `getAll()`, `slice()`, `deleteRange()`, `first()`/`last()`
+  /`searchNext()`/`prev()`, and the `$start`/`$end` bounds of `keys()`,
+  `values()`, `toArray()` and `size()`. The reason is structural, not a
+  policy choice: every string-keyed type orders its keys through a JudySL
+  trie (the two trie types store the value in it directly, the four
+  `_HASH`/`_ADAPTIVE` types keep a JudySL key index beside their
+  length-prefixed value store), and a JudySL index is a NUL-terminated C
+  string. There is nothing to fall back on, so the key is refused rather
+  than silently truncated at the NUL. **`pack()` output, raw digests,
+  serialized payloads and packed tuples therefore need encoding** (base64,
+  hex, or a NUL-free framing) before they can be used as keys. Values are
+  unaffected — a `_MIXED` value may contain any bytes at all.
+  (Before this landed, `STRING_TO_INT` and `STRING_TO_MIXED` truncated
+  instead, so `"ab\0cd"` and `"ab"` collided and one value was lost with no
+  signal; see [#117](https://github.com/orieg/php-judy/issues/117).)
 - **Integer keys sort in UNSIGNED order, so negative keys come last.** An
   integer key is the full unsigned machine word: a negative PHP int is
   reinterpreted as its bit pattern, so `-1` addresses the maximum index and
