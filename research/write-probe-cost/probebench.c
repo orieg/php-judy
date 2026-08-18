@@ -38,6 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include <time.h>
 #include <Judy.h>
 
@@ -56,19 +57,57 @@ static double med(double *v, int k) { qsort(v, k, sizeof(double), cmpd); return 
 #define MAXK 128
 #define MAXREPS 64
 
-/* Same key shape as research/iteration-cost/iterbench.c, so the numbers here
- * sit next to the ones already in issue #85: "user:00001234:f5" padded with
- * 'x' to keylen. 10 keys share each user: prefix. */
+/* The long format is at minimum 16 characters ("user:" + 8 digits + ":f" +
+ * 1 digit), so it cannot express a shorter key at all. Keys below that width
+ * therefore use a different shape: a fixed-width base-36 counter, which fills
+ * exactly keylen bytes and stays unique. Two regimes, one boundary. */
+#define LONGKEY_MIN 16
+#define KEY_RADIX 36
+static const char key_alphabet[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+/* Absent keys are drawn from an index range disjoint from the populated one.
+ * The long regime has room to spare; the short regime does not, so it offsets
+ * by n and main() checks the space is big enough. */
+#define ABSENT_OFFSET_LONG 500000000UL
+
+/* keylen >= LONGKEY_MIN keeps the exact shape of
+ * research/iteration-cost/iterbench.c, so those numbers still sit next to the
+ * ones in issue #85: "user:00001234:f5" padded with 'x'. 10 keys share each
+ * user: prefix.
+ *
+ * keylen < LONGKEY_MIN emits base-36 of i, zero-padded to exactly keylen. This
+ * is what makes the ADAPTIVE/SSO probe (keylen < 8) reachable: before, the
+ * format's 16 characters were emitted regardless of keylen, so every keylen
+ * below 16 silently produced a 16-byte key and the SSO branch then memcpy'd
+ * 16 bytes into an 8-byte Word_t. See issue #118. */
 static void make_key(char *buf, unsigned long i, int keylen) {
-    int m = snprintf(buf, MAXK, "user:%08lu:f%lu", i / 10, i % 10);
-    while (m < keylen) buf[m++] = 'x';
-    buf[m] = '\0';
+    if (keylen >= LONGKEY_MIN) {
+        int m = snprintf(buf, MAXK, "user:%08lu:f%lu", i / 10, i % 10);
+        while (m < keylen) buf[m++] = 'x';
+        buf[m] = '\0';
+        return;
+    }
+    for (int p = keylen - 1; p >= 0; p--) {
+        buf[p] = key_alphabet[i % KEY_RADIX];
+        i /= KEY_RADIX;
+    }
+    buf[keylen] = '\0';
 }
 
-/* Absent keys with the same shape and the same trie depth, drawn from an
- * index range disjoint from the populated one. */
-static void make_absent_key(char *buf, unsigned long i, int keylen) {
-    make_key(buf, i + 500000000UL, keylen);
+static void make_absent_key(char *buf, unsigned long i, int keylen, unsigned long n) {
+    make_key(buf, i + (keylen >= LONGKEY_MIN ? ABSENT_OFFSET_LONG : n), keylen);
+}
+
+/* How many distinct keys the short regime can express, saturating rather than
+ * overflowing. Used to reject a (n, keylen) pair that cannot hold n present
+ * plus n absent keys without collisions. */
+static unsigned long short_key_space(int keylen) {
+    unsigned long cap = 1;
+    for (int p = 0; p < keylen; p++) {
+        if (cap > ULONG_MAX / KEY_RADIX) return ULONG_MAX;
+        cap *= KEY_RADIX;
+    }
+    return cap;
 }
 
 static unsigned long xs(unsigned long *s) {
@@ -85,6 +124,20 @@ int main(int argc, char **argv) {
 
     if (reps > MAXREPS) reps = MAXREPS;
     if (keylen >= MAXK - 1) { fprintf(stderr, "keylen too large\n"); return 1; }
+    if (keylen < 1) { fprintf(stderr, "keylen must be >= 1\n"); return 1; }
+    /* The short regime encodes the index in base-36 across keylen bytes, so it
+     * can only express so many distinct keys. n present + n absent must fit,
+     * or keys collide and every number below is meaningless. */
+    if (keylen < LONGKEY_MIN) {
+        unsigned long cap = short_key_space(keylen);
+        if (cap / 2 < n) {
+            fprintf(stderr,
+                "keylen %d holds only %lu distinct keys; need %lu "
+                "(n present + n absent). Raise keylen or lower n.\n",
+                keylen, cap, 2 * n);
+            return 1;
+        }
+    }
 
     /* sl  = the JudySL key_index (B3 would store the payload in its value word)
      * hs  = the JudyHS value store used by *_INT_HASH and by ADAPTIVE long keys
@@ -102,7 +155,9 @@ int main(int argc, char **argv) {
         *pv = i + 1;
         if (sso) {
             Word_t idx = 0;
-            memcpy(&idx, key, strlen(key));
+            size_t kl = strlen(key);
+            if (kl > sizeof(Word_t)) kl = sizeof(Word_t);   /* defensive: see #118 */
+            memcpy(&idx, key, kl);
             JLI(pv, jl, idx);
             if (pv == PJERR) { fprintf(stderr, "JLI OOM\n"); return 1; }
             *pv = i + 1;
@@ -126,7 +181,7 @@ int main(int argc, char **argv) {
         if (c != n) { fprintf(stderr, "walk got %lu of %lu\n", c, n); return 1; }
     }
     for (unsigned long i = 0; i < n; i++) {
-        make_absent_key(absent + (size_t)i * MAXK, i, keylen);
+        make_absent_key(absent + (size_t)i * MAXK, i, keylen, n);
         /* sanity: must really be absent */
         if (i < 4) {
             PWord_t chk;
@@ -191,8 +246,11 @@ int main(int argc, char **argv) {
             t0 = now_ns();
             for (unsigned long i = 0; i < n; i++) {
                 Word_t idx = 0;
+                size_t kl;
                 k = keys + (size_t)order[i] * MAXK;
-                memcpy(&idx, k, strlen(k));
+                kl = strlen(k);
+                if (kl > sizeof(Word_t)) kl = sizeof(Word_t);   /* defensive: see #118 */
+                memcpy(&idx, k, kl);
                 JLG(pv, jl, idx);
                 if (pv) sink += *pv;
             }
