@@ -146,6 +146,20 @@ static unsigned long xs(unsigned long *s) {
     return *s;
 }
 
+/* How many distinct keys the random corpora can express at a given length,
+ * saturating rather than overflowing. 255 values per byte, NUL excluded.
+ * Without this the redraw loop below spins forever once n approaches the
+ * space -- a hang rather than a wrong number, but the same class of defect
+ * as a generator that ignores its length argument (issue #122). */
+static unsigned long rand_key_space(int len) {
+    unsigned long cap = 1;
+    for (int p = 0; p < len; p++) {
+        if (cap > ULONG_MAX / 255) return ULONG_MAX;
+        cap *= 255;
+    }
+    return cap;
+}
+
 /* Uniform-random bytes over 1..255. NUL is excluded because JudySL keys are
  * NUL-terminated. Every byte position carries ~8 bits, so no position is
  * invariant and the branch mix is not pinned to a single node type -- the
@@ -177,6 +191,20 @@ int main(int argc, char **argv) {
     if (keylen < 1) { fprintf(stderr, "keylen must be >= 1\n"); return 1; }
     if (corpus == CORPUS_VARLEN && keylen < 4) {
         fprintf(stderr, "varlen needs keylen >= 4\n"); return 1;
+    }
+    if (corpus != CORPUS_STRUCT) {
+        /* varlen's shortest draw is 4 bytes, so that is where its space is
+         * tightest. Demand headroom of 2n, not n: the redraw loop's expected
+         * cost blows up as the corpus saturates its own key space. */
+        int shortest = (corpus == CORPUS_VARLEN) ? 4 : keylen;
+        unsigned long cap = rand_key_space(shortest);
+        if (cap / 2 < n) {
+            fprintf(stderr,
+                "%s at keylen %d draws from only %lu distinct keys; need "
+                "headroom for %lu. Raise keylen or lower n.\n",
+                corpus_name[corpus], keylen, cap, n);
+            return 1;
+        }
     }
     /* The struct corpus's short regime encodes the index in base-36 across
      * keylen bytes, so it can only express so many distinct keys. n must fit,
@@ -305,6 +333,11 @@ int main(int argc, char **argv) {
     REPORT("JSLG random", r_jslg_rand);
     REPORT("JHSG sorted", r_jhsg_sorted);
     fprintf(stderr, "sink=%lu\n", sink);
+
+    /* Released rather than left to exit(2) so a leak checker has something to
+     * say. long, not Word_t: the J*FA macros compare against JERR (-1). */
+    { long freed;
+      JSLFA(freed, sl); JHSFA(freed, hs); JLFA(freed, jl); (void)freed; }
     free(keys);
     return 0;
 }
