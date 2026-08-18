@@ -11,6 +11,12 @@
 //   compiled every assert in this file out unconditionally;
 // - JudySLIns advances pos2/len2 only while a shortcut leaf is being
 //   carried down (pos2 is NULL otherwise, and NULL + WORDSIZE is UB).
+// Modified from Judy-1.0.5 by the php-judy project, 2026-08-18 (patch O4a --
+// see libjudy/PATCHES.md, issue #142): JudySLNext/JudySLPrev no longer
+// STRLEN() the caller's Index; the subroutines' only use of the length
+// ("len > WORDSIZE") is replaced by the equivalent !LASTWORD_BY_VALUE()
+// test on the index word just copied, the same test JudySLGet has always
+// relied on exclusively.  The len parameter is deleted outright.
 //
 //
 // This program is free software; you can redistribute it and/or modify it
@@ -266,9 +272,9 @@ static void JudySLModifyErrno(PJError_t PJError,
 static int JudySLDelSub(PPvoid_t PPArray, PPvoid_t PPArrayOrig,
                         const uint8_t * Index, Word_t len, PJError_t PJError);
 static PPvoid_t JudySLPrevSub(Pcvoid_t PArray, uint8_t * Index, int orig,
-                              Word_t len, PJError_t PJError);
+                              PJError_t PJError);
 static PPvoid_t JudySLNextSub(Pcvoid_t PArray, uint8_t * Index, int orig,
-                              Word_t len, PJError_t PJError);
+                              PJError_t PJError);
 
 // ****************************************************************************
 // J U D Y   S L   M O D I F Y   E R R N O
@@ -760,21 +766,20 @@ JudySLPrev(Pcvoid_t PArray, uint8_t * Index, PJError_t PJError) // optional, for
     if (PArray == (Pvoid_t)NULL)
         return ((PPvoid_t) NULL);
 // Do the search:
-    return (JudySLPrevSub(PArray, Index, /* original = */ 1,
-                          STRLEN(Index), PJError));
+    return (JudySLPrevSub(PArray, Index, /* original = */ 1, PJError));
 }                                       // JudySLPrev()
 
 // ****************************************************************************
 // J U D Y   S L   P R E V   S U B
 //
 // This is the "engine" for JudySLPrev() that knows whether its still looking
-// for the original Index (exclusive) or a neighbor index (inclusive), and that
-// expects aligned and len to already be computed (only once).  See the header
-// comments for JudySLPrev().
+// for the original Index (exclusive) or a neighbor index (inclusive).  See
+// the header comments for JudySLPrev().  Whether the current word is the
+// last of the Index is decided from the copied index word itself
+// (LASTWORD_BY_VALUE()), exactly as in JudySLGet(), so no length is needed.
 
 static    PPvoid_t
 JudySLPrevSub(Pcvoid_t PArray, uint8_t * Index, int orig,
-              Word_t len,               // bytes remaining.
               PJError_t PJError)        // optional, for returning error info.
 {
     Word_t    indexword;                // next word to find.
@@ -799,7 +804,7 @@ JudySLPrevSub(Pcvoid_t PArray, uint8_t * Index, int orig,
 // - a previous Index is found below it, return that Indexs value area.
 
         COPYSTRINGtoWORD(indexword, Index);     // copy next 4[8] bytes.
-        if (len > WORDSIZE)             // not at end of Index.
+        if (! LASTWORD_BY_VALUE(indexword))     // not at end of Index.
         {
             JLG(PPValue, PArray, indexword);
             if (PPValue != (PPvoid_t) NULL)
@@ -810,8 +815,7 @@ JudySLPrevSub(Pcvoid_t PArray, uint8_t * Index, int orig,
 // or assertion; see version 1.25):
 
                 PPValue = JudySLPrevSub(*PPValue, Index + WORDSIZE,
-                                        /* original = */ 1,
-                                        len - WORDSIZE, PJError);
+                                        /* original = */ 1, PJError);
                 if (PPValue == PPJERR)
                     return (PPJERR);    // propagate error.
                 if (PPValue != (PPvoid_t) NULL)
@@ -888,7 +892,7 @@ JudySLPrevSub(Pcvoid_t PArray, uint8_t * Index, int orig,
 // null *PPValue; this is automatically treated as a dead-end (not a core dump
 // or assertion; see version 1.25):
     return (JudySLPrevSub(*PPValue, Index + WORDSIZE, /* original = */ 0,
-                          len - WORDSIZE, PJError));
+                          PJError));
 }                                       // JudySLPrevSub()
 
 // ****************************************************************************
@@ -913,8 +917,7 @@ JudySLNext(Pcvoid_t PArray, uint8_t * Index, PJError_t PJError) // optional, for
     if (PArray == (Pvoid_t)NULL)
         return ((PPvoid_t) NULL);
 // Do the search:
-    return (JudySLNextSub(PArray, Index, /* original = */ 1,
-                          STRLEN(Index), PJError));
+    return (JudySLNextSub(PArray, Index, /* original = */ 1, PJError));
 }                                       // JudySLNext()
 
 // ****************************************************************************
@@ -924,7 +927,6 @@ JudySLNext(Pcvoid_t PArray, uint8_t * Index, PJError_t PJError) // optional, for
 
 static    PPvoid_t
 JudySLNextSub(Pcvoid_t PArray, uint8_t * Index, int orig,
-              Word_t len,               // bytes remaining.
               PJError_t PJError)        // optional, for returning error info.
 {
     Word_t    indexword;                // next word to find.
@@ -940,7 +942,7 @@ JudySLNextSub(Pcvoid_t PArray, uint8_t * Index, int orig,
 
         COPYSTRINGtoWORD(indexword, Index);     // copy next 4[8] bytes.
 
-        if (len > WORDSIZE)             // not at end of Index.
+        if (! LASTWORD_BY_VALUE(indexword))     // not at end of Index.
         {
             JLG(PPValue, PArray, indexword);
             if (PPValue != (PPvoid_t) NULL)
@@ -950,8 +952,7 @@ JudySLNextSub(Pcvoid_t PArray, uint8_t * Index, int orig,
 // or assertion; see version 1.25):
 
                 PPValue = JudySLNextSub(*PPValue, Index + WORDSIZE,
-                                        /* original = */ 1,
-                                        len - WORDSIZE, PJError);
+                                        /* original = */ 1, PJError);
                 if (PPValue == PPJERR)
                     return (PPJERR);    // propagate error.
                 if (PPValue != (PPvoid_t) NULL)
@@ -998,7 +999,7 @@ JudySLNextSub(Pcvoid_t PArray, uint8_t * Index, int orig,
 // null *PPValue; this is automatically treated as a dead-end (not a core dump
 // or assertion; see version 1.25):
     return (JudySLNextSub(*PPValue, Index + WORDSIZE, /* original = */ 0,
-                          len - WORDSIZE, PJError));
+                          PJError));
 }                                       // JudySLNextSub()
 
 // ****************************************************************************
