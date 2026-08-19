@@ -173,8 +173,11 @@ jobs:
           echo "extension=$JUDY_SO" > /tmp/php-judy-ini/judy.ini
 
           # Unified benchmark: all suites, JSON output for cross-version comparison
+          # --memory rss is the default; named here because it is what makes the
+          # consolidated comment's memory table honest (issue #172). It costs one
+          # child process per type per arm.
           PHP_INI_SCAN_DIR=/tmp/php-judy-ini php examples/benchmarks/judy-bench.php \
-            --json bench.json --size 500000 --iterations 7 --suite all \
+            --json bench.json --size 500000 --iterations 7 --suite all --memory rss \
             2>&1 | tee benchmark-output.txt
 
       - name: Upload benchmark results
@@ -1268,16 +1271,20 @@ jobs:
               return f"{b} B"
 
           def fmt_mem_savings(judy_bytes, php_bytes):
+              # Direction is stated in words, never left to the reader to infer
+              # from a number below 1.0: Judy::INT_TO_MIXED genuinely uses MORE
+              # memory than a PHP array, and "0.6x" read as a saving is how that
+              # loss got published as a win.
               if judy_bytes is None or php_bytes is None:
                   return "-"
               if judy_bytes <= 0:
-                  return "**\u221e**"
+                  return "-"
               ratio = php_bytes / judy_bytes
               if ratio >= 1.05:
-                  return f"**{ratio:.1f}x less**"
-              elif ratio >= 0.95:
-                  return "~1.0x"
-              return f"{ratio:.1f}x"
+                  return f"**{ratio:.1f}x smaller**"
+              if ratio >= 0.95:
+                  return "about the same"
+              return f"{1 / ratio:.2f}x **larger**"
 
           def get_metric(benchmarks, key, field="median_ms"):
               entry = benchmarks.get(key)
@@ -1331,6 +1338,14 @@ jobs:
               ("adv.filter.string_to_int", "filter() Str\u2192Int"),
               ("adv.map.string_to_int", "map() Str\u2192Int"),
           ]
+
+          # Rows whose "speedup" is a property of the two algorithms' complexity
+          # classes, not of this build. Arithmetically true, rhetorically empty:
+          # populationCount() reported 235,315x on a 500k run purely because the
+          # PHP arm walks every element and libJudy answers from a counter. The
+          # multiple grows with --size and shrinks with it, which is exactly why
+          # it should not be read as a result.
+          definitional_ratio_ops = {"api.populationCount.int_to_int"}
 
           # Load JSON benchmark data per (platform, php_ver)
           bench_json = {}
@@ -1410,19 +1425,71 @@ jobs:
 
                   tag = f" ({platform}, PHP {ver})"
 
-                  # Memory Efficiency
-                  lines.append(f"### Memory Efficiency{tag}{heading_suffix}\n")
-                  lines.append("| Type | Judy | PHP array | Savings |")
-                  lines.append("|------|-----:|----------:|---------|")
-                  for type_id, label in all_types:
-                      j_heap = get_metric(bm, f"core.{type_id}.heap.judy", "heap_bytes")
-                      p_heap = get_metric(bm, f"core.{type_id}.heap.php", "heap_bytes")
-                      if j_heap is None and p_heap is None:
-                          continue
+                  # Memory. `rss_bytes` (floor-subtracted peak RSS of a child
+                  # process) is the ONLY field here that can see a Judy index:
+                  # libJudy allocates through malloc(3), so the `heap_bytes`
+                  # this table used to print was the PHP-object wrapper and
+                  # nothing else — 160 B for a 500,000-element BITSET, published
+                  # as "52454.9x less". See issue #172. When rss_bytes is absent
+                  # (no getrusage(), i.e. Windows) say so instead of falling
+                  # back to the number that caused the defect.
+                  meta = data.get("metadata", {})
+                  n_meas = meta.get("size")
+                  size_tag = f", n = {n_meas:,}" if isinstance(n_meas, int) else ""
+                  # Resolution = the floor's own run-to-run spread. A structure
+                  # smaller than that is reported as an upper bound; quoting a
+                  # point estimate there would publish noise (a dense 500k
+                  # BITSET is ~41 KB against a floor that moves ~250 KB).
+                  res = meta.get("memory_resolution_bytes") or 0
+                  mem_rows = [
+                      (label,
+                       get_metric(bm, f"core.{t}.heap.judy", "rss_bytes"),
+                       get_metric(bm, f"core.{t}.heap.php", "rss_bytes"))
+                      for t, label in all_types
+                  ]
+                  mem_rows = [r for r in mem_rows if r[1] is not None or r[2] is not None]
+                  lines.append(f"### Memory{tag}{heading_suffix}\n")
+                  if mem_rows:
                       lines.append(
-                          f"| {label} | {fmt_bytes(j_heap)} "
-                          f"| {fmt_bytes(p_heap)} "
-                          f"| {fmt_mem_savings(j_heap, p_heap)} |"
+                          f"Peak RSS of a child process building one structure{size_tag}, "
+                          "minus an empty-process floor. Judy's memory advantage is "
+                          "type- and scale-dependent — see "
+                          "[BENCHMARK.md](../blob/main/BENCHMARK.md#memory--the-headline-and-the-least-equivocal-result) "
+                          "for the curve across sizes on a dedicated host.\n"
+                      )
+                      lines.append("| Type | Judy | PHP array | Judy vs PHP array |")
+                      lines.append("|------|-----:|----------:|-------------------|")
+                      any_bounded = False
+                      for label, j_mem, p_mem in mem_rows:
+                          if j_mem is not None and res and j_mem <= res:
+                              any_bounded = True
+                              j_str = f"< {fmt_bytes(res)}"
+                              s_str = (f"> **{p_mem / res:.0f}x smaller**"
+                                       if p_mem else "-")
+                          else:
+                              j_str = fmt_bytes(j_mem)
+                              s_str = fmt_mem_savings(j_mem, p_mem)
+                          lines.append(
+                              f"| {label} | {j_str} "
+                              f"| {fmt_bytes(p_mem)} "
+                              f"| {s_str} |"
+                          )
+                      if any_bounded:
+                          lines.append(
+                              f"\n`<` marks a structure smaller than this instrument can "
+                              f"resolve at n = {n_meas:,}: run-to-run movement in the "
+                              f"empty-process floor puts the resolution at "
+                              f"{fmt_bytes(res)}. The bound is real, the "
+                              f"exact figure is not available at this size — "
+                              "BENCHMARK.md measures the same types up to n = 8M, where "
+                              "they are well clear of the floor.\n"
+                          )
+                  else:
+                      lines.append(
+                          "Not measured on this platform: the footprint instrument is "
+                          "`getrusage()`, which PHP does not provide on Windows. "
+                          "`memory_get_usage()` is not a substitute — it cannot see a "
+                          "Judy index at all.\n"
                       )
                   lines.append("")
 
@@ -1445,10 +1512,26 @@ jobs:
                           if j_ms is None:
                               continue
                           j_str, p_str, s_str = fmt_speedup(j_ms, p_ms)
+                          # A ratio whose value is fixed by the two complexity
+                          # classes is not a measurement of this build. Both
+                          # timings still print — they are what a regression
+                          # would move — but the ratio is labelled for what it
+                          # is instead of shouting a five-figure multiple.
+                          if prefix in definitional_ratio_ops:
+                              s_str = "O(1) vs O(n)"
                           lines.append(
                               f"| {label} | {j_str} | {p_str} | {s_str} |"
                           )
                       lines.append("")
+                      if any(p in definitional_ratio_ops for p, _ in api_ops):
+                          lines.append(
+                              "`O(1) vs O(n)` marks a row whose ratio is decided by the "
+                              "complexity classes rather than measured: `populationCount()` "
+                              "reads libJudy's cached population, the PHP arm counts every "
+                              "element. It scales with `n` and says nothing about this "
+                              "change. judy-bench.php declines the same comparison for "
+                              "`size($lo, $hi)` for the same reason.\n"
+                          )
 
                   # Core Types (representative in main, all in detail)
                   def emit_core_table(type_list, detail_tag=""):
@@ -1978,6 +2061,7 @@ jobs:
                       mem_counts = {
                           "better": 0, "worse": 0, "same": 0,
                       }
+                      mem_fields_used = set()
                       type_label_map = dict(all_types)
 
                       for bid in all_ids:
@@ -1986,15 +2070,24 @@ jobs:
                           bid_parts = bid.split(".")
                           if len(bid_parts) < 4:
                               continue
-                          b_heap = base_bm.get(
-                              bid, {}
-                          ).get("heap_bytes")
-                          c_heap = cur_bm.get(
-                              bid, {}
-                          ).get("heap_bytes")
+                          # Prefer the footprint (peak RSS) over the emalloc
+                          # heap, but only when BOTH sides carry it — mixing
+                          # instruments across the two arms would manufacture a
+                          # delta out of nothing. Stored baselines predating
+                          # issue #172 have heap_bytes only, so this keeps
+                          # comparing that until the baseline is next bumped.
+                          b_e = base_bm.get(bid, {})
+                          c_e = cur_bm.get(bid, {})
+                          mem_field = ("rss_bytes"
+                                       if b_e.get("rss_bytes") is not None
+                                       and c_e.get("rss_bytes") is not None
+                                       else "heap_bytes")
+                          b_heap = b_e.get(mem_field)
+                          c_heap = c_e.get(mem_field)
                           if (b_heap is None
                                   or c_heap is None):
                               continue
+                          mem_fields_used.add(mem_field)
                           tid = bid_parts[1]
                           name = type_label_map.get(
                               tid, tid
@@ -2026,6 +2119,16 @@ jobs:
                           lines.append(
                               "#### Memory Comparison\n"
                           )
+                          if mem_fields_used == {"heap_bytes"}:
+                              lines.append(
+                                  "Compared on the emalloc heap only: the stored "
+                                  "baseline predates the peak-RSS footprint "
+                                  "measurement (issue #172), so these rows track "
+                                  "PHP-heap pressure, not the size of the Judy "
+                                  "index. Meaningful for the zval-storing types; "
+                                  "a flat ~160 B for `Bitset` and `Int to Int`, "
+                                  "which is the wrapper object and nothing else.\n"
+                              )
                           mparts = []
                           if mem_counts["better"]:
                               mparts.append(
