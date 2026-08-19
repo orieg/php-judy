@@ -59,22 +59,30 @@ const BENCH_MEMORY_FLOOR = '2G';
  *
  * Returns PHP_INT_MAX for an unlimited (negative) value, so limits compare
  * with a plain `>=`, and null for anything this script should reject rather
- * than silently reinterpret. A magnitude that would not survive the suffix
- * multiply is rejected too: letting it overflow to float would trade a clean
- * message for an uncaught TypeError on the return type.
+ * than silently reinterpret. A magnitude that does not fit an int, or that
+ * would not survive the suffix multiply, is rejected too: letting either
+ * overflow to float would trade a clean message for an uncaught TypeError on
+ * the return type.
+ *
+ * Deliberately core-only — no ext/filter, no ext/ctype. The debug CI job
+ * builds its PHP `--disable-all`, where json and pcre are the only extensions
+ * present, and this script has to parse its own arguments there.
  */
 function bench_ini_bytes(string $value): ?int {
-    if (!preg_match('/^\s*(-?\d+)\s*([KMG]?)\s*$/i', $value, $m)) {
+    if (!preg_match('/^\s*(-?)0*(\d+)\s*([KMG]?)\s*$/i', $value, $m)) {
         return null;
     }
-    if (!is_int($n = filter_var($m[1], FILTER_VALIDATE_INT))) {
+    // (int) saturates at PHP_INT_MAX rather than wrapping, so a magnitude that
+    // does not survive the round trip did not fit in the first place.
+    $n = (int)$m[2];
+    if ((string)$n !== $m[2]) {
         return null;
     }
-    if ($n < 0) {
+    if ($m[1] === '-') {
         return PHP_INT_MAX; // unlimited
     }
     $mult = ['' => 1, 'K' => 1024, 'M' => 1024 * 1024, 'G' => 1024 * 1024 * 1024];
-    $f = $mult[strtoupper($m[2])];
+    $f = $mult[strtoupper($m[3])];
     return $n <= intdiv(PHP_INT_MAX, $f) ? $n * $f : null;
 }
 
