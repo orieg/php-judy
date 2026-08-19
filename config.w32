@@ -42,7 +42,7 @@ if (PHP_JUDY != "no") {
 			"Judy1First.c Judy1Next.c Judy1Prev.c Judy1NextEmpty.c " +
 			"Judy1PrevEmpty.c Judy1FreeArray.c Judy1MallocIF.c " +
 			"Judy1MemActive.c Judy1MemUsed.c " +
-			"JudyLGet.c JudyLGetInline.c JudyLIns.c JudyLInsArray.c " +
+			"JudyLGet.c JudyLGetInline.c JudyLMultiGet.c JudyLIns.c JudyLInsArray.c " +
 			"JudyLDel.c JudyLCascade.c JudyLDecascade.c JudyLCount.c " +
 			"JudyLByCount.c JudyLCreateBranch.c JudyLInsertBranch.c " +
 			"JudyLFirst.c JudyLNext.c JudyLPrev.c JudyLNextEmpty.c " +
