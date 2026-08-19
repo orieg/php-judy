@@ -7,29 +7,23 @@ needed to build, test, and submit changes.
 ## Prerequisites
 
 - PHP 8.1+ with development headers (`php-dev` / `php-devel`, or a source build)
-- The libJudy C library and headers:
-  - Debian/Ubuntu: `apt-get install libjudy-dev`
-  - Fedora/RHEL: `dnf install Judy-devel`
-  - macOS: `brew install judy`
-  - Windows: build libJudy from source (see the Windows section in [README.md](README.md))
 - Standard C toolchain (`gcc`/`clang`, `make`, `autoconf`)
 
-**If you build libJudy yourself, build it at `-O2` — never `gcc -O3`.** Stock
-libJudy 1.0.5 writes up to 15 bytes into an 8-byte `jp_1Index` field when a
-Judy1 leaf splays into immediates, and gcc at `-O3` exploits the out-of-bounds
-write by truncating the copy, which **silently loses `Judy::BITSET` keys**:
-`count()` over-reports while iteration and `isset()` under-report. Debian,
-Ubuntu and Fedora ship the widening patch; Homebrew ships stock sources but
-builds with clang, which does not exploit it. `tests/bitset_immed_cascade_integrity_001.phpt`
-detects a miscompiled library at `make test` time — if it fails, the installed
-libJudy is the problem, not this extension. Full analysis:
-[#131](https://github.com/orieg/php-judy/issues/131).
+**No system libJudy is needed.** The library is vendored under `libjudy/`
+(Judy-1.0.5 plus the patch series in [libjudy/PATCHES.md](libjudy/PATCHES.md))
+and compiled straight into the extension by default. The vendored units get
+their own compile flags — `-O2 -fno-lto -fno-unroll-loops -DJU_64BIT`, plus
+`-mpopcnt` where the compiler accepts it — attached per source file, so the
+extension's global `-O3 -flto -funroll-loops` never reaches them. That
+isolation is load-bearing for correctness, not a style preference; see the
+warning below. The bundled build requires a 64-bit target: `configure` refuses
+otherwise and points at `--with-judy=DIR`.
 
 ## Building from source
 
 ```sh
 phpize
-./configure --with-judy=/usr
+./configure
 make
 ```
 
@@ -38,6 +32,35 @@ To try the freshly-built extension without installing it:
 ```sh
 php -d extension=modules/judy.so -r 'var_dump(judy_version());'
 ```
+
+### Building against a system libJudy instead
+
+`--with-judy=DIR` takes the install prefix of a system libJudy, links against
+it dynamically, and compiles nothing under `libjudy/`. CI covers this mode too.
+Packages: `apt-get install libjudy-dev` (Debian/Ubuntu),
+`dnf install Judy-devel` (Fedora/RHEL), `brew install judy` (macOS).
+
+```sh
+phpize
+./configure --with-judy=/usr
+make
+```
+
+**In that mode the flags of the library you link matter, and no flag recipe is
+trustworthy.** Stock libJudy 1.0.5 writes up to 15 bytes into an 8-byte
+`jp_1Index` field when a Judy1 leaf splays into immediates; a compiler that
+exploits the out-of-bounds write truncates the copy, which **silently loses
+`Judy::BITSET` keys**: `count()` over-reports while iteration and `isset()`
+under-report. Measured, gcc 13/14 trigger it at `-O2 -funroll-loops` and gcc 15
+at `-O3`, so "just build it at `-O2`" is not a guarantee. Debian, Ubuntu and
+Fedora ship the widening patch; Homebrew ships stock sources but builds with
+clang, which does not exploit it. Trust the runtime detector rather than any
+flag list: `tests/bitset_immed_cascade_integrity_001.phpt` fails at `make test`
+time on a miscompiled library — if it fails, the linked libJudy is the problem,
+not this extension, and the bundled default is the way out. Full analysis:
+[#131](https://github.com/orieg/php-judy/issues/131). The bundled tree is
+immune on both counts: the field is widened in-tree (patch P1) and the flags
+are pinned by `config.m4`.
 
 ## Running the tests
 
@@ -67,7 +90,7 @@ rebuild with the assertions on and run the suite:
 
 ```sh
 phpize --clean && phpize
-./configure --with-judy=/usr --enable-judy-debug-mirror
+./configure --enable-judy-debug-mirror
 make
 make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
 ```
@@ -76,7 +99,9 @@ The checker walks both stores at object teardown and after `clone`, and
 aborts with a `MIRROR INVARIANT VIOLATED` banner naming the offending key.
 Without the flag it compiles to nothing — the linked `judy.so` is
 byte-identical either way — so this is a development and CI build, never a
-release one. CI runs it as the `debug-mirror-assertions` job, which ends with
+release one. CI runs it as the `debug-mirror-assertions` job — which doubles as
+the permanent guard for `--with-judy=DIR`, deliberately building against a
+system libJudy so that mode of `config.m4` stays exercised — and it ends with
 three negative controls — one deletes the counter bump, one deletes the payload
 mirror write on an opted-in instance, one removes the gate so a
 default-constructed instance mirrors anyway — and requires the abort in all
@@ -118,7 +143,7 @@ pass `--enable-debug` explicitly so the intent does not rest on inheritance:
 ```sh
 phpize --clean && "$HOME/php-debug/bin/phpize"
 ./configure --with-php-config="$HOME/php-debug/bin/php-config" \
-  --with-judy=/usr --enable-debug
+  --enable-debug
 make
 make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
 ```
@@ -160,7 +185,12 @@ make clean && make EXTRA_CFLAGS="-g -O0 -fno-lto"
 
 `EXTRA_CFLAGS` lands after `CFLAGS` on the compile line, so it wins. Confirm
 with `nm -pa modules/judy.so | grep OSO`: you want one entry per object file
-under `.libs/`, not a single `/tmp/lto.o`.
+under `.libs/`, not a single `/tmp/lto.o`. Note this only re-flags the
+extension's own sources — the vendored `libjudy/` units carry their per-source
+flags *after* `EXTRA_CFLAGS`, so they stay at `-O2 -fno-lto` whatever you pass.
+That is deliberate (a debug rebuild must not be able to reintroduce the #131
+miscompile); to step through libJudy itself, edit `judy_vendor_cflags` in
+`config.m4` for the duration and re-run `./configure`.
 
 Then load the printers:
 
@@ -251,10 +281,40 @@ gdb -ex 'source scripts/judy_gdb.py' -ex 'target remote | vgdb' $(which php)
 Because nothing is evaluated in the inferior, `judy intern` works unchanged
 over the vgdb remote and on a core dump (`gdb php core`).
 
+## Modifying the bundled libJudy
+
+`libjudy/` is vendored upstream code under **LGPL-2.1-or-later** (the extension
+itself is PHP-3.01 — see [THIRD-PARTY.md](THIRD-PARTY.md)). Changes there follow
+a stricter discipline than the rest of the tree, because a diff against the
+pristine import has to stay readable:
+
+- **One patch = one commit**, diffable against the pristine import commit.
+- **One row in [libjudy/PATCHES.md](libjudy/PATCHES.md)** per patch: what
+  changed, which files, why, when, and the tracking issue.
+- **A per-file change notice** at the top of every modified file — date plus a
+  short summary. This is LGPL-2.1 §2(b)'s prominent-notice requirement, not a
+  convention we can drop.
+- **No reformatting, no drive-by cleanups.** php-judy *additions* (the build
+  shims under `src/wrappers/`, the pre-generated tables, `JudyNoInline.c`)
+  carry provenance headers instead of change notices.
+- Adding or removing a vendored source file means updating `config.m4`,
+  `config.w32` **and** `package.xml`.
+
+Two CI jobs guard this code specifically: `differential-fuzz` runs the bundled
+tree against exact `std::set`/`std::map` oracles at the shipped production
+flags, with a planted #131-class defect every run as a negative control, and
+`build-research` re-runs the ASan/UBSan harness grid against the bundled tree
+as well as a system library. Both live under
+[`research/differential-fuzz/`](research/differential-fuzz/).
+
 ## Code conventions
 
 - **Zero compiler warnings.** CI fails on any warning in the extension source
-  files. Build with `make` and check the output before pushing.
+  files (`php_judy.c`, `judy_handlers.c`, `judy_arrayaccess.c`,
+  `judy_iterator.c` and their headers). The vendored `libjudy/` sources are
+  deliberately excluded — third-party code at `-Wall` warns copiously, and
+  patch hygiene beats chasing upstream warnings. Build with `make` and check
+  the output before pushing.
 - **Memory safety first.** Every error path must release what it acquired.
   When in doubt, test with valgrind:
   `USE_ZEND_ALLOC=0 valgrind php -d extension=modules/judy.so tests/<script>.php`

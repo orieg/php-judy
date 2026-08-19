@@ -1,15 +1,19 @@
 # CLAUDE.md — php-judy repo conventions
 
-C extension for PHP 8.1+ wrapping libJudy. Agent-facing API reference and
+C extension for PHP 8.1+ wrapping libJudy, which is **bundled** under
+`libjudy/` and compiled in by default. Agent-facing API reference and
 pitfalls: [AGENTS.md](AGENTS.md). Human workflow: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Build & test
 
 ```sh
-phpize && ./configure --with-judy=/opt/homebrew && make        # macOS
+phpize && ./configure && make          # bundled libJudy; no system lib needed
 make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
 php -d extension=$PWD/modules/judy.so -r 'var_dump(judy_version());'
 ```
+
+`--with-judy=DIR` (e.g. `/usr`, `/opt/homebrew`) switches to linking a system
+libJudy and compiles nothing under `libjudy/`; both modes are CI-tested.
 
 Single test: `make test TESTS=tests/<name>.phpt`. Failures leave
 `tests/<name>.diff` behind.
@@ -34,8 +38,15 @@ Single test: `make test TESTS=tests/<name>.phpt`. Failures leave
 - **Version lockstep**: `PHP_JUDY_VERSION` in `php_judy.h` == version in
   `package.xml`. Full release checklist: README.md "Releasing" section.
 - **`package.xml` lists every shipped file** — adding/moving tests, examples,
-  or docs requires updating it (CI `validate-pecl` builds and installs the
-  PECL package).
+  docs, or `libjudy/` sources requires updating it (CI `validate-pecl` builds
+  and installs the PECL package).
+- **The vendored `libjudy/` units carry their own compile flags**
+  (`-O2 -fno-lto -fno-unroll-loops -DJU_64BIT`, plus `-mpopcnt` where the
+  compiler accepts it) so the project's global `-O3 -flto -funroll-loops`
+  never reaches them — that isolation is load-bearing for correctness
+  ([#131](https://github.com/orieg/php-judy/issues/131)), not a preference.
+  Every change to those sources needs an entry in `libjudy/PATCHES.md` and a
+  per-file LGPL §2(b) change notice.
 - **Benchmark baseline** (`baselines/latest.json`) is bumped only in
   dedicated commits/PRs, never inside feature PRs. CI benchmark deltas on
   shared runners are noisy — uniform "regressions" across untouched ops are
