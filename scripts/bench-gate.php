@@ -508,7 +508,7 @@ function gate_run_group(string $handle, string $group, int $size, int $iteration
         . ' --size ' . $size
         . ' --iterations ' . $iterations
         . ' --json ' . escapeshellarg($json)
-        . ' > /dev/null 2> ' . escapeshellarg($err);
+        . ' > ' . TAM_DEVNULL . ' 2> ' . escapeshellarg($err);
     exec($cmd, $_, $status);
     $stderr = (string) @file_get_contents($err);
     if (stripos($stderr, 'already loaded') !== false
@@ -934,7 +934,8 @@ if ($baseline_platform !== null) {
 
 // ── Output ──────────────────────────────────────────────────────────────────
 
-$commit = trim((string) @shell_exec('git -C ' . escapeshellarg(__DIR__) . ' rev-parse HEAD 2>/dev/null'));
+$commit = trim((string) @shell_exec(
+    'git -C ' . escapeshellarg(__DIR__) . ' rev-parse HEAD 2> ' . TAM_DEVNULL));
 
 $result = [
     'metadata' => [

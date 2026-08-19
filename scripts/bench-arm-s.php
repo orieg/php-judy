@@ -94,6 +94,9 @@
  * Exit codes: 0 verified, 1 verification failed, 2 usage/environment error.
  */
 
+/** The null device, spelled for whichever shell exec() will use (cmd.exe on Windows). */
+const ARM_S_DEVNULL = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
+
 // ── The two pinned commits ──────────────────────────────────────────────────
 //
 // These are deliberately hard-coded rather than derived. Deriving "the commit
@@ -181,7 +184,8 @@ function git_raw(string $args): array
     // shell_exec discards the status; re-run cheaply through exec for it only
     // when the output is empty, which is the only ambiguous case.
     if ($out === null || $out === '') {
-        exec('git -C ' . escapeshellarg($repo) . ' ' . $args . ' > /dev/null 2>&1', $_, $status);
+        exec('git -C ' . escapeshellarg($repo) . ' ' . $args
+            . ' > ' . ARM_S_DEVNULL . ' 2>&1', $_, $status);
     }
     @unlink($err);
     return [(string) $out, $status];
@@ -210,9 +214,14 @@ function git(string $args): string
  */
 function arm_s_instruction_census(string $so): ?array
 {
+    // No disassembler is expected on Windows (dumpbin needs the MSVC
+    // environment this process may not have inherited), and none is required:
+    // the source-hash verification is the operative check and runs everywhere.
+    $which = PHP_OS_FAMILY === 'Windows' ? 'where' : 'command -v';
     $tool = null;
     foreach (['objdump', 'llvm-objdump', 'gobjdump'] as $t) {
-        if (trim((string) @shell_exec('command -v ' . escapeshellarg($t) . ' 2>/dev/null')) !== '') {
+        if (trim((string) @shell_exec($which . ' ' . escapeshellarg($t)
+                . ' 2> ' . ARM_S_DEVNULL)) !== '') {
             $tool = $t;
             break;
         }
@@ -224,8 +233,8 @@ function arm_s_instruction_census(string $so): ?array
     if ($tool === null) { return null; }
 
     $cmd = $tool === 'otool'
-        ? 'otool -tV ' . escapeshellarg($so) . ' 2>/dev/null'
-        : escapeshellarg($tool) . ' -d ' . escapeshellarg($so) . ' 2>/dev/null';
+        ? 'otool -tV ' . escapeshellarg($so) . ' 2> ' . ARM_S_DEVNULL
+        : escapeshellarg($tool) . ' -d ' . escapeshellarg($so) . ' 2> ' . ARM_S_DEVNULL;
     $asm = (string) @shell_exec($cmd);
     if ($asm === '') { return null; }
 

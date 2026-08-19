@@ -420,6 +420,15 @@ php scripts/bench-compare.php \
 If your change legitimately shifts performance, mention it in the PR
 description; do not update `baselines/latest.json` in a feature PR.
 
+Touching `libjudy/` additionally triggers the cross-platform regression gate
+(`.github/workflows/bench-gate.yml`), which compares this build against the
+pristine-static arm S on Linux glibc, Alpine musl and macOS arm64. It gates on
+*ratios* measured inside one run, never on absolute times. A regression there
+names the platform, the cell and the drift; re-run before believing a lone flag,
+for the reason `scripts/bench-compare.php`'s header explains at length. Do not
+update `baselines/arm-ratios.json` in a feature PR either — see
+[BENCHMARK.md](BENCHMARK.md#reproducing-the-gate-on-any-platform).
+
 ## Submitting a pull request
 
 1. Fork and create a topic branch off `main`.

@@ -235,7 +235,7 @@ function tam_run_group(string $handle, string $group, int $size, int $iterations
         . ' --size ' . $size
         . ' --iterations ' . $iterations
         . ' --json ' . escapeshellarg($json)
-        . ' > /dev/null 2> ' . escapeshellarg($err);
+        . ' > ' . TAM_DEVNULL . ' 2> ' . escapeshellarg($err);
 
     exec($cmd, $_, $status);
     $stderr = (string) @file_get_contents($err);

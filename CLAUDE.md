@@ -47,8 +47,11 @@ Single test: `make test TESTS=tests/<name>.phpt`. Failures leave
   ([#131](https://github.com/orieg/php-judy/issues/131)), not a preference.
   Every change to those sources needs an entry in `libjudy/PATCHES.md` and a
   per-file LGPL §2(b) change notice.
-- **Benchmark baseline** (`baselines/latest.json`) is bumped only in
-  dedicated commits/PRs, never inside feature PRs. CI benchmark deltas on
-  shared runners are noisy — uniform "regressions" across untouched ops are
-  contention noise; re-run before believing them.
+- **Benchmark baselines** (`baselines/latest.json`, `baselines/arm-ratios.json`)
+  are bumped only in dedicated commits/PRs, never inside feature PRs. They are
+  different instruments: `latest.json` is absolute ms for the release-over-release
+  `bench-compare.php` run; `arm-ratios.json` is per-platform within-run arm ratios
+  for the cross-platform gate (`bench-gate.php`). CI benchmark deltas on shared
+  runners are noisy — uniform "regressions" across untouched ops are contention
+  noise; re-run before believing them.
 - Commit style: `type(scope): description` (feat/fix/docs/refactor/chore/...).

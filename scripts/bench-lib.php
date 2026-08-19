@@ -59,6 +59,14 @@
 $tmp_root = sys_get_temp_dir() . '/judy-bench-arms-' . getmypid();
 $arm_ini  = [];
 
+/**
+ * The null device, spelled for whichever shell exec() will use.
+ *
+ * exec()/shell_exec() go through cmd.exe on Windows, where `/dev/null` is an
+ * ordinary (invalid) path and the redirect fails instead of discarding.
+ */
+const TAM_DEVNULL = PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null';
+
 // ── Internal child mode: peak-RSS memory measurement ────────────────────────
 //
 // A driver calls tam_mem_child_main($argv) as its FIRST statement, before its
@@ -319,6 +327,14 @@ function tam_cpu_count(): int
         return $n = max(1, $n);
     }
 
+    // Windows has neither /proc nor nproc. The environment carries the width,
+    // and reading it beats falling through to the "unknown" return, which would
+    // deprive the run of a threshold entirely.
+    if (PHP_OS_FAMILY === 'Windows') {
+        $n = (int) getenv('NUMBER_OF_PROCESSORS');
+        return $n = max(0, $n);
+    }
+
     // Order matters. `nproc` is absent from slim container images, and falling
     // back to 1 there is not a harmless default: it drops the hygiene threshold
     // to 0.5 and marks a perfectly idle 24-core host contaminated, suppressing
@@ -375,6 +391,21 @@ function tam_load_snapshot(string $phase): array
     // the control stayed flat while every Judy cell moved.
     $top  = [];
     $self = getmypid();
+    if (PHP_OS_FAMILY === 'Windows') {
+        // No `ps`, and `tasklist` reports memory but not instantaneous CPU, so
+        // the foreign-tenant detector simply does not run here. It is reported
+        // as unavailable rather than as "nothing found", because those are very
+        // different statements and only one of them is true.
+        return [
+            'phase' => $phase, 'at' => date('Y-m-d\TH:i:sP'),
+            'load1' => null, 'cpus' => tam_cpu_count() ?: null,
+            'threshold' => null, 'over' => false,
+            'cpus_known' => tam_cpu_count() > 0,
+            'foreign_cpu_pct' => null, 'foreign_busy' => false,
+            'heavy' => [],
+            'unavailable' => 'no load average and no per-process CPU sampling on Windows',
+        ];
+    }
     if (PHP_OS_FAMILY === 'Darwin') {
         $raw = (string) shell_exec("ps -A -o pid,pcpu,rss,comm -r 2>/dev/null | head -12");
     } else {
@@ -451,16 +482,34 @@ register_shutdown_function(static function () use (&$tmp_root) {
 function tam_php(string $handle): string
 {
     global $arm_ini, $tmp_root;
+
     if ($handle === 'array') {
-        $empty = "$tmp_root/none-ini";
-        if (!is_dir($empty)) { @mkdir($empty, 0700, true); }
-        // No `-n`: arm A must differ from B and C ONLY in that judy is absent.
-        // The empty scan dir already suppresses every conf.d extension, exactly
-        // as the judy arms' single-file scan dir does.
-        return 'PHP_INI_SCAN_DIR=' . escapeshellarg($empty) . ' '
-            . escapeshellarg(PHP_BINARY) . ' -d memory_limit=-1 ';
+        // Arm A must differ from the judy arms ONLY in that judy is absent, so
+        // it gets an EMPTY scan dir rather than `-n`: the empty directory
+        // suppresses every conf.d extension exactly as the judy arms'
+        // single-file scan dir does, leaving the rest of the configuration
+        // identical.
+        $dir = "$tmp_root/none-ini";
+        if (!is_dir($dir)) { @mkdir($dir, 0700, true); }
+    } else {
+        $dir = $arm_ini[$handle];
     }
-    return 'PHP_INI_SCAN_DIR=' . escapeshellarg($arm_ini[$handle]) . ' '
+
+    // Windows has no `VAR=value command` prefix syntax — cmd.exe would try to
+    // execute a program literally named `PHP_INI_SCAN_DIR=...` — so the
+    // variable is exported into THIS process instead and inherited by the
+    // child. putenv() is process-wide and the arms alternate, so it must be
+    // re-applied immediately before every exec; that is exactly what happens,
+    // because every caller builds its command line through this function and
+    // runs it straight away.
+    if (PHP_OS_FAMILY === 'Windows') {
+        putenv('PHP_INI_SCAN_DIR=' . $dir);
+        return escapeshellarg(PHP_BINARY) . ' -d memory_limit=-1 ';
+    }
+
+    // On POSIX the inline prefix is kept: it scopes the variable to the one
+    // command, so nothing this driver does can leak into an unrelated child.
+    return 'PHP_INI_SCAN_DIR=' . escapeshellarg($dir) . ' '
         . escapeshellarg(PHP_BINARY) . ' -d memory_limit=-1 ';
 }
 
@@ -475,6 +524,11 @@ function tam_php(string $handle): string
  */
 function tam_verify(string $handle, string $so): array
 {
+    // On Windows there is no /proc/self/maps, so `$paths` comes back empty and
+    // the mapped-path assertion below is skipped. The remaining checks (the
+    // extension loaded, no "already loaded" warning, the main php.ini does not
+    // itself pull in a judy, exactly one scanned ini) still hold, and on a
+    // freshly provisioned CI runner no pre-installed judy exists to win.
     $probe = <<<'PHP'
 $paths = [];
 if (@is_readable('/proc/self/maps')) {
@@ -528,7 +582,7 @@ PHP;
 /** Confirm arm A really has no judy loaded. */
 function tam_verify_array_arm(): void
 {
-    $out = shell_exec(tam_php('array') . '-r ' . escapeshellarg('echo (int)extension_loaded("judy");') . ' 2>/dev/null');
+    $out = shell_exec(tam_php('array') . '-r ' . escapeshellarg('echo (int)extension_loaded("judy");') . ' 2> ' . TAM_DEVNULL);
     if (trim((string) $out) !== '0') {
         fwrite(STDERR, "arm A: judy is loaded in the PHP-array arm; it must not be\n");
         exit(1);
@@ -556,7 +610,7 @@ function tam_mem_cell(string $handle, string $workload, string $impl, int $n, in
     for ($r = 0; $r < $runs; $r++) {
         $cmd = tam_php($handle) . escapeshellarg($self)
             . ' --mem-child ' . escapeshellarg($workload) . ' ' . escapeshellarg($impl) . ' ' . $n
-            . ' 2>/dev/null';
+            . ' 2> ' . TAM_DEVNULL;
         $j = json_decode(trim((string) shell_exec($cmd)), true);
         if (!is_array($j) || !isset($j['peak_rss'])) { return null; }
         $rss[] = (float) $j['peak_rss'];

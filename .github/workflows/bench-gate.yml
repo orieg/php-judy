@@ -305,14 +305,26 @@ jobs:
         with:
           arch: x64
 
-      - name: Stage the arm-S source tree
+      # windows-latest has no PHP on PATH. This one runs the arm-S staging and
+      # the gate driver itself; the DLLs are LOADED by the builder's own PHP
+      # (captured below), because only that one is guaranteed ABI-compatible
+      # with what php-windows-builder produced.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: json
+          coverage: none
+
+      - name: Stage and verify the arm-S source tree
         shell: bash
         run: |
           set -euo pipefail
-          # Materialize and VERIFY arm S before anything is built, so a broken
-          # reconstruction fails here rather than producing a meaningless delta.
-          php scripts/bench-arm-s.php --dest "$RUNNER_TEMP/arm-s" \
-            --manifest "$RUNNER_TEMP/arm-s-manifest.json"
+          TMP="$(cygpath -u "$RUNNER_TEMP")"
+          echo "TMP=$TMP" >> "$GITHUB_ENV"
+          # Verified BEFORE anything is built: a broken reconstruction must fail
+          # here rather than quietly produce a meaningless delta.
+          php scripts/bench-arm-s.php --dest "$TMP/arm-s" \
+            --manifest "$TMP/arm-s-manifest.json"
 
       - name: Build arm C (the shipped bundled tree)
         uses: php/php-windows-builder/extension@v1
@@ -322,17 +334,34 @@ jobs:
           ts: nts
           run-tests: "false"
 
-      - name: Set arm C aside and swap in arm S
+      - name: Set arm C aside, capture the runtime, and swap in arm S
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/arms"
-          find . -name 'php_judy.dll' -print -exec cp {} "$RUNNER_TEMP/arms/judy-C-1.dll" \;
-          test -f "$RUNNER_TEMP/arms/judy-C-1.dll"
-          # Keep the shipped tree so the workspace can be restored, then replace
-          # libjudy/ with the verified pre-patch tree. Nothing else changes.
-          mv libjudy "$RUNNER_TEMP/libjudy-C"
-          cp -R "$RUNNER_TEMP/arm-s/libjudy" libjudy
+          mkdir -p "$TMP/arms"
+
+          # Exactly one DLL must exist, or we do not know which arm we captured.
+          mapfile -t dlls < <(find . -name 'php_judy.dll')
+          if [ "${#dlls[@]}" -ne 1 ]; then
+            printf 'expected exactly one php_judy.dll, found %d:\n' "${#dlls[@]}"
+            printf '  %s\n' "${dlls[@]}"
+            exit 1
+          fi
+          cp "${dlls[0]}" "$TMP/arms/judy-C-1.dll"
+
+          # The PHP that will LOAD both DLLs has to be the one they were built
+          # against; setup-php's copy is a different build and may not be ABI
+          # compatible. Capture the builder's runtime before the tree is wiped.
+          mapfile -t phps < <(find . -name 'php.exe')
+          if [ "${#phps[@]}" -lt 1 ]; then echo 'no php.exe under the build tree'; exit 1; fi
+          cp -R "$(dirname "${phps[0]}")" "$TMP/php-runtime"
+          "$TMP/php-runtime/php.exe" -v
+
+          # Keep the shipped tree so it can be restored, then replace libjudy/
+          # with the verified pre-patch tree. Nothing else about the checkout
+          # changes, so compiler, PHP and extension source are held constant.
+          mv libjudy "$TMP/libjudy-C"
+          cp -R "$TMP/arm-s/libjudy" libjudy
           rm -rf build
 
       - name: Build arm S (pristine-static)
@@ -347,12 +376,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          find . -name 'php_judy.dll' -print -exec cp {} "$RUNNER_TEMP/arms/judy-S-1.dll" \;
-          test -f "$RUNNER_TEMP/arms/judy-S-1.dll"
-          rm -rf libjudy && mv "$RUNNER_TEMP/libjudy-C" libjudy
-          # The two arms must not be byte-identical: that would mean the swap
-          # did not take and the run would compare a build against itself.
-          if cmp -s "$RUNNER_TEMP/arms/judy-C-1.dll" "$RUNNER_TEMP/arms/judy-S-1.dll"; then
+          mapfile -t dlls < <(find . -name 'php_judy.dll')
+          if [ "${#dlls[@]}" -ne 1 ]; then
+            printf 'expected exactly one php_judy.dll, found %d\n' "${#dlls[@]}"
+            exit 1
+          fi
+          cp "${dlls[0]}" "$TMP/arms/judy-S-1.dll"
+          rm -rf libjudy && mv "$TMP/libjudy-C" libjudy
+
+          # The two arms must not be byte-identical: that would mean the
+          # libjudy/ swap did not take and the run compares a build with itself.
+          if cmp -s "$TMP/arms/judy-C-1.dll" "$TMP/arms/judy-S-1.dll"; then
             echo "arm S and arm C are byte-identical — the libjudy/ swap did not take"
             exit 1
           fi
@@ -363,17 +397,20 @@ jobs:
           GATE_FLAG: ${{ (github.event.inputs.gate == 'false') && ' ' || '--gate' }}
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/results"
-          php scripts/bench-gate.php \
-            --arm "C=$RUNNER_TEMP/arms/judy-C-1.dll" \
-            --arm "S=$RUNNER_TEMP/arms/judy-S-1.dll" \
+          mkdir -p "$TMP/results"
+          cp "$TMP/arm-s-manifest.json" "$TMP/results/"
+          # Driven by the BUILDER's php.exe: it is the one the DLLs load into,
+          # and bench-gate.php spawns its children with PHP_BINARY.
+          "$TMP/php-runtime/php.exe" scripts/bench-gate.php \
+            --arm "C=$TMP/arms/judy-C-1.dll" \
+            --arm "S=$TMP/arms/judy-S-1.dll" \
             --platform windows-x64 \
             --tier ci-relative-single-build \
-            --toolchain "MSVC / PHP $(php -r 'echo PHP_VERSION;')" \
+            --toolchain "MSVC / PHP $("$TMP/php-runtime/php.exe" -r 'echo PHP_VERSION;')" \
             --rounds "$BENCH_ROUNDS" --size "$BENCH_SIZE" \
             --groups "$BENCH_GROUPS" --mem-sizes "$BENCH_MEM_SIZES" \
             --baseline baselines/arm-ratios.json \
-            --out "$RUNNER_TEMP/results/gate-windows-x64-1.json" \
+            --out "$TMP/results/gate-windows-x64-1.json" \
             $GATE_FLAG
 
       - uses: actions/upload-artifact@v4

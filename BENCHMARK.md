@@ -1754,24 +1754,239 @@ separately linked binaries of the same code, it does not reach the claim floor.
 A cell whose per-build spread exceeded its own delta would have been demoted to
 null automatically; none in the reported set were.
 
+### Keeping it honest over time: the recurring cross-platform gate
+
+Everything above is a *study*: one campaign, one host, one moment. It says what
+the vendoring bought; it says nothing about whether that is still true next
+month, or whether it was ever true on arm64 or musl. Those are the two holes the
+recurring gate closes.
+
+Runner: [`scripts/bench-gate.php`](scripts/bench-gate.php), driven by
+[`.github/workflows/bench-gate.yml`](.github/workflows/bench-gate.yml).
+
+#### It compares ratios, never numbers
+
+A shared CI runner cannot support the measurement above. Absolute milliseconds
+on GitHub's runners move tens of percent between one day and the next for
+reasons that have nothing to do with this repository, and comparing them
+produced a wall of false regressions the last time this project tried it (#87).
+
+So the gate never compares a number across runs. **Every gated quantity is a
+ratio of two arms measured in the same interleaved rounds on the same runner**,
+compared against the same ratio stored in
+[`baselines/arm-ratios.json`](baselines/arm-ratios.json). A runner that is 40%
+slower than yesterday's makes both arms 40% slower, and the ratio does not move.
+What survives the division is what actually changed in the code.
+
+Three axes, and each sees something the other two cannot:
+
+| axis | what varies between the arms | what only this axis can catch |
+| --- | --- | --- |
+| **S → C** timing | `libjudy/`'s contents, and nothing else | erosion of the vendored libJudy patches. An extension-level change cancels out of it completely, because both arms share the extension source. |
+| **A → C** timing | php-judy against a PHP native array, paired inside **one process** | regressions in the **extension**, which S → C is blind to. A PHP array cannot regress with our code, so it is the invariant reference. |
+| **A → C** memory | peak RSS of a child process building one structure | footprint regressions. Nearly deterministic, so it gates at a tighter threshold than either timing axis. |
+
+Together the two timing axes decompose "php-judy got slower" into "the library
+did" and "the extension did", which a single axis cannot do.
+
+#### Why arm S, and not a system libJudy
+
+Arm B is not portable and cannot be the recurring comparison arm. Debian ships
+`libjudy-dev` **with** the Baskins patch, Alpine and Homebrew ship it pristine,
+Windows has no package at all, and the SourceForge download that used to paper
+over that was deliberately deleted from CI (#146) and is not coming back. "System
+libJudy" is therefore different code on every platform, and it moves when the
+distro moves rather than when this repository does — which makes it a poor
+regression axis even where it exists.
+
+Arm S has none of those problems. It is *our own* vendored tree reconstructed at
+the last commit before the first patch landed, built **static into the extension
+with the identical pinned vendor CFLAGS**. No package, no network, available
+everywhere, and it holds linkage model, optimization flags, compiler, PHP and
+extension source constant so that S → C varies only the libJudy source patches.
+
+Arm B is still built and reported where a package exists (Debian's `libjudy-dev`,
+Homebrew's `judy`) — it is what users actually get from PECL on those platforms —
+but it is **never gated**, and it is never quoted as "our patches" without the S
+decomposition beside it. #161 measured why that matters: the B-vs-S residual is
+about 1pp on integer paths and about 11pp on string paths, so attributing the
+full B → C delta to our source changes would be wrong by roughly a factor of two
+on strings.
+
+#### How arm S is proved unpatched, on every platform
+
+Reconstruction is by `git archive` at a pinned commit, not by downloading a
+tarball and not by reverse-applying patches. Two pinned refs, both hard-coded in
+[`scripts/bench-arm-s.php`](scripts/bench-arm-s.php) rather than derived — a
+reference arm that moves underneath the baseline measures nothing, so bumping
+either is a deliberate act:
+
+| ref | what it is |
+| --- | --- |
+| `0f687cb` | the pristine Judy-1.0.5 import commit |
+| `f366fdb` | the last commit touching `libjudy/` **before P1** — pristine upstream plus the build scaffolding (wrapper shims, pre-generated tables) plus P5 |
+
+Verification then runs on the materialized tree, and the **source-level check is
+the operative one** because it needs no toolchain and works identically on
+Windows:
+
+1. Every upstream `.c`/`.h` file is byte-identical to its blob at the pristine
+   import — **21 of 28** files, exactly.
+2. The other **7** carry **P5** and only P5 (the LLP64/Windows-x64 constant
+   widths), and the verifier fails if the set of modified files is anything other
+   than exactly that list. P5 is not optional: `Word_t` must be
+   `unsigned __int64` under `_WIN64` or the tree does not compile on Windows at
+   all, which would defeat the portability that is arm S's whole point. On LP64
+   targets it is a textual change with no semantic effect — `~0UL` and
+   `~(Word_t)0` are the same value when `unsigned long` is 8 bytes — so it cannot
+   contribute to an S → C delta on Linux or macOS.
+3. No file that carries a post-`f366fdb` patch at `HEAD` may be byte-identical to
+   `HEAD` in the arm-S tree. This fails differently from check 1 — a mis-set
+   pristine ref would make check 1 vacuously pass and this one would still catch
+   it — and it keeps working as the patch series grows, which a hand-written list
+   of grep fingerprints would not.
+4. `__POPCNT__` and `__builtin_bswap64` must be textually absent, so a reader can
+   re-run the check with `grep` and no script.
+
+`JudyCommon/JudyNoInline.c` is a P7 *addition* and so does not exist at
+`f366fdb`, but `config.m4` lists it unconditionally; the script synthesizes an
+empty translation unit for it. That is not a fudge — P7's real file is wrapped in
+`#ifdef JU_NOINLINE`, which no benchmark or production build defines, so both
+compile to the same empty object and the compiled-unit list stays identical
+across the two arms.
+
+An **instruction census** is kept as an independent cross-check, and it is
+architecture-aware rather than assuming x86 mnemonics:
+
+| architecture | O1 lowers to | O3 lowers to | arm S | arm C |
+| --- | --- | --- | ---: | ---: |
+| x86-64 (gcc 14.2, `-mpopcnt`) | `popcnt` | `bswap` | 0 / 12 | 89 / 985 |
+| arm64 (Apple clang, base ISA) | `cnt` | `rev` | 0 / 32 | 88 / 673 |
+
+The O1 count reads exactly **0** in arm S on both architectures, which is the
+sharp test; the O3 mnemonic has incidental non-O3 uses and is corroboration only.
+
+#### The control, and why the PHP-array one is not enough
+
+The PHP-array drift control is retained, and it is the right instrument for what
+it measures — interpreter speed, CPU frequency, process startup. It is **not** an
+instrument for the failure mode that matters here, and this document already
+explains why at length: PHP array operations are neither pointer-chasing nor
+DRAM-bound while Judy's descend is both, so a co-resident tenant stealing
+last-level cache and memory bandwidth takes exactly what the Judy arms need and
+barely touches the control. Measured once on a 24-core host: an untouched
+baseline arm moved **2.2x** while the array control read **+0.36%**.
+
+The gate's load-bearing control is therefore **C1 vs C2** — two independently
+linked builds of *identical* source, interleaved into the same rounds as
+everything else. It **is** Judy, so it has the right memory-access character by
+construction, and every one of its cells must read null.
+
+It does double duty. Its measured scatter is that run's own empirical noise
+floor, and the applied threshold is raised to it whenever it exceeds the stored
+offline floor. **A contaminated run therefore widens its own gate and cannot cry
+wolf** — and it cannot pass quietly either, because the widened threshold and the
+control that caused it are both printed in the run's summary.
+
+Windows is the one platform without it: a second MSVC build roughly doubles an
+already long job, so it runs one build per arm, `rebuild_control_available` reads
+`false` in its run JSON, and its threshold falls back to the offline floor alone.
+That is recorded rather than quietly equated with the other platforms.
+
 ### Confidence tiers, and what is NOT measured
 
-| platform | toolchain | timing | memory | tier |
-| --- | --- | --- | --- | --- |
-| Linux x86-64, honeycomb | gcc 14.2.0, PHP 8.4.24, Debian 13 | measured | measured | **claim-grade** |
-| macOS arm64 | Apple clang 21, PHP 8.5.8, Homebrew | **not measured** | measured | **directional only** |
-| Alpine / musl x86-64 | gcc, PHP 8.4 | not measured | not measured | **not measured** |
-| Linux x86-64, out-of-cache (>=6M) | gcc 14.2.0 | not measured (unblocked, not yet run) | measured (8M rows above) | **not measured** |
-| Windows | MSVC | not measured | not measured | **not measured** |
+There are now three tiers on this page and they are not interchangeable.
 
-- **macOS arm64 is directional, not claim-grade, and the hole is narrowed rather
-  than closed.** No timing was taken: the host failed the hygiene gate (load 4.22
-  on 8 cores against a threshold of 4, with browser processes above 50% CPU) and
-  was under memory pressure with active compression, which can depress RSS
-  readings. The memory ratios it produced track the Linux ones closely
-  (`bitset` 30.2x vs 22.7x, `int_to_mixed` 0.79x vs 0.79x, `string_to_int` 3.09x
-  vs 3.32x) and its B/C ratios are ~1.00, but they are reported as directional.
-  **Apple clang / arm64 remains this project's acknowledged measurement gap.**
+| tier | what it means | who produces it |
+| --- | --- | --- |
+| **claim-grade** | absolute numbers, exclusive pinned host, hygiene clean, controls inside the claim floor. Quotable as "php-judy is X% faster". | `bench-threearm.php` on the dedicated bench host |
+| **ci-relative** | *ratios* of arms measured in the same interleaved rounds on a shared runner, with the run's own rebuild control stating how far a cell can move for no reason. Quotable as "the patches deliver about X% on this platform" and as "this has not regressed". **Not** quotable as an absolute number. | `bench-gate.php` in `bench-gate.yml` |
+| **directional** | a single measurement from a host that failed its own hygiene gate. Useful as a sanity check, not as evidence. | ad-hoc runs |
+
+| platform | toolchain | S → C timing | A → C timing | memory | tier |
+| --- | --- | --- | --- | --- | --- |
+| Linux x86-64, honeycomb (dedicated) | gcc 14.2.0, PHP 8.4.24, Debian 13 | measured | measured | measured | **claim-grade** |
+| Linux x86-64 glibc, GitHub runner | gcc 13.3.0, PHP 8.4.24, Ubuntu 24.04 | measured | measured | measured | **ci-relative** |
+| Linux x86-64 **musl**, Alpine container | gcc 15.2.0, PHP 8.4.24 | measured | measured | measured | **ci-relative** |
+| **macOS arm64**, GitHub runner | Apple clang 21.0.0, PHP 8.4.24 | measured | measured | measured | **ci-relative** (wide threshold — see below) |
+| macOS arm64, local workstation | Apple clang 21, PHP 8.5.8, Homebrew | directional | directional | measured | **directional** |
+| Windows x64 | MSVC | see below | see below | see below | see below |
+| Linux x86-64, **out-of-cache** (>=6M) | gcc 14.2.0 | not measured | not measured | measured (8M rows above) | **not measured** |
+
+#### What the gate measured on each platform
+
+Medians over the 51-52 comparable cells, one gate run each,
+`--size 300000` (cache-resident), 5 interleaved rounds, 2 independently linked
+builds per arm. **These are ci-relative ratios, not claim-grade absolutes.**
+
+| platform | S → C median | B → C median | `int_sparse` memory A/C | `string_to_int` memory A/C |
+| --- | ---: | ---: | ---: | ---: |
+| Linux glibc x86-64 (gcc 13.3) | **0.874** | 0.864 | 3.35x | 3.83x |
+| Linux musl x86-64 (gcc 15.2) | **0.876** | not built | 3.30x | 3.71x |
+| macOS arm64 (Apple clang 21) | **0.920** | 0.930 | 3.21x | 3.42x |
+| *(dedicated host, claim-grade, for comparison)* | *0.835 int / 0.886 string* | *0.823 int / 0.778 string* | *3.12x @8M* | *3.32x @8M* |
+
+Three things worth saying about that table:
+
+- **musl behaves like glibc for the patches.** S → C is 0.876 on musl against
+  0.874 on glibc — indistinguishable. This was the open question that made
+  Alpine worth measuring at all: musl's allocator is not glibc's and Judy is
+  allocation-heavy, so the vendored patches could plausibly have behaved
+  differently there. They do not.
+- **arm64 gets a smaller but real share of the gain.** 0.920 against Linux's
+  0.874 is the first time any merged optimization in this project has been timed
+  on Apple clang or on a non-x86 instruction set. A smaller effect is the
+  expected direction — O1's whole premise is that x86-64 had no hardware
+  popcount arm while arm64's `cnt` is base ISA — but the *size* of the gap had
+  never been measured before and was not predictable from the source.
+- **The shared runners read a smaller effect than the dedicated host**, in the
+  same direction on every platform. That is what a noisier measurement of the
+  same underlying quantity looks like, and it is the reason these rows are
+  labelled ci-relative rather than being quoted as absolutes.
+
+#### The gate's thresholds, and how they were derived
+
+Derived, not chosen. `bench-gate.php --derive` runs the gate repeatedly against
+the **same commit** and measures how far each cell's ratio moves when nothing
+changed; that spread is the false-positive rate of any threshold below it. The
+floors are p95 of the pairwise between-run drift, times 1.25, rounded up to
+0.5pp, and they are stored in `baselines/arm-ratios.json` next to the ratios they
+govern so a reader can see the number *and* where it came from.
+
+| platform | S → C floor | A → C floor | memory floor | C-vs-C control (median / p90 / max per-cell) |
+| --- | ---: | ---: | ---: | --- |
+| Linux glibc x86-64 | 4.0% | 10.0% | 1.5% | 0.6% / 2.8% / 6.8% |
+| Linux musl x86-64 | 3.5% | 5.0% | 1.5% | 0.4% / 1.7% / 6.3% |
+| macOS arm64 | 21.0% | 12.0% | 2.5% | *(runner-dependent, see below)* |
+
+- **The memory floor is the sharp one**: 1.5% on both Linux platforms, because
+  peak RSS of a deterministic build is very nearly deterministic. It is also the
+  axis carrying php-judy's least equivocal claim, so a tight gate there is worth
+  more than a tight gate on timing.
+- **The Linux timing floors land close to the dedicated host's ~3% claim floor**,
+  which is a stronger result than it looks: it says the paired-ratio design
+  recovers most of a dedicated host's resolution on a shared runner.
+- **macOS is the weak gate and is labelled as one.** GitHub's arm64 macOS runner
+  has 3 vCPUs and its between-run drift is roughly five times the Linux runners'.
+  A 21% S → C threshold catches gross breakage — an optimization accidentally
+  compiled out — and nothing subtler. The *measurement* is the valuable part
+  there; the *gate* is coarse, and saying so is the point of having tiers.
+- **Small memory cells are measured but never gated.** Peak RSS is page-quantised,
+  so a structure under 4 MiB moves several percent between identical runs
+  (measured: `bitset` at 1M keys is ~1.9 MB on glibc and moved 22% at 100k keys;
+  #161 saw the same "one page rounding, not a regression" at its smallest size).
+  Those cells still carry the headline BITSET ratios and are reported; they are
+  excluded from gating and from the floor derivation, because a threshold wide
+  enough for them would be too wide for anything else.
+
+One consequence worth stating plainly: **the same `bitset` cell reads 23.4x on
+glibc and 72.4x on musl.** That is not a Judy difference — the two allocators
+retain a different number of pages for a ~600 KB - 1.9 MB structure. It is
+exactly the kind of number that would be misleading if quoted, which is why it
+sits below the gating floor.
+
+#### Still not measured
+
 - **Out-of-cache timing is still not measured, but the memory-safety signal that
   blocked it is resolved.** The intended 6M run aborted when arm B terminated
   with SIGSEGV in the `core.int` group, and at the time this section could not
@@ -1822,10 +2037,21 @@ null automatically; none in the reported set were.
   crash reproductions on a shared laptop and assert nothing about performance.
   The 8M rows in the memory table were always unaffected: those run in their own
   child processes and complete cleanly.
-- **Alpine / musl is not measured.** It matters — musl's allocator is not
-  glibc's and Judy is allocation-heavy — and Alpine ships **pristine** 1.0.5, so
-  its B-vs-C would also include P1. Deferred for host scheduling reasons only.
-- **Windows is CI-artifact territory**; no rigorous number is offered.
+
+  For the gate specifically: the slot is wired and needs no rework. Raise
+  `BENCH_SIZE` past the driver's `--dram-size` in
+  `.github/workflows/bench-gate.yml` and the out-of-cache cells become a fourth
+  set of baseline entries. It is left switched off here only because a new
+  residency needs its own derived floor, and deriving one belongs in the
+  dedicated commit that writes the baseline rather than in the PR that builds
+  the gate.
+- **Windows.** The job exists and builds both arms through the same
+  `php-windows-builder` action from one tree with `libjudy/` swapped between
+  invocations — which is only possible because arm S needs no package. It runs
+  one build per arm rather than two, so `rebuild_control_available` is `false`
+  there and its threshold falls back to the offline floor with no run-local
+  noise measurement behind it. Treat Windows as the lowest tier on this page
+  until it has accumulated enough scheduled runs to derive its own floor.
 
 ### Reproducing this
 
@@ -1852,6 +2078,51 @@ committed under `research/three-arm-benchmark/results/`.
 read the `hygiene` block in the JSON. A run that self-marks `contaminated`
 asserts nothing, and — as the co-tenancy note above explains — a flat PHP-array
 control is not by itself evidence that the host was quiet.
+
+#### Reproducing the gate, on any platform
+
+The gate needs no system libJudy and no dedicated host, which is the whole point
+of arm S. One script builds every arm from one tree with one toolchain:
+
+```sh
+# Two independently linked builds of each of arms S and C. Two, not one:
+# they are rotated across rounds, and C1-vs-C2 is the rebuild control that
+# measures how far a cell can move for no reason on this machine today.
+./research/three-arm-benchmark/build-arms.sh /tmp/arms 2
+
+php scripts/bench-gate.php \
+  --arm C=/tmp/arms/judy-C-1.so --arm C=/tmp/arms/judy-C-2.so \
+  --arm S=/tmp/arms/judy-S-1.so --arm S=/tmp/arms/judy-S-2.so \
+  --rounds 5 --size 300000 \
+  --baseline baselines/arm-ratios.json --gate \
+  --out gate.json
+```
+
+`build-arms.sh` writes `arm-s-manifest.json` beside the objects; that is the
+verification record, and a run whose manifest does not say `UNPATCHED` is
+comparing against something other than pristine Judy. To check by hand:
+
+```sh
+php scripts/bench-arm-s.php --dest /tmp/arm-s --manifest /tmp/arm-s.json
+php scripts/bench-arm-s.php --verify-so /tmp/arms/judy-S-1.so   # instruction census
+php scripts/bench-arm-s.php --verify-so /tmp/arms/judy-C-1.so   # ... against arm C's
+```
+
+Deriving a platform's threshold floors, which is what makes them defensible
+rather than guessed — several runs of the **same commit**, then:
+
+```sh
+php scripts/bench-gate.php --derive gate-1.json,gate-2.json,gate-3.json
+```
+
+`--derive` refuses a set spanning more than one commit or more than one
+platform: a floor derived with the code moving underneath it measures real
+change, not noise. Add `--update-baseline baselines/arm-ratios.json` to write
+the result — **in a dedicated commit, never inside a feature PR**, the same rule
+`baselines/latest.json` already works to. The two baseline files are different
+instruments and are not interchangeable: `latest.json` holds absolute
+milliseconds for the release-over-release `bench-compare.php` run, `arm-ratios.json`
+holds per-platform within-run arm ratios for this gate.
 
 ---
 
