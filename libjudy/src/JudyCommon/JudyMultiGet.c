@@ -809,10 +809,10 @@ FUNCTION Word_t JudyLMultiGet(
 
 // Pipelined path.  The array is known to start with a JPM here.
 //
-// The keys run in chunks of cJL_MULTIGET_PART_BLOCK.  Whether chunks are
-// partitioned is decided ONCE per call, from the first chunk (batch
-// composition is in practice stationary within a call; a stale decision
-// costs only speed, never correctness):
+// Whether the batch is partitioned is decided ONCE per call, from its
+// first cJL_MULTIGET_PART_BLOCK keys (batch composition is in practice
+// stationary within a call; a stale decision costs only speed, never
+// correctness):
 //
 //   1. diff  = OR of (key XOR key0) over the first chunk; the partition
 //      byte is diff's highest nonzero byte (chunk-adaptive, so 32-bit-
@@ -824,78 +824,81 @@ FUNCTION Word_t JudyLMultiGet(
 //      O5 gate's heterogeneous kill, x0.74) is where grouping pays.
 //      Unimodal batches -- uniform sparse (flat histogram) and dense
 //      runs (near-uniform over the byte's few values) -- skip the
-//      scatter and run at archived-impl speed.
+//      partition entirely.
 //
-// When enabled, each chunk is grouped by a stable one-pass counting
-// partition.  Results are unaffected: every key carries its original
-// slot through the pipeline (see jl_mg_pipeline), so PPValue[] is
-// filled exactly as if the keys had run in input order.
+// A partitioned call runs in cJL_MULTIGET_PART_BLOCK chunks, each
+// grouped by a stable one-pass counting partition; results are
+// unaffected because every key carries its original slot through the
+// pipeline (see jl_mg_pipeline).  An UNpartitioned call runs as ONE
+// continuous pipeline over the whole batch -- chunking it would drain
+// and refill the lanes at every chunk boundary, which measured ~1 ns/key
+// against the archived impl on deep-sparse corpora.
 
         {
             Pjp_t  Pjptop = &(P_JPM(PArray)->jpm_JP);
-            Word_t base;
-#if cJL_MULTIGET_PARTITION
-            int    part_decided = 0;
-            int    do_part      = 0;
-            int    shift        = 0;
-#endif
 
-            for (base = 0; base < Count; base += cJL_MULTIGET_PART_BLOCK)
+#if cJL_MULTIGET_PARTITION
+            int    do_part = 0;
+            int    shift   = 0;
+
             {
-                const Word_t *chunk = PIndex + base;
-                Word_t        m     = Count - base;
-
-                if (m > (Word_t) cJL_MULTIGET_PART_BLOCK)
-                    m = (Word_t) cJL_MULTIGET_PART_BLOCK;
-
-#if cJL_MULTIGET_PARTITION
-                if (! part_decided)             // first chunk: analyze.
-                {
-                    part_decided = 1;
+                Word_t m0 = (Count < (Word_t) cJL_MULTIGET_PART_BLOCK)
+                          ? Count : (Word_t) cJL_MULTIGET_PART_BLOCK;
 
 #if (cJL_MULTIGET_PART_SHIFT >= 0)
-                    shift   = cJL_MULTIGET_PART_SHIFT;  // pinned (bench arm);
-                    do_part = 1;                        // decision forced on.
+                (void) m0;
+                shift   = cJL_MULTIGET_PART_SHIFT;      // pinned (bench arm);
+                do_part = 1;                            // decision forced on.
 #else
-                    Word_t  diff = 0;
-                    Word_t  i;
+                Word_t diff = 0;
+                Word_t i;
 
-                    for (i = 1; i < m; ++i)
-                        diff |= chunk[i] ^ chunk[0];
+                for (i = 1; i < m0; ++i)
+                    diff |= PIndex[i] ^ PIndex[0];
 
-                    if (diff != 0)
-                    {
-                        uint8_t  hist[256];
-                        unsigned maxcount = 0;
-                        unsigned nonzero  = 0;
-                        unsigned b;
-
-                        shift = jl_mg_part_shift(diff);
-                        memset(hist, 0, sizeof(hist));
-
-                        for (i = 0; i < m; ++i)
-                            ++hist[(chunk[i] >> shift) & 0xff];
-
-                        for (b = 0; b < 256; ++b)
-                        {
-                            if (hist[b] == 0) continue;
-                            ++nonzero;
-                            if (hist[b] > maxcount) maxcount = hist[b];
-                        }
-
-                        do_part = ((Word_t) maxcount * nonzero
-                                >= (Word_t) cJL_MULTIGET_PART_BIMODAL * m);
-                    }
-#endif // adaptive
-                }
-
-                if (do_part)
+                if (diff != 0)
                 {
-                    Word_t   pkeys [cJL_MULTIGET_PART_BLOCK];
-                    uint16_t pslots[cJL_MULTIGET_PART_BLOCK];
-                    unsigned counts[257];
-                    Word_t   i;
-                    int      b;
+                    uint8_t  hist[256];
+                    unsigned maxcount = 0;
+                    unsigned nonzero  = 0;
+                    unsigned b;
+
+                    shift = jl_mg_part_shift(diff);
+                    memset(hist, 0, sizeof(hist));
+
+                    for (i = 0; i < m0; ++i)
+                        ++hist[(PIndex[i] >> shift) & 0xff];
+
+                    for (b = 0; b < 256; ++b)
+                    {
+                        if (hist[b] == 0) continue;
+                        ++nonzero;
+                        if (hist[b] > maxcount) maxcount = hist[b];
+                    }
+
+                    do_part = ((Word_t) maxcount * nonzero
+                            >= (Word_t) cJL_MULTIGET_PART_BIMODAL * m0);
+                }
+#endif // adaptive
+            }
+
+            if (do_part)
+            {
+                Word_t base;
+
+                for (base = 0; base < Count;
+                     base += cJL_MULTIGET_PART_BLOCK)
+                {
+                    const Word_t *chunk = PIndex + base;
+                    Word_t        m     = Count - base;
+                    Word_t        pkeys [cJL_MULTIGET_PART_BLOCK];
+                    uint16_t      pslots[cJL_MULTIGET_PART_BLOCK];
+                    unsigned      counts[257];
+                    Word_t        i;
+                    int           b;
+
+                    if (m > (Word_t) cJL_MULTIGET_PART_BLOCK)
+                        m = (Word_t) cJL_MULTIGET_PART_BLOCK;
 
 // Stable counting partition on the chosen byte: one counting pass, one
 // placement pass; pslots[] remembers each key's chunk-local input
@@ -919,14 +922,15 @@ FUNCTION Word_t JudyLMultiGet(
 
                     hits += jl_mg_pipeline(PArray, Pjptop, pkeys, pslots,
                                            base, PPValue, m);
-                    continue;
                 }
+
+                return(hits);
+            }
 #endif // cJL_MULTIGET_PARTITION
 
-                hits += jl_mg_pipeline(PArray, Pjptop, chunk,
-                                       (const uint16_t *) NULL,
-                                       base, PPValue, m);
-            }
+            hits += jl_mg_pipeline(PArray, Pjptop, PIndex,
+                                   (const uint16_t *) NULL,
+                                   (Word_t) 0, PPValue, Count);
         }
 
         return(hits);
