@@ -1537,6 +1537,27 @@ published number in this project.
 - **Three independent builds per arm, rotated across rounds.** A cell whose
   per-build spread exceeds its own delta is demoted to null: that is binary
   layout, not a library change.
+- **The suite's `memory_limit` is a floor, not a ceiling — and it was not
+  always.** `judy-bench.php` used to set a flat `ini_set('memory_limit', '2G')`
+  at the top of the file, which silently overrode the `-d memory_limit=-1` that
+  every driver passes its children — `scripts/bench-compare.php` directly, and
+  `scripts/bench-threearm.php` and `scripts/bench-gate.php` through the shared
+  launcher in `scripts/bench-lib.php`. That made the `core.str` group
+  impossible to run at `--size 6000000`
+  under **any** arm: the group materialises four 6M-element PHP arrays before
+  the first Judy call and died inside its own fixture builder, so the failure
+  was a property of the harness and not a signal about either library. It is a
+  second, separate blocker on the out-of-cache row below — alongside the
+  memory-safety one that
+  [#162](https://github.com/orieg/php-judy/issues/162) closed — and the reason
+  an attempt at that row could only cover the integer and bitset paths. The
+  script now treats `2G` as a floor it raises a *lower* caller up to, leaves a
+  caller who already asked for more (including `-1`) alone, and honours an
+  explicit `--memory-limit` that wins outright. Which cap a run used is
+  recorded in its JSON as `metadata.memory_limit` and echoed in the console
+  banner — **read it there rather than assuming it**, because every run
+  published before this change used the unconditional `2G` no matter what its
+  driver asked for.
 - **Host hygiene gated at load N/2 *and* on co-tenancy.** Load is sampled before,
   between and after every phase; over threshold the run self-marks contaminated
   and every verdict is suppressed.
@@ -2108,9 +2129,12 @@ why it sits below the gating floor and is not in the headline table above.
   object in the GC root buffer; `judy-bench.php` does, via `count()` and the
   closures it hands the container to. macOS needed 6M to fault where linux/amd64
   faulted at 3M — an allocator difference, not a different bug. The `2G`
-  `memory_limit` that `judy-bench.php` sets was a candidate mechanism (a bailout
-  unwinding through an in-progress Judy write) and is ruled out: the post-fix 6M
-  runs complete under that same cap without a fatal.
+  `memory_limit` that `judy-bench.php` set unconditionally at the time was a
+  candidate mechanism (a bailout unwinding through an in-progress Judy write)
+  and is ruled out: the post-fix 6M runs complete under that same cap without a
+  fatal. Those runs are `core.int`, whose fixtures fit inside `2G`; the cap has
+  since become a floor rather than an override (methodology above), which does
+  not affect this result either way.
 
   **What this unblocks and what it does not.** The out-of-cache (>=6M) `core.int`
   cell now runs to completion, so the arm can be scheduled; the slot in the tier
