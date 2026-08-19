@@ -488,6 +488,24 @@ jobs:
       - name: Run the full suite on the debug PHP
         run: make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
 
+      # run-tests.php leaves tests/<name>.diff next to a failing .phpt, but the
+      # job has never printed it, so a failure that reproduces only here has
+      # been opaque from outside -- the debug PHP is a cached from-source build
+      # and is not cheap to stand up locally just to read one diff. Print them.
+      - name: Show the diff for any failing test
+        if: failure()
+        run: |
+          shopt -s nullglob
+          found=0
+          for d in tests/*.diff; do
+            found=1
+            echo "::group::$d"
+            head -c 8000 "$d"
+            echo
+            echo "::endgroup::"
+          done
+          [ "$found" = 1 ] || echo "no tests/*.diff produced"
+
       - name: Negative control — restore the mismatch, require the fatal
         run: |
           # The whole suite gates again now that Judy::__construct calls zpp
