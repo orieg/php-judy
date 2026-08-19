@@ -16,11 +16,11 @@
       <email>nicolas@brousse.info</email>
       <active>yes</active>
    </lead>
-   <date>2026-08-18</date>
+   <date>2026-08-19</date>
    <time>00:00:00</time>
    <version>
-      <release>2.5.2</release>
-      <api>2.5.2</api>
+      <release>2.6.0</release>
+      <api>2.6.0</api>
    </version>
    <stability>
       <release>stable</release>
@@ -28,24 +28,39 @@
    </stability>
    <license uri="http://www.php.net/license">PHP</license>
    <notes>
-- PERF: mergeWith() no longer re-descends from the root for a key its own
-  cursor is already standing on. The slot-to-zval conversion is shared with the
-  descending read path so the two cannot drift, and the cursor's slot is reused
-  only where it genuinely holds the value: directly on the integer-keyed and
-  trie types, and on *_HASH / *_ADAPTIVE only when the payload is mirrored
-  (an optimizeIteration instance of STRING_TO_INT_HASH, or long-keyed
-  STRING_TO_INT_ADAPTIVE). Behaviour-preserving: the three new .phpt files pass
-  against the pre-change build too. **No performance number is claimed** — the
-  redundant descend is gone, but no benchmark accompanies the change and none
-  should be inferred pending a run on an idle host. baselines/latest.json and
-  BENCHMARK.md figures are untouched.
-- DOC: API.md now documents that toArray() coerces integer-looking string keys
-  on string-keyed types ("42" comes back as int 42, while "07" and " 42" stay
-  strings) and that feeding such a key back as an offset throws. The warning
-  reached the stub and AGENTS.md in 2.5.1 but not API.md, which is the reference
-  composer.json advertises.
-- DOC: BENCHMARK.md records why php-code-coverage and Infection were examined
-  and rejected as Judy fits.
+- FIX: use-after-free during teardown of the MIXED types (INT_TO_MIXED,
+  STRING_TO_MIXED, STRING_TO_MIXED_HASH, STRING_TO_MIXED_ADAPTIVE), reachable
+  through both Judy::free() and ordinary object destruction (#162). Freeing a
+  slot calls zval_ptr_dtor(); where the value is a shared collectable one that
+  fills the GC root buffer, gc_collect_cycles() then runs synchronously inside
+  the free loop and re-enters judy_object_get_gc() on the half-destroyed
+  object. The usual symptom is a "zend_mm_heap corrupted" abort. This defect
+  PREDATES the bundled libJudy and is present in every previously shipped
+  release: anyone using a MIXED type should upgrade.
+- FIX: libJudy compiled with aggressive loop optimization silently loses
+  Judy::BITSET keys — jp_1Index is 8 bytes where the code writes up to 15
+  (#131). Fixed in the bundled tree (patch P1) and guarded by a differential
+  fuzzer that re-proves itself on every CI run by planting the defect and
+  failing if the fuzzer does not catch it.
+- FIX: further upstream libJudy 1.0.5 defects, fixed in the bundled tree
+  (#127): the SEARCH_LINEAR/COPYINDEX pair, which was a no-op masking silent
+  data loss; an off-by-one in InsArray; an out-of-scope read in Cascade; and
+  hygiene fixes (patches P2-P7). Every patch carries an entry in
+  libjudy/PATCHES.md and a per-file LGPL section 2(b) change notice.
+- BUILD: the bundled, patched libJudy is now the DEFAULT build. ./configure
+  needs no system library and downloads nothing at build time, and the Windows
+  build no longer regex-patches library sources in CI. --with-judy=DIR still
+  links a system libJudy, is CI-tested on every push, and stays supported
+  indefinitely.
+- BUILD: a 32-bit target is now refused with a clear message instead of being
+  mis-built, and the release matrix is constrained to x64 (#159, #160).
+- PERF: integer-keyed paths gain hardware popcount (#149) and a byte-order fix
+  on the JudyL descend (#150); the string layer loses redundant work (#154).
+  Figures are in BENCHMARK.md and are deliberately not restated here. Note
+  that the delivered speedup is NOT one number: with linkage held constant
+  against an unpatched build of the same tree, about 96.5% of the gain on
+  integer paths is attributable to these patches but only about 40% of the
+  gain on string paths, the remainder being static-versus-shared linkage.
    </notes>
    <contents>
       <dir name="/">
@@ -442,6 +457,37 @@
       <configureoption default="bundled" name="with-judy" prompt="libJudy to build against: &quot;bundled&quot; compiles the bundled copy (default); give the install prefix DIR of a system libJudy to link against it instead" />
    </extsrcrelease>
    <changelog>
+      <release>
+         <date>2026-08-18</date>
+         <version>
+            <release>2.5.2</release>
+            <api>2.5.2</api>
+         </version>
+         <stability>
+            <release>stable</release>
+            <api>stable</api>
+         </stability>
+         <notes>
+- PERF: mergeWith() no longer re-descends from the root for a key its own
+  cursor is already standing on. The slot-to-zval conversion is shared with the
+  descending read path so the two cannot drift, and the cursor's slot is reused
+  only where it genuinely holds the value: directly on the integer-keyed and
+  trie types, and on *_HASH / *_ADAPTIVE only when the payload is mirrored
+  (an optimizeIteration instance of STRING_TO_INT_HASH, or long-keyed
+  STRING_TO_INT_ADAPTIVE). Behaviour-preserving: the three new .phpt files pass
+  against the pre-change build too. **No performance number is claimed** — the
+  redundant descend is gone, but no benchmark accompanies the change and none
+  should be inferred pending a run on an idle host. baselines/latest.json and
+  BENCHMARK.md figures are untouched.
+- DOC: API.md now documents that toArray() coerces integer-looking string keys
+  on string-keyed types ("42" comes back as int 42, while "07" and " 42" stay
+  strings) and that feeding such a key back as an offset throws. The warning
+  reached the stub and AGENTS.md in 2.5.1 but not API.md, which is the reference
+  composer.json advertises.
+- DOC: BENCHMARK.md records why php-code-coverage and Infection were examined
+  and rejected as Judy fits.
+         </notes>
+      </release>
       <release>
          <date>2026-08-18</date>
          <version>
