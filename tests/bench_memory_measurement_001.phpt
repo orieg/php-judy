@@ -57,9 +57,14 @@ echo "== child ==\n";
 echo "floor is json: ", is_array($floor) ? 'yes' : 'no', "\n";
 echo "cell count: ", $cell['count'], "\n";
 echo "cell built above floor: ", ($cell['peak_rss'] > $floor['peak_rss']) ? 'yes' : 'no', "\n";
-// The defect in one line: PHP's own memory manager sees ~160 bytes of wrapper
-// for 200,000 integer keys, because libJudy allocates through malloc(3).
-echo "child heap_bytes under 1 KB: ", ($cell['heap_bytes'] < 1024) ? 'yes' : 'no', "\n";
+// The defect in one line: PHP's own memory manager barely moves for 200,000
+// integer keys, because libJudy allocates through malloc(3). Relational, not an
+// absolute bound -- a --enable-debug PHP adds per-allocation bookkeeping to
+// memory_get_usage(), so the reading is larger there while staying negligible
+// against the real footprint, which is the property being asserted.
+$child_rss = $cell['peak_rss'] - $floor['peak_rss'];
+echo "child heap negligible vs its rss: ",
+    ($cell['heap_bytes'] * 100 < $child_rss) ? 'yes' : 'no', "\n";
 $child_unknown = shell_exec($child . 'core.nope judy 10 2>&1');
 echo "unknown workload rejected: ",
     (strpos((string)$child_unknown, 'unknown workload') !== false) ? 'yes' : 'no', "\n";
@@ -130,7 +135,7 @@ echo "json written: ", $j === null ? 'no' : 'yes', "\n";
 floor is json: yes
 cell count: 200000
 cell built above floor: yes
-child heap_bytes under 1 KB: yes
+child heap negligible vs its rss: yes
 unknown workload rejected: yes
 
 == --memory rss (default) ==
