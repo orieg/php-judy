@@ -448,6 +448,9 @@ jobs:
     needs: [linux-glibc, linux-musl, macos-arm64, windows-x64]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v4
@@ -456,4 +459,81 @@ jobs:
           path: results
         continue-on-error: true
       - name: Render the summary
-        run: php scripts/bench-gate-report.php results >> "$GITHUB_STEP_SUMMARY"
+        run: php scripts/bench-gate-report.php results | tee gate-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      # ── The S → C axis, on the PR that changed libjudy/ ───────────────────
+      #
+      # The number a maintainer most wants on a PR touching the vendored tree is
+      # arm S (pristine-reconstructed) versus arm C (bundled): did the patches
+      # help, hurt, or do nothing? It is measured here and, until now, only ever
+      # written to a job summary nobody opens from the PR page.
+      #
+      # This posts the report bench-gate-report.php already renders. It does NOT
+      # reimplement the gate, and it cannot claim a gate result that does not
+      # exist: this workflow runs on pull_request only for libjudy/** and the
+      # gate's own machinery, so on any other PR the job never runs and no
+      # comment appears. ci.yml's consolidated comment is deliberately left
+      # alone — reaching across workflow boundaries for these artifacts would
+      # mean either blocking that comment on this workflow or rendering a stale
+      # one, and both are worse than a second, self-dating comment.
+      #
+      # Skipped for forks: the pull_request token is read-only there, and a
+      # failed createComment is noise, not information (see the same limitation
+      # on ci.yml's report comment).
+      - name: Comment the gate result on the PR
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- bench-gate-results -->';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}`
+              + `/actions/runs/${context.runId}`;
+
+            let report = '';
+            try {
+              report = fs.readFileSync('gate-report.md', 'utf8').trim();
+            } catch (e) {
+              report = '';
+            }
+            if (!report) {
+              core.info('No gate report rendered; not commenting.');
+              return;
+            }
+
+            // A GitHub comment caps at 65536 characters. Truncating the middle
+            // of a table would produce a comment that reads as a result while
+            // being one; link out instead.
+            const LIMIT = 60000;
+            let body = marker + '\n' + report
+              + `\n\n<sub>Full run: ${runUrl}</sub>\n`;
+            if (body.length > LIMIT) {
+              const head = report.split('\n').slice(0, 12).join('\n');
+              body = marker + '\n' + head
+                + `\n\n_Report too long to inline._ Full result: ${runUrl}\n`;
+            }
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
