@@ -408,7 +408,11 @@
          <file name="BACKEND_EVALUATION.md" role="doc" />
          <file name="API.md" role="doc" />
          <file name="scripts/api-metadata.php" role="doc" />
+         <file name="scripts/bench-arm-s.php" role="doc" />
          <file name="scripts/bench-compare.php" role="doc" />
+         <file name="scripts/bench-gate-report.php" role="doc" />
+         <file name="scripts/bench-gate.php" role="doc" />
+         <file name="scripts/bench-lib.php" role="doc" />
          <file name="scripts/bench-threearm.php" role="doc" />
          <file name="scripts/generate-api-docs.php" role="doc" />
          <file name="scripts/judy_debug_common.py" role="doc" />
