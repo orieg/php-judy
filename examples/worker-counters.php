@@ -5,8 +5,10 @@
  * In a queue worker or Swoole/RoadRunner/FrankenPHP/Octane process, state
  * survives across jobs/requests. Judy's atomic increment() makes it a
  * compact metrics accumulator: no read-modify-write, keys created on
- * first touch, and 2-4x less memory than a PHP array when the key space
- * gets large (e.g. per-user or per-entity counters).
+ * first touch, and less memory than a PHP array when the key space gets
+ * large: the INT_TO_INT per-user counters below measure 2.0-2.5x smaller for
+ * dense IDs and 3.1-5.3x for sparse ones (peak RSS; see BENCHMARK.md). The
+ * JudyHS-backed STRING_TO_*_HASH types are not part of that measurement.
  *
  * Run: php examples/worker-counters.php
  */

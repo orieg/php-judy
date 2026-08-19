@@ -38,7 +38,7 @@ A Judy array is a complex but very fast associative array data structure for sto
 
 ### Why PHP Judy?
 
-- **2-4x less memory** than native PHP arrays for large integer-keyed datasets, and **~10x less** for presence tracking with `BITSET` (1M elements)
+- **Less memory than native PHP arrays**: 2-5x for integer and string keys, and **18.5-22.7x** for presence tracking with `BITSET`. Measured as peak RSS — `INT_TO_MIXED` is the one exception and costs slightly *more* than a PHP array ([per-type figures](BENCHMARK.md#memory--the-headline-and-the-least-equivocal-result))
 - **Faster bulk operations**: `getAll()`, `toArray()`, and `fromArray()` run in native C, 1.3-3x faster than element-by-element loops; atomic `increment()` avoids the read-modify-write round trip
 - **Ordered keys for free**: range queries, `first()`/`next()` navigation, and neighbor lookups that hash tables can't do
 - **Honest trade-off**: for random access on small dense datasets, native PHP arrays are faster. See [BENCHMARK.md](BENCHMARK.md) for full numbers and a decision guide on when (not) to use Judy.
@@ -51,7 +51,7 @@ Each pattern below is a runnable script in [examples/](examples/README.md):
 
 | Problem | Why Judy | Demo |
 | ------- | -------- | ---- |
-| "Have I seen this ID?" over millions of items — crawler frontiers, queue dedup, processed-ID sets | `BITSET` uses ~10x less memory than a PHP array at 1M elements | [dedup-large-stream.php](examples/dedup-large-stream.php) |
+| "Have I seen this ID?" over millions of items — crawler frontiers, queue dedup, processed-ID sets | `BITSET` uses 18.5-22.7x less memory than a PHP array (21.9x at 1M elements) | [dedup-large-stream.php](examples/dedup-large-stream.php) |
 | Which CIDR/tariff/shard does this value fall in? | `last()` resolves the greatest key ≤ N in one call; hash tables must scan | [ip-range-lookup.php](examples/ip-range-lookup.php) |
 | Rate limiting and rolling metrics over a time window | `deleteRange()` expires aged-out buckets without touching the retained set | [sliding-window-rate-limit.php](examples/sliding-window-rate-limit.php) |
 | Invalidate every cache key under `user:123:*` | Ordered keys make a namespace one contiguous slice — cost follows the slice, not the cache size | [prefix-invalidation.php](examples/prefix-invalidation.php) |
@@ -322,6 +322,7 @@ $arr = $judy[2]; // Returns [1, 2, 3]
 **When to use INT_TO_PACKED vs INT_TO_MIXED:**
 - Use `INT_TO_MIXED` for small-to-medium arrays or when read/write speed is critical
 - Use `INT_TO_PACKED` for large arrays (100K+ elements) where GC pause reduction matters more than individual read/write latency
+- On memory: `INT_TO_MIXED` holds a pointer to a separately allocated zval per element and measures *larger* than a PHP array, while `INT_TO_PACKED` stores values as opaque buffers and measures smaller ([#172](https://github.com/orieg/php-judy/issues/172)). Pick `INT_TO_MIXED` for the ordering or the API, not the footprint
 
 ### String-Keyed Types (Trie-Based)
 
@@ -494,7 +495,7 @@ while ($judy->valid()) {
 
 ### Performance Considerations
 
-- **Memory Efficiency**: Judy arrays use 2-4x less memory than PHP arrays
+- **Memory Efficiency**: 2-5x less memory than PHP arrays for integer and string keys and 18.5-22.7x for `BITSET`, measured as peak RSS — but `INT_TO_MIXED` uses ~1.3x *more* than a PHP array, so it is not a memory optimization. Per-type figures: [BENCHMARK.md](BENCHMARK.md#memory--the-headline-and-the-least-equivocal-result)
 - **Sequential Access**: Excellent performance for ordered iteration
 - **Range Queries**: Native support via `slice()`, `deleteRange()`, and the bounded forms of `keys()`, `values()`, `toArray()` and `size()`
 - **Random Access**: Trie types are slower than PHP arrays (O(log n) vs O(1)); Hash types offer O(1) average-case lookups for string keys
