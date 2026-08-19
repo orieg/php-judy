@@ -64,7 +64,13 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
   [The optimizeIteration mirror](#the-optimizeiteration-mirror-measured) and in
   the bounded-read benchmarks described there.
 - **Test Methodology**: Multiple iterations with statistical analysis (min/max/median/percentiles)
-- **Memory Measurement**: Using `memory_get_usage(true)` and `Judy::memoryUsage()`
+- **Memory Measurement**: `memory_get_usage(true)` and `Judy::memoryUsage()`.
+  **Both under-report, and `memory_get_usage()` is blind to a Judy index
+  entirely** — libJudy allocates through `malloc(3)`, outside PHP's memory
+  manager (see [issue #172](https://github.com/orieg/php-judy/issues/172) and
+  the note further down this file). The figures in this section inherit that
+  limitation. The measurements taken with peak RSS, which does see it, are in
+  [Three-arm benchmark](#three-arm-benchmark-array-vs-system-libjudy-vs-bundled-libjudy-measured).
 
 *Note: Results may vary based on hardware, system load, and PHP configuration. All benchmarks use the same Docker environment for consistency.*
 
@@ -79,7 +85,7 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 > [Judy in PHP Developer Tooling](#judy-in-php-developer-tooling).
 
 **Use Judy Arrays When:**
-- ✅ Memory is constrained (2-4x less memory usage)
+- ✅ Memory is constrained (savings are type-dependent — see [Three-arm benchmark](#three-arm-benchmark-array-vs-system-libjudy-vs-bundled-libjudy-measured))
 - ✅ Large datasets (> 1M elements) where memory efficiency matters
 - ✅ Sequential access patterns and ordered iteration
 - ✅ Range queries and ordered operations
@@ -235,8 +241,14 @@ returns an empty array for an empty range. And a walk is right when you mean to
 ## Key Findings
 
 ### **Memory Efficiency**
-- Judy arrays provide **2-4x memory savings** compared to PHP arrays
-- Memory efficiency is consistent across all dataset sizes
+- Judy arrays use less memory than PHP arrays for most types, but **"2-4x" was
+  the wrong summary**: it came from `memory_get_usage()`, which cannot see a
+  Judy index at all (#172). Measured with peak RSS, the saving is strongly
+  type-dependent — `BITSET` far above that range, `string_to_int` ~3.4x,
+  `int_to_int` ~2.1x, and **`INT_TO_MIXED` is a loss**, using ~1.1x *more*
+  than a PHP array. Per-type figures:
+  [Three-arm benchmark](#three-arm-benchmark-array-vs-system-libjudy-vs-bundled-libjudy-measured).
+- The advantage grows with scale for `BITSET` (18.5x at 100k -> 22.7x at 8M)
 - String-based Judy arrays show moderate memory savings with performance trade-offs
 
 ### **Performance Characteristics**
