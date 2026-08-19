@@ -282,8 +282,21 @@ typedef struct J_L_MULTIGET_LANE
 // Advance one lane by one memory epoch.  The dispatch mirrors JudyGet.c's
 // switch case-for-case (same DCD checks at the same levels, same search
 // inlines); see that file for the per-type commentary.
+//
+// Forced inline: with both the unpartitioned driver loop and the
+// partitioned pipeline calling it, GCC outlines it (two callers), and the
+// resulting call per lane epoch measured a systematic 6-21% loss against
+// the archived single-caller build across every corpus (round-2 gate
+// matrix).  Each driver gets its own inlined copy instead, restoring the
+// archived code shape.
 
+#if defined(__GNUC__) || defined(__clang__)
+static inline __attribute__((always_inline)) void jl_mg_step(jl_mg_lane_t *Lane, PPvoid_t *PPValue)
+#elif defined(_MSC_VER)
+static __forceinline void jl_mg_step(jl_mg_lane_t *Lane, PPvoid_t *PPValue)
+#else
 static void jl_mg_step(jl_mg_lane_t *Lane, PPvoid_t *PPValue)
+#endif
 {
         Word_t Index = Lane->mg_Index;
 
