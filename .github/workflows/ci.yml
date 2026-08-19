@@ -6,6 +6,33 @@ on:
   pull_request:
     branches: [main]
 
+# Only the newest commit of a pull request gets CI. Pushing a new commit (or a
+# force-push during a rebase) cancels the run for the commit it replaces: that
+# run's verdict describes code that no longer exists, so finishing it buys
+# nothing and costs a runner slot. Actions concurrency is an account-wide pool
+# shared with this owner's other repositories, and one full CI run here is 22
+# jobs -- enough on its own to saturate it -- so a superseded run is not merely
+# wasted, it delays the run that replaced it and every other repo's queue with
+# it. Measured on 2026-08-19: 9 of 28 pull-request runs were superseded, 25% of
+# the day's CI job-minutes went to results nobody could read, and median job
+# queue delay rose from 0.1 min (2026-08-18) to 3.5 min, p90 21 min.
+#
+# push:main is deliberately NOT cancellable. Those runs are the project's
+# historical record and feed the release path; a main run must always finish
+# even if the next merge lands while it is in flight. Two things enforce that
+# independently, on purpose:
+#   - the group key falls back to github.sha outside a pull request
+#     (github.event.pull_request.number is empty there), so every main commit
+#     gets its own group and main runs neither cancel nor queue behind another;
+#   - cancel-in-progress is switched off outright for non-pull_request events.
+#
+# github.workflow is part of the key so this never reaches across workflows:
+# a CI run and the Benchmark Gate's own "bench-gate-<ref>" group on the same
+# ref are separate groups and cannot cancel each other.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   checks: write
   pull-requests: write
