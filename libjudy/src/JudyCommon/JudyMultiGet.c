@@ -60,15 +60,20 @@
 // x0.86-0.95 (gate record).  The thresholds are compile-time tunables so
 // the fuzzer can force the pipelined path onto arbitrarily small trees.
 //
-// Batches are partitioned before they enter the lanes (#142 O5 reopen):
-// each cJL_MULTIGET_PART_BLOCK chunk is grouped by a discriminating key
-// byte with a stable one-pass counting partition, because the lanes lose
-// when they simultaneously hold keys of divergent descend classes (the
-// original O5 gate's heterogeneous-batch kill, x0.74) and win when they
-// agree.  Grouping is invisible to the caller: each key carries its
-// original result slot through the pipeline, so PPValue[] comes back in
-// input order.  cJL_MULTIGET_PARTITION=0 restores the input-order
-// pipeline for benchmarking.
+// Heterogeneous batches are partitioned before they enter the lanes
+// (#142 O5 reopen): the lanes lose when they simultaneously hold keys of
+// divergent descend classes (the original O5 gate's heterogeneous-batch
+// kill, x0.74) and win when they agree.  A per-call analysis of the
+// first cJL_MULTIGET_PART_BLOCK chunk picks a discriminating key byte
+// and decides from its histogram whether the batch is bimodal (dominant
+// class + tail); only then is each chunk grouped by a stable one-pass
+// counting partition -- unimodal batches skip the scatter and run at the
+// unpartitioned pipeline's speed.  Grouping is invisible to the caller:
+// each key carries its original result slot through the pipeline, so
+// PPValue[] comes back in input order.  cJL_MULTIGET_PARTITION=0
+// restores the input-order pipeline for benchmarking.  Callers amortize
+// the analysis by passing large batches (php-judy's getAll gathers 4096
+// keys per call).
 //
 // This TU is JudyL-only: the API returns value-area pointers.  (A Judy1
 // MultiTest variant would need none of the value-area code; it has no
@@ -140,11 +145,23 @@ extern Word_t JudyLMultiGet(Pcvoid_t PArray, const Word_t *PIndex,
 #endif
 
 #ifndef cJL_MULTIGET_PART_SHIFT         // partition byte: -1 = adaptive (the
-#define cJL_MULTIGET_PART_SHIFT (-1)    // highest byte in which the chunk's
-#endif                                  // keys differ, so 32-bit-ranged key
-                                        // sets partition just as well as
-                                        // full-width ones); 0..56 pins a
-                                        // fixed shift (bench arms only).
+#define cJL_MULTIGET_PART_SHIFT (-1)    // highest byte in which the first
+#endif                                  // chunk's keys differ, so 32-bit-
+                                        // ranged key sets partition just as
+                                        // well as full-width ones); 0..56
+                                        // pins a fixed shift AND forces the
+                                        // partition on (bench arms only).
+
+#ifndef cJL_MULTIGET_PART_BIMODAL       // partition only when the first
+#define cJL_MULTIGET_PART_BIMODAL 4     // chunk's byte histogram is this
+#endif                                  // many times more concentrated than
+                                        // uniform-over-its-nonzero-buckets
+                                        // (maxcount * nonzero >= factor * m):
+                                        // a dominant key class plus a tail
+                                        // is where grouping pays; unimodal
+                                        // batches (dense runs, uniform
+                                        // sparse) skip the scatter, keeping
+                                        // them at archived-impl speed.
 
 // ****************************************************************************
 // PREFETCH: advisory; expanding to nothing is correct (only slower).
@@ -792,20 +809,36 @@ FUNCTION Word_t JudyLMultiGet(
 
 // Pipelined path.  The array is known to start with a JPM here.
 //
-// The keys run in chunks of cJL_MULTIGET_PART_BLOCK.  Each chunk is
-// grouped by a discriminating key byte with a stable one-pass counting
-// partition before it enters the lanes: the #142 O5 gate's
-// heterogeneous-batch loss (mixed dense+sparse batches x0.74 while
-// either class alone wins on the same tree) is an ORDERING effect --
-// when the in-flight lanes hold keys of one descend class the machine
-// wins, and grouping restores that within each chunk.  Results are
-// unaffected: every key carries its original slot through the pipeline
-// (see jl_mg_pipeline), so PPValue[] is filled exactly as if the keys
-// had run in input order.
+// The keys run in chunks of cJL_MULTIGET_PART_BLOCK.  Whether chunks are
+// partitioned is decided ONCE per call, from the first chunk (batch
+// composition is in practice stationary within a call; a stale decision
+// costs only speed, never correctness):
+//
+//   1. diff  = OR of (key XOR key0) over the first chunk; the partition
+//      byte is diff's highest nonzero byte (chunk-adaptive, so 32-bit-
+//      ranged key sets partition as well as full-width ones).
+//   2. A uint8 histogram of that byte yields maxcount (the dominant
+//      value's population) and nonzero (distinct values).  Partition is
+//      enabled iff maxcount * nonzero >= cJL_MULTIGET_PART_BIMODAL * m:
+//      a dominant class PLUS a tail (bimodal composition -- the original
+//      O5 gate's heterogeneous kill, x0.74) is where grouping pays.
+//      Unimodal batches -- uniform sparse (flat histogram) and dense
+//      runs (near-uniform over the byte's few values) -- skip the
+//      scatter and run at archived-impl speed.
+//
+// When enabled, each chunk is grouped by a stable one-pass counting
+// partition.  Results are unaffected: every key carries its original
+// slot through the pipeline (see jl_mg_pipeline), so PPValue[] is
+// filled exactly as if the keys had run in input order.
 
         {
             Pjp_t  Pjptop = &(P_JPM(PArray)->jpm_JP);
             Word_t base;
+#if cJL_MULTIGET_PARTITION
+            int    part_decided = 0;
+            int    do_part      = 0;
+            int    shift        = 0;
+#endif
 
             for (base = 0; base < Count; base += cJL_MULTIGET_PART_BLOCK)
             {
@@ -816,35 +849,53 @@ FUNCTION Word_t JudyLMultiGet(
                     m = (Word_t) cJL_MULTIGET_PART_BLOCK;
 
 #if cJL_MULTIGET_PARTITION
+                if (! part_decided)             // first chunk: analyze.
+                {
+                    part_decided = 1;
+
+#if (cJL_MULTIGET_PART_SHIFT >= 0)
+                    shift   = cJL_MULTIGET_PART_SHIFT;  // pinned (bench arm);
+                    do_part = 1;                        // decision forced on.
+#else
+                    Word_t  diff = 0;
+                    Word_t  i;
+
+                    for (i = 1; i < m; ++i)
+                        diff |= chunk[i] ^ chunk[0];
+
+                    if (diff != 0)
+                    {
+                        uint8_t  hist[256];
+                        unsigned maxcount = 0;
+                        unsigned nonzero  = 0;
+                        unsigned b;
+
+                        shift = jl_mg_part_shift(diff);
+                        memset(hist, 0, sizeof(hist));
+
+                        for (i = 0; i < m; ++i)
+                            ++hist[(chunk[i] >> shift) & 0xff];
+
+                        for (b = 0; b < 256; ++b)
+                        {
+                            if (hist[b] == 0) continue;
+                            ++nonzero;
+                            if (hist[b] > maxcount) maxcount = hist[b];
+                        }
+
+                        do_part = ((Word_t) maxcount * nonzero
+                                >= (Word_t) cJL_MULTIGET_PART_BIMODAL * m);
+                    }
+#endif // adaptive
+                }
+
+                if (do_part)
                 {
                     Word_t   pkeys [cJL_MULTIGET_PART_BLOCK];
                     uint16_t pslots[cJL_MULTIGET_PART_BLOCK];
                     unsigned counts[257];
-                    Word_t   diff;
                     Word_t   i;
-                    int      shift;
                     int      b;
-
-// Pick the partition byte for THIS chunk (see jl_mg_part_shift); a
-// chunk whose keys are all equal has nothing to group:
-
-#if (cJL_MULTIGET_PART_SHIFT >= 0)
-                    shift = cJL_MULTIGET_PART_SHIFT;    // pinned (bench arm).
-                    diff  = 1;                          // never skip.
-#else
-                    diff = 0;
-                    for (i = 1; i < m; ++i)
-                        diff |= chunk[i] ^ chunk[0];
-                    shift = (diff != 0) ? jl_mg_part_shift(diff) : 0;
-#endif
-
-                    if (diff == 0)
-                    {
-                        hits += jl_mg_pipeline(PArray, Pjptop, chunk,
-                                               (const uint16_t *) NULL,
-                                               base, PPValue, m);
-                        continue;
-                    }
 
 // Stable counting partition on the chosen byte: one counting pass, one
 // placement pass; pslots[] remembers each key's chunk-local input
@@ -868,12 +919,13 @@ FUNCTION Word_t JudyLMultiGet(
 
                     hits += jl_mg_pipeline(PArray, Pjptop, pkeys, pslots,
                                            base, PPValue, m);
+                    continue;
                 }
-#else  // cJL_MULTIGET_PARTITION == 0: input-order pipeline (bench control).
+#endif // cJL_MULTIGET_PARTITION
+
                 hits += jl_mg_pipeline(PArray, Pjptop, chunk,
                                        (const uint16_t *) NULL,
                                        base, PPValue, m);
-#endif
             }
         }
 

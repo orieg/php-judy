@@ -44,10 +44,13 @@
  * per-key work can run user code that mutates the arrays (mergeWith, union
  * via write_dimension) are not batchable at all. */
 #include "libjudy/src/JudyMultiGet.h"
-/* Keys gathered per JudyLMultiGet call at the adoption sites. Bounds the
- * stack (3 x 8 B x 256 = 6 KB) while giving the pipeline far more than its
- * 16 lanes of work. */
-#define JUDY_MG_BLOCK 256
+/* Keys gathered per JudyLMultiGet call in getAll(). The library analyzes
+ * the FIRST 256-key chunk of each call to decide whether the batch is
+ * heterogeneous enough to partition; a large gather amortizes that
+ * analysis to noise (4096 keys = 16 chunks per decision). Buffers are
+ * emalloc'd once per getAll call (64 KB -- deliberately not on the C
+ * stack, which fibers keep small). */
+#define JUDY_MG_BLOCK 4096
 #endif
 
 /* Integer keys round-trip between PHP and Judy by plain reinterpretation: a
@@ -5743,8 +5746,8 @@ PHP_METHOD(Judy, getAll)
 		 * runs user code, so it keeps the exact serial position -- and
 		 * is then looked up serially. Result order is gathering order,
 		 * identical to the serial loop's. */
-		Word_t   mg_keys[JUDY_MG_BLOCK];
-		PPvoid_t mg_vals[JUDY_MG_BLOCK];
+		Word_t   *mg_keys = safe_emalloc(JUDY_MG_BLOCK, sizeof(Word_t), 0);
+		PPvoid_t *mg_vals = safe_emalloc(JUDY_MG_BLOCK, sizeof(PPvoid_t), 0);
 		int      mg_n = 0;
 
 		ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(keys), key_entry) {
@@ -5773,6 +5776,8 @@ PHP_METHOD(Judy, getAll)
 		if (mg_n) {
 			judy_getall_flush_block(intern, return_value, mg_keys, mg_vals, mg_n);
 		}
+		efree(mg_vals);
+		efree(mg_keys);
 		return;
 	}
 #endif
