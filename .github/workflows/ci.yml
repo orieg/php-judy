@@ -122,12 +122,20 @@ jobs:
           # release regression detection). Bump this to the just-published
           # release on each release — see the "Releasing" section in README.
           #
-          # The 2.5.2 baseline predates the vendored libJudy, so IT still
-          # needs the system library; installed only now, after the bundled
-          # build above already proved itself without one.
-          sudo apt-get update && sudo apt-get install -y libjudy-dev
-          sudo pie install --skip-enable-extension orieg/judy:2.5.2 \
-            --with-judy=/usr
+          # Build the baseline THE SAME WAY as the arm under test, i.e.
+          # bundled. Until 2.6.0 the baseline had to be `--with-judy=/usr`
+          # because releases predating the vendored tree had no bundled mode
+          # — but leaving that flag on once the pin reached 2.6.0 made the
+          # two arms differ by LIBRARY rather than by release: system libJudy
+          # (shared, unpatched) against the bundled patched tree. The row it
+          # produced was the vendoring delta wearing a release comparison's
+          # label — "2.6.0 -> 2.6.0, 44 faster" — which is a real measurement
+          # of the wrong thing. Dropping the flag makes the source version
+          # the only difference again, which is what this job exists to
+          # measure. The bundled-vs-system comparison has its own instrument:
+          # the S->C axis in bench-gate.yml, decomposed per key type.
+          # `debug-mirror-assertions` remains the permanent system-lib guard.
+          sudo pie install --skip-enable-extension orieg/judy:2.6.0
           BASELINE_SO="$(php-config --extension-dir)/judy.so"
           echo "BASELINE_SO=$BASELINE_SO" >> "$GITHUB_ENV"
           php -d "extension=$BASELINE_SO" -r \
