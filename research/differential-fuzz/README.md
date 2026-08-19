@@ -85,6 +85,26 @@ elsewhere). Point `JUDY_PREFIX` at the vendored bundled build once #142
 Stage 1 lands. `validation/build-stock.sh <src> <prefix> [CFLAGS...]` builds
 a linkable prefix from pristine 1.0.5 sources (e.g. this repo's `libjudy/src`)
 at any flags — that is how the validation below sanitizes the library itself.
+(When pointed at the patched `libjudy/src`, the script also compiles the
+php-judy addition TUs it finds there, so the prefix carries the bundled
+tree's full API.)
+
+### `MULTIGET=1` — the batched-lookup oracle (#142 patch O5)
+
+`make MULTIGET=1 JUDY_PREFIX=<bundled-tree prefix>` enables a JudyL mode
+that cross-checks `JudyLMultiGet` (the bundled tree's AMAC-pipelined
+batched lookup) against per-key `JudyLGet`: every 256-op batch and at cell
+end, a batch of keys — sizes sweeping the lane-starvation edges (0, 1,
+below/at/above the 16-lane default, up to 256), composed of stored keys,
++1 near-misses, in-batch duplicates and generator keys, with occasional
+all-hits/all-misses batches — must come back POINTER-identical per slot,
+with a matching hit count; result slots are pre-poisoned so an unwritten
+slot cannot pass as a miss. Leave `MULTIGET` unset for stock/system
+libraries, which lack the symbol. To force the pipelined path onto every
+tree (the production entry point falls back to serial probes below its
+tiny-tree/tiny-batch thresholds), build the prefix with
+`-DcJL_MULTIGET_SERIAL_POP1=0 -DcJL_MULTIGET_SERIAL_COUNT=1`; lane-count
+variants build with `-DcJL_MULTIGET_LANES=<1..64>`.
 
 ### `--no-bulk` and stock libraries
 
@@ -149,6 +169,25 @@ Also on record: the harness itself is ASan+UBSan-clean (46-cell smoke via
 `diffuzz-san`, library uninstrumented), and a 377-cell × 100k-op `--no-bulk`
 soak against Homebrew's stock 1.0.5 (clang-built, so #131-safe) found no
 divergence.
+
+**V5 — the O5 `MULTIGET=1` mode, watched to fail (recorded 2026-08-18,
+Apple clang, arm64, library built from the patched `libjudy/src` with the
+thresholds compiled out so the pipelined path runs on every tree).** Two
+deliberately broken `JudyMultiGet.c` builds, each caught in the `multiget`
+phase in seconds:
+
+- value-offset break (LEAF_B1 subexpanse popcount over `BitMask` instead
+  of `BitMask - 1`): `multiget[2/7] key 0x1e46: batched 0xbe144c038 !=
+  serial 0xbe144c030` (`judyl/clustered`, op#=1023);
+- DCD-strip break (every narrow-pointer check removed): `multiget[2/16]
+  key 0xef9d64a766150042: batched 0x8654d30c0 != serial 0x0`
+  (`judyl/dense`, op#=54015) — a batched hit for a key serial `JudyLGet`
+  rejects, exactly the miss-path class the DCD checks exist for.
+
+The intact build passes the 48-cell smoke at default thresholds, with the
+thresholds compiled out, and at lane counts 1 and 32; ASan+UBSan (library
+AND harness instrumented) 48-cell smoke clean; 300 s soak (7300 cells,
+thresholds compiled out) clean.
 
 ## CI
 

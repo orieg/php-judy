@@ -725,6 +725,63 @@ static void judyl_batch(Pvoid_t j, const std::map<Word_t, Word_t> &o, Rng &rng,
     }
 }
 
+#ifdef HAVE_JUDYL_MULTIGET
+/* JudyLMultiGet() is a bundled-libJudy addition (#142 patch O5), absent
+ * from stock/system builds -- this mode compiles only when the Makefile is
+ * told the library under test has it (make MULTIGET=1).  The declaration
+ * is repeated here rather than including libjudy/src/JudyMultiGet.h so the
+ * harness keeps building against a bare install prefix. */
+extern "C" Word_t JudyLMultiGet(Pcvoid_t PArray, const Word_t *PIndex,
+                                PPvoid_t *PPValue, Word_t Count);
+
+/* Batched-vs-serial oracle: JudyLMultiGet's answer for every slot must be
+ * POINTER-identical to JudyLGet's, and the hit count must match.  Batch
+ * sizes sweep the lane-starvation edges (empty, 1, below/at/above the
+ * 16-lane default, and beyond); composition mixes stored keys, +1 near-
+ * misses, duplicates within the batch, and generator keys, with
+ * occasional all-hits / all-misses batches.  Slots are pre-poisoned so an
+ * unwritten slot cannot masquerade as a correct miss. */
+static void judyl_multiget(Pvoid_t j, const std::map<Word_t, Word_t> &o,
+                           Rng &rng, WordGen &gen) {
+    static const size_t sizes[] = {0, 1, 2,  3,  7,  15, 16,
+                                   17, 31, 32, 33, 64, 100, 256};
+    static int poison;
+    size_t c = sizes[rng.below(sizeof sizes / sizeof sizes[0])];
+    uint64_t comp = rng.below(8); /* 0: all stored, 1: all generator, else mixed */
+    std::vector<Word_t> keys;
+    keys.reserve(c);
+    for (size_t i = 0; i < c; i++) {
+        uint64_t r = rng.below(100);
+        if (comp == 0 && !o.empty()) {
+            keys.push_back(map_member_near(o, gen.next()));
+        } else if (comp == 1) {
+            keys.push_back(gen.next());
+        } else if (r < 35 && !o.empty()) {
+            keys.push_back(map_member_near(o, gen.next()));    /* hit */
+        } else if (r < 55 && !o.empty()) {
+            keys.push_back(map_member_near(o, gen.next()) + 1); /* near miss */
+        } else if (r < 70 && !keys.empty()) {
+            keys.push_back(keys[rng.below(keys.size())]);      /* duplicate */
+        } else {
+            keys.push_back(gen.next());
+        }
+    }
+    std::vector<PPvoid_t> vals(c, (PPvoid_t)&poison);
+    Word_t hits = JudyLMultiGet(j, keys.data(), vals.data(), c);
+    Word_t want_hits = 0;
+    for (size_t i = 0; i < c; i++) {
+        PPvoid_t pv = JudyLGet(j, keys[i], PJE0);
+        if (vals[i] != pv)
+            divergence("multiget[%zu/%zu] key 0x%lx: batched %p != serial %p",
+                       i, c, keys[i], (void *)vals[i], (void *)pv);
+        if (pv != NULL && pv != PPJERR) want_hits++;
+    }
+    if (hits != want_hits)
+        divergence("multiget Count=%zu: returned hits %lu != serial %lu", c,
+                   hits, want_hits);
+}
+#endif /* HAVE_JUDYL_MULTIGET */
+
 static void judyl_bulk(Rng &rng, WordGen &gen) {
     static const Word_t counts[] = {1,  2,  3,  7,  8,   15,  16,  17,  23,
                                     24, 30, 31, 32, 33,  63,  64,  100, 256,
@@ -826,6 +883,10 @@ static void run_judyl(int dist) {
         if ((g.op + 1) % 256 == 0) {
             g.phase = "batch";
             judyl_batch(j, o, rng, gen);
+#ifdef HAVE_JUDYL_MULTIGET
+            g.phase = "multiget";
+            judyl_multiget(j, o, rng, gen);
+#endif
         }
         if ((g.op + 1) % 4096 == 0) {
             g.phase = "walk";
@@ -834,6 +895,10 @@ static void run_judyl(int dist) {
     }
     g.phase = "final";
     judyl_batch(j, o, rng, gen);
+#ifdef HAVE_JUDYL_MULTIGET
+    g.phase = "multiget";
+    judyl_multiget(j, o, rng, gen);
+#endif
     judyl_check_walk(j, o);
     JudyLFreeArray(&j, PJE0);
 }
