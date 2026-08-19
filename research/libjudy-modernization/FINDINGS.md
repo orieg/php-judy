@@ -1968,14 +1968,85 @@ run on the batch size the caller would have used anyway, or it eats its
 own benefit.** That constraint applies to any batched-lookup API with an
 adaptive path, not just this one.
 
-**Status: OPEN.** The partition is validated at C level; the adoption is
-not yet judged. The decisive cells are PHP-level `getAll()` on a mixed
-tree at n=10^6 (the cell that killed §11.9) and sparse at n=8×10^6, plus
-the two adversarial shapes added for this round (pure-dense and
-clustered), which are the adoption's worst measured C-level regimes. If
-those regress, the honest outcome is that the partition is a real result
-and O5 nevertheless stays dropped for want of a shippable consumer —
-the same reasoning as §11.9.
+**Gate outcome: the PHP-level adoption FAILED. O5 stays DROPPED.**
+The A/B is 3 arms (main serial / archived unpartitioned / partitioned) ×
+7 interleaved process-runs, docker-pinned, every raw invocation
+persisted; arms feature-checked (`pre` exports no `JudyLMultiGet`;
+all three verified mapped from the mount, not the image's baked-in `.so`):
+
+| op | shape | n | post vs pre (main serial) | post vs ctl (archived) | verdict |
+| --- | --- | --- | --- | --- | --- |
+| `foreach` | `clust` | 1,000,000 | x1.002 [0.990,1.008] | x0.996 [0.988,1.001] null | **null** |
+| `foreach` | `dense` | 1,000,000 | x0.997 [0.961,1.025] | x0.997 [0.960,1.008] null | **null** |
+| `foreach` | `mix` | 1,000,000 | x0.990 [0.981,1.005] | x0.985 [0.980,1.001] null | **null** |
+| `foreach` | `sparse` | 1,000,000 | x0.996 [0.987,1.001] | x0.998 [0.991,1.000] null | **null** |
+| `foreach` | `sparse` | 8,000,000 | x1.003 [0.995,1.006] | x0.999 [0.994,1.025] null | **null** |
+| `getall` | `clust` | 1,000,000 | x0.826 [0.818,0.831] | x1.072 [1.066,1.079] WIN | **REG** |
+| `getall` | `clust` | 8,000,000 | x1.218 [1.208,1.222] | x1.132 [1.124,1.133] WIN | **WIN** |
+| `getall` | `dense` | 1,000,000 | x0.997 [0.990,1.006] | x0.989 [0.979,0.998] REG | **null** |
+| `getall` | `dense` | 8,000,000 | x1.392 [1.380,1.402] | x0.988 [0.982,0.992] REG | **WIN** |
+| `getall` | `dense90` | 1,000,000 | x0.950 [0.945,0.959] | x1.340 [1.336,1.347] WIN | **REG** |
+| `getall` | `dense90` | 8,000,000 | x1.351 [1.341,1.367] | x1.162 [1.154,1.168] WIN | **WIN** |
+| `getall` | `mix` | 1,000,000 | x1.058 [1.049,1.068] | x1.391 [1.375,1.396] WIN | **WIN** |
+| `getall` | `mix` | 8,000,000 | x1.308 [1.302,1.316] | x1.229 [1.224,1.238] WIN | **WIN** |
+| `getall` | `sparse` | 1,000,000 | x0.976 [0.974,0.985] | x0.901 [0.899,0.907] REG | **REG** |
+| `getall` | `sparse` | 8,000,000 | x1.400 [1.395,1.407] | x0.909 [0.902,0.914] REG | **WIN** |
+
+Against the gate's stated criteria: the killing cell **passes** —
+`getAll` on a mixed tree at n=10^6 is ×1.058 [1.049, 1.068], against
+×0.72–0.77 at the §11.9 drop — but **sparse n=8×10^6 measured ×1.400
+against a ≥×1.5 bar, and the unimodal cells regress against the archived
+arm** (`sparse` ×0.901/×0.909, `dense` ×0.989/×0.988). Two criteria
+failed; the gate fails. Independently, the house rule bites: `getAll` on
+clustered n=10^6 is ×0.826 and on 90%-dense n=10^6 ×0.950 against plain
+serial — plausible workloads carrying a measured regression.
+
+Internal validity: all five `foreach` control cells are null across every
+shape (×0.990–1.003 vs main, ×0.985–0.999 vs archived), so the three
+builds are indistinguishable on the un-adopted path and the `getAll`
+deltas are attributable to the adoption rather than to build or link
+differences.
+
+**The threshold repair was pre-registered, measured, and REFUSED.** The
+mechanism proposed above — that a 4096-key gather pollutes the caller's
+cache — predicted that lowering `cJL_MULTIGET_PART_MIN_COUNT` so a
+256-key gather could still be analysed would fix it. **The probe refuted
+the prediction.** The composition analysis is a per-call fixed cost, so
+at 256-key batches it costs 13–15% against the archived arm (`wsparse`
+×0.869, `wdense` ×0.882, `wclust` ×0.952) — far outside the ~3% floor —
+and only amortises to free at 4096 keys (×0.990–1.000), which is exactly
+the gather size whose buffers cost ~10% at PHP level. Heterogeneous
+corpora still won at 256 keys (×1.30–×2.04), so pre-registered condition
+(b) held and condition (a) failed. Both were required. Per the
+pre-registration the verdict is DROP, and the tuning was not retried with
+a different knob.
+
+So the dilemma is structural, not a bad constant: **the analysis needs a
+large batch to amortise, and a large batch pollutes the caller's cache.**
+There is no setting of this knob that serves both, and the C-level
+evidence says the batched path additionally loses on cache-resident trees
+whether or not it partitions (`wdense` n=10^6 ×0.902, with the archived
+arm losing identically at ×0.92).
+
+**Status: DROPPED (second time), with the partition validated.** What
+stands as a real result: the counting partition does what the §11.10
+review predicted, beating the archived implementation on all nine
+heterogeneous cells (×1.25–×2.90) at no cost on unimodal ones, and
+`getAll` genuinely wins out-of-cache (mixed ×1.308, sparse ×1.400, dense
+×1.392, clustered ×1.218 at n=8×10^6). What does not stand is a shippable
+default: the same adoption regresses at n=10^6 on clustered, 90%-dense
+and sparse trees, and php-judy cannot know a caller's tree shape or
+batch composition in advance. With no consumer, the vendored TU would be
+dead code, so nothing is merged — the §11.9 reasoning, reached again from
+a stronger position. The implementation is archived complete on
+`vendor/stage3-o5-partition`.
+
+Reopening conditions, narrowed by this round: (a) a PHP-facing bulk API
+whose contract lets the caller *declare* large out-of-cache batches, since
+that is the regime where every cell wins and the extension cannot infer
+it; or (b) a composition test cheap enough to run at the caller's natural
+batch size — this round's costs 13–15% at 256 keys, which is the number
+to beat.
 
 ## Limits of this record
 
