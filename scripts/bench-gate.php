@@ -216,6 +216,17 @@ function gate_default_platform(): string
     return "linux-$libc-$arch";
 }
 
+/**
+ * Above this, a timing cell is reported but never gated.
+ *
+ * A cell whose own reproducibility is worse than 50% cannot resolve any
+ * regression worth a tool: a change that large is visible without one, and a
+ * "threshold" of 190% in the baseline would falsely suggest coverage. Memory is
+ * far more reproducible and gets a much lower ceiling.
+ */
+const GATE_CELL_FLOOR_CEILING     = 50.0;
+const GATE_CELL_FLOOR_CEILING_MEM = 15.0;
+
 // ── Statistics local to the gate ────────────────────────────────────────────
 
 /**
@@ -369,7 +380,48 @@ if (isset($opts['derive'])) {
         }
         sort($drifts);
             arsort($per_cell);
+
+        // PER-CELL floors, not one floor per axis.
+        //
+        // The axis-wide floor is set by its worst cell, and the worst cells here
+        // are pathological: measured across two runner instances,
+        // `core.string_to_int_adaptive.free` moved 188% while the median cell
+        // moved 1.3%. One floor for the axis would therefore have to be ~98% —
+        // a gate that cannot catch anything — purely to accommodate a handful of
+        // destructor-timing cells whose cost is dominated by allocator return
+        // behaviour rather than by anything this project controls.
+        //
+        // Each cell instead gets a floor derived from ITS OWN cross-run drift.
+        // A stable cell gets a tight gate and a noisy one gets a loose gate that
+        // will effectively never fire — which is the correct outcome, because a
+        // cell that cannot reproduce itself cannot detect a regression. Nothing
+        // is hand-excluded; the data decides, and every cell's floor and verdict
+        // is written into the baseline where a reader can audit it.
+        $ceiling = ($section === 'memory') ? GATE_CELL_FLOOR_CEILING_MEM : GATE_CELL_FLOOR_CEILING;
+        $floor_min = ($section === 'memory') ? 1.0 : 2.0;
+        $cell_floors = [];
+        foreach ($per_cell as $id => $worst) {
+            $f = max($floor_min, ceil($worst * 1.25 * 2) / 2);
+            $cell_floors[$id] = [
+                'floor_pct'    => round($f, 2),
+                'worst_drift_pct' => round($worst, 3),
+                // Above the ceiling the cell is not gated at all. Carrying a
+                // 190% "threshold" in the baseline would suggest a gate exists
+                // there when nothing that large is a regression anyone needs a
+                // tool to notice.
+                'gateable'     => $f <= $ceiling,
+            ];
+        }
+        $gateable_n = count(array_filter($cell_floors, fn($c) => $c['gateable']));
+
         $derived['axes'][$axis] = [
+            'per_cell_floors'   => $cell_floors,
+            'gateable_cells'    => $gateable_n,
+            'ungateable_cells'  => count($cell_floors) - $gateable_n,
+            'cell_floor_ceiling_pct' => $ceiling,
+            'cell_floor_rule'   => 'each cell: max(' . $floor_min . ', its own worst cross-run '
+                                 . 'drift x 1.25, rounded up to 0.5pp); above ' . $ceiling
+                                 . '% the cell is reported but not gated',
             'cells'            => count($per_cell),
             'pairwise_samples' => count($drifts),
             'median_drift_pct' => round(gate_quantile($drifts, 0.50), 3),
@@ -383,6 +435,8 @@ if (isset($opts['derive'])) {
                 ceil(gate_quantile($drifts, 0.95) * 1.25 * 2) / 2   // round up to 0.5pp
             ), 2),
             'quantile_used'    => 'p95 x 1.25, rounded up to 0.5pp, floored at 1.0',
+            'axis_floor_note'  => 'the axis floor is a FALLBACK for cells the baseline has no '
+                                . 'per-cell floor for; gating uses the per-cell floors above',
             'worst_cells'      => array_map(fn($v) => round($v, 3), array_slice($per_cell, 0, 8, true)),
         ];
     }
@@ -907,6 +961,7 @@ if ($baseline_platform !== null) {
         // The threshold: the larger of the offline floor derived from repeated
         // same-commit runs and THIS run's own C-vs-C control scatter. A bad day
         // on the runner widens the gate rather than fabricating regressions.
+        $cell_floors = $baseline_platform['noise'][$axis]['per_cell_floors'] ?? [];
         $offline = $baseline_platform['noise'][$axis]['recommended_floor_pct']
             ?? $def['fallback_floor_pct'];
         $measured = ($section === 'timing') ? $control_cc_scatter : null;
@@ -922,6 +977,12 @@ if ($baseline_platform !== null) {
                 ? 'this run\'s C-vs-C rebuild control (the runner was noisy)'
                 : 'the offline derived floor',
             'adverse_direction'    => $def['adverse'],
+            'per_cell_floors'      => count($cell_floors),
+            'cells_not_gated'      => count(array_filter($cell_floors,
+                                        fn($c) => ($c['gateable'] ?? true) === false)),
+            'note'                 => 'applied_pct is the AXIS fallback. Gating uses each cell\'s '
+                                    . 'own derived floor where the baseline has one, because one '
+                                    . 'floor per axis would be set by its worst cell.',
         ];
 
         foreach ($current[$section][$key] ?? [] as $id => $cell) {
@@ -929,6 +990,13 @@ if ($baseline_platform !== null) {
             if ($base === null || $base <= 0) { continue; }
             // Reported, never gated: see $mem_min_bytes.
             if (($cell['gateable'] ?? true) === false) { continue; }
+
+            // This cell's own derived floor governs where one exists. The
+            // axis-wide number is only a fallback for a cell the baseline has
+            // not seen before.
+            $cf = $cell_floors[$id] ?? null;
+            if ($cf !== null && ($cf['gateable'] ?? true) === false) { continue; }
+            $cell_threshold = max((float) ($cf['floor_pct'] ?? $offline), (float) ($measured ?? 0.0));
 
             $drift = gate_drift_pct((float) $cell['ratio'], (float) $base);
             // Memory cells carry no CI (RSS is a median of a few deterministic
@@ -941,11 +1009,11 @@ if ($baseline_platform !== null) {
             // direction. A point estimate past it with a straddling interval is
             // movement worth reporting, never a regression worth failing on.
             $regressed = $def['adverse'] === 'up'
-                ? ($drift_lo > $threshold)
-                : ($drift_hi < -$threshold);
+                ? ($drift_lo > $cell_threshold)
+                : ($drift_hi < -$cell_threshold);
             $improved = $def['adverse'] === 'up'
-                ? ($drift_hi < -$threshold)
-                : ($drift_lo > $threshold);
+                ? ($drift_hi < -$cell_threshold)
+                : ($drift_lo > $cell_threshold);
 
             $status = $regressed ? 'REGRESSION' : ($improved ? 'improved' : 'ok');
             if ($status === 'REGRESSION' && $contaminated) {
@@ -962,7 +1030,10 @@ if ($baseline_platform !== null) {
                     'current_ratio'  => $cell['ratio'],
                     'drift_pct'      => round($drift, 3),
                     'drift_ci_pct'   => [round($drift_lo, 3), round($drift_hi, 3)],
-                    'threshold_pct'  => round($threshold, 3),
+                    'threshold_pct'  => round($cell_threshold, 3),
+                    'threshold_source' => $cf === null
+                        ? 'axis fallback — the baseline has no per-cell floor for this cell yet'
+                        : sprintf('this cell\'s own cross-run drift (worst %.2f%%)', $cf['worst_drift_pct']),
                 ];
             }
         }

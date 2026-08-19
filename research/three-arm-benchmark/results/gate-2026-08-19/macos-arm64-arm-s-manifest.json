@@ -1,0 +1,22 @@
+{
+    "arm_s_ref": "f366fdb42f17a65f031305b00d908f0c6e241b8a",
+    "pristine_ref": "0f687cb19f326eed52a9d3db550261701226fa76",
+    "upstream_files": 28,
+    "identical": 21,
+    "allowed_delta": {
+        "libjudy/src/Judy.h": "P5 (LLP64 Word_t + constant widths)",
+        "libjudy/src/JudyCommon/JudyInsArray.c": "P5 (LLP64 constant widths)",
+        "libjudy/src/JudyCommon/JudyMallocIF.c": "P5 (LLP64 constant widths)",
+        "libjudy/src/JudyCommon/JudyPrevNextEmpty.c": "P5 (LLP64 shift widths)",
+        "libjudy/src/JudyCommon/JudyPrivate.h": "P5 (LLP64 constant widths)",
+        "libjudy/src/JudyCommon/JudyPrivateBranch.h": "P5 (LLP64 constant widths)",
+        "libjudy/src/JudySL/JudySL.c": "P5 (LLP64 constant widths)"
+    },
+    "unexpected": [],
+    "missing": [],
+    "missing_allowed_delta": [],
+    "leaked_patched_files": [],
+    "patch_fingerprints_found": [],
+    "verdict": "UNPATCHED",
+    "instruction_census": null
+}

@@ -1908,82 +1908,133 @@ There are now three tiers on this page and they are not interchangeable.
 | Linux x86-64, honeycomb (dedicated) | gcc 14.2.0, PHP 8.4.24, Debian 13 | measured | measured | measured | **claim-grade** |
 | Linux x86-64 glibc, GitHub runner | gcc 13.3.0, PHP 8.4.24, Ubuntu 24.04 | measured | measured | measured | **ci-relative** |
 | Linux x86-64 **musl**, Alpine container | gcc 15.2.0, PHP 8.4.24 | measured | measured | measured | **ci-relative** |
-| **macOS arm64**, GitHub runner | Apple clang 21.0.0, PHP 8.4.24 | measured | measured | measured | **ci-relative** (wide threshold — see below) |
+| **macOS arm64**, GitHub runner | Apple clang 21.0.0, PHP 8.4.24 | measured | measured | measured | **ci-relative** |
 | macOS arm64, local workstation | Apple clang 21, PHP 8.5.8, Homebrew | directional | directional | measured | **directional** |
 | Windows x64 | MSVC | see below | see below | see below | see below |
 | Linux x86-64, **out-of-cache** (>=6M) | gcc 14.2.0 | not measured | not measured | measured (8M rows above) | **not measured** |
 
 #### What the gate measured on each platform
 
-Medians over the 51-52 comparable cells, one gate run each,
-`--size 300000` (cache-resident), 5 interleaved rounds, 2 independently linked
-builds per arm. **These are ci-relative ratios, not claim-grade absolutes.**
+Pooled medians over the 51-52 comparable cells, **4 gate runs per platform
+across 2 distinct runner instances**, `--size 300000` (cache-resident), 5
+interleaved rounds, 2 independently linked builds per arm. Recorded in
+[`baselines/arm-ratios.json`](baselines/arm-ratios.json). **These are
+ci-relative ratios, not claim-grade absolutes.**
 
-| platform | S → C median | B → C median | `int_sparse` memory A/C | `string_to_int` memory A/C |
-| --- | ---: | ---: | ---: | ---: |
-| Linux glibc x86-64 (gcc 13.3) | **0.874** | 0.864 | 3.35x | 3.83x |
-| Linux musl x86-64 (gcc 15.2) | **0.876** | not built | 3.30x | 3.71x |
-| macOS arm64 (Apple clang 21) | **0.920** | 0.930 | 3.21x | 3.42x |
-| *(dedicated host, claim-grade, for comparison)* | *0.835 int / 0.886 string* | *0.823 int / 0.778 string* | *3.12x @8M* | *3.32x @8M* |
+| platform | toolchain | S → C median | A → C median | `int_sparse` mem A/C | `string_to_int` mem A/C |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Linux glibc x86-64 | gcc 13.3.0 | **0.870** | 4.79x | 3.34x | 3.81x |
+| Linux musl x86-64 | gcc 15.2.0 | **0.906** | 6.49x | 3.34x | 3.74x |
+| macOS arm64 | Apple clang 21.0.0 | **0.910** | 6.50x | 3.21x | 3.42x |
+| *(dedicated host, claim-grade, for comparison)* | *gcc 14.2.0* | *0.835 int / 0.886 string* | *4.19x median* | *3.12x @8M* | *3.32x @8M* |
 
-Three things worth saying about that table:
+Four things worth saying about that table, and the last one is a caveat rather
+than a finding:
 
-- **musl behaves like glibc for the patches.** S → C is 0.876 on musl against
-  0.874 on glibc — indistinguishable. This was the open question that made
-  Alpine worth measuring at all: musl's allocator is not glibc's and Judy is
-  allocation-heavy, so the vendored patches could plausibly have behaved
-  differently there. They do not.
-- **arm64 gets a smaller but real share of the gain.** 0.920 against Linux's
-  0.874 is the first time any merged optimization in this project has been timed
-  on Apple clang or on a non-x86 instruction set. A smaller effect is the
-  expected direction — O1's whole premise is that x86-64 had no hardware
-  popcount arm while arm64's `cnt` is base ISA — but the *size* of the gap had
-  never been measured before and was not predictable from the source.
+- **musl is not a problem.** S → C is 0.906 on musl against 0.870 on glibc, and
+  the memory ratios are within a percent of each other. This was the open
+  question that made Alpine worth measuring rather than box-ticking: musl's
+  allocator is not glibc's and Judy is allocation-heavy — a prior analysis
+  attributed ~24% of DRAM traffic to glibc's allocator serving Judy's node churn
+  — so the vendored patches could plausibly have behaved differently there. They
+  do not, on either axis.
+- **arm64 gets a smaller but real share of the gain.** This is the first time any
+  merged optimization in this project has been timed on Apple clang or on a
+  non-x86 instruction set. A smaller effect is the expected direction — O1's
+  whole premise is that x86-64 had no hardware popcount arm while arm64's `cnt`
+  is base ISA, so arm S is less handicapped there — but the size of the gap had
+  never been measured and was not predictable from the source.
 - **The shared runners read a smaller effect than the dedicated host**, in the
   same direction on every platform. That is what a noisier measurement of the
-  same underlying quantity looks like, and it is the reason these rows are
-  labelled ci-relative rather than being quoted as absolutes.
+  same underlying quantity looks like, and it is why these rows are labelled
+  ci-relative rather than quoted as absolutes.
+- **Four runs is a thin pooling.** The per-cell floors below are estimated from
+  4 samples across 2 runners; a per-cell worst-case from 4 samples is a weak
+  estimator, and these numbers should tighten as scheduled runs accumulate.
+  Re-deriving is a one-line command and belongs in a dedicated baseline PR.
 
 #### The gate's thresholds, and how they were derived
 
-Derived, not chosen. `bench-gate.php --derive` runs the gate repeatedly against
-the **same commit** and measures how far each cell's ratio moves when nothing
-changed; that spread is the false-positive rate of any threshold below it. The
-floors are p95 of the pairwise between-run drift, times 1.25, rounded up to
-0.5pp, and they are stored in `baselines/arm-ratios.json` next to the ratios they
-govern so a reader can see the number *and* where it came from.
+Derived, not chosen — and the derivation changed the design once it was run.
 
-| platform | S → C floor | A → C floor | memory floor | C-vs-C control (median / p90 / max per-cell) |
-| --- | ---: | ---: | ---: | --- |
-| Linux glibc x86-64 | 4.0% | 10.0% | 1.5% | 0.6% / 2.8% / 6.8% |
-| Linux musl x86-64 | 3.5% | 5.0% | 1.5% | 0.4% / 1.7% / 6.3% |
-| macOS arm64 | 21.0% | 12.0% | 2.5% | *(runner-dependent, see below)* |
+`bench-gate.php --derive` runs the gate repeatedly and measures how far each
+cell's ratio moves when the measured code did not change. **The first derivation
+was taken from repeats inside one job and put the S → C floor at 3.5-4%, close
+to the dedicated host's claim floor. That number was wrong for this purpose.**
+The gate compares against a baseline recorded on a *different runner instance on
+a different day*, and cross-runner drift turned out to be three to five times
+within-runner drift. Deriving from within-job repeats would have shipped a gate
+that fired on runner-to-runner variation. The floors below come from 4 runs
+spanning 2 runner instances, and `--derive` records `distinct_hosts` in the
+baseline so a future reader can see whether a floor was derived across runners
+or only within one.
 
-- **The memory floor is the sharp one**: 1.5% on both Linux platforms, because
-  peak RSS of a deterministic build is very nearly deterministic. It is also the
-  axis carrying php-judy's least equivocal claim, so a tight gate there is worth
-  more than a tight gate on timing.
-- **The Linux timing floors land close to the dedicated host's ~3% claim floor**,
-  which is a stronger result than it looks: it says the paired-ratio design
-  recovers most of a dedicated host's resolution on a shared runner.
-- **macOS is the weak gate and is labelled as one.** GitHub's arm64 macOS runner
-  has 3 vCPUs and its between-run drift is roughly five times the Linux runners'.
-  A 21% S → C threshold catches gross breakage — an optimization accidentally
-  compiled out — and nothing subtler. The *measurement* is the valuable part
-  there; the *gate* is coarse, and saying so is the point of having tiers.
-- **Small memory cells are measured but never gated.** Peak RSS is page-quantised,
-  so a structure under 4 MiB moves several percent between identical runs
-  (measured: `bitset` at 1M keys is ~1.9 MB on glibc and moved 22% at 100k keys;
-  #161 saw the same "one page rounding, not a regression" at its smallest size).
-  Those cells still carry the headline BITSET ratios and are reported; they are
-  excluded from gating and from the floor derivation, because a threshold wide
-  enough for them would be too wide for anything else.
+That honest derivation then broke the original per-axis design:
 
-One consequence worth stating plainly: **the same `bitset` cell reads 23.4x on
-glibc and 72.4x on musl.** That is not a Judy difference — the two allocators
-retain a different number of pages for a ~600 KB - 1.9 MB structure. It is
-exactly the kind of number that would be misleading if quoted, which is why it
-sits below the gating floor.
+| axis | median cell drift | p95 | worst cell | a single axis floor would be |
+| --- | ---: | ---: | ---: | ---: |
+| glibc S → C | 1.3% | 14.6% | 25.7% (`core.bitset.write`) | 18.5% |
+| glibc A → C | 8.1% | 77.7% | **188.2%** (`core.string_to_int_adaptive.free`) | **97.5%** |
+| glibc memory | 0.9% | 4.6% | 4.6% | 6.0% |
+
+A 97.5% threshold catches nothing. It is set entirely by a handful of
+destructor-timing cells whose cost is dominated by allocator return behaviour
+rather than by anything this project controls, while the median cell on the same
+axis reproduces to 8%.
+
+**So the floor is per cell, not per axis.** Each cell gets a floor derived from
+its own cross-run drift: `max(2%, worst drift x 1.25)`, rounded up to 0.5pp. A
+stable cell gets a tight gate; a cell that cannot reproduce itself gets a loose
+one that will effectively never fire, which is the correct outcome — a cell that
+cannot reproduce itself cannot detect a regression. Above a ceiling (50% timing,
+15% memory) the cell is reported but not gated at all, because carrying a "190%
+threshold" in the baseline would suggest coverage that does not exist. Nothing is
+hand-excluded; the data decides, and every cell's floor, its worst observed
+drift, and whether it is gated are all written into the baseline where a reviewer
+can audit them.
+
+| platform | axis | cells gated | per-cell floor (min / median / max) |
+| --- | --- | ---: | --- |
+| Linux glibc x86-64 | S → C | 51 / 51 | 2% / **3.5%** / 32.5% |
+| | A → C | 31 / 42 | 4% / 21% / 46.5% |
+| | memory | 3 / 3 | 2% / **2%** / 6% |
+| Linux musl x86-64 | S → C | 52 / 52 | 2% / **5%** / 16.5% |
+| | A → C | 38 / 43 | 2.5% / 22.5% / 45% |
+| | memory | 3 / 3 | 2.5% / **3%** / 4% |
+| macOS arm64 | S → C | 51 / 51 | 2% / **8%** / 21.5% |
+| | A → C | 42 / 42 | 2% / 4.5% / 28.5% |
+| | memory | 3 / 3 | 1% / **2.5%** / 10% |
+
+Reading that honestly:
+
+- **S → C is the axis this gate is actually good at.** The median cell gates at
+  3.5% on glibc, and every cell on every platform is gateable. That is the axis
+  that answers "did the vendored patches erode", so the gate is sharpest exactly
+  where it needs to be.
+- **A → C is the weaker axis and loses cells.** 11 of 42 on glibc and 5 of 43 on
+  musl are not gated at all — they are the `.free` cells, plus a few
+  string-iteration ones. They are still measured and reported; they simply cannot
+  carry a verdict. macOS loses none, which is not macOS being better but its
+  `.free` cells being less pathological than glibc's.
+- **Memory is the sharpest axis**, gating at 2-3% median. It is also the axis
+  carrying php-judy's least equivocal claim, so a tight gate there is worth more
+  than a tight gate on timing.
+- **A run's own C-vs-C rebuild control can only widen a threshold, never narrow
+  one.** Measured on these runs: p90 per-cell deviation 1.9-3.1% on Linux and
+  5.1-6.4% on macOS, against maxima of 3.1-20.7%. On a normal run the stored
+  per-cell floor governs; on a bad day the control takes over and says so.
+- **Small memory cells are measured but never gated.** Peak RSS is
+  page-quantised, so a structure under 4 MiB moves several percent between
+  identical runs. `bitset` at 1M keys is ~1.9 MB on glibc and ~0.6 MB on musl,
+  and it is excluded on both.
+
+One consequence worth stating plainly: **the same `bitset` cell reads about 23x
+on glibc and about 99x on musl** — and it moved between 26x and 158x across the
+four musl runs. That is not a Judy difference; the two allocators retain a
+different number of pages for a sub-megabyte structure, and at that size the
+per-arm process-floor subtraction is comparing small differences of large
+numbers. It is exactly the kind of figure that would mislead if quoted, which is
+why it sits below the gating floor and is not in the headline table above.
 
 #### Still not measured
 

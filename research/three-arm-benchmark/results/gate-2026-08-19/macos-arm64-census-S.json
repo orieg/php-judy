@@ -1,0 +1,18 @@
+{
+    "object": "\/Users\/runner\/work\/_temp\/arms\/judy-S-1.so",
+    "census": {
+        "tool": "objdump",
+        "arch": "arm64",
+        "popcnt": 0,
+        "bswap": 0,
+        "cnt": 0,
+        "rev": 32,
+        "fingerprint": {
+            "o1": "cnt",
+            "o3": "rev"
+        },
+        "o1_count": 0,
+        "o3_count": 32,
+        "note": "arm S must read cnt == 0; arm C reads it in the dozens. The rev count is corroboration only (the mnemonic has incidental non-O3 uses)."
+    }
+}
