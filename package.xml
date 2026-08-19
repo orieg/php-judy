@@ -95,6 +95,7 @@
          <file name="tests/bench_compare_drift_001.phpt" role="test" />
          <file name="tests/bench_compare_fake_bench.inc" role="test" />
          <file name="tests/bench_memory_limit_001.phpt" role="test" />
+         <file name="tests/bench_memory_measurement_001.phpt" role="test" />
          <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />
          <file md5sum="9f3363cc4c6d15cb52184351cf710fd7" name="tests/bitset_002.phpt" role="test" />
          <file md5sum="e859b3b92086bc165b3ec98800920f03" name="tests/bitset_003.phpt" role="test" />
