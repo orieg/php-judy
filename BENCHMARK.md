@@ -2021,12 +2021,13 @@ mining the raw JSON for small cells should apply the wider floor.
 
 ### Confidence tiers, and what is NOT measured
 
-There are now three tiers on this page and they are not interchangeable.
+There are now four tiers on this page and they are not interchangeable.
 
 | tier | what it means | who produces it |
 | --- | --- | --- |
 | **claim-grade** | absolute numbers, exclusive pinned host, hygiene clean, controls inside the claim floor. Quotable as "php-judy is X% faster". | `bench-threearm.php` on the dedicated bench host |
 | **ci-relative** | *ratios* of arms measured in the same interleaved rounds on a shared runner, with the run's own rebuild control stating how far a cell can move for no reason. Quotable as "the patches deliver about X% on this platform" and as "this has not regressed". **Not** quotable as an absolute number. | `bench-gate.php` in `bench-gate.yml` |
+| **ci-relative-single-build** | the same thing with **one** build per arm instead of two, so there is no C-vs-C rebuild control inside the run and the threshold rests entirely on the offline derived floor. Windows only, because a second MSVC build roughly doubles an already long job. | `bench-gate.php` in `bench-gate.yml`, `windows-x64` |
 | **directional** | a single measurement from a host that failed its own hygiene gate. Useful as a sanity check, not as evidence. | ad-hoc runs |
 
 | platform | toolchain | S → C timing | A → C timing | memory | tier |
@@ -2036,14 +2037,16 @@ There are now three tiers on this page and they are not interchangeable.
 | Linux x86-64 **musl**, Alpine container | gcc 15.2.0, PHP 8.4.24 | measured | measured | measured | **ci-relative** |
 | **macOS arm64**, GitHub runner | Apple clang 21.0.0, PHP 8.4.24 | measured | measured | measured | **ci-relative** |
 | macOS arm64, local workstation | Apple clang 21, PHP 8.5.8, Homebrew | directional | directional | measured | **directional** |
-| Windows x64 | MSVC | see below | see below | see below | see below |
+| **Windows x64**, GitHub runner | MSVC, PHP 8.4.24, Windows Server 2025 | measured | measured | measured | **ci-relative-single-build** |
 | Linux x86-64, **out-of-cache** (n=6M), honeycomb (dedicated) | gcc 14.2.0, PHP 8.4.24, Debian 13 | measured | measured | measured | **claim-grade** (integer/bitset + string API paths; `core.str` not measured — see below) |
 
 #### What the gate measured on each platform
 
-Pooled medians over the 51-52 comparable cells, **4 gate runs per platform
-across 2 distinct runner instances**, `--size 300000` (cache-resident), 5
-interleaved rounds, 2 independently linked builds per arm. Recorded in
+Pooled medians over the 51-52 comparable cells, **4 gate runs per platform**,
+`--size 300000` (cache-resident), 5 interleaved rounds. The three POSIX rows
+span 2 distinct runner instances with 2 independently linked builds per arm;
+the Windows row is 4 separate workflow dispatches with 1 build per arm, for the
+reasons under "Windows" below. Recorded in
 [`baselines/arm-ratios.json`](baselines/arm-ratios.json). **These are
 ci-relative ratios, not claim-grade absolutes.**
 
@@ -2052,6 +2055,7 @@ ci-relative ratios, not claim-grade absolutes.**
 | Linux glibc x86-64 | gcc 13.3.0 | **0.870** | 4.79x | 3.34x | 3.81x |
 | Linux musl x86-64 | gcc 15.2.0 | **0.906** | 6.49x | 3.34x | 3.74x |
 | macOS arm64 | Apple clang 21.0.0 | **0.910** | 6.50x | 3.21x | 3.42x |
+| Windows x64 | MSVC | **0.912** | 4.54x | 3.22x | 3.67x |
 | *(dedicated host, claim-grade, for comparison)* | *gcc 14.2.0* | *0.835 int / 0.886 string* | *4.19x median* | *3.12x @8M* | *3.32x @8M* |
 
 Four things worth saying about that table, and the last one is a caveat rather
@@ -2281,13 +2285,31 @@ why it sits below the gating floor and is not in the headline table above.
   residency needs its own derived floor, and deriving one belongs in the
   dedicated commit that writes the baseline rather than in the PR that builds
   the gate.
-- **Windows.** The job exists and builds both arms through the same
+- **Windows.** The job builds both arms through the same
   `php-windows-builder` action from one tree with `libjudy/` swapped between
   invocations — which is only possible because arm S needs no package. It runs
   one build per arm rather than two, so `rebuild_control_available` is `false`
-  there and its threshold falls back to the offline floor with no run-local
-  noise measurement behind it. Treat Windows as the lowest tier on this page
-  until it has accumulated enough scheduled runs to derive its own floor.
+  there and the threshold rests entirely on the offline derived floor with no
+  run-local noise measurement behind it. That is what the separate
+  `ci-relative-single-build` tier records.
+
+  It **now has a derived floor** — four same-commit runs, S → C axis floor
+  10.5%, all 51 cells gateable, and 1.0% on the three memory cells. Before
+  that the gate reported `no-baseline-for-platform` on every Windows run and
+  measured without gating. The A → C axis derives a 62.5% floor, above the 50%
+  ceiling, so no A → C cell is gated on Windows — the same outcome as Linux
+  glibc. That axis measures php-judy against a PHP native array, and its cells
+  drift far more between runs than the paired S → C ones do, so a floor wide
+  enough not to cry wolf is too wide to catch anything. S → C is the axis that
+  matters for `libjudy/`, and it is gated.
+
+  One caveat specific to this platform, stated because the JSON understates it:
+  `derived_from.distinct_hosts` reads **1**, not 4. The four runs really were
+  four separate ephemeral runner VMs, but GitHub's Windows Server 2025 image
+  reports the same `uname` host name from all of them, and that field counts
+  distinct `uname` strings. Nothing was edited to compensate; the consequence is
+  that the derivation stays in the conservative "axis floor is a lower bound on
+  every cell" regime, which is the regime all four platforms are in anyway.
 
 ### Reproducing this
 
