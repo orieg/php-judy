@@ -1,0 +1,222 @@
+php-judy three-arm benchmark
+  A  PHP native array
+  B  php-judy + system libJudy  : /usr/src/php-judy/arms/judy-C-1.so, /usr/src/php-judy/arms/judy-C-3.so
+  C  php-judy + bundled libJudy : /usr/src/php-judy/arms/judy-C-2.so
+  timing core.int     round 1/7
+  timing core.int     round 2/7
+  timing core.int     round 3/7
+  timing core.int     round 4/7
+  timing core.int     round 5/7
+  timing core.int     round 6/7
+  timing core.int     round 7/7
+  timing core.int     done          
+  timing core.str     round 1/7
+  timing core.str     round 2/7
+  timing core.str     round 3/7
+  timing core.str     round 4/7
+  timing core.str     round 5/7
+  timing core.str     round 6/7
+  timing core.str     round 7/7
+  timing core.str     done          
+  timing api.batch    round 1/7
+  timing api.batch    round 2/7
+  timing api.batch    round 3/7
+  timing api.batch    round 4/7
+  timing api.batch    round 5/7
+  timing api.batch    round 6/7
+  timing api.batch    round 7/7
+  timing api.batch    done          
+  timing api.setops   round 1/7
+  timing api.setops   round 2/7
+  timing api.setops   round 3/7
+  timing api.setops   round 4/7
+  timing api.setops   round 5/7
+  timing api.setops   round 6/7
+  timing api.setops   round 7/7
+  timing api.setops   done          
+  timing adv.iter     round 1/7
+  timing adv.iter     round 2/7
+  timing adv.iter     round 3/7
+  timing adv.iter     round 4/7
+  timing adv.iter     round 5/7
+  timing adv.iter     round 6/7
+  timing adv.iter     round 7/7
+  timing adv.iter     done          
+
+------------------------------------------------------------------------------------------------
+php-judy three-arm benchmark — cvsc-control-out-of-cache-6m-with-core-str
+------------------------------------------------------------------------------------------------
+  PHP 8.4.24, Linux x86_64
+  arm B system libJudy : (provenance NOT recorded — B is uninterpretable)
+  arm C bundled libJudy: vendored libjudy/ tree
+  size 6000000 (out-of-cache), 7 rounds, 3 iterations, floor 1.3%
+  same-source attested : yes
+
+  host hygiene
+    start          load1=0      cpus=24   threshold=12.0  foreign=  0.0% ok
+    after-timing   load1=1      cpus=24   threshold=12.0  foreign=  0.0% ok
+    end            load1=1      cpus=24   threshold=12.0  foreign=  0.0% ok
+
+  control (PHP-only rows, touch no libJudy): -0.01% [-0.09, +0.05] over 45 rows
+  measured control scatter: 0.81%  (assumed floor 1.3%)
+
+------------------------------------------------------------------------------------------------
+  B vs C — bundled libJudy against system libJudy (this project's contribution)
+  ratio < 1 means the bundled tree is faster. Only rows whose whole CI clears
+  the 1.3% floor assert anything; everything else is null.
+------------------------------------------------------------------------------------------------
+  benchmark                                     system   bundled    delta CI                 verdict
+  core.int_to_int.free                            2.20      2.20   -1.02% [ -2.50, +3.02] null
+  api.getAll.int_to_int                          21.57     21.38   -0.93% [ -1.10, -0.65] null
+  adv.optiter.ratio.foreach.string_to_int_adaptive     46.54     46.36   -0.77% [ -1.61, +0.49] null
+  adv.optiter.foreach.string_to_int_hash.default     22.06     21.98   -0.48% [ -0.64, -0.05] null
+  adv.optiter.foreach.string_to_int_adaptive.optimized     13.99     13.95   -0.41% [ -1.95, +0.39] null
+  adv.forEach.int_to_int                        190.39    189.86   -0.37% [ -0.98, +0.72] null
+  core.bitset.iter                              107.72    107.48   -0.33% [ -0.88, +0.72] null
+  core.string_to_int_adaptive.write            1051.13   1048.52   -0.33% [ -0.42, +0.01] null
+  api.toArray.int_to_int                        299.07    297.45   -0.33% [ -0.74, +0.23] null
+  core.string_to_mixed_adaptive.free            650.48    648.74   -0.31% [ -0.40, -0.12] null
+  api.setop.union.bitset                        182.91    182.90   -0.31% [ -0.60, +0.88] null
+  adv.map.int_to_int                            298.69    298.06   -0.27% [ -0.38, -0.02] null
+  core.string_to_int.write                      641.12    639.96   -0.26% [ -0.52, +0.09] null
+  core.string_to_mixed_adaptive.iter            450.78    449.63   -0.24% [ -0.32, -0.15] null
+  api.setop.xor.bitset                          173.11    172.85   -0.23% [ -0.42, +0.08] null
+  core.string_to_mixed.write                    992.03    991.48   -0.22% [ -0.42, +0.59] null
+  adv.optiter.overwrite.string_to_int_hash.default     16.30     16.23   -0.22% [ -0.56, +0.23] null
+  adv.filter.int_to_int                         283.58    282.41   -0.20% [ -0.60, +0.52] null
+  core.string_to_int_adaptive.iter              388.30    387.72   -0.19% [ -0.35, +0.05] null
+  core.string_to_int.free                       110.35    110.21   -0.18% [ -0.44, +0.60] null
+  adv.optiter.foreach.string_to_int_hash.optimized     12.85     12.83   -0.18% [ -0.77, +0.02] null
+  core.string_to_int_hash.write                1049.61   1048.51   -0.17% [ -0.31, +0.28] null
+  adv.map.string_to_int                        1067.75   1066.34   -0.17% [ -0.25, +0.10] null
+  core.int_to_int.read                           67.30     67.18   -0.14% [ -0.36, +0.10] null
+  core.string_to_int.iter                       291.75    291.21   -0.14% [ -0.86, -0.10] null
+  core.string_to_mixed.read                     787.67    786.71   -0.14% [ -0.30, +0.08] null
+  adv.optiter.values.string_to_int_hash.default     20.62     20.59   -0.14% [ -0.33, +0.18] null
+  core.int_to_int.write                         144.82    144.87   -0.11% [ -0.26, +0.19] null
+  core.string_to_mixed_hash.free                615.49    614.75   -0.11% [ -0.25, +0.25] null
+  api.setop.intersect.bitset                     87.03     87.05   -0.11% [ -0.45, +0.31] null
+  api.setop.diff.string_to_int                  671.52    671.64   -0.10% [ -0.19, +0.51] null
+  core.string_to_mixed_hash.read                932.96    932.17   -0.09% [ -0.44, -0.05] null
+  api.keys.int_to_int                           116.22    116.16   -0.09% [ -0.40, +0.32] null
+  adv.optiter.overwrite.string_to_int_hash.optimized     18.89     18.87   -0.09% [ -0.43, +0.08] null
+  adv.optiter.values.string_to_int_adaptive.optimized     12.43     12.41   -0.09% [ -0.25, +0.41] null
+  adv.optiter.overwrite.string_to_int_adaptive.optimized     26.24     26.25   -0.09% [ -0.12, +0.09] null
+  adv.optiter.ratio.overwrite.string_to_int_adaptive    106.89    106.98   -0.09% [ -0.40, +0.56] null
+  core.bitset.write                             102.92    102.90   -0.08% [ -0.47, +0.16] null
+  core.string_to_mixed_adaptive.read            176.09    175.87   -0.08% [ -0.30, +0.08] null
+  adv.filter.string_to_int                      781.57    781.14   -0.08% [ -0.09, +0.11] null
+  core.int_to_packed.read                       205.56    205.47   -0.07% [ -0.39, +0.13] null
+  core.string_to_int_adaptive.free              235.31    234.92   -0.07% [ -0.45, +0.04] null
+  api.setop.diff.bitset                          86.26     86.25   -0.07% [ -0.11, +0.25] null
+  adv.optiter.increment.string_to_int_hash.optimized     19.00     19.01   -0.07% [ -0.16, +0.54] null
+  api.sumValues.int_to_int                       48.52     48.45   -0.06% [ -0.67, +0.25] null
+  adv.optiter.increment.string_to_int_hash.default     16.21     16.19   -0.06% [ -0.41, +0.10] null
+  core.string_to_int.read                       205.26    204.97   -0.05% [ -0.51, +0.05] null
+  adv.optiter.toArray.string_to_int_adaptive.optimized     21.71     21.71   -0.05% [ -0.33, +0.29] null
+  core.string_to_int_adaptive.read              171.06    171.04   -0.04% [ -0.47, +0.44] null
+  api.mergeWith.int_to_int                      303.07    303.16   -0.04% [ -0.14, +0.40] null
+  adv.optiter.toArray.string_to_int_adaptive.default     39.51     39.48   -0.04% [ -0.39, +0.04] null
+  core.string_to_int_hash.iter                  388.35    388.23   -0.02% [ -0.13, +0.17] null
+  core.string_to_int_hash.free                  234.67    234.92   -0.01% [ -0.17, +0.22] null
+  api.putAll.int_to_int                         126.22    126.31   -0.01% [ -0.87, +1.20] null
+  api.deleteRange.int_to_int                    237.26    236.91   -0.01% [ -0.22, +0.11] null
+  adv.optiter.toArray.string_to_int_hash.default     29.33     29.33   -0.01% [ -0.30, +0.07] null
+  core.int_to_mixed.iter                        321.72    321.98    0.01% [ -0.46, +0.31] null
+  core.string_to_mixed.iter                     821.12    821.08    0.01% [ -0.58, +0.24] null
+  core.string_to_mixed_adaptive.write          1351.19   1351.34    0.03% [ -0.13, +0.37] null
+  adv.optiter.ratio.values.string_to_int_adaptive     42.46     42.41    0.03% [ -0.46, +0.38] null
+  adv.optiter.ratio.overwrite.string_to_int_hash    116.22    116.33    0.07% [ -0.64, +0.68] null
+  core.int_to_mixed.read                        279.35    279.11    0.08% [ -0.18, +0.41] null
+  core.string_to_mixed.free                     346.21    346.10    0.08% [ -0.24, +0.16] null
+  core.string_to_mixed_hash.iter                428.29    428.55    0.08% [ +0.00, +0.37] null
+  api.setop.xor.int_to_int                      217.04    216.88    0.08% [ -0.24, +0.29] null
+  api.setop.intersect.string_to_int             654.17    651.62    0.08% [ -1.13, +0.61] null
+  adv.optiter.values.string_to_int_hash.optimized     10.53     10.54    0.08% [ -0.05, +0.22] null
+  adv.optiter.foreach.string_to_int_adaptive.default     30.11     30.05    0.08% [ -0.33, +0.25] null
+  core.int_to_mixed.free                        100.52    100.98    0.09% [ -0.12, +1.39] null
+  adv.optiter.values.string_to_int_adaptive.default     29.25     29.28    0.09% [ -0.27, +0.39] null
+  api.setop.intersect.int_to_int                109.23    109.05    0.10% [ -0.23, +0.37] null
+  core.string_to_mixed_hash.write              1907.43   1907.75    0.11% [ -0.07, +0.29] null
+  api.range.keys.int_to_int                      10.09     10.11    0.14% [ -0.05, +0.81] null
+  adv.optiter.ratio.foreach.string_to_int_hash     58.29     58.19    0.14% [ -0.24, +0.97] null
+  adv.optiter.ratio.increment.string_to_int_hash    117.18    117.43    0.14% [ -0.19, +0.97] null
+  core.string_to_int_hash.read                  170.42    170.54    0.15% [ -0.69, +0.25] null
+  api.range.size.string_to_int                   20.94     20.95    0.16% [ -0.02, +0.27] null
+  api.setop.union.string_to_int                1452.17   1455.75    0.16% [ -0.51, +0.42] null
+  api.values.int_to_int                         120.72    120.90    0.17% [ -0.12, +0.85] null
+  api.setop.diff.int_to_int                     107.87    108.03    0.18% [ -0.01, +0.32] null
+  adv.optiter.ratio.values.string_to_int_hash     51.13     51.18    0.18% [ +0.04, +0.35] null
+  adv.optiter.toArray.string_to_int_hash.optimized     18.01     18.02    0.18% [ -0.62, +0.69] null
+  api.fromArray.int_to_int                      126.27    126.49    0.19% [ -0.84, +1.04] null
+  core.bitset.read                               67.65     67.55    0.20% [ -1.59, +0.42] null
+  adv.optiter.ratio.toArray.string_to_int_adaptive     54.92     55.05    0.20% [ -0.25, +0.26] null
+  api.equals.int_to_int                          71.04     71.22    0.21% [ -0.33, +0.85] null
+  core.int_to_mixed.write                       401.17    402.18    0.26% [ -0.56, +1.60] null
+  adv.optiter.overwrite.string_to_int_adaptive.default     24.53     24.55    0.29% [ -0.66, +0.37] null
+  core.int_to_packed.free                        52.37     52.45    0.31% [ -0.02, +0.40] null
+  adv.optiter.ratio.toArray.string_to_int_hash     61.32     61.54    0.35% [ -0.60, +0.65] null
+  api.setop.union.int_to_int                    265.57    266.47    0.36% [ -0.10, +0.99] null
+  core.int_to_int.iter                          113.02    113.51    0.44% [ -0.51, +0.99] null
+  adv.forEach.string_to_int                     354.02    355.20    0.46% [ -0.28, +0.55] null
+  core.int_to_packed.iter                       246.96    247.40    0.48% [ -0.18, +0.95] null
+  api.increment.int_to_int                      144.79    145.18    0.51% [ -0.92, +1.87] null
+  api.mergeWith.string_to_int                  1194.96   1201.30    0.52% [ -0.10, +0.69] null
+  core.int_to_packed.write                      348.26    349.63    0.64% [ +0.11, +0.93] null
+  totals: 0 faster, 0 slower, 97 null
+
+------------------------------------------------------------------------------------------------
+  A vs C — PHP native array against php-judy (bundled)
+  Only rows whose PHP arm is a genuine PHP array. judy/array above 1.00 means
+  the PHP array is FASTER — publish these, they are the honest half of the story.
+------------------------------------------------------------------------------------------------
+  benchmark                                   array ms   judy ms  judy/arr winner
+  core.bitset.free                                5.54      0.02     0.00x php-judy
+  core.int_to_int.free                            5.48      2.20     0.40x php-judy
+  api.setop.xor.bitset                          221.10    172.85     0.78x php-judy
+  api.setop.intersect.bitset                     95.38     87.05     0.91x php-judy
+  core.int_to_packed.free                        47.68     52.45     1.10x php-array
+  core.bitset.write                              89.88    102.90     1.15x php-array
+  core.int_to_packed.write                      251.58    349.63     1.39x php-array
+  core.int_to_mixed.write                       267.01    402.18     1.51x php-array
+  core.int_to_int.write                          92.65    144.87     1.56x php-array
+  core.int_to_packed.read                       107.96    205.47     1.90x php-array
+  api.setop.union.bitset                         92.32    182.90     1.98x php-array
+  api.setop.diff.bitset                          43.01     86.25     2.00x php-array
+  core.string_to_mixed.write                    470.27    991.48     2.11x php-array
+  core.int_to_mixed.free                         46.65    100.98     2.17x php-array
+  core.int_to_mixed.read                        121.87    279.11     2.29x php-array
+  api.increment.int_to_int                       57.31    145.18     2.53x php-array
+  core.string_to_int.write                      245.86    639.96     2.60x php-array
+  core.bitset.read                               22.04     67.55     3.06x php-array
+  core.int_to_int.read                           21.92     67.18     3.06x php-array
+  core.string_to_mixed_adaptive.read             56.69    175.87     3.10x php-array
+  core.string_to_mixed.read                     237.59    786.71     3.31x php-array
+  core.string_to_int_hash.read                   50.02    170.54     3.41x php-array
+  core.string_to_int_adaptive.read               49.80    171.04     3.43x php-array
+  core.int_to_mixed.iter                         86.23    321.98     3.73x php-array
+  core.string_to_int.read                        49.72    204.97     4.12x php-array
+  core.string_to_mixed_hash.write               452.69   1907.75     4.21x php-array
+  core.string_to_int_adaptive.write             246.68   1048.52     4.25x php-array
+  core.string_to_int_hash.write                 244.92   1048.51     4.28x php-array
+  core.string_to_int.free                        22.25    110.21     4.95x php-array
+  core.string_to_mixed_adaptive.write           263.86   1351.34     5.12x php-array
+  core.string_to_mixed.free                      64.18    346.10     5.39x php-array
+  core.string_to_mixed.iter                     146.39    821.08     5.61x php-array
+  core.bitset.iter                               18.68    107.48     5.75x php-array
+  core.int_to_int.iter                           18.62    113.51     6.10x php-array
+  core.string_to_mixed_hash.free                 64.83    614.75     9.48x php-array
+  core.string_to_mixed_adaptive.free             64.80    648.74    10.01x php-array
+  core.string_to_int.iter                        28.25    291.21    10.31x php-array
+  core.string_to_int_adaptive.free               22.16    234.92    10.60x php-array
+  core.string_to_int_hash.free                   22.11    234.92    10.63x php-array
+  core.int_to_packed.iter                        21.35    247.40    11.59x php-array
+  core.string_to_mixed_hash.iter                 35.44    428.55    12.09x php-array
+  core.string_to_mixed_adaptive.iter             35.22    449.63    12.77x php-array
+  core.string_to_int_adaptive.iter               28.29    387.72    13.71x php-array
+  core.string_to_int_hash.iter                   28.19    388.23    13.77x php-array
+  core.string_to_mixed_hash.read                 56.12    932.17    16.61x php-array
+  totals: php-judy wins 4, PHP array wins 41, parity 0
+
+Wrote /usr/src/php-judy/run7-cvsc-control-6m-str.json
+rc=0
