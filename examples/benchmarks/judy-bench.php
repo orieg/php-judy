@@ -14,23 +14,95 @@
  *   all      — All of the above (default)
  *
  * Usage:
- *   php judy-bench.php [--json output.json] [--size N] [--iterations N] [--suite SUITE]
+ *   php judy-bench.php [--json output.json] [--size N] [--iterations N]
+ *                      [--suite SUITE] [--group A,B] [--memory-limit LIMIT]
  *
  * Examples:
  *   php judy-bench.php --size 100000 --iterations 3
  *   php judy-bench.php --json bench.json --suite core
  *   php judy-bench.php --json bench.json --size 500000 --iterations 5 --suite all
+ *   php judy-bench.php --group core.str --size 6000000 --memory-limit -1
  */
-
-ini_set('memory_limit', '2G');
 
 // ── CLI argument parsing ────────────────────────────────────────────────────
 
-$opts = getopt('', ['json:', 'size:', 'iterations:', 'suite:', 'group:', 'list-groups']);
+$opts = getopt('', ['json:', 'size:', 'iterations:', 'suite:', 'group:', 'list-groups',
+                    'memory-limit:']);
 $size       = isset($opts['size'])       ? (int)$opts['size']       : 500000;
 $iterations = isset($opts['iterations']) ? (int)$opts['iterations'] : 5;
 $suite      = isset($opts['suite'])      ? $opts['suite']           : 'all';
 $json_file  = isset($opts['json'])       ? $opts['json']            : null;
+
+// ── Memory limit ────────────────────────────────────────────────────────────
+//
+// Several groups build their PHP-array fixtures in full before any Judy work
+// starts, so the suite needs a cap well above the php.ini default. It used to
+// take that as a flat unconditional `2G`, which silently overrode the
+// `-d memory_limit=-1` that scripts/bench-compare.php and
+// scripts/bench-threearm.php pass every child, and made
+// `--group core.str --size 6000000` impossible to run at all: that group
+// materialises four 6M-element PHP arrays up front and dies in the fixture
+// builder, identically under every arm, before a single measurement is taken.
+// That is a second blocker on the out-of-cache three-arm row tracked by #169,
+// independent of the memory-safety one #162 closed, and the reason an attempt
+// at that row could only cover the integer and bitset paths.
+//
+// So 2G is a floor now, not a ceiling. --memory-limit wins outright; failing
+// that, a caller who already asked for more — including unlimited — keeps what
+// they asked for, and only a caller sitting below the floor is raised to it.
+// Nothing here changes what is measured: memory_limit is a ceiling PHP
+// enforces on demand, not an allocation.
+const BENCH_MEMORY_FLOOR = '2G';
+
+/**
+ * Bytes for a PHP ini shorthand size ("2G", "512M", "1073741824", "-1").
+ *
+ * Returns PHP_INT_MAX for an unlimited (negative) value, so limits compare
+ * with a plain `>=`, and null for anything this script should reject rather
+ * than silently reinterpret. A magnitude that would not survive the suffix
+ * multiply is rejected too: letting it overflow to float would trade a clean
+ * message for an uncaught TypeError on the return type.
+ */
+function bench_ini_bytes(string $value): ?int {
+    if (!preg_match('/^\s*(-?\d+)\s*([KMG]?)\s*$/i', $value, $m)) {
+        return null;
+    }
+    if (!is_int($n = filter_var($m[1], FILTER_VALIDATE_INT))) {
+        return null;
+    }
+    if ($n < 0) {
+        return PHP_INT_MAX; // unlimited
+    }
+    $mult = ['' => 1, 'K' => 1024, 'M' => 1024 * 1024, 'G' => 1024 * 1024 * 1024];
+    $f = $mult[strtoupper($m[2])];
+    return $n <= intdiv(PHP_INT_MAX, $f) ? $n * $f : null;
+}
+
+if (isset($opts['memory-limit'])) {
+    $mem_target = trim((string)$opts['memory-limit']);
+    if (bench_ini_bytes($mem_target) === null) {
+        fwrite(STDERR, "Invalid --memory-limit: $mem_target. "
+            . "Use a PHP ini size such as 4G, 512M, 1073741824, or -1 for unlimited.\n");
+        exit(1);
+    }
+} else {
+    // An inherited value this script cannot parse counts as "not raised": the
+    // floor still applies, rather than assuming the unknown value is generous.
+    $inherited = bench_ini_bytes((string)ini_get('memory_limit'));
+    $mem_target = ($inherited !== null && $inherited >= bench_ini_bytes(BENCH_MEMORY_FLOOR))
+        ? null
+        : BENCH_MEMORY_FLOOR;
+}
+
+// Loud rather than silent. A run that proceeds under a lower cap than it asked
+// for dies later inside a fixture builder, where the fatal names an allocation
+// size and this script's line number and says nothing about the real cause.
+if ($mem_target !== null && ini_set('memory_limit', $mem_target) === false) {
+    fwrite(STDERR, "Could not set memory_limit=$mem_target (currently "
+        . ini_get('memory_limit') . "). Pass -d memory_limit=... to the PHP binary instead.\n");
+    exit(1);
+}
+$memory_limit = (string)ini_get('memory_limit');
 
 // Groups are the finest unit the runner can execute on its own. Each one owns
 // its setup, so running a group in isolation costs only that group's work —
@@ -156,6 +228,7 @@ $json_results = [
         'iterations'   => $iterations,
         'suite'        => $suite,
         'groups'       => $active_groups,
+        'memory_limit' => $memory_limit,
     ],
     'benchmarks' => [],
 ];
@@ -234,6 +307,7 @@ echo "$div\n";
 echo "  php-judy Benchmark Suite — " . number_format($size) . " elements, $iterations iterations (median)\n";
 echo "  PHP " . phpversion() . " | Judy ext " . judy_version() . " | " . PHP_OS . " " . php_uname('m') . "\n";
 echo "  Suite: $suite | Groups: " . implode(',', $active_groups) . "\n";
+echo "  memory_limit: $memory_limit\n";
 echo "$div\n\n";
 
 // ╔═══════════════════════════════════════════════════════════════════════════╗
