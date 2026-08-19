@@ -301,6 +301,46 @@ if (isset($opts['verify-so'])) {
     exit(0);
 }
 
+/**
+ * Extract `git archive <ref> [path]` into $dest.
+ *
+ * The archive is PIPED into tar with the CWD set to $dest, so no path is ever
+ * passed to tar as an argument. That is not stylistic: on Windows the temp
+ * directory is `D:\a\_temp\...`, and tar treats a leading `drive:` as a
+ * REMOTE HOST specification — bsdtar fails the whole extraction with
+ * "Cannot connect to D: resolve failed". GNU tar's `--force-local` would fix it
+ * there, but Windows ships bsdtar in System32 and bsdtar has no such flag, so
+ * the portable answer is to give tar no path at all. `git -C <repo>` is
+ * unaffected; git parses its own arguments.
+ */
+function arm_s_extract(string $repo, string $dest, string $ref, string $path, string $what): void
+{
+    $cwd = getcwd();
+    if (!@chdir($dest)) {
+        fwrite(STDERR, "cannot enter $dest\n");
+        exit(2);
+    }
+    $cmd = 'git -C ' . escapeshellarg($repo) . ' archive --format=tar ' . escapeshellarg($ref)
+         . ($path === '' ? '' : ' ' . escapeshellarg($path))
+         . ' | tar -x -f -';
+    exec($cmd, $_, $st);
+    chdir($cwd);
+
+    // A pipeline's status is the LAST command's, so a failed `git archive` can
+    // still report 0 here. Check that something actually landed.
+    $landed = $path === ''
+        ? is_file("$dest/config.m4")
+        : is_dir("$dest/$path");
+    if ($st !== 0 || !$landed) {
+        fwrite(STDERR, "extracting $what failed (status $st)\n");
+        if ($ref !== 'HEAD') {
+            fwrite(STDERR, "  is $ref present in this clone? A shallow checkout will not have it —\n"
+                . "  use actions/checkout with fetch-depth: 0, or `git fetch --unshallow`.\n");
+        }
+        exit(2);
+    }
+}
+
 // ── Materialize ─────────────────────────────────────────────────────────────
 
 $dest = $opts['dest'] ?? null;
@@ -334,36 +374,10 @@ if (!isset($opts['verify-only'])) {
     // 1. The extension source tree at HEAD, minus libjudy/. Only git-tracked
     //    files: a dirty build directory in the source repo must not leak into
     //    the arm being measured.
-    $tar_ext = "$dest/.arm-s-ext.tar";
-    exec('git -C ' . escapeshellarg($repo) . ' archive --format=tar HEAD'
-        . ' > ' . escapeshellarg($tar_ext), $_, $st);
-    if ($st !== 0) {
-        fwrite(STDERR, "git archive HEAD failed\n");
-        exit(2);
-    }
-    exec('tar -x -f ' . escapeshellarg($tar_ext) . ' -C ' . escapeshellarg($dest), $_, $st);
-    @unlink($tar_ext);
-    if ($st !== 0) {
-        fwrite(STDERR, "extracting the extension tree failed\n");
-        exit(2);
-    }
-    rmtree("$dest/libjudy");
-
     // 2. libjudy/ at the arm-S ref, replacing it wholesale.
-    $tar_lib = "$dest/.arm-s-lib.tar";
-    exec('git -C ' . escapeshellarg($repo) . ' archive --format=tar '
-        . escapeshellarg($arm_s_ref) . ' libjudy > ' . escapeshellarg($tar_lib), $_, $st);
-    if ($st !== 0) {
-        fwrite(STDERR, "git archive $arm_s_ref libjudy failed — is the ref present in this clone?\n");
-        fwrite(STDERR, "  (a shallow clone will not have it; fetch with --unshallow or fetch the ref)\n");
-        exit(2);
-    }
-    exec('tar -x -f ' . escapeshellarg($tar_lib) . ' -C ' . escapeshellarg($dest), $_, $st);
-    @unlink($tar_lib);
-    if ($st !== 0) {
-        fwrite(STDERR, "extracting the arm-S libjudy tree failed\n");
-        exit(2);
-    }
+    arm_s_extract($repo, $dest, 'HEAD', '', 'the extension tree');
+    rmtree("$dest/libjudy");
+    arm_s_extract($repo, $dest, $arm_s_ref, 'libjudy', "the arm-S libjudy tree at $arm_s_ref");
 
     // 3. The P7 stub, so the compiled-unit list matches arm C exactly.
     $noinline = "$dest/libjudy/src/JudyCommon/JudyNoInline.c";
