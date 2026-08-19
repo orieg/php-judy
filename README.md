@@ -79,7 +79,7 @@ MIGRATION_2.5.0.md   Migration guide for the 2.5.x line
 LICENSE              The PHP License used by this project
 THIRD-PARTY.md       License notices for bundled third-party code
 
-libjudy/             Bundled libJudy sources (LGPL-2.1-or-later, not compiled yet)
+libjudy/             Bundled libJudy sources, compiled by default (LGPL-2.1-or-later)
 tests/               Unit and regression tests (.phpt)
 examples/            Runnable demos (see examples/README.md) + benchmark suite
 research/            Standalone C harnesses backing measured claims (not shipped)
@@ -90,6 +90,13 @@ package.xml          PECL package definition
 ```
 
 ## Installation
+
+The Judy C library is **bundled** under `libjudy/` and is compiled directly
+into the extension by default, so none of the paths below need a system
+libJudy installed. Passing `--with-judy=DIR` — the install prefix of a system
+libJudy — dynamically links against that library instead and compiles nothing
+under `libjudy/`; that mode remains supported and is CI-tested. The bundled
+build requires a 64-bit target; on a 32-bit platform, use `--with-judy=DIR`.
 
 ### A. Using PHP PIE (Recommended)
 
@@ -123,13 +130,15 @@ RUN install-php-extensions judy
     php-version: '8.4'
 - name: Install PHP Judy
   run: |
-    sudo apt-get update && sudo apt-get install -y libjudy-dev
     curl -fsSL https://github.com/php/pie/releases/latest/download/pie.phar \
       -o /usr/local/bin/pie && chmod +x /usr/local/bin/pie
-    sudo pie install orieg/judy --with-judy=/usr
+    sudo pie install orieg/judy
 ```
 
-This is the same pattern this repository's own CI uses.
+No `libjudy-dev` step is needed: the bundled library is the default build.
+This repository's own CI builds the same way — `phpize && ./configure && make`
+with no `--with-judy` — which is also what proves the tree builds on a runner
+with no system libJudy at all.
 
 ### B. Using PECL
 
@@ -140,7 +149,11 @@ You can also install PHP Judy using PECL:
 pecl install judy
 ```
 
-**Note**: You may need to install the Judy C library first on some systems.
+**Note**: No system Judy library is required — the PECL package ships the
+bundled libJudy and builds it by default. `pecl install` prompts for the
+package's `with-judy` option, whose default is `bundled`; answer it with the
+install prefix of a system libJudy only if you specifically want to link
+against one.
 
 ### C. Linux (Manual Build)
 
@@ -148,16 +161,17 @@ From the PHP Judy sources:
 
 ```sh
 phpize
-./configure --with-judy[=DIR]
+./configure
 make
 make test
 make install
 ```
 
-If you are using Ubuntu or Debian, you can install libJudy with apt:
+This compiles the bundled libJudy into the extension; nothing else needs
+installing. To link against a system libJudy instead, pass its install prefix:
 
 ```sh
-apt-get install libjudydebian1 libjudy-dev
+apt-get install libjudydebian1 libjudy-dev   # Debian/Ubuntu
 phpize
 ./configure --with-judy=/usr
 make
@@ -165,33 +179,23 @@ make test
 make install
 ```
 
+If you build that system library yourself, read the flag warning in
+[CONTRIBUTING.md](CONTRIBUTING.md#building-against-a-system-libjudy-instead)
+first — it does not apply to the bundled build, whose compile flags are pinned
+by `config.m4`.
+
 ### D. Windows
 
-On Windows, you will need to build LibJudy yourself.
+Prebuilt DLLs are attached to every
+[GitHub release](https://github.com/orieg/php-judy/releases). Use those unless
+you need to build yourself.
 
-Download the sources at [http://sourceforge.net/projects/judy/](http://sourceforge.net/projects/judy/)
-
-Extract the sources, and open the Visual Studio command prompt and navigate to the source directory. Then execute:
-
-```
-build
-```
-
-This creates "Judy.lib", copy this into the php-sdk library folder and name it `libJudy.lib`
-
-Then copy the include file "judy.h" into the php-sdk includes folder. Now it's time to build pecl/judy, extract the pecl/judy into your build folder where the build scripts will be able to pick it up, e.g.:
-
-```
-C:\php\pecl\judy\
-```
-
-If your source of PHP is located in:
-
-```
-C:\php\src\
-```
-
-The rest of the steps is pretty straightforward, like any other external extension:
+To build from source, there is no longer anything to download or patch first:
+the bundled libJudy builds through `config.w32`, and the LLP64/Windows fixes it
+needs are applied in-tree (patch P5 in
+[libjudy/PATCHES.md](libjudy/PATCHES.md)). Extract the extension sources into
+your php-sdk build tree where the build scripts pick them up, e.g.
+`C:\php\pecl\judy\`, then from the Visual Studio command prompt:
 
 ```sh
 buildconf
@@ -199,43 +203,50 @@ configure --with-judy=shared
 nmake
 ```
 
+CI builds and tests the **x64** configuration. To link a prebuilt or system
+libJudy instead of the bundled sources, pass the directory holding
+`libJudy.lib` (or `libJudy_a.lib`) and `Judy.h`:
+`configure --with-judy=C:\path\to\judy`.
+
 ### E. Mac OS X
 
-The recommended way to install `php-judy` on Mac OS X is by using `pie` or `pecl`. You will need to have the Judy C library installed first, which can be done easily with Homebrew.
+The recommended way to install `php-judy` on Mac OS X is `pie` or `pecl`. No
+Homebrew Judy formula is needed — the bundled library is built in.
 
 #### Using PHP PIE (Recommended)
 
 ```sh
-# First, install the Judy C library
-brew install judy
-
 # Install PHP PIE if you don't have it (see https://php.github.io/pie/ for options)
 curl -fsSL https://github.com/php/pie/releases/latest/download/pie.phar -o pie.phar
 
 # Install PHP Judy using PIE
-php pie.phar install orieg/judy --with-judy=/opt/homebrew
+php pie.phar install orieg/judy
 ```
 
 #### Using PECL
 
 ```sh
-# First, install the Judy C library
-brew install judy
-
-# Then, install the extension with pecl
 pecl install judy
 ```
 
-#### Manual Install
+#### Manual Build
 
-If you prefer to compile from source, you will need to install the libJudy first. Download the sources at [http://sourceforge.net/projects/judy/](http://sourceforge.net/projects/judy/)
-
-Extract the sources, then cd into the source directory and execute:
+From the php-judy sources:
 
 ```sh
+phpize
 ./configure
 make
-make install
+make test
+```
+
+To link Homebrew's libJudy instead of the bundled copy:
+
+```sh
+brew install judy
+phpize
+./configure --with-judy=/opt/homebrew
+make
 ```
 
 ## Usage Examples

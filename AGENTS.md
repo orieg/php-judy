@@ -259,20 +259,37 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
 
 ## Modifying the extension (working in this repo)
 
-- **Build**: `phpize && ./configure --with-judy=/usr && make` (macOS:
-  `--with-judy=/opt/homebrew`). Requires libJudy (`libjudy-dev` /
-  `brew install judy`).
+- **Build**: `phpize && ./configure && make`. libJudy is **bundled** under
+  `libjudy/` and compiled straight into the extension by default — no system
+  library, no `libjudy-dev`, nothing to download. `--with-judy=DIR` (`/usr`,
+  `/opt/homebrew`) switches to dynamically linking a system libJudy and
+  compiles nothing under `libjudy/`; both modes are CI-tested. The bundled
+  build requires a 64-bit target (`configure` errors out otherwise, pointing
+  at `--with-judy=DIR`).
 - **Test**: `make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1`.
   Every behavior change needs a `.phpt` regression test in `tests/`.
 - **Zero compiler warnings** — CI fails on any warning in extension sources.
-- **The system libJudy must not be built with `gcc -O3`.** Stock 1.0.5 copies
-  up to 15 bytes into an 8-byte `jp_1Index`, and gcc at `-O3` truncates the
-  copy — `Judy::BITSET` then loses keys silently, with `count()` over-reporting
-  while iteration and `isset()` under-report.
-  `tests/bitset_immed_cascade_integrity_001.phpt` fails on such a build; a
-  failure there means the installed library needs rebuilding at `-O2`, not that
-  the extension regressed. See
-  [#131](https://github.com/orieg/php-judy/issues/131).
+- **The silent key-loss hazard is a SYSTEM-libJudy problem only.** Stock 1.0.5
+  copies up to 15 bytes into an 8-byte `jp_1Index`; a compiler that exploits
+  that out-of-bounds write truncates the copy and `Judy::BITSET` loses keys
+  silently — `count()` over-reports while iteration and `isset()` under-report.
+  The bundled tree cannot hit it: the field is widened in-tree (patch P1) and
+  the vendored units are pinned to `-O2 -fno-lto -fno-unroll-loops`,
+  isolated from the extension's own `-O3 -flto`. For a system library there is
+  **no trustworthy flag recipe** — measured, gcc 13/14 trigger at
+  `-O2 -funroll-loops` and gcc 15 at `-O3` — so the runtime detector is the
+  only authority: `tests/bitset_immed_cascade_integrity_001.phpt` fails on a
+  miscompiled library, and a failure there means that library needs rebuilding
+  (or switching to the bundled default), not that the extension regressed. See
+  [#131](https://github.com/orieg/php-judy/issues/131) and
+  `libjudy/PATCHES.md`.
+- **Changing the vendored libJudy** (`libjudy/src/**`): one patch = one commit,
+  one row in `libjudy/PATCHES.md`, and a per-file LGPL-2.1 §2(b) change notice
+  at the top of every modified file. Never reformat or clean up in passing — a
+  diff against the pristine import must show only documented changes. The
+  vendored units' compile flags live in `config.m4` and are load-bearing, not a
+  preference. The extension is PHP-3.01; the bundled library is
+  LGPL-2.1-or-later — see `THIRD-PARTY.md`.
 - **API changes**: edit `Judy.stub.php` (canonical), regenerate arginfo, and
   regenerate `API.md` with `php scripts/generate-api-docs.php` — CI fails if
   `API.md` is stale.
@@ -301,10 +318,12 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   short-key, per-process extension. Verdict: keep Judy. Read it before
   proposing a backend swap. The follow-on question — *optimise or vendor
   libJudy itself* — is recorded in
-  `research/libjudy-modernization/FINDINGS.md` (issue #113). Read it before
-  proposing popcount, SIMD, prefetch, an arena, `-O3`/LTO/PGO, or a fork:
-  most of those are measured negatives there, and one of them (`-O3`) is a
-  correctness hazard.
+  `research/libjudy-modernization/FINDINGS.md` (issue #113) and was executed as
+  the vendoring in issue #142. Read it before proposing popcount, SIMD,
+  prefetch, an arena, `-O3`/LTO/PGO, or a fork: most of those are measured
+  negatives there, the ones that survived their gates are already applied in
+  `libjudy/PATCHES.md`, and `-O3` on the vendored units is a correctness
+  hazard rather than an optimization.
 - **Benchmarks**: suite in `examples/benchmarks/`; CI compares PRs against
   `baselines/latest.json`. Don't update the baseline in a feature PR.
 - **Verify you are testing the build you think you are.** If any ini file

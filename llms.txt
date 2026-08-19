@@ -6,9 +6,12 @@
 > atomic increments. Install: `pie install orieg/judy` or
 > `install-php-extensions judy` (Docker).
 
-Key facts: class `Judy` implements ArrayAccess, Countable, Iterator,
-JsonSerializable. Ten type constants across integer-keyed, sorted string-keyed
-(trie), and unsorted string-keyed (hash) families. The ordered search method is
+Key facts: no system libJudy is required — the C library is bundled under
+`libjudy/` and compiled into the extension by default (`./configure`);
+`--with-judy=DIR` links a system libJudy instead. Class `Judy` implements
+ArrayAccess, Countable, Iterator, JsonSerializable. Ten type constants across
+integer-keyed, sorted string-keyed (trie), and unsorted string-keyed (hash)
+families. The ordered search method is
 `searchNext()` — `next()` is the Iterator method (old v1.x docs on php.net
 show a removed API; trust the docs below instead).
 
@@ -66,3 +69,6 @@ Runnable, self-contained scripts — one per pattern Judy is chosen for.
   C-extension build/test workflow
 - [SECURITY.md](https://github.com/orieg/php-judy/blob/main/SECURITY.md):
   private vulnerability reporting
+- [THIRD-PARTY.md](https://github.com/orieg/php-judy/blob/main/THIRD-PARTY.md):
+  licensing — extension is PHP-3.01, the bundled libJudy is LGPL-2.1-or-later
+  and modified; per-patch ledger in `libjudy/PATCHES.md`
