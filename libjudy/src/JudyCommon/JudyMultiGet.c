@@ -672,8 +672,20 @@ JudyMGLeaf:
 // still lands in the caller's slot for that key: the lane carries its
 // absolute output slot through the descend, so no inverse-permutation
 // scatter pass exists to get wrong.
+//
+// Forced inline: the function body is cloned into each of its two call
+// sites, so the identity site (Slots == NULL) constant-folds the slot
+// indirection out of the lane-refill path -- as a shared out-of-line
+// function it measured ~0.7-1 ns/key against the archived impl on
+// compute-bound (cache-resident) corpora.
 
+#if defined(__GNUC__) || defined(__clang__)
+static inline __attribute__((always_inline)) Word_t jl_mg_pipeline(
+#elif defined(_MSC_VER)
+static __forceinline Word_t jl_mg_pipeline(
+#else
 static Word_t jl_mg_pipeline(
+#endif
         Pcvoid_t        PArray,         // for the per-key fallback only.
         Pjp_t           Pjptop,         // top JP of PArray's JPM.
         const Word_t   *Keys,           // keys, possibly class-grouped.
