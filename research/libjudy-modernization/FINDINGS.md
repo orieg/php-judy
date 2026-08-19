@@ -35,7 +35,7 @@ execution record is
 | | |
 | --- | --- |
 | **Question** | Does libJudy 1.0.5 have exploitable headroom, and what does realising it cost? |
-| **Status** | Investigation closed; decision executed. First verdict retracted; round 2 measured; external review round-trip closed; vendoring executed via [#142](https://github.com/orieg/php-judy/issues/142) (Stages 0–2 plus optimizations O1 and O3 merged — see [§11](#11-execution-record-stages-03)). |
+| **Status** | Investigation closed; decision executed. First verdict retracted; round 2 measured; external review round-trip closed; vendoring executed via [#142](https://github.com/orieg/php-judy/issues/142) (Stages 0–2 plus optimizations O1, O3 and O4a/b/d merged; O2, O4c and O5 dropped at their gates, O5 since reopened behind a partition gate — see [§11](#11-execution-record-stages-03); Stage 3 re-reviewed 2026-08-18, §11.10). |
 | **Primary issue** | [#113](https://github.com/orieg/php-judy/issues/113) (investigation, closed); [#142](https://github.com/orieg/php-judy/issues/142) (implementation tracker) |
 | **Correctness issues raised** | [#131](https://github.com/orieg/php-judy/issues/131), [#127](https://github.com/orieg/php-judy/issues/127) — both fixed and closed by [PR #147](https://github.com/orieg/php-judy/pull/147) |
 | **Harness defects raised** | [#122](https://github.com/orieg/php-judy/issues/122), fixed by [PR #124](https://github.com/orieg/php-judy/pull/124) |
@@ -847,6 +847,35 @@ available to provide.
 > was the load-bearing caveat above). The code-size win is real; the time
 > win does not exist. Item 1 (bswap) shipped as O3 and is unaffected.
 
+> **Adversarial re-review (2026-08-18): the O2 drop is UPHELD.** A synthetic
+> internal panel (three parallel reviewers — adversarial brainstorming and
+> self-bias detection per §8, **not** external peer review; see §11.10)
+> attacked the drop on five surfaces and upheld it, while finding **two
+> documentation errors** in the record around it and adding two new facts:
+>
+> - **New fact (a): the icache-pressure regime, unmeasured at gate time, has
+>   now been measured** (clobber harness; artifacts honeycomb
+>   `/var/tmp/jp113/o2/icc/`). Null at n=10^6; insert remains
+>   regression-leaning even under L1i flushing every 8 ops. The one regime
+>   the gate had not covered does not rescue the patch.
+> - **New fact (b): the arm64 evidence base narrowed, same verdict.** Apple
+>   clang 21 emits the same VF=2 narrow NEON loops with 1–16-element entry
+>   guards — the structural mechanism transfers — and local arm64 timing was
+>   contaminated but same-sign. The honest limit ("clang-on-arm64 never
+>   time-gated cleanly") stands, but it is smaller than the record implied.
+> - **Record correction 1**: the O2 gate comment on
+>   [#142](https://github.com/orieg/php-judy/issues/142) called the
+>   out-of-cache run "the regime where the I-cache argument had its best
+>   shot". Wrong — that run pressures the **D-side** only (data footprint
+>   ~330 MB; the hot code still fits L1i). The I-cache argument's actual
+>   best shot was the L1i-clobber regime in (a), which is null.
+> - **Record correction 2 (control-arm semantics)**: a ctl arm built from a
+>   comment-only edit with the same link seed produces binaries
+>   byte-identical to pre — it is a **run-order/temporal control**, not a
+>   code-layout control. The layout control in this design is the 5
+>   randomized link orders *within* each arm. The floor such controls
+>   calibrate is revised in §11.10.
+
 `JudyLInsArray` was audited alongside and is **correct** — a 126-case
 differential (6 key distributions × 21 sizes to 300,000) comparing full ordered
 traversal of keys and values, `JLC` and `JLMU`, all passing once the §6.3
@@ -959,6 +988,37 @@ than linear-scan cost.
 > that watched-to-fail catches a guard-stripped O4d at op 34), length-sweep
 > `tests/string_key_length_sweep_001.phpt`, byte-identical `JudyMalloc`
 > accounting across arms, and 221/221 .phpt on macOS + Alpine/musl.
+
+> **Adversarial re-review (2026-08-18, synthetic internal panel — §11.10):
+> the merged patches stand, but the claim set shrinks under the revised
+> ~3% L3-resident claim floor, and this round under-disclosed its control
+> contamination.**
+>
+> - **Under-disclosure correction, stated plainly**: SIX of this round's L3
+>   control cells carried excursions ≥2% (struct16 get +2.40%, struct16
+>   overwrite +2.59% — with a CI excluding 1.0 — struct16 del +2.97%,
+>   varlen get −2.26%, varlen riter +2.48%, varlen iterate +1.99%). The PR
+>   and the gate comment disclosed only two of them (struct16 overwrite and
+>   del, flagged "contaminated"). The raw CSVs
+>   (`/var/tmp/jp113/o4/o4-bench-l3.csv`) contained all six; the write-up
+>   should have.
+> - **RECLASSIFIED, not claimed**: O4b `urand16` overwrite ×1.0188 and
+>   `varlen` overwrite ×1.0145 — both inside the demonstrated L3 noise
+>   envelope (§11.10).
+> - **RECLASSIFIED, artifact-risk**: O4a `urand16` iterate ×1.0501 — the
+>   worst-case build pairing reverses it to ×0.9863, with a 6.1% pre-arm
+>   between-build spread in that cell.
+> - **Flagged, artifact-risk**: the O4a struct16 L3 iterate/riter family
+>   (×1.029–1.036) — the same corpus family carried the +2.4–3.0% control
+>   excursions above in the same run.
+> - **Survives**: O4a `struct32` iterate ×1.0471, the O4a out-of-cache
+>   walks (×1.0208/×1.0209, against the ~1.3% out-of-cache floor that does
+>   hold), O4b `struct32` overwrite ×1.0448 and struct16 out-of-cache
+>   ×1.0850, and both O4d cells plus O4d out-of-cache. The O4c DROP is
+>   unaffected (it was already declared null).
+>
+> No patch is unmerged by this: the surviving cells still clear the gate
+> for O4a/O4b/O4d. What changes is which cells the record may *cite*.
 
 **Three things that look like targets and are not — do not chase them.**
 
@@ -1479,6 +1539,20 @@ time treatment/base — below 1.0 is faster; all `(measured)`:
 - **The P7 `JudyNoInline.c` copies mirror the fast arms**, so a `-DJU_NOINLINE`
   profiling build measures the algorithm production builds actually run.
 
+> **Amendment (2026-08-18, §11.10)** — two corrections to this section's
+> floor language. (1) The ~1.3% floor generalized from one round's 18
+> control cells; pooled controls across all four Stage 3 rounds (~97 cells)
+> put the honest floors at **~3% L3-resident / ~1.3% out-of-cache**. Every
+> O1 *get* claim clears even the revised floor; `wbase16` insert ×0.9691 is
+> downgraded to *directionally consistent, weakly bounded* (a ~3% point
+> against a ~3% floor). (2) "Residual layout/measurement noise" mislabels
+> the control arm: a flag-only or comment-only ctl built with the same link
+> seed is byte-identical to base, so it is a **run-order/temporal control**,
+> not a code-layout control — the layout control is the 5 randomized link
+> orders within each arm. The floor's provenance therefore rests on the
+> pooled-control record in §11.10, not on a "layout noise" reading of this
+> one arm.
+
 Full tables with CIs: [BENCHMARK.md](../../BENCHMARK.md), "Bundled libJudy
 optimizations (measured)".
 
@@ -1513,6 +1587,25 @@ not dilute out of cache. It is the mirror image of §4: round 1 over-claimed
 from a model, this projection under-claimed from one, and both were settled the
 same way — by measuring.
 
+> **Mechanism caveat (2026-08-18, synthetic internal panel — §11.10).** The
+> O3 *measurement* is the most robust in this program — the worst-case
+> build-pairing rank bounds still put `wdense` get at 1.418–1.434× — and
+> every cell survives the revised claim floor. The *mechanism narrative*
+> above overstates its transfer, in three ways. First, the "5 dependent byte
+> loads → 1" framing suggests a pointer chase; in fact the DCD bytes share
+> the jp's cache line with `jp_Addr`, so the byte loads are parallel L1 hits,
+> not a chase. Second, chain arithmetic prices only ~3–5 ns of the ~7 ns
+> L3-resident win — the remainder is consistent with front-end/OoO-window
+> relief, not chain shortening alone. Third, the ~29.7 ns (~150-cycle)
+> out-of-cache saving requires cross-lookup memory-level parallelism, which
+> the harness's independent-key loop maximizes; serially-dependent or
+> PHP-interleaved consumers will see less. **No PMU evidence exists for any
+> mechanism claim in this program** (the bench host has none, §3) — read
+> every mechanism sentence in §11.6–§11.7 as hypothesis consistent with the
+> sign, not as measurement. The same applies in kind to O1: chain arithmetic
+> explains roughly half its win; what makes O1 solid is the cross-round
+> independent replication, not the mechanism story.
+
 ### 11.8 What the execution phase taught
 
 Transferable lessons, one instance each:
@@ -1525,7 +1618,8 @@ Transferable lessons, one instance each:
 - **Controls calibrate floors, and sub-floor results are declined.** O1's
   byte-identical-code control set a ~1.3% claim floor and `wclust`/`urand16`
   were not claimed (§11.6); O3 declined `urand16` against the same floor
-  (§11.7).
+  (§11.7). The floor itself was later revised — one round's calibration does
+  not generalize; pooled controls put the L3-resident floor at ~3% (§11.10).
 - **A projection built on the wrong mechanism can be an order of magnitude off
   in either direction.** Round 1 over-claimed stall time from an MLP = 1 model
   and was retracted (§4); §7.6's instruction-count frame under-priced O3, which
@@ -1624,6 +1718,92 @@ Reopening condition: a batched entry point becomes worth revisiting if
 and wins on the mixed corpora above, or (b) a PHP-facing bulk API with
 documented workload constraints is explicitly requested on the tracker.
 
+> **Adversarial re-review (2026-08-18, synthetic internal panel — §11.10):
+> verdict AMEND — the drop is reopened behind a partition-gate experiment.**
+> This addendum is deliberately short; the partition-gate work (in progress
+> on a separate branch) will write the full follow-up. Key facts, each
+> re-derived from raw artifacts (honeycomb `/var/tmp/jp113/o5rev/`, incl.
+> the reviewer's persisted `php3-bench.csv`):
+>
+> - **The drop's PHP matrix never ran `getAll()` out-of-cache.** The
+>   archived implementation, unmodified, measures **×1.534** (sparse,
+>   n=8×10^6) and **×1.094** (mixed, n=8×10^6) there; the same run also
+>   replicated the drop's unpersisted "+10% sparse" L3 cell at ×1.085.
+> - **The heterogeneous-batch loss is an ordering effect, not intrinsic.**
+>   A counting partition of the batch by descend class (~1.1 ns/key) flips
+>   10–75% dense mixes to **×1.28–1.65**; a qsort partition fails
+>   (~34 ns/key overwhelms the win).
+> - **The C serial baseline was handicapped**: it computed probe keys in a
+>   dependent chain *inside* the timed loop, inflating the array-fed
+>   headline ratios ~25–30% (the sparse headline corrects to ~×1.58).
+> - **Provenance gap**: the "+10% sparse" observation above had no
+>   persisted artifact at drop time (now replicated and persisted, see
+>   first bullet).
+>
+> Upheld unchanged: the set-ops/`equals` kills, the `mergeWith` re-entrancy
+> constraint, and the tiny-tree threshold evidence. Status: **reopened,
+> gated** on the partition experiment; nothing in the vendored tree changes
+> until that gate reports.
+
+### 11.10 The Stage 3 adversarial re-review — the claim floor revised, and what moved
+
+On 2026-08-18 the Stage 3 results were put through an internal adversarial
+review: **three parallel reviewers re-derived every headline number from the
+raw artifacts** (the gate CSVs and build trees on honeycomb —
+`/var/tmp/jp113/`, including the new `o2/icc/` and `o5rev/` runs — plus the
+#142 gate comments and PR records). Stated first, per the standing §8
+discipline: **this was a synthetic panel — adversarial brainstorming and
+self-bias detection, not external peer review.** Its convergence is signal,
+not external evidence; an external re-run remains the outstanding stronger
+check on everything below. Verdicts: **O2 drop UPHELD** (two record errors
+corrected, §7.6), **O5 drop AMENDED** (reopened behind a partition gate,
+§11.9), **merged claims mostly SOLID** with the specific downgrades recorded
+here.
+
+**The "~1.3% claim floor" is refuted as a standing constant.** It was
+calibrated once (§11.6, from 18 control cells in one round) and then reused
+as if universal. Pooled controls across the four Stage 3 rounds — ~97
+control cells, every one from an arm whose binaries were byte-identical to
+base or differed only via `__LINE__` constants — show: worst single control
+excursion **+2.97%**, and one control cell with a **CI excluding 1.0 at
+2.59%** (both O4 round, L3-resident). The honest floors are per-residency:
+
+- **~3% for L3-resident cells** — small-n L3 timing carries build/run noise
+  the 5-build randomization does not fully absorb;
+- **~1.3% for out-of-cache cells** — where the original figure does hold.
+
+**Consequences, applied to the record** (details at the cited sections):
+
+| item | was | now |
+| --- | --- | --- |
+| O4b `urand16` overwrite ×1.0188 | claimed | **not claimed** — inside the L3 noise envelope (§7.7) |
+| O4b `varlen` overwrite ×1.0145 | claimed (marginal) | **not claimed** — same basis (§7.7) |
+| O4a `urand16` iterate ×1.0501 | claimed | **artifact-risk** — worst-case build pairing reverses to ×0.9863; 6.1% pre-arm build spread (§7.7) |
+| O4a struct16 L3 iterate/riter family ×1.029–1.036 | claimed | **artifact-risk** — same corpus family carried +2.4–3.0% control excursions in the same run (§7.7) |
+| O4 control disclosure | 2 contaminated cells disclosed | **6** L3 control cells had ≥2% excursions — under-disclosure corrected (§7.7) |
+| O1 `wbase16` insert ×0.9691 | claimed | **directionally consistent, weakly bounded** — ~3% point vs ~3% floor (§11.6) |
+| the byte-identical ctl arms | described as code-layout controls | **run-order/temporal controls** — the layout control is the 5 link seeds per arm (§7.6, §11.6) |
+
+**Everything else survives the revised floor**: all O3 cells (worst-case
+build-pairing rank bounds still 1.418–1.434 on `wdense` get), the O1 get
+claims and `wdense` insert, O4d, the O4b struct cells, and O4a `struct32`.
+The merged patches all keep at least one clean claiming cell; what changed
+is which cells the record may cite.
+
+**Mechanism claims are hypotheses.** No PMU exists on the bench host, so no
+mechanism narrative in §11.6–§11.7 (or §11.9) is a measurement; the O3
+mechanism caveat in §11.7 records specifically how far the "shortens the
+serial chain" story overstates transfer.
+
+**Release-run corroboration is bounded.** Decomposing the GHA bench-compare
+run 32189100948 shows string-keyed ops improved as much as int-keyed
+(−9.3% vs −8.8%) where O1+O3 predict ~0 on string keys; the baseline was a
+foreign-provenance distro binary; and the tool self-stamped the run
+CONTAMINATED. That run therefore corroborates only this much: **the shipped
+bundle is not slower than the previous release, and int reads moved in the
+right direction.** It is not per-optimization evidence, and must not be
+cited as such.
+
 ## Limits of this record
 
 Stated plainly, because they bound everything above.
@@ -1644,7 +1824,10 @@ Stated plainly, because they bound everything above.
 - **No independent verification** of most of this. The external review round (§9)
   is the closest thing to it, and it is one reviewer working from our reported
   numbers rather than re-running them, with two of their own baselines still
-  unreconciled against ours (§9.3).
+  unreconciled against ours (§9.3). The 2026-08-18 adversarial re-review
+  (§11.10) re-derived the Stage 3 numbers from raw artifacts, but it is a
+  synthetic internal panel and does not count as independent verification
+  either.
 
 ## Reproduction
 

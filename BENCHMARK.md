@@ -1134,7 +1134,10 @@ table for yours.
 Since the extension began bundling its own patched libJudy
 ([#142](https://github.com/orieg/php-judy/issues/142); decision record in
 [`research/libjudy-modernization/FINDINGS.md`](research/libjudy-modernization/FINDINGS.md)),
-two engine-level optimizations have merged with measured gates. Both tables are
+two engine-level integer-path optimizations (O1, O3 — tables below) and three
+string-layer patches (O4a/O4b/O4d,
+[PR #154](https://github.com/orieg/php-judy/pull/154); gate tables in
+FINDINGS §7.7) have merged with measured gates. The tables below are
 `(measured)` 2026-08-18 on an idle 24-core i9-12900F (Alder Lake, x86-64,
 gcc 11.4.0), with a C harness driving the bundled library directly — PHP-level
 per-op figures include extension call overhead not measured here. Protocol, per
@@ -1143,8 +1146,26 @@ the standing discipline: 3 arms including a control whose objects were verified
 independent builds per arm with randomized link order**, interleaved trials,
 per-build medians, percentile-bootstrap CIs over builds, runs pinned with
 `taskset`. Ratios are time treatment/base — **below 1.0 is faster** — and a
-cell is claimed only when its CI clears the control-calibrated **~1.3% noise
-floor**.
+cell is claimed only when its CI clears the control-calibrated noise floor.
+That floor is **per-residency** — **~3% for cache-resident (L3) cells, ~1.3%
+for out-of-cache cells** — revised 2026-08-18 by an adversarial re-review that
+pooled ~97 control cells across the four Stage 3 gate rounds (worst
+byte-identical-control excursion +2.97%, one control CI excluding 1.0 at
+2.59%; FINDINGS §11.10). Under the revised floor, three previously-claimed O4
+string-layer cells were reclassified (`urand16`/`varlen` overwrite not
+claimed, `urand16` iterate artifact-risk — FINDINGS §7.7); every cell in the
+O1/O3 tables below survives it, with one downgrade noted under the O1 table.
+
+Two standing caveats on this whole section. **Mechanism sentences are
+hypotheses**: the bench host has no PMU, so statements about *why* a cell
+moves (chain shortening, I-cache, MLP) are consistent-with-the-sign
+hypotheses, not measurements (FINDINGS §11.7, §11.10). **Release-level CI
+runs do not corroborate individual optimizations**: the post-release GHA
+bench-compare run showed string-keyed ops improving as much as int-keyed ones
+where O1+O3 predict ~0 on strings, against a foreign-provenance baseline
+binary, and self-stamped CONTAMINATED — the defensible claim from such runs
+is only "the shipped bundle is not slower than the previous release, and int
+reads moved in the right direction" (FINDINGS §11.10).
 
 ### O1 — hardware popcount for bitmap leaves (merged, [PR #149](https://github.com/orieg/php-judy/pull/149))
 
@@ -1161,7 +1182,10 @@ census behind this is in FINDINGS.md §5.1 — high-entropy string keys make
 and `Judy::BITSET` sees nothing (Judy1's bitmap-leaf arm is a plain bit test,
 not a popcount). **Not claimed**: `wclust` get (−2.4%, sharing its cell with a
 control excursion) and `urand16` (−0.7%) — both inside the noise floor the
-byte-identical control calibrated.
+byte-identical control calibrated. **Downgraded** (2026-08-18 re-review):
+`wbase16` insert ×0.9691 is *directionally consistent but weakly bounded* — a
+~3% point estimate against the revised ~3% L3-resident floor (FINDINGS
+§11.10). The get claims and the `wdense` insert cells clear the revised floor.
 
 ### O3 — word-access node metadata (merged, [PR #150](https://github.com/orieg/php-judy/pull/150))
 
@@ -1179,9 +1203,12 @@ Measured on top of the O1-merged tree, so the two stack:
 | `urand16` (string keys) | ≤1.2%, not claimed | not claimed |
 
 Unlike O1 — whose gain shrinks from ~17% cache-resident to ~7% out of cache —
-**the O3 win survives out-of-cache fully intact** (x0.694 at both residencies),
-because it shortens the serial load-to-use chain per descend level rather than
-a compute chain that DRAM latency dilutes. All 36 control cells were null, and
+**the O3 win survives out-of-cache fully intact** (x0.694 at both residencies).
+The chain-shortening explanation for that shape is a hypothesis, not a
+measurement — no PMU exists on the bench host, chain arithmetic prices only
+part of the win, and the out-of-cache figure leans on the harness's
+independent-key memory-level parallelism, which serially-dependent consumers
+will not fully see (FINDINGS §11.7). All 36 control cells were null, and
 `J1MU`/`JLMU` memory accounting is byte-identical pre/post for both
 optimizations — memory, the one axis this project measurably wins, is untouched.
 Full mechanism, controls, and the execution history:
