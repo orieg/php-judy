@@ -876,12 +876,22 @@ const GATE_AXES = [
 $baseline = null;
 $baseline_platform = null;
 if (isset($opts['baseline'])) {
-    $baseline = json_decode((string) @file_get_contents($opts['baseline']), true);
-    if (!is_array($baseline) || ($baseline['schema'] ?? null) !== 'judy-bench-arm-ratios/1') {
-        fwrite(STDERR, "unusable baseline file: {$opts['baseline']}\n");
-        exit(2);
+    // An ABSENT baseline is the bootstrap case, not an error: the first run on a
+    // new platform has nothing to compare against and its job is to produce the
+    // numbers the baseline will later be built from. A baseline that exists but
+    // cannot be parsed is a different thing and does fail, because silently
+    // measuring nothing when the reviewer believes a gate is running is worse
+    // than not having the gate.
+    if (!is_file($opts['baseline'])) {
+        fwrite(STDERR, "no baseline file at {$opts['baseline']} — measuring without gating\n");
+    } else {
+        $baseline = json_decode((string) @file_get_contents($opts['baseline']), true);
+        if (!is_array($baseline) || ($baseline['schema'] ?? null) !== 'judy-bench-arm-ratios/1') {
+            fwrite(STDERR, "unusable baseline file: {$opts['baseline']}\n");
+            exit(2);
+        }
+        $baseline_platform = $baseline['platforms'][$platform] ?? null;
     }
-    $baseline_platform = $baseline['platforms'][$platform] ?? null;
 }
 
 $findings   = [];
