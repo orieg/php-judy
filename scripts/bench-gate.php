@@ -233,6 +233,24 @@ function gate_geo_median(array $ratios): float
     return $logs ? exp(tam_median($logs)) : 1.0;
 }
 
+/**
+ * The p-quantile of a sample, nearest-rank.
+ *
+ * Used wherever a "how far do things scatter" number is wanted. Deliberately NOT
+ * the maximum: over ~50 benchmark cells the maximum is an extreme-value
+ * statistic that lands at 5-7% on a perfectly healthy runner while the median
+ * sits under 1%, so a threshold driven by it would be permanently too wide to
+ * catch anything. Measured on this project's own CI, C-vs-C rebuild control:
+ * median 0.42-0.96%, p90 1.7-3.0%, max 3.4-6.8%.
+ */
+function gate_quantile(array $xs, float $p): float
+{
+    if (!$xs) { return 0.0; }
+    sort($xs);
+    $i = (int) ceil($p * count($xs)) - 1;
+    return (float) $xs[max(0, min(count($xs) - 1, $i))];
+}
+
 /** Percentage-point movement of $now relative to $then, as a signed percent. */
 function gate_drift_pct(float $now, float $then): float
 {
@@ -321,24 +339,19 @@ if (isset($opts['derive'])) {
             }
         }
         sort($drifts);
-        $q = static function (array $xs, float $p): float {
-            if (!$xs) { return 0.0; }
-            $i = (int) ceil($p * count($xs)) - 1;
-            return (float) $xs[max(0, min(count($xs) - 1, $i))];
-        };
-        arsort($per_cell);
+            arsort($per_cell);
         $derived['axes'][$axis] = [
             'cells'            => count($per_cell),
             'pairwise_samples' => count($drifts),
-            'median_drift_pct' => round($q($drifts, 0.50), 3),
-            'p90_drift_pct'    => round($q($drifts, 0.90), 3),
-            'p95_drift_pct'    => round($q($drifts, 0.95), 3),
+            'median_drift_pct' => round(gate_quantile($drifts, 0.50), 3),
+            'p90_drift_pct'    => round(gate_quantile($drifts, 0.90), 3),
+            'p95_drift_pct'    => round(gate_quantile($drifts, 0.95), 3),
             'max_drift_pct'    => round($drifts ? end($drifts) : 0.0, 3),
             // The recommendation. p95 with a small safety factor, floored so a
             // suspiciously quiet derivation cannot produce a hair-trigger gate.
             'recommended_floor_pct' => round(max(
                 1.0,
-                ceil($q($drifts, 0.95) * 1.25 * 2) / 2   // round up to 0.5pp
+                ceil(gate_quantile($drifts, 0.95) * 1.25 * 2) / 2   // round up to 0.5pp
             ), 2),
             'quantile_used'    => 'p95 x 1.25, rounded up to 0.5pp, floored at 1.0',
             'worst_cells'      => array_map(fn($v) => round($v, 3), array_slice($per_cell, 0, 8, true)),
@@ -629,8 +642,9 @@ foreach ($php_ms[$c_handles[0]] ?? [] as $id => $_series) {
     $control_php[] = tam_median($pairs);
 }
 $control_php_ratio = $control_php ? gate_geo_median($control_php) : 1.0;
-$control_php_scatter = $control_php
-    ? max(abs(max($control_php) - 1.0), abs(min($control_php) - 1.0)) * 100.0 : 0.0;
+$control_php_dev = array_map(fn($r) => abs($r - 1.0) * 100.0, $control_php);
+$control_php_scatter = gate_quantile($control_php_dev, 0.90);
+$control_php_max     = $control_php_dev ? max($control_php_dev) : 0.0;
 
 // ---- control 2: C1 vs C2 — the memory-access-matched one -------------------
 $control_cc_rows = [];
@@ -648,10 +662,15 @@ if ($rebuild_control_available) {
 }
 $control_cc_ratio = $control_cc ? gate_geo_median($control_cc) : 1.0;
 // The scatter that matters is the WIDTH of the control's distribution, not its
-// centre: a rebuild control centred at 1.000 whose cells range +/-6% is telling
-// you that a 6% cell movement means nothing today.
-$control_cc_scatter = $control_cc
-    ? max(abs(max($control_cc) - 1.0), abs(min($control_cc) - 1.0)) * 100.0 : null;
+// centre: a rebuild control centred at 1.000 whose cells routinely reach +/-3%
+// is telling you that a 3% cell movement means nothing today.
+//
+// p90 rather than max, for the reason gate_quantile() documents: over ~50 cells
+// the max is an extreme-value statistic that reads 5-7% on a healthy runner and
+// would pin the threshold there forever.
+$control_cc_dev = array_map(fn($r) => abs($r - 1.0) * 100.0, $control_cc);
+$control_cc_scatter = $control_cc ? gate_quantile($control_cc_dev, 0.90) : null;
+$control_cc_max     = $control_cc ? max($control_cc_dev) : null;
 
 // ---- hygiene ---------------------------------------------------------------
 $hygiene_failed = false;
@@ -920,9 +939,11 @@ $result = [
     ],
     'controls' => [
         'php_only' => [
-            'ratio'       => round($control_php_ratio, 5),
-            'scatter_pct' => round($control_php_scatter, 3),
-            'rows'        => count($control_php),
+            'ratio'          => round($control_php_ratio, 5),
+            'scatter_pct'    => round($control_php_scatter, 3),
+            'scatter_stat'   => 'p90 of |per-cell deviation|',
+            'max_dev_pct'    => round($control_php_max, 3),
+            'rows'           => count($control_php),
             'measures'    => 'runner drift (interpreter speed, CPU frequency, process startup)',
             'blind_to'    => 'LLC and memory-bandwidth contention — PHP array ops are neither '
                            . 'pointer-chasing nor DRAM-bound, so this control stayed flat at +0.36% '
@@ -931,8 +952,10 @@ $result = [
         'cc_rebuild' => [
             'available'   => $rebuild_control_available,
             'ratio'       => round($control_cc_ratio, 5),
-            'scatter_pct' => $control_cc_scatter === null ? null : round($control_cc_scatter, 3),
-            'rows'        => count($control_cc_rows),
+            'scatter_pct'  => $control_cc_scatter === null ? null : round($control_cc_scatter, 3),
+            'scatter_stat' => 'p90 of |per-cell deviation|',
+            'max_dev_pct'  => $control_cc_max === null ? null : round($control_cc_max, 3),
+            'rows'         => count($control_cc_rows),
             'cells'       => $control_cc_rows,
             'measures'    => 'the apparatus itself: two independently linked builds of IDENTICAL '
                            . 'source, so every cell should read null. Shares Judy\'s memory-access '

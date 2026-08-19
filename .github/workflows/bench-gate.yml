@@ -294,7 +294,8 @@ jobs:
     timeout-minutes: 60
     # Slower and more fragile than the POSIX jobs, and the axes it can measure
     # are the same ones. Kept off the narrow per-PR trigger.
-    if: github.event_name != 'pull_request'
+    # TEMPORARY-VALIDATION: normally `github.event_name != 'pull_request'`.
+    if: true
     steps:
       - uses: actions/checkout@v7
         with:
