@@ -189,6 +189,20 @@ thresholds compiled out, and at lane counts 1 and 32; ASan+UBSan (library
 AND harness instrumented) 48-cell smoke clean; 300 s soak (7300 cells,
 thresholds compiled out) clean.
 
+**V6 — the O5-reopen counting partition, watched to fail (recorded
+2026-08-18, Apple clang, arm64, thresholds compiled out).** The #142 O5
+reopen moved a stable counting partition inside `JudyLMultiGet` (keys
+grouped by a discriminating byte, each key carrying its original result
+slot through the pipeline). A deliberately broken build with an
+off-by-one in the partition's scatter slots (`pslots[pos] = i + 1`
+instead of `i` -- results land one slot away) was caught in the
+`multiget` phase at op#=255 of the first `judyl/uniform` cell:
+`multiget[0/17] key 0x7b122ea940ae576c: batched 0x100fc8040 != serial
+0xb04c882a0`. The intact partitioned build passes the 48-cell smoke and
+a 300 s soak (6704 cells) clean, and the ASan+UBSan instrumented smoke
+clean, all with thresholds compiled out so the partitioned pipeline runs
+on every tree.
+
 ## CI
 
 The `differential-fuzz` job in `.github/workflows/ci.yml` runs this harness
@@ -198,6 +212,12 @@ on every PR against the **bundled** tree (`libjudy/src`, built by
 bytes a release build ships. The job also byte-compares the committed
 pre-generated `Judy1Tables.c`/`JudyLTables.c` against fresh generator
 output, so the fuzzed and shipped tables cannot drift apart.
+
+Both fuzz steps build the harness with `MULTIGET=1`: the production-flag
+grid exercises `JudyLMultiGet`'s serial-fallback contract (the fuzzer's
+trees sit below the shipped thresholds), and the sanitized grid compiles
+the thresholds out so the pipelined + counting-partition path runs on
+every tree, under ASan+UBSan and the per-slot pointer-identity oracle.
 
 **Profile split** — CI runs the bounded profile only; the long soaks stay a
 local / pre-release tool:

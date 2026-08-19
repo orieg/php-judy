@@ -633,8 +633,13 @@ jobs:
         # smoke: fixed seeds, full 48-cell domain/corpus grid, 60k ops/cell,
         # bulk sweep included (the #127 Count==31 boundary). soak: fresh
         # random seeds every run, time-bounded so the job stays flat.
+        # MULTIGET=1: the bundled tree carries JudyLMultiGet (#142 O5), so
+        # the batched-vs-serial oracle cells run too. At production
+        # thresholds the fuzzer's small trees exercise the entry point's
+        # serial-fallback contract; the pipelined+partitioned path is
+        # forced and fuzzed in the sanitized step below.
         run: |
-          make -C research/differential-fuzz JUDY_PREFIX=/tmp/judy-prod
+          make -C research/differential-fuzz MULTIGET=1 JUDY_PREFIX=/tmp/judy-prod
           cd research/differential-fuzz
           ./diffuzz smoke
           ./diffuzz soak 30
@@ -644,11 +649,16 @@ jobs:
         # itself, not just the harness -- the configuration that catches
         # #127-class overflows inside libJudy (validation run V3 in the
         # README caught the JudyInsArray off-by-one exactly this way).
+        # The serial thresholds are compiled out so JudyLMultiGet's
+        # pipelined + counting-partition path (#142 O5) runs on every tree
+        # the grid builds, under both sanitizers AND the pointer-identity
+        # oracle -- this is the CI cell that fuzzes the batched path.
         run: |
           sh research/differential-fuzz/validation/build-stock.sh \
             "$PWD/libjudy/src" /tmp/judy-asan \
-            -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer
-          make -C research/differential-fuzz diffuzz-san JUDY_PREFIX=/tmp/judy-asan
+            -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer \
+            -DcJL_MULTIGET_SERIAL_POP1=0 -DcJL_MULTIGET_SERIAL_COUNT=1
+          make -C research/differential-fuzz diffuzz-san MULTIGET=1 JUDY_PREFIX=/tmp/judy-asan
           cd research/differential-fuzz
           UBSAN_OPTIONS=print_stacktrace=1 ./diffuzz-san smoke
 
