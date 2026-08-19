@@ -63,6 +63,7 @@ static void php_judy_init_globals(zend_judy_globals *judy_globals)
 static Word_t judy_free_array_internal(judy_object *intern)
 {
 	Word_t Rc_word = 0;
+	Pvoid_t arr, hs, kidx;
 
 	/* Teardown is the one point every object reaches, whatever it was used
 	 * for, and it is already O(n) — so it is where the consistency check earns
@@ -76,44 +77,67 @@ static Word_t judy_free_array_internal(judy_object *intern)
 		return 0;
 	}
 
+	/* UNLINK BEFORE DESTROY. The MIXED branches below walk the container while
+	 * calling zval_ptr_dtor() on every stored value. That is a re-entrancy
+	 * point: dropping the last-but-one reference to a GC-collectable value
+	 * calls gc_possible_root(), and once the root buffer fills PHP runs
+	 * gc_collect_cycles() *synchronously, inside this loop*. If this object is
+	 * itself in the root buffer — which any refcount inc/dec puts it there,
+	 * e.g. count($j) or passing $j to a function — GC then calls
+	 * judy_object_get_gc() on it and walks the very container we are midway
+	 * through freeing, dereferencing zvals this loop has already efree()d.
+	 *
+	 * Detaching the roots first makes that walk see an empty container and add
+	 * nothing, so the re-entrant traversal is harmless. intern->type stays set
+	 * because the branches below still need it; the detach, not a type reset,
+	 * is what closes the hole. See issue #162. */
+	arr  = intern->array;
+	hs   = intern->hs_array;
+	kidx = intern->key_index;
+	intern->array = NULL;
+	intern->hs_array = NULL;
+	intern->key_index = NULL;
+	intern->counter = 0;
+	intern->approx_payload_bytes = 0;
+
 	if (intern->type == TYPE_INT_TO_MIXED) {
 		Word_t index = 0;
 		Word_t *PValue;
 
-		JLF(PValue, intern->array, index);
+		JLF(PValue, arr, index);
 		while (PValue != NULL && PValue != PJERR) {
 			zval *value = JUDY_MVAL_READ(PValue);
 			zval_ptr_dtor(value);
 			efree(value);
-			JLN(PValue, intern->array, index);
+			JLN(PValue, arr, index);
 		}
-		JLFA(Rc_word, intern->array);
+		JLFA(Rc_word, arr);
 	} else if (intern->type == TYPE_INT_TO_PACKED) {
 		Word_t index = 0;
 		Word_t *PValue;
 
-		JLF(PValue, intern->array, index);
+		JLF(PValue, arr, index);
 		while (PValue != NULL && PValue != PJERR) {
 			judy_packed_value *packed = JUDY_PVAL_READ(PValue);
 			if (packed) {
 				efree(packed);
 			}
-			JLN(PValue, intern->array, index);
+			JLN(PValue, arr, index);
 		}
-		JLFA(Rc_word, intern->array);
+		JLFA(Rc_word, arr);
 	} else if (intern->type == TYPE_STRING_TO_MIXED) {
 		uint8_t *kindex = intern->key_scratch;
 		Word_t *PValue;
 
 		kindex[0] = '\0';
-		JSLF(PValue, intern->array, kindex);
+		JSLF(PValue, arr, kindex);
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 			zval *value = JUDY_MVAL_READ(PValue);
 			zval_ptr_dtor(value);
 			efree(value);
-			JSLN(PValue, intern->array, kindex);
+			JSLN(PValue, arr, kindex);
 		}
-		JSLFA(Rc_word, intern->array);
+		JSLFA(Rc_word, arr);
 	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
 		uint8_t *kindex = intern->key_scratch;
 		Word_t *PValue;
@@ -121,69 +145,59 @@ static Word_t judy_free_array_internal(judy_object *intern)
 
 		/* Enumerate keys via key_index (JudySL), free zvals via JudyHS lookup */
 		kindex[0] = '\0';
-		JSLF(PValue, intern->key_index, kindex);
+		JSLF(PValue, kidx, kindex);
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-			JHSG(HValue, intern->array, kindex, (Word_t)strlen((char *)kindex));
+			JHSG(HValue, arr, kindex, (Word_t)strlen((char *)kindex));
 			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
 				zval *value = JUDY_MVAL_READ(HValue);
 				zval_ptr_dtor(value);
 				efree(value);
 			}
-			JSLN(PValue, intern->key_index, kindex);
+			JSLN(PValue, kidx, kindex);
 		}
-		JHSFA(Rc_word, intern->array);
-		JSLFA(Rc_word, intern->key_index);
-		intern->key_index = NULL;
+		JHSFA(Rc_word, arr);
+		JSLFA(Rc_word, kidx);
 	} else if (intern->type == TYPE_STRING_TO_INT_HASH) {
 		/* JudyHS stores Word_t values (no zval allocation), just free both arrays */
-		JHSFA(Rc_word, intern->array);
-		JSLFA(Rc_word, intern->key_index);
-		intern->key_index = NULL;
+		JHSFA(Rc_word, arr);
+		JSLFA(Rc_word, kidx);
 	} else if (intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE) {
 		uint8_t *kindex = intern->key_scratch;
 		Word_t *PValue;
 		Pvoid_t *HValue;
 
 		kindex[0] = '\0';
-		JSLF(PValue, intern->key_index, kindex);
+		JSLF(PValue, kidx, kindex);
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 			Word_t klen = (Word_t)strlen((char *)kindex);
 			if (klen < 8) {
 				Word_t index = 0;
 				memcpy(&index, kindex, klen);
-				JLG(HValue, intern->array, index);
+				JLG(HValue, arr, index);
 			} else {
-				JHSG(HValue, intern->hs_array, kindex, klen);
+				JHSG(HValue, hs, kindex, klen);
 			}
 			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
 				zval *value = JUDY_MVAL_READ(HValue);
 				zval_ptr_dtor(value);
 				efree(value);
 			}
-			JSLN(PValue, intern->key_index, kindex);
+			JSLN(PValue, kidx, kindex);
 		}
-		JLFA(Rc_word, intern->array);
-		JHSFA(Rc_word, intern->hs_array);
-		JSLFA(Rc_word, intern->key_index);
-		intern->key_index = NULL;
-		intern->hs_array = NULL;
+		JLFA(Rc_word, arr);
+		JHSFA(Rc_word, hs);
+		JSLFA(Rc_word, kidx);
 	} else if (intern->type == TYPE_STRING_TO_INT_ADAPTIVE) {
-		JLFA(Rc_word, intern->array);
-		JHSFA(Rc_word, intern->hs_array);
-		JSLFA(Rc_word, intern->key_index);
-		intern->key_index = NULL;
-		intern->hs_array = NULL;
+		JLFA(Rc_word, arr);
+		JHSFA(Rc_word, hs);
+		JSLFA(Rc_word, kidx);
 	} else if (intern->type == TYPE_BITSET) {
-		J1FA(Rc_word, intern->array);
+		J1FA(Rc_word, arr);
 	} else if (intern->type == TYPE_INT_TO_INT) {
-		JLFA(Rc_word, intern->array);
+		JLFA(Rc_word, arr);
 	} else if (intern->type == TYPE_STRING_TO_INT) {
-		JSLFA(Rc_word, intern->array);
+		JSLFA(Rc_word, arr);
 	}
-
-	intern->array = NULL;
-	intern->counter = 0;
-	intern->approx_payload_bytes = 0;
 
 	return Rc_word;
 }

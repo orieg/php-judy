@@ -305,6 +305,7 @@
          <file name="tests/regression_bulk_exception_stop_001.phpt" role="test" />
          <file name="tests/regression_callback_reentrancy_001.phpt" role="test" />
          <file name="tests/regression_gc_cycle_001.phpt" role="test" />
+         <file name="tests/regression_gc_teardown_reentrancy_001.phpt" role="test" />
          <file name="tests/regression_int_keyed_string_key_001.phpt" role="test" />
          <file name="tests/regression_mixed_destructor_reentrancy_001.phpt" role="test" />
          <file name="tests/regression_packed_equals_001.phpt" role="test" />
