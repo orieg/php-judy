@@ -32,10 +32,10 @@ that a new "somewhere to put this" is almost never needed.
 | Behaviour tests | `tests/` — one `.phpt` per behaviour change, plus any `.inc` fixtures they drive | **yes** |
 | Runnable user-facing demos | `examples/` (and `examples/benchmarks/` for the PHP benchmark suite) | **yes** |
 | User and maintainer docs | repo-root `*.md` (`README.md`, `API.md`, `AGENTS.md`, `BENCHMARK.md`, …) | **yes** |
-| Developer tooling: C harnesses, the differential fuzzer, CI helper scripts | `tools/` | no |
-| PHP and Python helper scripts run by hand or by CI | `scripts/` | no |
+| PHP and Python helpers a *user of the package* may want — API-doc generation, the benchmark drivers, the lldb/gdb pretty-printers | `scripts/` | **yes** (`role="doc"`) |
+| Benchmark baseline the CI gate compares against | `baselines/` | **yes** (`role="doc"`) |
+| Developer tooling: C harnesses, the differential fuzzer, packaging and CI helper scripts | `tools/` | no |
 | Evidence records: findings, pre-registrations, result dumps, closed spikes | `research/` | no |
-| Benchmark baseline the CI gate compares against | `baselines/` | no |
 
 Two rules keep the split from eroding:
 
@@ -52,7 +52,11 @@ Two rules keep the split from eroding:
   [`tools/check-package-contents.sh`](tools/check-package-contents.sh) rejects
   a tarball that carries any `tools/` or `research/` path. Adding a shipped
   file means adding its `<file>` entry; adding an unshipped one means adding
-  nothing.
+  nothing. Note the split inside the two script directories: `scripts/` ships
+  because its contents are useful to someone who installed the package
+  (`generate-api-docs.php`, the debugger pretty-printers); `tools/` does not,
+  because a differential fuzzer and a packaging assertion are only useful in a
+  checkout.
 
 Ambiguous case, recorded rather than silently decided: `research/shm-arena/`
 is a closed feasibility spike (issue #83, closed not planned) whose C is still

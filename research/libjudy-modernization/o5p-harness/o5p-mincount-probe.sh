@@ -14,7 +14,7 @@
 # and mixed (analysis buys the partition) at block sizes 256/1024/4096.
 set -e
 
-. /var/tmp/jp113/o5p/o5p-lock.sh
+. /var/tmp/jp113/o5p/bench-lock.sh
 bench_lock_acquire "o5p-gate" "O5 reopen PART_MIN_COUNT probe" || exit 3
 ROOT=/var/tmp/jp113
 O5P=$ROOT/o5p

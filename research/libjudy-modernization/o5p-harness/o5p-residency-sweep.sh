@@ -15,7 +15,7 @@
 # read as a function of tree BYTES rather than key count.
 set -e
 
-. /var/tmp/jp113/o5p/o5p-lock.sh
+. /var/tmp/jp113/o5p/bench-lock.sh
 bench_lock_acquire "o5p-gate" "O5 reopen residency/threshold sweep" || exit 3
 ROOT=/var/tmp/jp113
 O5P=$ROOT/o5p

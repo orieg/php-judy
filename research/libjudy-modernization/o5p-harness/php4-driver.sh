@@ -8,7 +8,7 @@
 # lost its "+10% sparse" cell to an unpersisted run).
 set -e
 
-. /var/tmp/jp113/o5p/o5p-lock.sh
+. /var/tmp/jp113/o5p/bench-lock.sh
 bench_lock_acquire "o5p-gate" "O5 reopen PHP-level A/B" || exit 3
 P=/var/tmp/jp113/o5p/php
 OUT=$P/php4-bench.csv
