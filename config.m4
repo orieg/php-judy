@@ -53,6 +53,7 @@ judy_bundled_sources="\
   libjudy/src/wrappers/Judy1MemUsed.c \
   libjudy/src/wrappers/JudyLGet.c \
   libjudy/src/wrappers/JudyLGetInline.c \
+  libjudy/src/wrappers/JudyLMultiGet.c \
   libjudy/src/wrappers/JudyLIns.c \
   libjudy/src/wrappers/JudyLInsArray.c \
   libjudy/src/wrappers/JudyLDel.c \

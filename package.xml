@@ -343,6 +343,7 @@
          <file name="libjudy/src/JudyCommon/JudyMallocIF.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyMemActive.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyMemUsed.c" role="src" />
+         <file name="libjudy/src/JudyCommon/JudyMultiGet.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyNoInline.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyPrevNext.c" role="src" />
          <file name="libjudy/src/JudyCommon/JudyPrevNextEmpty.c" role="src" />
@@ -354,6 +355,7 @@
          <file name="libjudy/src/JudyHS/JudyHS.c" role="src" />
          <file name="libjudy/src/JudyL/JudyL.h" role="src" />
          <file name="libjudy/src/JudyL/JudyLTables.c" role="src" />
+         <file name="libjudy/src/JudyMultiGet.h" role="src" />
          <file name="libjudy/src/JudySL/JudySL.c" role="src" />
          <file name="libjudy/src/wrappers/Judy1ByCount.c" role="src" />
          <file name="libjudy/src/wrappers/Judy1Cascade.c" role="src" />
@@ -391,6 +393,7 @@
          <file name="libjudy/src/wrappers/JudyLMallocIF.c" role="src" />
          <file name="libjudy/src/wrappers/JudyLMemActive.c" role="src" />
          <file name="libjudy/src/wrappers/JudyLMemUsed.c" role="src" />
+         <file name="libjudy/src/wrappers/JudyLMultiGet.c" role="src" />
          <file name="libjudy/src/wrappers/JudyLNext.c" role="src" />
          <file name="libjudy/src/wrappers/JudyLNextEmpty.c" role="src" />
          <file name="libjudy/src/wrappers/JudyLPrev.c" role="src" />
