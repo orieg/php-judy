@@ -1,13 +1,21 @@
 --TEST--
-Judy batched-lookup call sites (getAll/intersect/diff/xor/equals) agree with per-key semantics on adversarial keys (#142 O5)
+Judy getAll() batched lookup agrees with per-key semantics on adversarial and heterogeneous keys (#142 O5)
 --DESCRIPTION--
-The bundled libJudy resolves bulk lookups through JudyLMultiGet (AMAC
-pipelined, #142 O5); system-libJudy builds keep serial loops. This test
-asserts observable behavior only, so it must pass identically on both.
-Populations exceed the pipelined path's tiny-tree serial threshold
-(cJL_MULTIGET_SERIAL_POP1 = 262144) and batches exceed one gather block
-(256), so the batched code actually runs on bundled builds. Keys include 0, PHP_INT_MAX, PHP_INT_MIN, negatives,
-duplicates, and misses; types (not just values) are asserted.
+The bundled libJudy resolves getAll() through JudyLMultiGet (AMAC
+pipelined with an internal stable counting partition, #142 O5);
+system-libJudy builds and every other call site (intersect/diff/xor/
+equals -- their batched variants were measured slower and dropped) keep
+serial loops. This test asserts observable behavior only, so it must
+pass identically on both. Populations exceed the pipelined path's
+tiny-tree serial threshold (cJL_MULTIGET_SERIAL_POP1 = 262144) and
+batches exceed one partition chunk (256), so the batched code actually
+runs on bundled builds. Keys include 0, PHP_INT_MAX, PHP_INT_MIN,
+negatives, duplicates, and misses; the partition-stress probe
+interleaves dense and sparse keys per chunk (maximum reordering) and a
+constant chunk (the partition's all-equal skip path); result ORDER is
+asserted, not just content, because the partition must emit in input
+order. The serial set-op/equals assertions below are kept as
+drift-detection coverage.
 --INI--
 memory_limit=1G
 --FILE--
@@ -52,6 +60,28 @@ foreach ($probe as $k) {
     if (!array_key_exists($k, $got) || $got[$k] !== $want) $bad++;
 }
 var_dump($bad === 0 && count($got) === count(array_unique($probe)));
+
+/* getAll partition stress: interleave dense and sparse keys so EVERY
+ * 256-key chunk is maximally heterogeneous (the counting partition
+ * reorders every chunk), and assert result ORDER equals input order --
+ * the reorder must be invisible. Then a constant batch (all chunks hit
+ * the partition's all-keys-equal skip path). */
+$inter = [];
+for ($i = 0; $i < 4000; $i++) {
+    $inter[] = ($i % 2 === 0) ? ($i >> 1) * 3            // dense half
+             : $keys[intdiv(count($keys), 2) + ($i % 977)]; // sparse half
+}
+$gotI = $a->getAll($inter);
+$orderOk = array_keys($gotI) === array_values(array_unique($inter));
+$valOk = true;
+foreach ($inter as $k) {
+    $want = array_key_exists($k, $ref) ? $ref[$k] : null;
+    if ($gotI[$k] !== $want) { $valOk = false; break; }
+}
+var_dump($orderOk && $valOk);
+$const = array_fill(0, 1000, $keys[7]);
+$gotC = $a->getAll($const);
+var_dump($gotC === [$keys[7] => $ref[$keys[7]]]);
 
 /* getAll: empty input, empty Judy, non-IS_LONG keys flushing mid-block */
 var_dump($a->getAll([]) === []);
@@ -118,6 +148,8 @@ var_dump($m->equals($m2));
 echo "done\n";
 ?>
 --EXPECT--
+bool(true)
+bool(true)
 bool(true)
 bool(true)
 bool(true)

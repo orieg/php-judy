@@ -32,12 +32,17 @@
 
 #ifdef HAVE_JUDY_BUNDLED
 /* JudyLMultiGet (#142 patch O5): batched, software-pipelined JudyLGet over
- * an array of independent keys. Bundled-libJudy only -- system builds keep
- * the serial loops. Adopted where a method issues many independent JudyL
- * lookups over a known key set (getAll, intersect, diff, xor, equals);
- * loops whose next key depends on the previous lookup (JLN iteration) or
- * whose per-key work can run user code that mutates the arrays (mergeWith,
- * union via write_dimension) are deliberately NOT batched. */
+ * an array of independent keys, with an internal counting partition so
+ * heterogeneous batches keep the win. Bundled-libJudy only -- system builds
+ * keep the serial loops. Adopted in getAll() ONLY: it is the one site whose
+ * batches are user-supplied (arbitrary order, arbitrary composition), which
+ * is exactly where the pipeline pays. The set operations (intersect, diff,
+ * xor) and equals() probe in JLN-ascending order, where serial descend is
+ * already cache-perfect -- their batched variants measured x0.81-0.97 in
+ * the #142 O5 gate and were dropped (upheld on the reopen review). Loops
+ * whose next key depends on the previous lookup (JLN iteration) or whose
+ * per-key work can run user code that mutates the arrays (mergeWith, union
+ * via write_dimension) are not batchable at all. */
 #include "libjudy/src/JudyMultiGet.h"
 /* Keys gathered per JudyLMultiGet call at the adoption sites. Bounds the
  * stack (3 x 8 B x 256 = 6 KB) while giving the pipeline far more than its
@@ -2978,44 +2983,6 @@ alloc_error_bitset:
 
 		index = 0;
 		JLF(PValue, iter_array, index);
-#ifdef HAVE_JUDY_BUNDLED
-		/* Batched membership: JLN produces the keys (dependent walk over
-		 * iter_array), but the probes into test_array are independent, so
-		 * gather a block and resolve it with one pipelined JudyLMultiGet.
-		 * The gathered pointers stay valid across the JLIs below: only
-		 * result->array (a third array) is written. */
-		(void)PTest;
-		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-			Word_t   mg_keys[JUDY_MG_BLOCK];
-			Pvoid_t *mg_iter[JUDY_MG_BLOCK];
-			PPvoid_t mg_vals[JUDY_MG_BLOCK];
-			int      mg_n = 0, mg_i;
-
-			do {
-				mg_keys[mg_n] = index;
-				mg_iter[mg_n] = PValue;
-				mg_n++;
-				JLN(PValue, iter_array, index);
-			} while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)
-				&& mg_n < JUDY_MG_BLOCK);
-
-			JudyLMultiGet(test_array, mg_keys, mg_vals, (Word_t)mg_n);
-
-			for (mg_i = 0; mg_i < mg_n; mg_i++) {
-				if (JUDY_LIKELY(mg_vals[mg_i] != NULL && mg_vals[mg_i] != PPJERR)) {
-					JLI(PNew, result->array, mg_keys[mg_i]);
-					if (PNew == PJERR) goto alloc_error_il;
-					/* Always use self's value (left-wins) */
-					if (self_is_iter) {
-						JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(mg_iter[mg_i]));
-					} else {
-						JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ((Pvoid_t *)mg_vals[mg_i]));
-					}
-					result->counter++;
-				}
-			}
-		}
-#else
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 			JLG(PTest, test_array, index);
 			if (JUDY_LIKELY(PTest != NULL && PTest != PJERR)) {
@@ -3031,7 +2998,6 @@ alloc_error_bitset:
 			}
 			JLN(PValue, iter_array, index);
 		}
-#endif
 
 		return;
 
@@ -3143,36 +3109,6 @@ alloc_error_bitset:
 		/* Iterate self, add to result only if absent in other */
 		index = 0;
 		JLF(PValue, intern->array, index);
-#ifdef HAVE_JUDY_BUNDLED
-		/* Batched membership (see intersect for the pattern and the
-		 * pointer-validity argument). */
-		(void)PTest;
-		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-			Word_t   mg_keys[JUDY_MG_BLOCK];
-			Pvoid_t *mg_iter[JUDY_MG_BLOCK];
-			PPvoid_t mg_vals[JUDY_MG_BLOCK];
-			int      mg_n = 0, mg_i;
-
-			do {
-				mg_keys[mg_n] = index;
-				mg_iter[mg_n] = PValue;
-				mg_n++;
-				JLN(PValue, intern->array, index);
-			} while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)
-				&& mg_n < JUDY_MG_BLOCK);
-
-			JudyLMultiGet(other->array, mg_keys, mg_vals, (Word_t)mg_n);
-
-			for (mg_i = 0; mg_i < mg_n; mg_i++) {
-				if (JUDY_UNLIKELY(mg_vals[mg_i] == NULL || mg_vals[mg_i] == PPJERR)) {
-					JLI(PNew, result->array, mg_keys[mg_i]);
-					if (PNew == PJERR) goto alloc_error_il;
-					JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(mg_iter[mg_i]));
-					result->counter++;
-				}
-			}
-		}
-#else
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
 			JLG(PTest, other->array, index);
 			if (JUDY_UNLIKELY(PTest == NULL || PTest == PJERR)) {
@@ -3183,7 +3119,6 @@ alloc_error_bitset:
 			}
 			JLN(PValue, intern->array, index);
 		}
-#endif
 
 		return;
 
@@ -3306,48 +3241,6 @@ alloc_error_bitset:
 
 		result = judy_create_result(return_value, TYPE_INT_TO_INT, 0);
 
-#ifdef HAVE_JUDY_BUNDLED
-		/* Both passes are the diff() batched-membership pattern with the
-		 * roles swapped; see intersect for the pointer-validity argument. */
-		(void)PTest;
-		{
-			Pvoid_t xor_iter, xor_test;
-			int     pass;
-
-			for (pass = 0; pass < 2; pass++) {
-				xor_iter = (pass == 0) ? intern->array : other->array;
-				xor_test = (pass == 0) ? other->array  : intern->array;
-
-				index = 0;
-				JLF(PValue, xor_iter, index);
-				while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
-					Word_t   mg_keys[JUDY_MG_BLOCK];
-					Pvoid_t *mg_iter[JUDY_MG_BLOCK];
-					PPvoid_t mg_vals[JUDY_MG_BLOCK];
-					int      mg_n = 0, mg_i;
-
-					do {
-						mg_keys[mg_n] = index;
-						mg_iter[mg_n] = PValue;
-						mg_n++;
-						JLN(PValue, xor_iter, index);
-					} while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)
-						&& mg_n < JUDY_MG_BLOCK);
-
-					JudyLMultiGet(xor_test, mg_keys, mg_vals, (Word_t)mg_n);
-
-					for (mg_i = 0; mg_i < mg_n; mg_i++) {
-						if (JUDY_UNLIKELY(mg_vals[mg_i] == NULL || mg_vals[mg_i] == PPJERR)) {
-							JLI(PNew, result->array, mg_keys[mg_i]);
-							if (PNew == PJERR) goto alloc_error_il;
-							JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(mg_iter[mg_i]));
-							result->counter++;
-						}
-					}
-				}
-			}
-		}
-#else
 		/* Add entries from self that are not in other */
 		index = 0;
 		JLF(PValue, intern->array, index);
@@ -3375,7 +3268,6 @@ alloc_error_bitset:
 			}
 			JLN(PValue, other->array, index);
 		}
-#endif
 
 		return;
 
@@ -4932,37 +4824,6 @@ PHP_METHOD(Judy, deleteRange)
 
 /* {{{ proto bool Judy::equals(Judy $other)
    Check if two Judy arrays are identical. */
-/* Compare one pair of JudyL value slots under `type` semantics for
-   equals(). Returns 1 when equal. Shared by the serial and the batched
-   (bundled-libJudy) integer-keyed paths so the two cannot drift. */
-static int judy_equals_slot_pair(int type, Pvoid_t *PVal1, Pvoid_t *PVal2)
-{
-	if (type == TYPE_INT_TO_INT) {
-		return JUDY_LVAL_READ(PVal1) == JUDY_LVAL_READ(PVal2);
-	} else if (type == TYPE_INT_TO_MIXED) {
-		return zend_is_identical(JUDY_MVAL_READ(PVal1), JUDY_MVAL_READ(PVal2));
-	} else if (type == TYPE_INT_TO_PACKED) {
-		judy_packed_value *p1 = JUDY_PVAL_READ(PVal1);
-		judy_packed_value *p2 = JUDY_PVAL_READ(PVal2);
-		/* Only compare when the slots differ; when identical (including
-		 * both NULL) they are equal. */
-		if (p1 != p2) {
-			if (!p1 || !p2) return 0;
-			if (p1->tag != p2->tag) return 0;
-			/* Simplified comparison for packed values */
-			zval v1, v2;
-			judy_unpack_value(p1, &v1);
-			judy_unpack_value(p2, &v2);
-			int same = zend_is_identical(&v1, &v2);
-			zval_ptr_dtor(&v1);
-			zval_ptr_dtor(&v2);
-			if (!same) return 0;
-		}
-		return 1;
-	}
-	return 1;
-}
-
 PHP_METHOD(Judy, equals)
 {
 	zval *zother;
@@ -5010,48 +4871,36 @@ PHP_METHOD(Judy, equals)
 		} else {
 			Pvoid_t *PVal1, *PVal2;
 			JLF(PVal1, intern->array, index);
-#ifdef HAVE_JUDY_BUNDLED
-			/* Batched membership: gather a block of (key, slot) pairs
-			 * from the JLN walk over self, resolve the probes into other
-			 * with one pipelined JudyLMultiGet, then compare. Counts are
-			 * already known equal, and nothing is written, so the
-			 * gathered pointers stay valid. On unequal arrays this
-			 * over-probes by at most one block past the first mismatch
-			 * (pure reads -- not observable). */
-			(void)PVal2;
-			while (JUDY_LIKELY(PVal1 != NULL && PVal1 != PJERR)) {
-				Word_t   mg_keys[JUDY_MG_BLOCK];
-				Pvoid_t *mg_self[JUDY_MG_BLOCK];
-				PPvoid_t mg_vals[JUDY_MG_BLOCK];
-				int      mg_n = 0, mg_i;
-
-				do {
-					mg_keys[mg_n] = index;
-					mg_self[mg_n] = PVal1;
-					mg_n++;
-					JLN(PVal1, intern->array, index);
-				} while (JUDY_LIKELY(PVal1 != NULL && PVal1 != PJERR)
-					&& mg_n < JUDY_MG_BLOCK);
-
-				JudyLMultiGet(other->array, mg_keys, mg_vals, (Word_t)mg_n);
-
-				for (mg_i = 0; mg_i < mg_n; mg_i++) {
-					if (mg_vals[mg_i] == NULL || mg_vals[mg_i] == PPJERR) RETURN_FALSE;
-					if (!judy_equals_slot_pair(intern->type, mg_self[mg_i],
-							(Pvoid_t *)mg_vals[mg_i])) RETURN_FALSE;
-				}
-			}
-#else
 			while (JUDY_LIKELY(PVal1 != NULL && PVal1 != PJERR)) {
 				JLG(PVal2, other->array, index);
 				if (PVal2 == NULL || PVal2 == PJERR) RETURN_FALSE;
 
-				/* Must not `continue` before the JLN advance below — that
-				 * would loop forever on equal NULL-packed slots. */
-				if (!judy_equals_slot_pair(intern->type, PVal1, PVal2)) RETURN_FALSE;
+				if (intern->type == TYPE_INT_TO_INT) {
+					if (JUDY_LVAL_READ(PVal1) != JUDY_LVAL_READ(PVal2)) RETURN_FALSE;
+				} else if (intern->type == TYPE_INT_TO_MIXED) {
+					if (!zend_is_identical(JUDY_MVAL_READ(PVal1), JUDY_MVAL_READ(PVal2))) RETURN_FALSE;
+				} else if (intern->type == TYPE_INT_TO_PACKED) {
+					judy_packed_value *p1 = JUDY_PVAL_READ(PVal1);
+					judy_packed_value *p2 = JUDY_PVAL_READ(PVal2);
+					/* Only compare when the slots differ; when identical
+					 * (including both NULL) they are equal. Must not `continue`
+					 * here — that would skip the JLN advance below and loop
+					 * forever on equal NULL-packed slots. */
+					if (p1 != p2) {
+						if (!p1 || !p2) RETURN_FALSE;
+						if (p1->tag != p2->tag) RETURN_FALSE;
+						/* Simplified comparison for packed values */
+						zval v1, v2;
+						judy_unpack_value(p1, &v1);
+						judy_unpack_value(p2, &v2);
+						int same = zend_is_identical(&v1, &v2);
+						zval_ptr_dtor(&v1);
+						zval_ptr_dtor(&v2);
+						if (!same) RETURN_FALSE;
+					}
+				}
 				JLN(PVal1, intern->array, index);
 			}
-#endif
 		}
 	} else if (intern->is_adaptive) {
 		uint8_t *key = intern->key_scratch;
