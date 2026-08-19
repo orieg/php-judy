@@ -1785,7 +1785,14 @@ and 985). S-vs-C therefore varies *only* the source patches.
 
 Share is the per-cell median of `ln(S→C) / ln(B→C)` over matched cells. The
 residual — shared-library linkage, Debian's hardening flags, and Debian's own
-patch 04 — is inferred, not measured directly.
+patch 04 — is inferred here, not measured directly. It has since been measured
+once at the application layer: judy-cache's four-arm decomposition
+([orieg/judy-cache#4](https://github.com/orieg/judy-cache/pull/4), a fourth
+arm building the pristine sources *shared* with these same flags) put
+**linkage at null (+1.3%)** and **Debian's build of the same sources at
+−15.4%** on its `set()` row — so at that layer the residual is Debian's
+compiler/hardening options, not PLT indirection. One layer, one workload;
+treat it as a measured instance, not a general law.
 
 **The honest headline is therefore split by key type:**
 
@@ -2532,6 +2539,57 @@ milliseconds for the release-over-release `bench-compare.php` run, `arm-ratios.j
 holds per-platform within-run arm ratios for this gate.
 
 ---
+
+### The same patches seen from an application: cross-layer reconciliation
+
+Three different questions get asked of "the vendoring speedup", and they have
+three different answers. All three are measured; none contradict each other.
+The application-layer numbers come from
+[orieg/judy-cache#4](https://github.com/orieg/judy-cache/pull/4) (branch head
+`4ffb879`): four arms, all ext-judy **2.6.0** (tag `v2.6.0`, commit `c850210`)
+built from one source export with one toolchain — gcc 14.2.0, PHP 8.4.24,
+Debian trixie, the same pinned CFLAGS as this section — differing only in
+`--with-judy`. Raw runs are committed in that repo under
+`bench/results/run{1,2,3,4}-*.{csv,json}`; arms verified at instruction level
+(bundled `popcnt`=89/`bswap`=985, system 0/0 with 38 undefined `Judy*`
+symbols) and every child process asserts the `.so` it actually mapped.
+
+**Q1 — what do our patches buy?** (bundled vs pristine-static, same flags —
+the only pair that isolates the patch series)
+
+| layer | workload | patches alone |
+| --- | --- | ---: |
+| extension (this section) | integer / bitset, 300k | **−16.5%** |
+| extension (this section) | string, 300k | **−11.4%** |
+| extension ([out-of-cache rows](#out-of-cache-n6m-what-survives-when-the-working-set-leaves-l3)) | `core.str`, 6M | **−32.5%** |
+| application (judy-cache PSR-16) | `set()`, serialized, 300k | **−9.3%** |
+| application (judy-cache PSR-16) | `deletePrefix()` | **−10.3%** |
+| application (judy-cache PSR-16) | `keysByPrefix()` | **−7.5%** |
+
+The application numbers are smaller than the extension numbers for the boring
+reason: a PSR-16 `set()` spends most of its time in `serialize()` and wrapper
+code, so a ~20% gain in the Judy fraction dilutes end-to-end. Amdahl — same
+arithmetic as the [per-element section](#where-php-arrays-win-per-element-scalar-operations),
+one layer further out.
+
+**Q2 — what does a user switching from a distro package see?** More: judy-cache
+measures `set()` at **−23.3% [−23.5, −23.0]** against Debian's `libjudy-dev`
+1.0.5-5.1. The extra ~14 points over Q1's −9.3% are **Debian's build of the
+same sources** (−15.4% measured; hardening flags and compiler options), with
+linkage measured at null. The composition check closes: −9.3 and −15.4 compose
+to −23.2 against −23.3 measured directly. Both numbers are true; only Q1's is
+*ours*. Quoting Q2 as "the vendoring speedup" credits our patches with
+someone else's compiler options — the same misattribution this section's arm S
+exists to prevent.
+
+**Q3 — do the layers agree?** Yes, with one flagged exception. Every family
+that is mostly libJudy time (prefix delete 96%, prefix scan 78%) shows the
+patch gain diluted by exactly its wrapper share, and peak RSS is identical
+across arms to 0.2 MB (the patches change timing, not footprint). The
+exception: judy-cache's random-order `get()`/`has()` at n=3M out-of-cache
+reads **+2.2–3.0% slower** with CIs clear of the floor — a genuine reversal,
+open as a question in that PR, not smoothed over here. It is one workload
+shape; the extension-layer out-of-cache rows for comparable shapes are wins.
 
 ## Running the Benchmarks
 
