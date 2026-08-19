@@ -76,8 +76,12 @@ echo "rss_bytes added: ",
 // collapses back to heap_bytes, the measurement has reverted.
 $h = $bm['core.int_to_int.heap.judy']['heap_bytes'];
 $r = $bm['core.int_to_int.heap.judy']['rss_bytes'];
-echo "int_to_int heap under 1 KB: ", ($h < 1024) ? 'yes' : 'no', "\n";
-echo "int_to_int rss over 256 KB: ", ($r > 262144) ? 'yes' : 'no', "\n";
+// Stated relationally, not as absolute byte bounds: libJudy is compiled
+// separately from PHP, so a --enable-debug PHP inflates the array arm and the
+// emalloc bookkeeping while leaving the Judy trie untouched. Absolute
+// thresholds calibrated on a release build do not survive that; the asymmetry
+// they exist to prove does.
+echo "int_to_int rss dwarfs its own heap reading: ", ($r > $h * 100) ? 'yes' : 'no', "\n";
 
 // And the headline consequence: measured against the PHP array, the ratio is a
 // small multiple rather than the five-figure one the heap delta produced.
@@ -86,10 +90,11 @@ $ph = $bm['core.int_to_int.heap.php']['heap_bytes'];
 // The old instrument reported a five-figure multiple here; the new one a
 // small one. Asserted as thresholds, not exact values: the PHP array's own
 // footprint moves with the PHP version and the page size.
-echo "int_to_int ratio by heap over 1000x: ",
-    (($ph / max($h, 1)) > 1000.0) ? 'yes' : 'no', "\n";
-echo "int_to_int ratio by rss under 10x: ",
-    (($pr / max($r, 1)) < 10.0) ? 'yes' : 'no', "\n";
+// The heap instrument sees PHP arrays but not Judy: that asymmetry IS the bug.
+echo "php arm heap and rss same order: ", ($ph * 10 > $pr) ? 'yes' : 'no', "\n";
+echo "ratio by heap absurd: ", (($ph / max($h, 1)) > 1000.0) ? 'yes' : 'no', "\n";
+echo "ratio by rss orders of magnitude smaller: ",
+    (($ph / max($h, 1)) > 100.0 * ($pr / max($r, 1))) ? 'yes' : 'no', "\n";
 
 // ── 3. --memory off is the old behaviour, unchanged ────────────────────────
 // The automated drivers pass this; they must keep getting heap_bytes and no
@@ -123,10 +128,10 @@ method: peak_rss_child_floor_subtracted
 resolution is int: yes
 heap_bytes still present: yes
 rss_bytes added: yes
-int_to_int heap under 1 KB: yes
-int_to_int rss over 256 KB: yes
-int_to_int ratio by heap over 1000x: yes
-int_to_int ratio by rss under 10x: yes
+int_to_int rss dwarfs its own heap reading: yes
+php arm heap and rss same order: yes
+ratio by heap absurd: yes
+ratio by rss orders of magnitude smaller: yes
 
 == --memory off ==
 exit=0
