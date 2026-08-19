@@ -79,7 +79,7 @@ This document analyzes the inconsistent iterator performance results across our 
 #### Judy vs PHP Performance:
 - **Judy iterators**: 11-21x slower than PHP arrays
 - **Judy sequential**: 4-5x slower than PHP arrays
-- **Memory efficiency**: 12.5x less memory than PHP arrays
+- **Memory efficiency**: 2-5x less memory than PHP arrays for integer and string keys, 18.5-22.7x for `BITSET` (peak RSS; see [BENCHMARK.md](../../BENCHMARK.md#memory--the-headline-and-the-least-equivocal-result)). The "12.5x" previously quoted here came from `memory_get_usage()`, which cannot see a Judy index at all ([#172](https://github.com/orieg/php-judy/issues/172)).
 
 #### Trade-off Analysis:
 - **Memory-constrained scenarios**: Judy is beneficial despite performance cost
