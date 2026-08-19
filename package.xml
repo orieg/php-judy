@@ -256,6 +256,7 @@
          <file md5sum="c22186bd7e0504f66781ce2464faf15a" name="tests/iterator_valid_performance_001.phpt" role="test" />
          <file md5sum="95b9e9d9d4c6d74e023f2548e7e0de42" name="tests/foreach_iterator_int_to_int_001.phpt" role="test" />
          <file md5sum="a74064d16cd96e10df60e5221a98e892" name="tests/foreach_iterator_int_to_mixed_001.phpt" role="test" />
+         <file name="tests/multiget_batched_paths_001.phpt" role="test" />
          <file md5sum="3d999733ee9fbcaf452ae136131cce30" name="tests/multiple_instances_count_int_to_int_001.phpt" role="test" />
          <file md5sum="7916c29ad2562ccf29b59c922a9ac6e5" name="tests/multiple_instances_count_string_to_mixed_001.phpt" role="test" />
          <file md5sum="b0cc6ab42f008869e910866de849b69d" name="tests/count_method_loop_int_to_int_001.phpt" role="test" />
