@@ -42,8 +42,17 @@ jobs:
       - name: Get the extension matrix
         id: extension-matrix
         uses: php/php-windows-builder/extension-matrix@v1
+        with:
+          # The action defaults to arch-list "x64,x86". The bundled libJudy
+          # is 64-bit-only -- its pre-generated Judy1Tables.c/JudyLTables.c
+          # assume JU_64BIT -- so config.w32 hard-fails a 32-bit configure.
+          # Left unconstrained, every x86 leg would fail and (with the
+          # default fail-fast) take the whole release down, publishing no
+          # DLLs at all. x64 is what this project supports and tests; keep
+          # this list in sync with ci.yml's build-windows matrix.
+          arch-list: x64
 
-  # Build Windows DLLs for every PHP version / arch / thread-safety combination
+  # Build Windows DLLs for every PHP version / thread-safety combination (x64)
   build-windows:
     needs: get-extension-matrix
     runs-on: ${{ matrix.os }}

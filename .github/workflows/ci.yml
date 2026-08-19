@@ -906,6 +906,128 @@ jobs:
           Get-ChildItem -Path ".\build" -Recurse -Filter "build*.log" -ErrorAction SilentlyContinue |
             Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Tail 30 }
 
+  # Negative control for the 32-bit bundled-build guards (#159). Inverted, in
+  # the same spirit as the differential-fuzz negative control (#142 Stage 4):
+  # this job is GREEN when the guards correctly REFUSE a 32-bit bundled build,
+  # and RED if a guard is ever removed, weakened, or its message drifts.
+  #
+  # Why this and not an x86 leg in build-windows: an x86 leg is red-when-correct,
+  # which reads as a broken board and invites someone to "fix" it by deleting the
+  # guard. The one-time proof that the config.w32 guard fires on real MSVC x86 is
+  # recorded in issue #159 (CI job 95934686125: configure aborts with
+  # "ERROR: the bundled libJudy currently supports 64-bit targets only ..."). What
+  # can silently drift afterwards is the guard's own source, and that is exactly
+  # what this job pins -- deterministically, on a Linux runner, in seconds.
+  #
+  # Each assertion matches the guard's MESSAGE, not merely a nonzero exit, so an
+  # unrelated breakage cannot masquerade as the guard working.
+  guard-32bit:
+    name: 32-bit bundled build is refused (negative control)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # config.w32 is JScript. Drive it through the php-src Windows build API,
+      # stubbed, with X64 set the way php-src sets it (win32/build/config.w32:
+      # "X64 = TARGET_ARCH != 'x86'"). ERROR() throws here, standing in for
+      # confutils.js's WScript.Quit(3).
+      - name: config.w32 refuses a 32-bit target
+        run: |
+          cat > /tmp/harness.js <<'HARNESS'
+          var fs = require('fs');
+          var st = { flags: [], errors: [], warnings: [], extensions: [] };
+          function ARG_WITH() {}
+          function EXTENSION() { st.extensions.push(Array.prototype.slice.call(arguments)); }
+          function ADD_EXTENSION_DEP() {}
+          function AC_DEFINE() {}
+          function ADD_FLAG(n, v) { st.flags.push(n + ' ' + v); }
+          function ADD_SOURCES() {}
+          function CHECK_LIB() { return false; }
+          function CHECK_HEADER_ADD_INCLUDE() { return false; }
+          function WARNING(m) { st.warnings.push(m); }
+          function ERROR(m) { st.errors.push(m); throw { __abort: true }; }
+          var configure_module_dirname = 'C:\\php\\pecl\\judy';
+          var PHP_JUDY = 'yes';
+          var PHP_JUDY_SHARED = true;
+          var X64 = (process.argv[3] !== 'x86');
+          try { eval(fs.readFileSync(process.argv[2], 'utf8')); }
+          catch (e) { if (!e || !e.__abort) throw e; }
+          console.log(JSON.stringify(st));
+          HARNESS
+
+          echo "--- x86: must ERROR with the 64-bit-only message ---"
+          node /tmp/harness.js config.w32 x86 > /tmp/x86.json
+          cat /tmp/x86.json
+          node -e '
+            var r = require("/tmp/x86.json");
+            var m = r.errors.join("\n");
+            if (r.errors.length !== 1) {
+              throw new Error("expected exactly 1 ERROR() on x86, got " + r.errors.length +
+                " -- the config.w32 32-bit guard is missing or no longer aborts");
+            }
+            if (!/bundled libJudy currently supports 64-bit targets only/.test(m) ||
+                !/JU_64BIT/.test(m) || !/--with-judy=DIR/.test(m)) {
+              throw new Error("ERROR() message drifted; it must still name the cause " +
+                "(64-bit only / JU_64BIT) and the way out (--with-judy=DIR). Got: " + m);
+            }
+            if (r.extensions.length !== 0) {
+              throw new Error("configure kept going after the guard fired");
+            }
+            console.log("OK: x86 refused with the expected message");
+          '
+
+          echo "--- x64: must proceed and define JU_64BIT ---"
+          node /tmp/harness.js config.w32 x64 > /tmp/x64.json
+          cat /tmp/x64.json
+          node -e '
+            var r = require("/tmp/x64.json");
+            if (r.errors.length !== 0) {
+              throw new Error("x64 must not be refused, got: " + r.errors.join("; "));
+            }
+            if (r.flags.indexOf("CFLAGS_JUDY /D JU_64BIT") === -1) {
+              throw new Error("x64 build lost /D JU_64BIT; flags were: " + r.flags.join(" | "));
+            }
+            if (r.extensions.length !== 1) {
+              throw new Error("x64 build did not register the extension");
+            }
+            console.log("OK: x64 proceeds with /D JU_64BIT");
+          '
+
+      # Backstop that lives with the data: the pre-generated tables must refuse
+      # to compile without JU_64BIT whatever build system wires them in.
+      - name: Pre-generated tables refuse a 32-bit word
+        run: |
+          # Simulate MSVC x86 / any ILP32 target: claim Judy.h's _WORD_T guard
+          # with a genuinely 4-byte Word_t and leave JU_64BIT undefined.
+          cat > /tmp/word32.h <<'EOF'
+          #define _WORD_T
+          typedef unsigned int Word_t, * PWord_t;
+          EOF
+
+          INC="-Ilibjudy/src -Ilibjudy/src/JudyCommon -Ilibjudy/src/Judy1 -Ilibjudy/src/JudyL"
+          rc=0
+          for f in libjudy/src/Judy1/Judy1Tables.c libjudy/src/JudyL/JudyLTables.c; do
+            echo "--- $f: 32-bit word must be rejected ---"
+            if cc -fsyntax-only -include /tmp/word32.h $INC "$f" 2>/tmp/err.txt; then
+              echo "FAIL: $f compiled with a 4-byte Word_t and no JU_64BIT"; rc=1; continue
+            fi
+            if ! grep -q "require a 64-bit build" /tmp/err.txt; then
+              echo "FAIL: $f was rejected, but not by the JU_64BIT guard."
+              echo "      The #error backstop is missing or its message drifted."
+              head -20 /tmp/err.txt; rc=1; continue
+            fi
+            echo "OK: rejected by the JU_64BIT #error guard"
+
+            echo "--- $f: 64-bit build must still be clean ---"
+            if ! cc -c -Wall -Werror -O2 -DJU_64BIT $INC "$f" -o /tmp/ok.o 2>/tmp/err64.txt; then
+              echo "FAIL: $f no longer compiles for a normal 64-bit build"
+              head -20 /tmp/err64.txt; rc=1; continue
+            fi
+            echo "OK: 64-bit build unaffected"
+          done
+          exit $rc
+
   report-results:
     needs: [build-linux, build-windows]
     if: ${{ !cancelled() }}

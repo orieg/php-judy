@@ -247,7 +247,14 @@ j__L_LeafVPopToWords[cJU_BITSPERSUBEXPL + 1] =
         typedef char judy_php_tables_assert_ ## name [(cond) ? 1 : -1]
 
 // This file was generated under JU_64BIT: a 32-bit build must regenerate
-// it, not reuse it.
+// it, not reuse it.  The #error states the cause in one line; the pin below
+// is the belt to its suspenders, and still catches a build that forces
+// JU_64BIT on despite a 32-bit word.  config.m4 and config.w32 both refuse a
+// 32-bit target before reaching this file -- these two are the backstop for
+// any other build system, and for a hand-rolled compile of these sources.
+#ifndef JU_64BIT
+#error "php-judy: these pre-generated libJudy tables require a 64-bit build (-DJU_64BIT). Regenerate them for 32-bit words, or link a system libJudy instead (--with-judy=DIR)."
+#endif
 JUDY_PHP_TABLES_ASSERT(sizeof(Word_t) == 8, word_t_is_8_bytes);
 
 // Dimensions the generator baked into the initializer lists above.
