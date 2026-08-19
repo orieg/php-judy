@@ -408,6 +408,7 @@
          <file name="API.md" role="doc" />
          <file name="scripts/api-metadata.php" role="doc" />
          <file name="scripts/bench-compare.php" role="doc" />
+         <file name="scripts/bench-threearm.php" role="doc" />
          <file name="scripts/generate-api-docs.php" role="doc" />
          <file name="scripts/judy_debug_common.py" role="doc" />
          <file name="scripts/judy_gdb.py" role="doc" />
