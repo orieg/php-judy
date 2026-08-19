@@ -6,6 +6,13 @@
 # core 2. A GATE,...,FAIL line aborts the whole bench.
 ROOT=/var/tmp/jp113
 ARMS=$1; SEEDS=$2; SPECS=$3; TRIALS=$4; OUT=$5
+# Block sizes handed to each o5pbench invocation. 4096 is REQUIRED, not
+# optional: the partition only engages at Count >= cJL_MULTIGET_PART_MIN_COUNT
+# (2048), so a run limited to 256/1024 measures the UNPARTITIONED path in
+# every arm and would report "the partition does nothing". This was a live
+# bug on 2026-08-19 -- the value had been patched on the bench host only,
+# and re-shipping the script from the repo silently reverted it.
+BLOCKS=${BLOCKS:-256,1024,4096}
 echo "arm,seed,corpus,n,trial,kernel,ns_per_op,hits" > "$OUT"
 echo "# loadavg_start=$(cut -d' ' -f1 /proc/loadavg)" >> "$OUT"
 for t in $(seq 1 "$TRIALS"); do
@@ -15,7 +22,7 @@ for t in $(seq 1 "$TRIALS"); do
       for s in ${SEEDS//,/ }; do
         B=$ROOT/bin/o5p${arm}_s${s}/o5pbench
         [ -x "$B" ] || continue
-        OUTP=$(taskset -c 2 "$B" "$c" "$n" "$reps" 1 "256,1024" 2>/dev/null)
+        OUTP=$(taskset -c 2 "$B" "$c" "$n" "$reps" 1 "$BLOCKS" 2>/dev/null)
         if echo "$OUTP" | grep -q '^GATE.*FAIL'; then
           echo "GATE FAIL arm=$arm s=$s cell=$spec" | tee -a "$OUT"; exit 1
         fi

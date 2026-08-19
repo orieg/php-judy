@@ -1926,6 +1926,48 @@ the L3 sweep at ≤3.7%), and a `/var/tmp/BENCH_LOCK` mutex every driver now
 takes. The collision was originally caught by luck — a partial read
 disagreeing with a full read — which is not a control.
 
+**Pre-registration of the threshold decision (written BEFORE the probe ran).**
+The PHP-level A/B failed two gate criteria (sparse n=8×10^6 measured ×1.40
+against a ≥×1.5 bar, and unimodal `getAll` regressed ~10% against the
+archived arm), with a coherent mechanism: enabling the composition
+analysis required raising `getAll`'s gather from 256 to 4096 keys, which
+makes the caller's own key/value buffers 64 KB — larger than L1. The
+C-level data points the same way (`wsparse` 8×10^6 is ×1.546 at 256-key
+batches and ×1.506 at 4096-key batches). The obvious repair is to lower
+`cJL_MULTIGET_PART_MIN_COUNT` so a small gather can still be analyzed and
+partitioned.
+
+That repair would be **a hyperparameter change motivated by a failing
+gate result**, which the project's research discipline treats as claim-
+narrowing regardless of how well-motivated it is. Committing to the rule
+in advance, before the probe data exists:
+
+- The short-batch probe is a **measurement of the threshold landscape**,
+  not evidence for a claim. No PASS may be read off the probe run.
+- **Adopt only if** the probe shows the analysis running on 256-key
+  batches (a) within the claim floor of the archived arm on unimodal
+  corpora, AND (b) still beating it on heterogeneous corpora. Both
+  conditions, not either.
+- If adopted, the **entire gate matrix is re-run from scratch** on the new
+  configuration. Cells measured under the old configuration are not
+  spliced in, and the probe run that motivated the change is not cited as
+  its confirmation.
+- The result is then labelled **PASS_after_tuning** — a weaker claim than
+  passing as specced, and recorded as such even if the numbers come out
+  identical.
+- If the probe does not satisfy both conditions, the verdict is **DROP**,
+  and the tuning is not attempted a second time with a different knob.
+
+**A design finding worth keeping independent of the verdict.** Making a
+batched API self-tuning is not free at the boundary: the composition
+analysis needs enough keys per call to be worth its own cost, but a
+larger per-call gather pollutes the caller's cache with its own key and
+result buffers. Measured here as ~3% between 256-key and 4096-key gathers
+at C level and ~10% at PHP level. **The analysis has to be cheap enough to
+run on the batch size the caller would have used anyway, or it eats its
+own benefit.** That constraint applies to any batched-lookup API with an
+adaptive path, not just this one.
+
 **Status: OPEN.** The partition is validated at C level; the adoption is
 not yet judged. The decisive cells are PHP-level `getAll()` on a mixed
 tree at n=10^6 (the cell that killed §11.9) and sparse at n=8×10^6, plus
