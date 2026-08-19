@@ -1,5 +1,12 @@
 # Heap-corruption triage (surfaced by, not caused by, the three-arm benchmark)
 
+RESOLVED. Root cause is php-judy's own PHP-facing layer, not libJudy: GC
+re-entrancy during MIXED teardown (use-after-free in judy_free_array_internal).
+Tracked as issue #162, fixed in dcc368e, covered by
+tests/regression_gc_teardown_reentrancy_001.phpt. The readings below are the
+frozen pre-fix record; see the "Confidence tiers" section of BENCHMARK.md for
+the post-fix verification matrix.
+
 Both arms, both sizes. NOT a bundled-vs-system difference.
 
 ## linux/amd64 (Docker), judy-bench.php --group core.int --iterations 1
