@@ -134,16 +134,27 @@ while [ "$i" -le "$REPEATS" ]; do
     # should be repeated. On a shared runner it is expected to wobble, and
     # failing the job for it would be failing it for something the gate's
     # verdicts do not depend on.
-    if [ -f "$REPO/tools/bench-stability.py" ]; then
-        if python3 "$REPO/tools/bench-stability.py" --tol 0.15 \
-                "$OUTDIR/stability-$PLATFORM-$i.csv" \
-                > "$OUTDIR/stability-$PLATFORM-$i.txt" 2>&1; then
-            echo "baseline-stability guard: stable"
-        else
-            echo "baseline-stability guard: CONTAMINATED (absolute times moved)"
-            tail -3 "$OUTDIR/stability-$PLATFORM-$i.txt"
-            if [ -z "${CI:-}" ]; then STATUS=1; fi
-        fi
+    # "the guard could not run" and "the guard says contaminated" are different
+    # facts and must not share an exit path: a slim image without python3 would
+    # otherwise report every run as contaminated, which is how a guard stops
+    # being believed.
+    if [ ! -f "$REPO/tools/bench-stability.py" ]; then
+        echo "baseline-stability guard: not present in this checkout"
+    elif ! command -v python3 >/dev/null 2>&1; then
+        echo "baseline-stability guard: UNAVAILABLE (no python3 on this image)" \
+            | tee "$OUTDIR/stability-$PLATFORM-$i.txt"
+    elif python3 "$REPO/tools/bench-stability.py" --tol 0.15 \
+            "$OUTDIR/stability-$PLATFORM-$i.csv" \
+            > "$OUTDIR/stability-$PLATFORM-$i.txt" 2>&1; then
+        echo "baseline-stability guard: stable"
+    else
+        echo "baseline-stability guard: CONTAMINATED (absolute times moved)"
+        tail -3 "$OUTDIR/stability-$PLATFORM-$i.txt"
+        # Enforced only off CI. On a dedicated host an unstable canary means the
+        # absolute numbers are not quotable and the run should be repeated; on a
+        # shared runner it is expected to wobble, and the gate's verdicts are
+        # ratios, which survive drift that moves both arms together.
+        if [ -z "${CI:-}" ]; then STATUS=1; fi
     fi
 
     RUNS="${RUNS:+$RUNS,}$OUT"

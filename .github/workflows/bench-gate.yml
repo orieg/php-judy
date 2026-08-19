@@ -184,9 +184,13 @@ jobs:
             -v "$RUNNER_TEMP/results:/results" \
             -e BENCH_ROUNDS -e BENCH_SIZE -e BENCH_REPEATS \
             -e BENCH_GROUPS -e BENCH_MEM_SIZES \
+            -e CI \
             -e "GATE_FLAG=$GATE_FLAG" \
             php:8.4-cli-alpine sh -euc '
-              apk add --no-cache --virtual .b $PHPIZE_DEPS git bash >/dev/null
+              # python3 is for tools/bench-stability.py, the shared contention
+              # guard; without it the guard reports UNAVAILABLE rather than
+              # failing, but this platform should actually run it.
+              apk add --no-cache --virtual .b $PHPIZE_DEPS git bash python3 >/dev/null
               # The bind-mounted checkout is the git repo arm S is reconstructed
               # from; the build itself happens in a scratch tree that
               # build-arms.sh populates with `git archive`, so the mounted
