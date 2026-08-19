@@ -64,6 +64,15 @@ c1 -DJUDYGETINLINE -c "$SRC/JudyCommon/JudyGet.c" -o 1_JudyGetInline.o
 cl -c "$SRC/JudyCommon/JudyGet.c" -o L_JudyGet.o
 cl -DJUDYGETINLINE -c "$SRC/JudyCommon/JudyGet.c" -o L_JudyGetInline.o
 
+# php-judy additions that exist only in the patched tree, never in a
+# pristine 1.0.5 export. Compile them when present so a bundled-tree build
+# carries the same TUs the vendored build ships (P7's JudyNoInline.c is in
+# libjudy/src today and was being silently omitted here).
+if [ -f "$SRC/JudyCommon/JudyNoInline.c" ]; then
+    # shellcheck disable=SC2086
+    $CC $COMMON -c "$SRC/JudyCommon/JudyNoInline.c" -o JudyNoInline.o
+fi
+
 for dir in NEXT PREV; do
     c1 -DJUDY$dir -c "$SRC/JudyCommon/JudyPrevNext.c" -o "1_$dir.o"
     cl -DJUDY$dir -c "$SRC/JudyCommon/JudyPrevNext.c" -o "L_$dir.o"

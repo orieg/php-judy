@@ -35,7 +35,7 @@ execution record is
 | | |
 | --- | --- |
 | **Question** | Does libJudy 1.0.5 have exploitable headroom, and what does realising it cost? |
-| **Status** | Investigation closed; decision executed. First verdict retracted; round 2 measured; external review round-trip closed; vendoring executed via [#142](https://github.com/orieg/php-judy/issues/142) (Stages 0–2 plus optimizations O1, O3 and O4a/b/d merged; O2, O4c and O5 dropped at their gates, O5 since reopened behind a partition gate — see [§11](#11-execution-record-stages-03); Stage 3 re-reviewed 2026-08-18, §11.10). |
+| **Status** | Investigation closed; decision executed. First verdict retracted; round 2 measured; external review round-trip closed; vendoring executed via [#142](https://github.com/orieg/php-judy/issues/142) (Stages 0–2 plus optimizations O1, O3 and O4a/b/d merged; O2, O4c and O5 dropped at their gates, O5 since reopened behind a partition gate, measurement in progress in §11.11 — see [§11](#11-execution-record-stages-03); Stage 3 re-reviewed 2026-08-18, §11.10). |
 | **Primary issue** | [#113](https://github.com/orieg/php-judy/issues/113) (investigation, closed); [#142](https://github.com/orieg/php-judy/issues/142) (implementation tracker) |
 | **Correctness issues raised** | [#131](https://github.com/orieg/php-judy/issues/131), [#127](https://github.com/orieg/php-judy/issues/127) — both fixed and closed by [PR #147](https://github.com/orieg/php-judy/pull/147) |
 | **Harness defects raised** | [#122](https://github.com/orieg/php-judy/issues/122), fixed by [PR #124](https://github.com/orieg/php-judy/pull/124) |
@@ -1744,6 +1744,14 @@ documented workload constraints is explicitly requested on the tracker.
 > constraint, and the tiny-tree threshold evidence. Status: **reopened,
 > gated** on the partition experiment; nothing in the vendored tree changes
 > until that gate reports.
+>
+> **Follow-up in progress: §11.11** records the reopen's measurements. Two
+> corrections to this addendum's own expectations already stand there: the
+> tiny-tree threshold evidence is NOT upheld once the serial baseline is
+> corrected (the shipped `cJL_MULTIGET_SERIAL_POP1` = 262144 was derived
+> against the handicapped arm, and `wdense` loses at n=10^6 while winning
+> at n=8×10^6), and the corrected baseline shows a substantial part of
+> §11.9's own ×1.51–×2.17 C-level headline was baseline artifact.
 
 ### 11.10 The Stage 3 adversarial re-review — the claim floor revised, and what moved
 
@@ -1803,6 +1811,258 @@ CONTAMINATED. That run therefore corroborates only this much: **the shipped
 bundle is not slower than the previous release, and int reads moved in the
 right direction.** It is not per-optimization evidence, and must not be
 cited as such.
+
+### 11.11 Stage 3, O5 reopen — the partition measured, and a bench-host collision
+
+The §11.9 drop was AMENDED by the §11.10 re-review and reopened behind a
+partition gate. This section records the reopen **in progress**: the
+partition's own gate is measured and clean, the adoption's decisive
+PHP-level cells are **not yet measured**, and no verdict is claimed here.
+Nothing has landed. Provenance as always: honeycomb x86-64 gcc 11.4,
+`-O2 -mpopcnt`, arms `pre` (main, no batched entry point) / `ctl` (the
+archived unpartitioned `vendor/stage3-o5-amac` implementation) / `post`
+(partitioned) / `post0` (thresholds compiled out), **5 randomized-link
+builds per arm** with the build as the replication unit, interleaved
+trials, per-build medians, percentile-bootstrap CIs, `taskset -c 2`.
+Harness committed at `research/libjudy-modernization/o5p-harness/`.
+
+**The corrected serial baseline.** The §11.10 review found the original
+gate's serial arm handicapped: it computed each probe key in a dependent
+chain *inside* the timed loop. The reopen's bench pregenerates the probe
+stream and reports **both** baselines, so the record can be compared
+against the old numbers. The correction is large — the old-style column
+below runs ×1.4–×4.5 where the corrected column runs ×0.7–×1.6 — and it
+retroactively explains the §11.9 headline: **a substantial part of the
+original ×1.51–×2.17 was baseline artifact, not batching.**
+
+**Gate 1 — the partition does what the review predicted.** Against the
+archived implementation on heterogeneous batches (4096-key calls):
+
+| corpus | n | pre serial (ns/op) | post mg4096 vs pre (corrected) | vs pre (old-style) | post vs ctl (partition effect) | ctl vs pre (archived) | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `wmix10` | 1,000,000 | 31.98 | **x1.284 [1.264,1.302]** | x2.04 [2.00,2.07] | x1.521 [1.493,1.542] WIN | x0.84 [0.84,0.85] REG | WIN |
+| `wmix25` | 1,000,000 | 29.49 | **x1.240 [1.214,1.271]** | x1.97 [1.93,2.02] | x1.831 [1.780,1.876] WIN | x0.68 [0.67,0.69] REG | WIN |
+| `wmix32_50` | 1,000,000 | 20.19 | **x1.086 [1.053,1.133]** | x1.69 [1.64,1.77] | x2.444 [2.366,2.549] WIN | x0.44 [0.44,0.45] REG | WIN |
+| `wmix32_90` | 1,000,000 | 10.53 | **x0.762 [0.724,0.794]** | x1.40 [1.33,1.46] | x2.442 [2.322,2.545] WIN | x0.31 [0.31,0.31] REG | REG |
+| `wmix50` | 1,000,000 | 25.69 | **x1.254 [1.206,1.298]** | x1.89 [1.81,1.95] | x2.387 [2.297,2.470] WIN | x0.53 [0.52,0.53] REG | WIN |
+| `wmix75` | 1,000,000 | 17.76 | **x1.060 [1.002,1.107]** | x1.65 [1.57,1.72] | x2.902 [2.746,3.032] WIN | x0.37 [0.35,0.37] REG | WIN |
+| `wmix90` | 1,000,000 | 11.92 | **x0.774 [0.725,0.800]** | x1.37 [1.28,1.41] | x2.547 [2.385,2.632] WIN | x0.30 [0.30,0.31] REG | REG |
+| `wmixc50` | 1,000,000 | 28.03 | **x0.659 [0.630,0.662]** | x0.99 [0.94,0.99] | x1.250 [1.193,1.271] WIN | x0.53 [0.52,0.53] REG | REG |
+| `wmixs50` | 1,000,000 | 28.07 | **x1.335 [1.296,1.373]** | x2.11 [2.04,2.16] | x2.341 [2.259,2.407] WIN | x0.57 [0.56,0.58] REG | WIN |
+
+Every heterogeneous cell improves against the archived implementation,
+×1.25 to ×2.90, which is the reopen's central claim. The review's
+prototype prediction for the 90%-dense cell replicates closely (predicted
+×0.77, measured ×0.774).
+
+**Gate 2 — and it costs nothing on unimodal batches.** The
+no-regression criterion is the `post vs ctl` column:
+
+| corpus | n | pre serial (ns/op) | post mg4096 vs pre (corrected) | vs pre (old-style) | post vs ctl (partition effect) | ctl vs pre (archived) | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `wbase16` | 1,048,576 | 19.81 | **x1.422 [1.395,1.513]** | x2.14 [2.10,2.27] | x0.997 [0.935,1.056] null | x1.43 [1.40,1.52] WIN | WIN |
+| `wbase64` | 1,000,000 | 9.80 | **x1.038 [1.015,1.125]** | x1.95 [1.91,2.11] | x0.991 [0.917,1.075] null | x1.05 [1.02,1.13] WIN | WIN |
+| `wclust` | 1,000,000 | 31.21 | **x1.593 [1.589,1.635]** | x2.15 [2.14,2.20] | x0.999 [0.977,1.025] null | x1.60 [1.59,1.63] WIN | WIN |
+| `wdense` | 1,000,000 | 6.93 | **x0.902 [0.891,0.959]** | x1.85 [1.84,1.97] | x0.985 [0.925,1.054] null | x0.92 [0.90,0.97] REG | REG |
+| `wimm3` | 1,000,000 | 19.09 | **x1.349 [1.344,1.377]** | x1.86 [1.84,1.90] | x1.001 [0.985,1.017] null | x1.35 [1.34,1.38] WIN | WIN |
+| `wleaf1` | 1,000,000 | 22.14 | **x1.414 [1.406,1.451]** | x2.03 [2.02,2.06] | x0.994 [0.975,1.012] null | x1.42 [1.42,1.46] WIN | WIN |
+| `wpair` | 1,000,000 | 15.59 | **x1.186 [1.179,1.222]** | x1.73 [1.72,1.79] | x0.993 [0.967,1.023] null | x1.19 [1.18,1.23] WIN | WIN |
+| `wrand40` | 1,000,000 | 29.15 | **x1.422 [1.417,1.451]** | x2.15 [2.14,2.19] | x0.986 [0.968,1.006] null | x1.44 [1.44,1.47] WIN | WIN |
+| `wsparse` | 1,000,000 | 34.21 | **x1.570 [1.561,1.598]** | x2.51 [2.46,2.53] | x0.990 [0.979,0.999] REG | x1.59 [1.58,1.61] WIN | WIN |
+
+Null on eight of nine; `wsparse` −1.0% [−2.1%, −0.1%], inside both the
+~3% L3-resident and ~1.3% out-of-cache claim floors of §11.10. Controls
+and post-serial null checks are null throughout; `JLMU` was byte-identical
+across all four arms on all 13 corpora.
+
+**What the corrected baseline exposes, and it is not the partition's
+fault.** Four cells lose to plain serial: `wdense` ×0.902, `wmix90`
+×0.774, `wmix32_90` ×0.762, `wmixc50` ×0.659. On `wdense` the *archived*
+arm loses identically (×0.92), so this is the batched machine on
+cache-resident cheap-descend trees, newly visible only because the
+baseline stopped being handicapped. The mechanism is consistent with the
+sign — a tree that fits cache has no misses to overlap, so the lanes add
+overhead and buy nothing — but the host has no PMU, so that remains a
+hypothesis, per the standing §11.7/§11.10 caveat.
+
+**The shipped tiny-tree threshold is wrong under the corrected baseline.**
+`cJL_MULTIGET_SERIAL_POP1` = 262144 was derived against the handicapped
+arm. Measured now, `wdense` **loses ×0.902 at n=10^6 and wins ×1.50 at
+n=8×10^6** — a residency crossover far above the shipped cutoff. A
+population threshold is also the wrong *axis*: at the same n=10^6,
+`wsparse` wins ×1.57 while `wdense` loses. A JLMU (tree-bytes) threshold
+was considered and **rejected on measurement**: `wmixc50` loses at 15.5 MB
+while `wsparse` wins at 16.9 MB, so any byte cutoff separating them would
+be fitted to two points. Threshold re-derivation is an open item of this
+reopen, not a settled result.
+
+**Bench-host collision — disclosed, with the discarded data named.**
+Partway through this matrix a second php-judy benchmark campaign
+(`bench-threearm.php`, system-vs-bundled, in docker) started on the same
+host. The two corrupted each other. Both individually satisfied this
+project's `loadavg < N/2` hygiene rule — 24 cores, loadavg peaked at
+2.87 — and **that rule is insufficient**: two memory-bound benchmarks
+contend for LLC and memory bandwidth regardless of core pinning. This is
+a real limitation of a heuristic the project has leaned on since the O1
+round.
+
+- **Usable, and reported above:** the L3 sweep (loadavg 0.56–1.04) and the
+  heterogeneous-mix sweep (0.96–1.06). The mix sweep carried one
+  single-trial excursion (`wmixs50`, +20% in the `pre` baseline at trial
+  3); it is reported with that trial excluded, which moves the cell
+  ×1.338 → ×1.335 and changes no verdict.
+- **Discarded, to be re-run in full:** the out-of-cache sweep — valid for
+  trials 1–2 only (`wsparse` n=8×10^6 `pre`/serial reads 69.5 ns/op in
+  trials 1–2 and 156.6 ns/op in trial 3, a 2.2× shift in an *untouched
+  baseline*). The `wdense` ×1.50 and `wsparse` ×1.51 figures quoted above
+  come from the clean trials and are **provisional pending that re-run.**
+- **Never reached:** the crossover sweep, the PHP-level A/B, the
+  short-batch probe, and the residency sweep.
+
+Two process changes came out of it, both committed with the harness:
+`o5p-stability.py`, which fails any cell whose untouched `pre` baseline
+drifts across trials (it flags the collided sweep at 116–142% and clears
+the L3 sweep at ≤3.7%), and a `/var/tmp/BENCH_LOCK` mutex every driver now
+takes. The collision was originally caught by luck — a partial read
+disagreeing with a full read — which is not a control.
+
+**Pre-registration of the threshold decision (written BEFORE the probe ran).**
+The PHP-level A/B failed two gate criteria (sparse n=8×10^6 measured ×1.40
+against a ≥×1.5 bar, and unimodal `getAll` regressed ~10% against the
+archived arm), with a coherent mechanism: enabling the composition
+analysis required raising `getAll`'s gather from 256 to 4096 keys, which
+makes the caller's own key/value buffers 64 KB — larger than L1. The
+C-level data points the same way (`wsparse` 8×10^6 is ×1.546 at 256-key
+batches and ×1.506 at 4096-key batches). The obvious repair is to lower
+`cJL_MULTIGET_PART_MIN_COUNT` so a small gather can still be analyzed and
+partitioned.
+
+That repair would be **a hyperparameter change motivated by a failing
+gate result**, which the project's research discipline treats as claim-
+narrowing regardless of how well-motivated it is. Committing to the rule
+in advance, before the probe data exists:
+
+- The short-batch probe is a **measurement of the threshold landscape**,
+  not evidence for a claim. No PASS may be read off the probe run.
+- **Adopt only if** the probe shows the analysis running on 256-key
+  batches (a) within the claim floor of the archived arm on unimodal
+  corpora, AND (b) still beating it on heterogeneous corpora. Both
+  conditions, not either.
+- If adopted, the **entire gate matrix is re-run from scratch** on the new
+  configuration. Cells measured under the old configuration are not
+  spliced in, and the probe run that motivated the change is not cited as
+  its confirmation.
+- The result is then labelled **PASS_after_tuning** — a weaker claim than
+  passing as specced, and recorded as such even if the numbers come out
+  identical.
+- If the probe does not satisfy both conditions, the verdict is **DROP**,
+  and the tuning is not attempted a second time with a different knob.
+
+**A design finding worth keeping independent of the verdict.** Making a
+batched API self-tuning is not free at the boundary: the composition
+analysis needs enough keys per call to be worth its own cost, but a
+larger per-call gather pollutes the caller's cache with its own key and
+result buffers. Measured here as ~3% between 256-key and 4096-key gathers
+at C level and ~10% at PHP level. **The analysis has to be cheap enough to
+run on the batch size the caller would have used anyway, or it eats its
+own benefit.** That constraint applies to any batched-lookup API with an
+adaptive path, not just this one.
+
+**Gate outcome: the PHP-level adoption FAILED. O5 stays DROPPED.**
+The A/B is 3 arms (main serial / archived unpartitioned / partitioned) ×
+7 interleaved process-runs, docker-pinned, every raw invocation
+persisted; arms feature-checked (`pre` exports no `JudyLMultiGet`;
+all three verified mapped from the mount, not the image's baked-in `.so`):
+
+| op | shape | n | post vs pre (main serial) | post vs ctl (archived) | verdict |
+| --- | --- | --- | --- | --- | --- |
+| `foreach` | `clust` | 1,000,000 | x1.002 [0.990,1.008] | x0.996 [0.988,1.001] null | **null** |
+| `foreach` | `dense` | 1,000,000 | x0.997 [0.961,1.025] | x0.997 [0.960,1.008] null | **null** |
+| `foreach` | `mix` | 1,000,000 | x0.990 [0.981,1.005] | x0.985 [0.980,1.001] null | **null** |
+| `foreach` | `sparse` | 1,000,000 | x0.996 [0.987,1.001] | x0.998 [0.991,1.000] null | **null** |
+| `foreach` | `sparse` | 8,000,000 | x1.003 [0.995,1.006] | x0.999 [0.994,1.025] null | **null** |
+| `getall` | `clust` | 1,000,000 | x0.826 [0.818,0.831] | x1.072 [1.066,1.079] WIN | **REG** |
+| `getall` | `clust` | 8,000,000 | x1.218 [1.208,1.222] | x1.132 [1.124,1.133] WIN | **WIN** |
+| `getall` | `dense` | 1,000,000 | x0.997 [0.990,1.006] | x0.989 [0.979,0.998] REG | **null** |
+| `getall` | `dense` | 8,000,000 | x1.392 [1.380,1.402] | x0.988 [0.982,0.992] REG | **WIN** |
+| `getall` | `dense90` | 1,000,000 | x0.950 [0.945,0.959] | x1.340 [1.336,1.347] WIN | **REG** |
+| `getall` | `dense90` | 8,000,000 | x1.351 [1.341,1.367] | x1.162 [1.154,1.168] WIN | **WIN** |
+| `getall` | `mix` | 1,000,000 | x1.058 [1.049,1.068] | x1.391 [1.375,1.396] WIN | **WIN** |
+| `getall` | `mix` | 8,000,000 | x1.308 [1.302,1.316] | x1.229 [1.224,1.238] WIN | **WIN** |
+| `getall` | `sparse` | 1,000,000 | x0.976 [0.974,0.985] | x0.901 [0.899,0.907] REG | **REG** |
+| `getall` | `sparse` | 8,000,000 | x1.400 [1.395,1.407] | x0.909 [0.902,0.914] REG | **WIN** |
+
+Against the gate's stated criteria: the killing cell **passes** —
+`getAll` on a mixed tree at n=10^6 is ×1.058 [1.049, 1.068], against
+×0.72–0.77 at the §11.9 drop — but **sparse n=8×10^6 measured ×1.400
+against a ≥×1.5 bar, and the unimodal cells regress against the archived
+arm** (`sparse` ×0.901/×0.909, `dense` ×0.989/×0.988). Two criteria
+failed; the gate fails. Independently, the house rule bites: `getAll` on
+clustered n=10^6 is ×0.826 and on 90%-dense n=10^6 ×0.950 against plain
+serial — plausible workloads carrying a measured regression.
+
+Internal validity: all five `foreach` control cells are null across every
+shape (×0.990–1.003 vs main, ×0.985–0.999 vs archived), so the three
+builds are indistinguishable on the un-adopted path and the `getAll`
+deltas are attributable to the adoption rather than to build or link
+differences.
+
+**The threshold repair was pre-registered, measured, and REFUSED.** The
+mechanism proposed above — that a 4096-key gather pollutes the caller's
+cache — predicted that lowering `cJL_MULTIGET_PART_MIN_COUNT` so a
+256-key gather could still be analysed would fix it. **The probe refuted
+the prediction.** The composition analysis is a per-call fixed cost, so
+at 256-key batches it costs 13–15% against the archived arm (`wsparse`
+×0.869, `wdense` ×0.882, `wclust` ×0.952) — far outside the ~3% floor —
+and only amortises to free at 4096 keys (×0.990–1.000), which is exactly
+the gather size whose buffers cost ~10% at PHP level. Heterogeneous
+corpora still won at 256 keys (×1.30–×2.04), so pre-registered condition
+(b) held and condition (a) failed. Both were required. Per the
+pre-registration the verdict is DROP, and the tuning was not retried with
+a different knob.
+
+So the dilemma is structural, not a bad constant: **the analysis needs a
+large batch to amortise, and a large batch pollutes the caller's cache.**
+There is no setting of this knob that serves both, and the C-level
+evidence says the batched path additionally loses on cache-resident trees
+whether or not it partitions (`wdense` n=10^6 ×0.902, with the archived
+arm losing identically at ×0.92).
+
+**Status: DROPPED (second time), with the partition validated.** What
+stands as a real result: the counting partition does what the §11.10
+review predicted, beating the archived implementation on all nine
+heterogeneous cells (×1.25–×2.90) at no cost on unimodal ones, and
+`getAll` genuinely wins out-of-cache (mixed ×1.308, sparse ×1.400, dense
+×1.392, clustered ×1.218 at n=8×10^6). What does not stand is a shippable
+default: the same adoption regresses at n=10^6 on clustered, 90%-dense
+and sparse trees, and php-judy cannot know a caller's tree shape or
+batch composition in advance. With no consumer, the vendored TU would be
+dead code, so nothing is merged — the §11.9 reasoning, reached again from
+a stronger position. The implementation is archived complete on
+`vendor/stage3-o5-partition`.
+
+**What this says about the synthetic panel, stated in both directions.**
+The §11.10 panel was **right to reopen this**, and right about the
+mechanism: it diagnosed the heterogeneous-batch kill as an ordering
+effect, proposed the counting partition, and predicted the 90%-dense cell
+would still lose at ×0.77 — measured here at **×0.774**, from an
+independent implementation inside the library rather than their
+standalone prototype. A synthetic panel is not peer review and its
+convergence is not external evidence (§8), but on this occasion its
+analysis was specific enough to be falsifiable and it survived
+falsification. That is worth recording precisely because the optimization
+it rescued still failed: **the panel was right about the partition, and
+the adoption still does not pay.** Neither half of that sentence is safe
+to drop — treating the failed outcome as evidence the reopen was wasted
+would be as mistaken as treating the correct prediction as evidence the
+optimization should ship.
+
+Reopening conditions, narrowed by this round: (a) a PHP-facing bulk API
+whose contract lets the caller *declare* large out-of-cache batches, since
+that is the regime where every cell wins and the extension cannot infer
+it; or (b) a composition test cheap enough to run at the caller's natural
+batch size — this round's costs 13–15% at 256 keys, which is the number
+to beat.
 
 ## Limits of this record
 
