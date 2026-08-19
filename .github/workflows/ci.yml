@@ -514,6 +514,25 @@ jobs:
       - name: Build every harness and run the sanitized smoke grid
         run: ./research/ci-smoke.sh 1000
 
+      - name: Run the sanitized grid again against the bundled libJudy
+        # The step above links the harnesses against the system library --
+        # the --with-judy=DIR mode. The default build is the bundled tree
+        # under libjudy/, so the same ASan+UBSan harness grid must cover it
+        # too (#142 Stage 4). build-stock.sh compiles libjudy/src at the
+        # shipped flag set (config.m4's isolated -O2 -fno-lto
+        # -fno-unroll-loops -DJU_64BIT, -mpopcnt when accepted), so the
+        # harnesses exercise the bytes a release build ships. Library-side
+        # sanitization of the bundled tree lives in the differential-fuzz
+        # job below, which drives far more of the API surface.
+        run: |
+          POPCNT=""
+          echo 'int main(void){return 0;}' > /tmp/popcnt-probe.c
+          cc -Werror -mpopcnt -c /tmp/popcnt-probe.c -o /dev/null 2>/dev/null && POPCNT="-mpopcnt"
+          sh research/differential-fuzz/validation/build-stock.sh \
+            "$PWD/libjudy/src" /tmp/judy-bundled \
+            -O2 -fno-lto -fno-unroll-loops $POPCNT
+          JUDY_PREFIX=/tmp/judy-bundled ./research/ci-smoke.sh 1000
+
       - name: Negative control -- reinstate the #122 bug, require the grid to catch it
         run: |
           # Put the defect back: make_key() padding a key up and never
@@ -540,6 +559,135 @@ jobs:
           echo "Negative control passed: the grid caught the reinstated generator bug."
 
           git checkout -- research/write-probe-cost/probebench.c
+
+  differential-fuzz:
+    # Differential fuzzing of the bundled libJudy against exact stdlib
+    # oracles (research/differential-fuzz/, #142 Stage 4): Judy1 vs std::set,
+    # JudyL vs std::map, JudySL/JudyHS vs string maps, every return code and
+    # value slot compared on every op. This is the invariant gate that would
+    # have caught #131 (gcc -O3 silently losing Judy1 keys) in seconds --
+    # see the recorded validation runs in research/differential-fuzz/README.md.
+    #
+    # Profile split (documented in that README): CI runs the bounded profile
+    # only -- the fixed-seed 48-cell smoke grid plus a short random-seed soak
+    # on the production build, and the sanitized smoke grid. The 300s+ soaks
+    # stay a local / pre-release tool.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Build the bundled tree at the shipped production flags
+        # The same isolated flag set config.m4 hands the vendored units
+        # (-O2 -fno-lto -fno-unroll-loops -DJU_64BIT, plus -mpopcnt when the
+        # compiler accepts it; build-stock.sh supplies -std=gnu99 -DJU_64BIT
+        # itself), so the fuzzer exercises the bytes a release build ships,
+        # not only a debug variant.
+        run: |
+          POPCNT=""
+          echo 'int main(void){return 0;}' > /tmp/popcnt-probe.c
+          cc -Werror -mpopcnt -c /tmp/popcnt-probe.c -o /dev/null 2>/dev/null && POPCNT="-mpopcnt"
+          echo "mpopcnt: ${POPCNT:-not accepted by this compiler}"
+          sh research/differential-fuzz/validation/build-stock.sh \
+            "$PWD/libjudy/src" /tmp/judy-prod \
+            -O2 -fno-lto -fno-unroll-loops $POPCNT
+          echo "JUDY_POPCNT=$POPCNT" >> "$GITHUB_ENV"
+
+      - name: Verify the committed pre-generated tables match the generator
+        # The shipped build compiles the committed Judy1Tables.c/JudyLTables.c;
+        # build-stock.sh regenerates both by running the upstream generator.
+        # Byte-compare the fresh output against the committed files' generator
+        # region (between the php-judy header and the compile-time-pins
+        # footer, see libjudy/PATCHES.md) so the library under fuzz and the
+        # library that ships carry the same tables -- and so a size-class
+        # header change cannot leave stale tables in the tree unnoticed.
+        run: |
+          strip_wrapper() {
+            # committed file -> bare generator output
+            awk 'phase==0 { if ($0=="#endif") phase=1; next }
+                 phase==1 { if ($0=="") next; phase=2 }
+                 /^\/\/ php-judy: compile-time pins\./ { exit }
+                 { l[++n]=$0 }
+                 END { while (n && l[n]=="") n--; for(i=1;i<=n;i++) print l[i] }' "$1"
+          }
+          trim_trailing() {
+            awk '{ l[++n]=$0 } END { while (n && l[n]=="") n--; for(i=1;i<=n;i++) print l[i] }' "$1"
+          }
+          for v in 1 L; do
+            committed="libjudy/src/Judy$v/Judy${v}Tables.c"
+            grep -q '^// php-judy: compile-time pins\.' "$committed" \
+              || { echo "::error::footer anchor missing from $committed -- the wrapper format moved"; exit 1; }
+            strip_wrapper "$committed" > "/tmp/committed-$v.c"
+            [ -s "/tmp/committed-$v.c" ] \
+              || { echo "::error::stripping $committed produced no output -- the wrapper format moved"; exit 1; }
+            trim_trailing "/tmp/judy-prod/obj/Judy${v}Tables.c" > "/tmp/generated-$v.c"
+            if ! diff -u --label "generated Judy${v}Tables.c" --label "$committed (generator region)" \
+                 "/tmp/generated-$v.c" "/tmp/committed-$v.c"; then
+              echo "::error::committed Judy${v}Tables.c does not match the generator output -- regenerate it (see libjudy/PATCHES.md)"
+              exit 1
+            fi
+            echo "Judy${v}Tables.c: committed copy matches the generator ($(wc -l < "/tmp/committed-$v.c") lines)"
+          done
+
+      - name: Fuzz the production build -- smoke grid + short soak
+        # smoke: fixed seeds, full 48-cell domain/corpus grid, 60k ops/cell,
+        # bulk sweep included (the #127 Count==31 boundary). soak: fresh
+        # random seeds every run, time-bounded so the job stays flat.
+        run: |
+          make -C research/differential-fuzz JUDY_PREFIX=/tmp/judy-prod
+          cd research/differential-fuzz
+          ./diffuzz smoke
+          ./diffuzz soak 30
+
+      - name: Fuzz the sanitized build -- ASan+UBSan on library and harness
+        # build-stock.sh at sanitizer flags instruments the vendored library
+        # itself, not just the harness -- the configuration that catches
+        # #127-class overflows inside libJudy (validation run V3 in the
+        # README caught the JudyInsArray off-by-one exactly this way).
+        run: |
+          sh research/differential-fuzz/validation/build-stock.sh \
+            "$PWD/libjudy/src" /tmp/judy-asan \
+            -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer
+          make -C research/differential-fuzz diffuzz-san JUDY_PREFIX=/tmp/judy-asan
+          cd research/differential-fuzz
+          UBSAN_OPTIONS=print_stacktrace=1 ./diffuzz-san smoke
+
+      - name: Negative control -- plant the #131 truncation, require a divergence
+        # Re-create the #131 defect deterministically: truncate the immediate
+        # index copy in JudyCascade.c to 8 bytes, which is byte-for-byte what
+        # the gcc -O3 miscompile of the unpatched union did (silent Judy1 key
+        # loss past the eighth member of a splayed sub-expanse). Source-level,
+        # so it fires on any compiler. The fuzzer must fail with the judy1
+        # missing-key signature, or this whole job is a green light with no
+        # bulb in it.
+        run: |
+          cp -R libjudy/src /tmp/judy-broken-src
+          sed -i 's|JU_COPYMEM(PjpJP->jp_1Index, PLeaf + Start,|JU_COPYMEM(PjpJP->jp_1Index, PLeaf + Start, (Pop1 > 8) ? 8 :   /* CI negative control */|' \
+            /tmp/judy-broken-src/JudyCommon/JudyCascade.c
+          grep -q 'CI negative control' /tmp/judy-broken-src/JudyCommon/JudyCascade.c \
+            || { echo "::error::negative control did not apply -- the anchor line in JudyCascade.c moved"; exit 1; }
+
+          sh research/differential-fuzz/validation/build-stock.sh \
+            /tmp/judy-broken-src /tmp/judy-broken \
+            -O2 -fno-lto -fno-unroll-loops $JUDY_POPCNT
+          make -C research/differential-fuzz clean >/dev/null
+          make -C research/differential-fuzz JUDY_PREFIX=/tmp/judy-broken
+
+          set +e
+          (cd research/differential-fuzz && ./diffuzz smoke) > /tmp/diffuzz-negctl.log 2>&1
+          rc=$?
+          set -e
+
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::the smoke grid passed on a library with the #131-class truncation planted"
+            tail -20 /tmp/diffuzz-negctl.log
+            exit 1
+          fi
+          grep -q 'DIVERGENCE domain=judy1' /tmp/diffuzz-negctl.log \
+            || { echo "::error::the fuzzer failed, but not with the judy1 divergence signature -- check the log"; \
+                 tail -20 /tmp/diffuzz-negctl.log; exit 1; }
+          echo "Negative control passed: the fuzzer caught the planted #131-class truncation."
+          grep -m1 -A1 'DIVERGENCE' /tmp/diffuzz-negctl.log
 
   validate-pecl:
     runs-on: ubuntu-latest
