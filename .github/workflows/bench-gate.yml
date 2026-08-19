@@ -319,12 +319,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TMP="$(cygpath -u "$RUNNER_TEMP")"
-          echo "TMP=$TMP" >> "$GITHUB_ENV"
+          # NOT named TMP: that is a standard Windows environment variable, and
+          # clobbering it makes PHP's sys_get_temp_dir() hand back a POSIX path
+          # that nothing on Windows can use. Same class of bug as assigning to
+          # GROUPS in a bash-as-/bin/sh script.
+          BENCH_TMP="$(cygpath -u "$RUNNER_TEMP")"
+          echo "BENCH_TMP=$BENCH_TMP" >> "$GITHUB_ENV"
           # Verified BEFORE anything is built: a broken reconstruction must fail
           # here rather than quietly produce a meaningless delta.
-          php scripts/bench-arm-s.php --dest "$TMP/arm-s" \
-            --manifest "$TMP/arm-s-manifest.json"
+          php scripts/bench-arm-s.php --dest "$BENCH_TMP/arm-s" \
+            --manifest "$BENCH_TMP/arm-s-manifest.json"
 
       - name: Build arm C (the shipped bundled tree)
         uses: php/php-windows-builder/extension@v1
@@ -338,7 +342,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$TMP/arms"
+          mkdir -p "$BENCH_TMP/arms"
 
           # Exactly one DLL must exist, or we do not know which arm we captured.
           mapfile -t dlls < <(find . -name 'php_judy.dll')
@@ -347,21 +351,21 @@ jobs:
             printf '  %s\n' "${dlls[@]}"
             exit 1
           fi
-          cp "${dlls[0]}" "$TMP/arms/judy-C-1.dll"
+          cp "${dlls[0]}" "$BENCH_TMP/arms/judy-C-1.dll"
 
           # The PHP that will LOAD both DLLs has to be the one they were built
           # against; setup-php's copy is a different build and may not be ABI
           # compatible. Capture the builder's runtime before the tree is wiped.
           mapfile -t phps < <(find . -name 'php.exe')
           if [ "${#phps[@]}" -lt 1 ]; then echo 'no php.exe under the build tree'; exit 1; fi
-          cp -R "$(dirname "${phps[0]}")" "$TMP/php-runtime"
-          "$TMP/php-runtime/php.exe" -v
+          cp -R "$(dirname "${phps[0]}")" "$BENCH_TMP/php-runtime"
+          "$BENCH_TMP/php-runtime/php.exe" -v
 
           # Keep the shipped tree so it can be restored, then replace libjudy/
           # with the verified pre-patch tree. Nothing else about the checkout
           # changes, so compiler, PHP and extension source are held constant.
-          mv libjudy "$TMP/libjudy-C"
-          cp -R "$TMP/arm-s/libjudy" libjudy
+          mv libjudy "$BENCH_TMP/libjudy-C"
+          cp -R "$BENCH_TMP/arm-s/libjudy" libjudy
 
           # The action packages its output into build/<hash>/artifacts/<name>.zip
           # and the name depends only on extension/PHP/arch — not on the build —
@@ -396,12 +400,12 @@ jobs:
             printf 'expected exactly one php_judy.dll, found %d\n' "${#dlls[@]}"
             exit 1
           fi
-          cp "${dlls[0]}" "$TMP/arms/judy-S-1.dll"
-          rm -rf libjudy && mv "$TMP/libjudy-C" libjudy
+          cp "${dlls[0]}" "$BENCH_TMP/arms/judy-S-1.dll"
+          rm -rf libjudy && mv "$BENCH_TMP/libjudy-C" libjudy
 
           # The two arms must not be byte-identical: that would mean the
           # libjudy/ swap did not take and the run compares a build with itself.
-          if cmp -s "$TMP/arms/judy-C-1.dll" "$TMP/arms/judy-S-1.dll"; then
+          if cmp -s "$BENCH_TMP/arms/judy-C-1.dll" "$BENCH_TMP/arms/judy-S-1.dll"; then
             echo "arm S and arm C are byte-identical — the libjudy/ swap did not take"
             exit 1
           fi
@@ -412,20 +416,20 @@ jobs:
           GATE_FLAG: ${{ (github.event.inputs.gate == 'false') && ' ' || '--gate' }}
         run: |
           set -euo pipefail
-          mkdir -p "$TMP/results"
-          cp "$TMP/arm-s-manifest.json" "$TMP/results/"
+          mkdir -p "$BENCH_TMP/results"
+          cp "$BENCH_TMP/arm-s-manifest.json" "$BENCH_TMP/results/"
           # Driven by the BUILDER's php.exe: it is the one the DLLs load into,
           # and bench-gate.php spawns its children with PHP_BINARY.
-          "$TMP/php-runtime/php.exe" scripts/bench-gate.php \
-            --arm "C=$TMP/arms/judy-C-1.dll" \
-            --arm "S=$TMP/arms/judy-S-1.dll" \
+          "$BENCH_TMP/php-runtime/php.exe" scripts/bench-gate.php \
+            --arm "C=$BENCH_TMP/arms/judy-C-1.dll" \
+            --arm "S=$BENCH_TMP/arms/judy-S-1.dll" \
             --platform windows-x64 \
             --tier ci-relative-single-build \
-            --toolchain "MSVC / PHP $("$TMP/php-runtime/php.exe" -r 'echo PHP_VERSION;')" \
+            --toolchain "MSVC / PHP $("$BENCH_TMP/php-runtime/php.exe" -r 'echo PHP_VERSION;')" \
             --rounds "$BENCH_ROUNDS" --size "$BENCH_SIZE" \
             --groups "$BENCH_GROUPS" --mem-sizes "$BENCH_MEM_SIZES" \
             --baseline baselines/arm-ratios.json \
-            --out "$TMP/results/gate-windows-x64-1.json" \
+            --out "$BENCH_TMP/results/gate-windows-x64-1.json" \
             $GATE_FLAG
 
       - uses: actions/upload-artifact@v4

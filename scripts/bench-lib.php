@@ -544,10 +544,21 @@ echo json_encode([
     'main_loads_judy' => $main && preg_match('#^\s*(zend_)?extension\s*=.*judy#mi', (string)@file_get_contents($main)) ? 1 : 0,
 ]);
 PHP;
-    $err = sys_get_temp_dir() . '/judy-threearm-verify-' . getmypid() . '.err';
-    $out = shell_exec(tam_php($handle) . '-r ' . escapeshellarg($probe) . ' 2> ' . escapeshellarg($err));
+    // The probe is written to a FILE and run as a script rather than passed to
+    // `-r`. On Windows exec() goes through cmd.exe, whose quoting rules are not
+    // the POSIX ones escapeshellarg() produces for a multi-line program full of
+    // quotes and `$`; the result was a child that produced no output at all and
+    // an "unusable probe output:" with nothing after the colon. A file has no
+    // quoting to get wrong, and it behaves identically on POSIX.
+    global $tmp_root;
+    if (!is_dir($tmp_root)) { @mkdir($tmp_root, 0700, true); }
+    $script = $tmp_root . '/verify-' . $handle . '.php';
+    file_put_contents($script, "<?php\n" . $probe . "\n");
+    $err = $tmp_root . '/verify-' . $handle . '.err';
+    $out = shell_exec(tam_php($handle) . escapeshellarg($script) . ' 2> ' . escapeshellarg($err));
     $stderr = (string) @file_get_contents($err);
     @unlink($err);
+    @unlink($script);
 
     if (stripos($stderr, 'already loaded') !== false || stripos($stderr, 'Unable to load dynamic library') !== false) {
         fwrite(STDERR, "arm $handle: extension loading is not under our control:\n$stderr\n");
@@ -555,7 +566,12 @@ PHP;
     }
     $j = json_decode((string) $out, true);
     if (!is_array($j) || !isset($j['loaded'])) {
-        fwrite(STDERR, "arm $handle: unusable probe output: $out\n$stderr\n");
+        fwrite(STDERR, "arm $handle: unusable probe output: "
+            . ($out === null || trim((string) $out) === ''
+                ? '(the probe produced nothing — the interpreter did not run, or could not '
+                  . 'write to ' . $tmp_root . ')'
+                : $out)
+            . "\n$stderr\n");
         exit(1);
     }
     if (!$j['loaded']) {
@@ -582,9 +598,15 @@ PHP;
 /** Confirm arm A really has no judy loaded. */
 function tam_verify_array_arm(): void
 {
-    $out = shell_exec(tam_php('array') . '-r ' . escapeshellarg('echo (int)extension_loaded("judy");') . ' 2> ' . TAM_DEVNULL);
+    global $tmp_root;
+    if (!is_dir($tmp_root)) { @mkdir($tmp_root, 0700, true); }
+    $script = $tmp_root . '/verify-array.php';
+    file_put_contents($script, "<?php\necho (int) extension_loaded('judy');\n");
+    $out = shell_exec(tam_php('array') . escapeshellarg($script) . ' 2> ' . TAM_DEVNULL);
+    @unlink($script);
     if (trim((string) $out) !== '0') {
-        fwrite(STDERR, "arm A: judy is loaded in the PHP-array arm; it must not be\n");
+        fwrite(STDERR, "arm A: judy is loaded in the PHP-array arm; it must not be "
+            . "(probe said: '" . trim((string) $out) . "')\n");
         exit(1);
     }
 }
