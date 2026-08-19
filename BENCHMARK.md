@@ -1540,8 +1540,10 @@ published number in this project.
 - **The suite's `memory_limit` is a floor, not a ceiling — and it was not
   always.** `judy-bench.php` used to set a flat `ini_set('memory_limit', '2G')`
   at the top of the file, which silently overrode the `-d memory_limit=-1` that
-  both `scripts/bench-compare.php` and `scripts/bench-threearm.php` pass every
-  child. That made the `core.str` group impossible to run at `--size 6000000`
+  every driver passes its children — `scripts/bench-compare.php` directly, and
+  `scripts/bench-threearm.php` and `scripts/bench-gate.php` through the shared
+  launcher in `scripts/bench-lib.php`. That made the `core.str` group
+  impossible to run at `--size 6000000`
   under **any** arm: the group materialises four 6M-element PHP arrays before
   the first Judy call and died inside its own fixture builder, so the failure
   was a property of the harness and not a signal about either library. It is a

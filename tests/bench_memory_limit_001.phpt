@@ -65,7 +65,7 @@ run_bench('below floor      ', '128M');
 run_bench('at floor         ', '2G');
 // Above the floor stays put, rather than being silently lowered to 2G.
 run_bench('above floor      ', '4G');
-// The form both bench drivers actually pass. This is the regression.
+// The form every bench driver actually passes. This is the regression.
 run_bench('unlimited (-d -1)', '-1');
 // An explicit request wins outright, including downward against -1.
 run_bench('explicit wins    ', '-1', '--memory-limit 256M');

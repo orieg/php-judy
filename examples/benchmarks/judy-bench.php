@@ -38,9 +38,11 @@ $json_file  = isset($opts['json'])       ? $opts['json']            : null;
 // Several groups build their PHP-array fixtures in full before any Judy work
 // starts, so the suite needs a cap well above the php.ini default. It used to
 // take that as a flat unconditional `2G`, which silently overrode the
-// `-d memory_limit=-1` that scripts/bench-compare.php and
-// scripts/bench-threearm.php pass every child, and made
-// `--group core.str --size 6000000` impossible to run at all: that group
+// `-d memory_limit=-1` that every driver passes its children —
+// scripts/bench-compare.php directly, and scripts/bench-threearm.php and
+// scripts/bench-gate.php through the shared launcher in scripts/bench-lib.php
+// — and made `--group core.str --size 6000000` impossible to run at all: that
+// group
 // materialises four 6M-element PHP arrays up front and dies in the fixture
 // builder, identically under every arm, before a single measurement is taken.
 // That is a second blocker on the out-of-cache three-arm row tracked by #169,
