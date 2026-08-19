@@ -257,6 +257,9 @@ number is not usable.)
 
 **This needs a batched entry point libJudy does not expose**, so it helps only
 bulk operations: `mergeWith()`, `union()`, `keys($lo, $hi)`, `toArray()`.
+(Executed and DROPPED — none of those candidates survived contact with the
+current code, and the win does not survive heterogeneous key batches; the
+full record is §11.9.)
 
 ### 5.3 Compiler flags are null, and `-O2` is load-bearing
 
@@ -1543,6 +1546,83 @@ Transferable lessons, one instance each:
   was what showed the 20-year invariants hold (§11.4).
 
 ---
+
+### 11.9 Stage 3, O5 — the in-tree batched lookup: implemented, measured, DROPPED
+
+O5 closed the Stage 3 list the way O2 did — killed by its own gate — but
+at a different layer: the C-level entry point PASSED the gate the §11.5
+corpora define, and the php-judy adoption failed BOTH its PHP-level gate
+and a corpus-coverage hole the prototype corpora had hidden. Nothing
+landed; the complete implementation is archived on branch
+`vendor/stage3-o5-amac` (JudyLMultiGet TU + public header + build wiring
++ diffuzz `MULTIGET=1` oracle mode watched-to-fail on two deliberately
+broken builds + a 300k-key adversarial `.phpt`; 223/223 on macOS
+bundled/Debian/Alpine/system-lib at the time it was cut). All
+`(measured)`, honeycomb x86-64 gcc 11.4 `-O2 -mpopcnt`; the C gate is
+4 arms (pre / byte-identical comment-only ctl / post / thresholds-off
+post0) × 5 randomized-link builds, per-build medians,
+percentile-bootstrap CIs; artifacts in `/var/tmp/jp113/o5/` and the
+session scratchpad.
+
+- **The C-level gate passed everywhere the §11.5 corpus family looks.**
+  Against the current serial baseline (O1+O3 active — ~30% faster than
+  the popcount-only build the §11.5 prototype was measured on), 16-lane
+  batched lookup cleared CI-low > 1.0 on all nine L3 corpora at n=10^6:
+  ×1.51 (`wdense`) to ×2.17 (`wsparse`); out-of-cache n=4×10^7: ×2.70
+  [2.65, 2.76] (`wdense`), ×2.91 [2.89, 2.93] (`wsparse`). Controls
+  null; post-serial null-checks null (the TU is additive); `JLMU`
+  byte-identical across all four arms on every corpus.
+- **The tiny-tree threshold was derived, and an 8192 guess would have
+  shipped a ×2.2 regression.** The crossover sweep (pop 1024–262144)
+  put cache-resident trees at pop 16K–64K at ×0.46–0.98 through the
+  lanes (worst: `wclust` at 16384, ×0.46); 262144 was the smallest
+  measured population where every swept shape cleared CI-low > 1.0.
+- **The kill: batched descend loses on heterogeneous batches, and the
+  gate corpora could not see it.** Every §11.5/§5.2 corpus is unimodal
+  in descend shape. A tree holding BOTH a dense region and sparse
+  random keys (the shape any real merged workload has) measured, at
+  pure C level, zero fallbacks, on the same build that wins above:
+  probe both halves ×0.74 (52.1 vs 38.7 ns/op), while probing EITHER
+  half alone still wins (dense-only ×1.27, sparse-only ×1.76 — same
+  tree, same build). Lane count 4/8/32 does not rescue the mixed case
+  (×0.71–0.78). The limitation is BATCH-COMPOSITION heterogeneity, not
+  tree structure: when the 16 in-flight lanes hold keys of divergent
+  descend classes the machine loses; when they agree it wins.
+  Mechanism unverified (no PMU on the bench host) — the hypothesis
+  consistent with the sign is that the per-step type-dispatch branch
+  is predictable exactly when lanes agree.
+- **The PHP-level adoption gate then failed at every call site.**
+  A/B (same-tree pre/post `judy.so`, docker pinned, 7 interleaved
+  trials, process-run replication — disclosed as weaker than the C
+  gate's build replication): set operations and `equals` probe in
+  JLN-ascending order, which hands serial descend near-perfect
+  locality — `intersect` ×0.96, `diff` ×0.97, `xor` ×0.93, `equals`
+  ×0.81 at n=10^6, and still ×0.94–1.00 at n=8×10^6 out-of-cache, the
+  regime the bulk-op case was supposed to own. `getAll()` (genuinely
+  random user batches) tracked the heterogeneity finding exactly:
+  ×0.72–0.77 on mixed-shape trees, winning only when the caller's
+  batch happens to be shape-homogeneous (probe-grade +10% sparse-only)
+  — which the extension cannot detect in advance. Prefetching the
+  resolved value lines before emission did not move it. House rule
+  applied: no shipped default may carry a measured plausible-workload
+  regression → every adoption site dropped; with zero consumers the
+  vendored TU would be dead code → not merged either.
+- **What §5.2's projection got wrong, recorded:** its bulk-op candidates
+  were `mergeWith()`/`union()`/`keys()`/`toArray()`. The first two now
+  route every key through the write-dimension helper (re-entrant user
+  code mid-loop; the redundant lookup §5.2 targeted was separately
+  removed by the 2.5.2 cursor-reuse change), the last two are
+  JLN-dependent walks — none is batchable. The sites that ARE batchable
+  probe in sorted order or with uncontrolled batch composition, which
+  is precisely where AMAC does not pay. The ×1.5–2.9 C-level wins are
+  real and reproducible — they need a caller that issues large,
+  shape-homogeneous, randomly-ordered key batches, and php-judy does
+  not have one.
+
+Reopening condition: a batched entry point becomes worth revisiting if
+(a) a lane scheduler that tolerates heterogeneous batches is designed
+and wins on the mixed corpora above, or (b) a PHP-facing bulk API with
+documented workload constraints is explicitly requested on the tracker.
 
 ## Limits of this record
 
