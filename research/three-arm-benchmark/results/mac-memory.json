@@ -1,0 +1,924 @@
+{
+    "metadata": {
+        "schema": "judy-bench-threearm/1",
+        "label": "macos-arm64-appleclang21-php8.5-MEMORY-ONLY",
+        "date": "2026-08-19T02:09:26+00:00",
+        "php_version": "8.5.8",
+        "platform": "Darwin arm64",
+        "uname": "Darwin NicolasMBP.local 25.4.0 Darwin Kernel Version 25.4.0: Thu Mar 19 19:32:36 PDT 2026; root:xnu-12377.101.15~1/RELEASE_ARM64_T8103 arm64",
+        "judy_version": "2.5.2",
+        "system_so": [
+            "/private/tmp/claude-501/-Users-nicolas-Documents-git-orieg-php-judy--claude-worktrees-quizzical-grothendieck-3fa8aa/06f561e1-3f48-402b-9b8d-e74604df5c75/scratchpad/mac/builds/judy-B-.so"
+        ],
+        "bundled_so": [
+            "/private/tmp/claude-501/-Users-nicolas-Documents-git-orieg-php-judy--claude-worktrees-quizzical-grothendieck-3fa8aa/06f561e1-3f48-402b-9b8d-e74604df5c75/scratchpad/mac/builds/judy-C-.so"
+        ],
+        "system_so_sha256": [
+            "87dff601b0da0f1988f19daa7d3913ca5038e01b698d0c9196de591c72eb62a3"
+        ],
+        "bundled_so_sha256": [
+            "1f57bc069035e7c94d29ca890bc6399cfdde6baec00ef31c0205e938a2a92f91"
+        ],
+        "system_provenance": "Homebrew judy 1.0.5 (bottle) \u2014 PRISTINE upstream tarball, formula carries no patch stanza",
+        "bundled_provenance": "bundled libjudy/ (vendored Judy-1.0.5 + P1-P7, O1, O3, O4)",
+        "same_source_asserted": true,
+        "identical_builds": false,
+        "is_control_run": false,
+        "size": 300000,
+        "iterations": 3,
+        "rounds": 7,
+        "groups": [
+            "core.int",
+            "core.str",
+            "api.batch",
+            "api.setops",
+            "adv.iter"
+        ],
+        "mem_sizes": [
+            100000,
+            1000000,
+            8000000
+        ],
+        "mem_workloads": [
+            "int_to_int",
+            "int_sparse",
+            "int_to_mixed",
+            "string_to_int",
+            "bitset"
+        ],
+        "mem_runs": 3,
+        "min_ms": 0.5,
+        "residency": "cache-resident",
+        "claim_floor_pct": 3,
+        "cache_floor_pct": 3,
+        "dram_floor_pct": 1.3,
+        "timing_children": 0,
+        "memory_children": 144,
+        "wall_seconds": 44.5
+    },
+    "hygiene": {
+        "snapshots": [
+            {
+                "phase": "start",
+                "at": "2026-08-19T02:08:42+00:00",
+                "load1": 4.22,
+                "cpus": 8,
+                "threshold": 4,
+                "over": true,
+                "heavy": [
+                    {
+                        "cpu_pct": 156.4,
+                        "rss_kb": 14720,
+                        "cmd": "bfs"
+                    },
+                    {
+                        "cpu_pct": 71.1,
+                        "rss_kb": 370000,
+                        "cmd": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+                    },
+                    {
+                        "cpu_pct": 65.1,
+                        "rss_kb": 150480,
+                        "cmd": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)"
+                    },
+                    {
+                        "cpu_pct": 44.8,
+                        "rss_kb": 37040,
+                        "cmd": "/System/Library/PrivateFrameworks/XprotectFramework.framework/Versions/A/XPCServices/XprotectService.xpc/Contents/MacOS/XprotectService"
+                    },
+                    {
+                        "cpu_pct": 18.1,
+                        "rss_kb": 298384,
+                        "cmd": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)"
+                    }
+                ]
+            },
+            {
+                "phase": "after-memory",
+                "at": "2026-08-19T02:09:26+00:00",
+                "load1": 4.11,
+                "cpus": 8,
+                "threshold": 4,
+                "over": true,
+                "heavy": [
+                    {
+                        "cpu_pct": 74.3,
+                        "rss_kb": 308096,
+                        "cmd": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)"
+                    },
+                    {
+                        "cpu_pct": 41.2,
+                        "rss_kb": 171536,
+                        "cmd": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)"
+                    },
+                    {
+                        "cpu_pct": 36.7,
+                        "rss_kb": 377360,
+                        "cmd": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+                    },
+                    {
+                        "cpu_pct": 11.8,
+                        "rss_kb": 205168,
+                        "cmd": "agy"
+                    },
+                    {
+                        "cpu_pct": 8.4,
+                        "rss_kb": 189344,
+                        "cmd": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)"
+                    }
+                ]
+            },
+            {
+                "phase": "end",
+                "at": "2026-08-19T02:09:26+00:00",
+                "load1": 4.11,
+                "cpus": 8,
+                "threshold": 4,
+                "over": true,
+                "heavy": [
+                    {
+                        "cpu_pct": 53.3,
+                        "rss_kb": 309456,
+                        "cmd": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)"
+                    },
+                    {
+                        "cpu_pct": 49.2,
+                        "rss_kb": 172112,
+                        "cmd": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)"
+                    },
+                    {
+                        "cpu_pct": 43.5,
+                        "rss_kb": 381536,
+                        "cmd": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+                    },
+                    {
+                        "cpu_pct": 10.6,
+                        "rss_kb": 205168,
+                        "cmd": "agy"
+                    },
+                    {
+                        "cpu_pct": 10.2,
+                        "rss_kb": 189344,
+                        "cmd": "/Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)"
+                    }
+                ]
+            }
+        ],
+        "failed": true,
+        "contaminated": true
+    },
+    "control": {
+        "php_only": {
+            "median_ratio": 1,
+            "delta_pct": 0,
+            "ci_delta_pct": [
+                0,
+                0
+            ],
+            "measured_spread_pct": 0,
+            "row_count": 0,
+            "rows": []
+        },
+        "rebuild_control_run": false
+    },
+    "counts": {
+        "faster": 0,
+        "slower": 0,
+        "null": 0
+    },
+    "a_counts": {
+        "php-judy": 0,
+        "php-array": 0,
+        "parity": 0
+    },
+    "bundled_vs_system": [],
+    "array_vs_bundled": [],
+    "judy_vs_phploop": [],
+    "memory": [
+        {
+            "workload": "int_to_int",
+            "n": 100000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 30015488,
+                    "peak_rss_ci": [
+                        29999104,
+                        30195712
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 2113616,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 3129344,
+                    "bytes_per_element": 31.29
+                },
+                "B": {
+                    "peak_rss_bytes": 28033024,
+                    "peak_rss_ci": [
+                        28033024,
+                        28098560
+                    ],
+                    "index_bytes": 841464,
+                    "php_heap_bytes": 160,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 966656,
+                    "bytes_per_element": 9.67
+                },
+                "C": {
+                    "peak_rss_bytes": 28164096,
+                    "peak_rss_ci": [
+                        28000256,
+                        28180480
+                    ],
+                    "index_bytes": 841464,
+                    "php_heap_bytes": 160,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 1146880,
+                    "bytes_per_element": 11.47
+                }
+            },
+            "array_over_bundled": 2.729,
+            "system_over_bundled": 0.843
+        },
+        {
+            "workload": "int_to_int",
+            "n": 1000000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 44548096,
+                    "peak_rss_ci": [
+                        44400640,
+                        44548096
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 16793680,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 17661952,
+                    "bytes_per_element": 17.66
+                },
+                "B": {
+                    "peak_rss_bytes": 35651584,
+                    "peak_rss_ci": [
+                        35553280,
+                        35667968
+                    ],
+                    "index_bytes": 8323832,
+                    "php_heap_bytes": 160,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 8585216,
+                    "bytes_per_element": 8.59
+                },
+                "C": {
+                    "peak_rss_bytes": 35635200,
+                    "peak_rss_ci": [
+                        35602432,
+                        35651584
+                    ],
+                    "index_bytes": 8323832,
+                    "php_heap_bytes": 160,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 8617984,
+                    "bytes_per_element": 8.62
+                }
+            },
+            "array_over_bundled": 2.049,
+            "system_over_bundled": 0.996
+        },
+        {
+            "workload": "int_to_int",
+            "n": 8000000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 156516352,
+                    "peak_rss_ci": [
+                        156467200,
+                        156516352
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 134234192,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 129630208,
+                    "bytes_per_element": 16.2
+                },
+                "B": {
+                    "peak_rss_bytes": 94060544,
+                    "peak_rss_ci": [
+                        93995008,
+                        94191616
+                    ],
+                    "index_bytes": 66512056,
+                    "php_heap_bytes": 160,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 66994176,
+                    "bytes_per_element": 8.37
+                },
+                "C": {
+                    "peak_rss_bytes": 94093312,
+                    "peak_rss_ci": [
+                        94060544,
+                        94109696
+                    ],
+                    "index_bytes": 66512056,
+                    "php_heap_bytes": 160,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 67076096,
+                    "bytes_per_element": 8.38
+                }
+            },
+            "array_over_bundled": 1.933,
+            "system_over_bundled": 0.999
+        },
+        {
+            "workload": "int_sparse",
+            "n": 100000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 34095104,
+                    "peak_rss_ci": [
+                        34078720,
+                        34242560
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 5242960,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 7208960,
+                    "bytes_per_element": 72.09
+                },
+                "B": {
+                    "peak_rss_bytes": 28622848,
+                    "peak_rss_ci": [
+                        28622848,
+                        28639232
+                    ],
+                    "index_bytes": 1261504,
+                    "php_heap_bytes": 160,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 1556480,
+                    "bytes_per_element": 15.56
+                },
+                "C": {
+                    "peak_rss_bytes": 28557312,
+                    "peak_rss_ci": [
+                        28557312,
+                        28688384
+                    ],
+                    "index_bytes": 1261504,
+                    "php_heap_bytes": 160,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 1540096,
+                    "bytes_per_element": 15.4
+                }
+            },
+            "array_over_bundled": 4.681,
+            "system_over_bundled": 1.011
+        },
+        {
+            "workload": "int_sparse",
+            "n": 1000000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 69926912,
+                    "peak_rss_ci": [
+                        69894144,
+                        69976064
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 41943120,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 43040768,
+                    "bytes_per_element": 43.04
+                },
+                "B": {
+                    "peak_rss_bytes": 40419328,
+                    "peak_rss_ci": [
+                        40386560,
+                        40435712
+                    ],
+                    "index_bytes": 12520168,
+                    "php_heap_bytes": 160,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 13352960,
+                    "bytes_per_element": 13.35
+                },
+                "C": {
+                    "peak_rss_bytes": 40370176,
+                    "peak_rss_ci": [
+                        40337408,
+                        40435712
+                    ],
+                    "index_bytes": 12520168,
+                    "php_heap_bytes": 160,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 13352960,
+                    "bytes_per_element": 13.35
+                }
+            },
+            "array_over_bundled": 3.223,
+            "system_over_bundled": 1
+        },
+        {
+            "workload": "int_sparse",
+            "n": 8000000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 352632832,
+                    "peak_rss_ci": [
+                        352550912,
+                        352649216
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 335544400,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 325746688,
+                    "bytes_per_element": 40.72
+                },
+                "B": {
+                    "peak_rss_bytes": 132235264,
+                    "peak_rss_ci": [
+                        132202496,
+                        132251648
+                    ],
+                    "index_bytes": 100116064,
+                    "php_heap_bytes": 160,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 105168896,
+                    "bytes_per_element": 13.15
+                },
+                "C": {
+                    "peak_rss_bytes": 132202496,
+                    "peak_rss_ci": [
+                        132202496,
+                        132333568
+                    ],
+                    "index_bytes": 100116064,
+                    "php_heap_bytes": 160,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 105185280,
+                    "bytes_per_element": 13.15
+                }
+            },
+            "array_over_bundled": 3.097,
+            "system_over_bundled": 1
+        },
+        {
+            "workload": "int_to_mixed",
+            "n": 100000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 30490624,
+                    "peak_rss_ci": [
+                        30474240,
+                        30507008
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 3713456,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 3604480,
+                    "bytes_per_element": 36.04
+                },
+                "B": {
+                    "peak_rss_bytes": 30998528,
+                    "peak_rss_ci": [
+                        30932992,
+                        31064064
+                    ],
+                    "index_bytes": 841464,
+                    "php_heap_bytes": 3200000,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 3932160,
+                    "bytes_per_element": 39.32
+                },
+                "C": {
+                    "peak_rss_bytes": 31014912,
+                    "peak_rss_ci": [
+                        30834688,
+                        31014912
+                    ],
+                    "index_bytes": 841464,
+                    "php_heap_bytes": 3200000,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 3997696,
+                    "bytes_per_element": 39.98
+                }
+            },
+            "array_over_bundled": 0.902,
+            "system_over_bundled": 0.984
+        },
+        {
+            "workload": "int_to_mixed",
+            "n": 1000000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 58736640,
+                    "peak_rss_ci": [
+                        58687488,
+                        58785792
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 32793520,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 31850496,
+                    "bytes_per_element": 31.85
+                },
+                "B": {
+                    "peak_rss_bytes": 67534848,
+                    "peak_rss_ci": [
+                        67469312,
+                        67567616
+                    ],
+                    "index_bytes": 8323832,
+                    "php_heap_bytes": 32000000,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 40468480,
+                    "bytes_per_element": 40.47
+                },
+                "C": {
+                    "peak_rss_bytes": 67469312,
+                    "peak_rss_ci": [
+                        67469312,
+                        67502080
+                    ],
+                    "index_bytes": 8323832,
+                    "php_heap_bytes": 32000000,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 40452096,
+                    "bytes_per_element": 40.45
+                }
+            },
+            "array_over_bundled": 0.787,
+            "system_over_bundled": 1
+        },
+        {
+            "workload": "int_to_mixed",
+            "n": 8000000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 282935296,
+                    "peak_rss_ci": [
+                        282902528,
+                        282984448
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 262234032,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 256049152,
+                    "bytes_per_element": 32.01
+                },
+                "B": {
+                    "peak_rss_bytes": 350224384,
+                    "peak_rss_ci": [
+                        350208000,
+                        350273536
+                    ],
+                    "index_bytes": 66512056,
+                    "php_heap_bytes": 256000000,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 323158016,
+                    "bytes_per_element": 40.39
+                },
+                "C": {
+                    "peak_rss_bytes": 350322688,
+                    "peak_rss_ci": [
+                        350257152,
+                        350371840
+                    ],
+                    "index_bytes": 66512056,
+                    "php_heap_bytes": 256000000,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 323305472,
+                    "bytes_per_element": 40.41
+                }
+            },
+            "array_over_bundled": 0.792,
+            "system_over_bundled": 1
+        },
+        {
+            "workload": "string_to_int",
+            "n": 100000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 34897920,
+                    "peak_rss_ci": [
+                        34897920,
+                        35012608
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 9234960,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 8011776,
+                    "bytes_per_element": 80.12
+                },
+                "B": {
+                    "peak_rss_bytes": 29442048,
+                    "peak_rss_ci": [
+                        29409280,
+                        29474816
+                    ],
+                    "index_bytes": 1788890,
+                    "php_heap_bytes": 65696,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 2375680,
+                    "bytes_per_element": 23.76
+                },
+                "C": {
+                    "peak_rss_bytes": 29376512,
+                    "peak_rss_ci": [
+                        29360128,
+                        29425664
+                    ],
+                    "index_bytes": 1788890,
+                    "php_heap_bytes": 65696,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 2359296,
+                    "bytes_per_element": 23.59
+                }
+            },
+            "array_over_bundled": 3.396,
+            "system_over_bundled": 1.007
+        },
+        {
+            "workload": "string_to_int",
+            "n": 1000000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 107298816,
+                    "peak_rss_ci": [
+                        107216896,
+                        107364352
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 81935120,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 80412672,
+                    "bytes_per_element": 80.41
+                },
+                "B": {
+                    "peak_rss_bytes": 48922624,
+                    "peak_rss_ci": [
+                        48742400,
+                        48988160
+                    ],
+                    "index_bytes": 18888890,
+                    "php_heap_bytes": 65696,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 21856256,
+                    "bytes_per_element": 21.86
+                },
+                "C": {
+                    "peak_rss_bytes": 50593792,
+                    "peak_rss_ci": [
+                        50495488,
+                        50659328
+                    ],
+                    "index_bytes": 18888890,
+                    "php_heap_bytes": 65696,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 23576576,
+                    "bytes_per_element": 23.58
+                }
+            },
+            "array_over_bundled": 3.411,
+            "system_over_bundled": 0.927
+        },
+        {
+            "workload": "string_to_int",
+            "n": 8000000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 671645696,
+                    "peak_rss_ci": [
+                        671629312,
+                        671678464
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 655536400,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 644759552,
+                    "bytes_per_element": 80.59
+                },
+                "B": {
+                    "peak_rss_bytes": 235487232,
+                    "peak_rss_ci": [
+                        235470848,
+                        235601920
+                    ],
+                    "index_bytes": 158888890,
+                    "php_heap_bytes": 65696,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 208420864,
+                    "bytes_per_element": 26.05
+                },
+                "C": {
+                    "peak_rss_bytes": 235405312,
+                    "peak_rss_ci": [
+                        235274240,
+                        235405312
+                    ],
+                    "index_bytes": 158888890,
+                    "php_heap_bytes": 65696,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 208388096,
+                    "bytes_per_element": 26.05
+                }
+            },
+            "array_over_bundled": 3.094,
+            "system_over_bundled": 1
+        },
+        {
+            "workload": "bitset",
+            "n": 100000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 34144256,
+                    "peak_rss_ci": [
+                        34111488,
+                        34177024
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 5242960,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 7258112,
+                    "bytes_per_element": 72.58
+                },
+                "B": {
+                    "peak_rss_bytes": 27394048,
+                    "peak_rss_ci": [
+                        27377664,
+                        27410432
+                    ],
+                    "index_bytes": 140784,
+                    "php_heap_bytes": 160,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 327680,
+                    "bytes_per_element": 3.28
+                },
+                "C": {
+                    "peak_rss_bytes": 27361280,
+                    "peak_rss_ci": [
+                        27262976,
+                        27426816
+                    ],
+                    "index_bytes": 140784,
+                    "php_heap_bytes": 160,
+                    "count": 100000,
+                    "runs": 3,
+                    "over_floor_bytes": 344064,
+                    "bytes_per_element": 3.44
+                }
+            },
+            "array_over_bundled": 21.095,
+            "system_over_bundled": 0.952
+        },
+        {
+            "workload": "bitset",
+            "n": 1000000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 69894144,
+                    "peak_rss_ci": [
+                        69779456,
+                        69926912
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 41943120,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 43008000,
+                    "bytes_per_element": 43.01
+                },
+                "B": {
+                    "peak_rss_bytes": 28622848,
+                    "peak_rss_ci": [
+                        28573696,
+                        28639232
+                    ],
+                    "index_bytes": 1321520,
+                    "php_heap_bytes": 160,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 1556480,
+                    "bytes_per_element": 1.56
+                },
+                "C": {
+                    "peak_rss_bytes": 28524544,
+                    "peak_rss_ci": [
+                        28442624,
+                        28606464
+                    ],
+                    "index_bytes": 1321520,
+                    "php_heap_bytes": 160,
+                    "count": 1000000,
+                    "runs": 3,
+                    "over_floor_bytes": 1507328,
+                    "bytes_per_element": 1.51
+                }
+            },
+            "array_over_bundled": 28.533,
+            "system_over_bundled": 1.033
+        },
+        {
+            "workload": "bitset",
+            "n": 8000000,
+            "arms": {
+                "A": {
+                    "peak_rss_bytes": 352665600,
+                    "peak_rss_ci": [
+                        352600064,
+                        352681984
+                    ],
+                    "index_bytes": null,
+                    "php_heap_bytes": 335544400,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 325779456,
+                    "bytes_per_element": 40.72
+                },
+                "B": {
+                    "peak_rss_bytes": 37863424,
+                    "peak_rss_ci": [
+                        37748736,
+                        37879808
+                    ],
+                    "index_bytes": 10526704,
+                    "php_heap_bytes": 160,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 10797056,
+                    "bytes_per_element": 1.35
+                },
+                "C": {
+                    "peak_rss_bytes": 37797888,
+                    "peak_rss_ci": [
+                        37748736,
+                        37814272
+                    ],
+                    "index_bytes": 10526704,
+                    "php_heap_bytes": 160,
+                    "count": 8000000,
+                    "runs": 3,
+                    "over_floor_bytes": 10780672,
+                    "bytes_per_element": 1.35
+                }
+            },
+            "array_over_bundled": 30.219,
+            "system_over_bundled": 1.002
+        }
+    ],
+    "verify": {
+        "B1": {
+            "loaded": 1,
+            "version": "2.5.2",
+            "paths": [],
+            "inis": [
+                "/var/folders/ht/8ys5k1fx16d978vsb3m0snrc0000gn/T/judy-bench-threearm-60398/B1-ini/judy.ini"
+            ],
+            "main_loads_judy": 0
+        },
+        "C1": {
+            "loaded": 1,
+            "version": "2.5.2",
+            "paths": [],
+            "inis": [
+                "/var/folders/ht/8ys5k1fx16d978vsb3m0snrc0000gn/T/judy-bench-threearm-60398/C1-ini/judy.ini"
+            ],
+            "main_loads_judy": 0
+        }
+    }
+}

@@ -1436,6 +1436,394 @@ read at any size.
 
 ---
 
+## Three-arm benchmark: array vs system libJudy vs bundled libJudy (measured)
+
+Every other measured section on this page answers "is php-judy fast?". This one
+answers the two questions users actually ask before adopting or upgrading:
+
+- **What did the libJudy vendoring work buy me?** — arm **B** against arm **C**.
+- **Should I use php-judy at all instead of a PHP array?** — arm **A** against
+  arm **C**. The honest answer is *sometimes*, and the losing cells are
+  published below alongside the winning ones.
+
+| arm | what it is | why it is here |
+| --- | --- | --- |
+| **A** | PHP native array (`$a[$k]`, `array_*`) | the "why bother" baseline |
+| **B** | php-judy linked against a **system** libJudy (`--with-judy=DIR`) | what PECL plus a distro/Homebrew libJudy gives you today |
+| **C** | php-judy linked against the **bundled** vendored tree (default build) | what you get after the vendoring work |
+
+Runner: [`scripts/bench-threearm.php`](scripts/bench-threearm.php). Raw JSON and
+console output for every run quoted here are committed under
+`research/three-arm-benchmark/results/`.
+
+### What "system libJudy" actually means — it is not one thing
+
+A B-vs-C number is meaningless without saying which library arm B linked,
+because the distros do not ship the same code:
+
+| platform | package | upstream | Baskins `jp_1Index` fix | how it is built |
+| --- | --- | --- | --- | --- |
+| Debian 13 / Ubuntu | `libjudy-dev` 1.0.5-5.1 | Judy 1.0.5 | **applied** — `debian/patches/04_fix_undefined_bahavior_during_aggressive_loop_optimizations.patch`, credited to Doug Baskins (SourceForge patch #5) | shared library, dpkg hardening flags (`-fstack-protector-strong`, `_FORTIFY_SOURCE`, PIE) |
+| Alpine (musl) | `main/judy` 1.0.5-r1 | Judy 1.0.5 | **not applied** — the APKBUILD lists only the upstream tarball, with no patch files and no `prepare()` patching | shared library |
+| macOS Homebrew | `judy` 1.0.5 (bottle) | Judy 1.0.5 | **not applied** — the formula has no `patch` stanza | shared library |
+
+Verified, not assumed: the Debian patch list was read from `apt-get source judy`,
+and the Alpine and Homebrew build recipes from their upstream repositories.
+
+This matters directly. Debian's patch 04 fixes the *same* undefined behaviour
+that the bundled tree fixes as **P1** (`jp_1Index` written past its declared
+width — see [`libjudy/PATCHES.md`](libjudy/PATCHES.md)), by a different edit.
+So **on Debian/Ubuntu, B already has the P1-equivalent correctness fix and the
+B-vs-C delta does not include it. On Alpine and macOS it does.** A Debian
+B-vs-C number is the *conservative* measurement of what vendoring bought.
+
+### What the B-vs-C delta is composed of
+
+B vs C is not "the O-series optimizations in isolation". Holding the extension
+source, compiler and PHP identical still leaves five differences bundled
+together, and all five are part of what a user actually receives:
+
+1. correctness patches **P2-P7** (and **P1** everywhere except Debian/Ubuntu);
+2. **O1** hardware popcount, **O3** word-access node metadata, **O4** string-layer;
+3. pinned vendored CFLAGS `-O2 -fno-lto -fno-unroll-loops -mpopcnt` — note that
+   `-mpopcnt` is what *activates* O1;
+4. **linkage model**: the bundled tree compiles into the extension's own `.so`,
+   so Judy calls are direct; arm B calls through the PLT into a shared object
+   (42 undefined `Judy*` symbols in the arm-B binary confirm this);
+5. the distro's hardening flags, which arm C does not carry.
+
+Both optimizations were confirmed present in C and absent in B at the
+instruction level rather than inferred from the build log:
+
+| | arm C (bundled) | arm B (Debian shared libJudy) |
+| --- | --- | --- |
+| `popcnt` instructions (O1) | **89** | **0** |
+| `bswap` instructions (O3) | **985** | 12 (incidental) |
+
+### Methodology, and the traps it exists to avoid
+
+Each of these rules is here because ignoring it has previously produced a wrong
+published number in this project.
+
+- **Same source, same toolchain, both arms.** Both `.so` files are built from
+  one working tree with one compiler and one PHP, changing only `--with-judy`.
+  Comparing against a distro- or PECL-installed `judy.so` is invalid: a prior
+  GHA comparison did that and its ~9.4% "win" turned out to bundle toolchain
+  provenance differences (FINDINGS §11.10).
+- **Arms interleaved, never sequential.** Timing runs one benchmark group at a
+  time and alternates arm order every round (ABBA). All statistics are computed
+  on per-round *paired ratios*, so machine state during a round divides out.
+  Sequential suites produced a wall of false regressions before (#87).
+- **A vs C is paired inside one process.** `judy-bench.php` measures its
+  PHP-array rows and its Judy rows microseconds apart in the same child, so that
+  ratio carries no between-process drift at all.
+- **Only genuine PHP-array rows count as arm A.** `judy-bench.php` names rows
+  `.judy` and `.php`, but `.php` does not uniformly mean "PHP array" — in
+  `api.batch`, `api.setops` (except the BITSET arms) and all of `adv.iter`, the
+  `.php` closure builds into and iterates over a **Judy instance**. Those rows
+  measure a PHP userland loop against a Judy native method, which is a real but
+  *different* question; they are reported separately and never quoted as "PHP
+  array vs Judy". The same restriction governs the control (below).
+- **Per-residency claim floors, measured in this run rather than assumed.**
+  ~3% cache-resident, ~1.3% out-of-cache (FINDINGS §11.10). A cell claims a
+  direction only when its **whole** bootstrap CI clears the floor; a point
+  estimate past the floor with a straddling CI is reported as null.
+- **Two controls.** (a) a PHP-array-only control, whose rows execute no libJudy
+  instruction, so any B-vs-C movement on them is pure runner drift and is
+  divided back out of every Judy cell; (b) a **C-vs-C rebuild control** — two
+  independently linked builds of identical source, offset so no round compares a
+  binary against itself. Every C-vs-C cell must read null; cells that do not are
+  measuring page/cache layout, not libJudy.
+- **Three independent builds per arm, rotated across rounds.** A cell whose
+  per-build spread exceeds its own delta is demoted to null: that is binary
+  layout, not a library change.
+- **Host hygiene gated at load N/2 *and* on co-tenancy.** Load is sampled before,
+  between and after every phase; over threshold the run self-marks contaminated
+  and every verdict is suppressed.
+
+  **Load average alone is necessary but not sufficient, and this is the single
+  most important thing to know before re-running these numbers.** During the
+  first attempt at this benchmark, a second, unrelated benchmark campaign was
+  running on the same 24-core host. *Both* campaigns individually passed the
+  load < N/2 gate — the box sat at load ~2 of a possible 12 — and both were
+  corrupted anyway. The other campaign's completely untouched baseline arm
+  shifted **2.2x** (69.4 ns/op to 147-172 ns/op on one cell), and its move
+  coincided exactly with this run's container starting. A co-resident
+  memory-bound benchmark contends for last-level cache and memory bandwidth
+  regardless of which cores the scheduler picks, and 30 MB of shared L3 is not
+  partitioned by core affinity.
+
+  Worse, **the PHP-array drift control is structurally blind to this**. It read
+  +0.36% while every Judy cell moved by tens of percent, because PHP array
+  operations are neither pointer-chasing nor DRAM-bound while Judy's descend is
+  both — the contention steals exactly what the Judy arms need and barely
+  touches the control. A flat control is therefore *not* evidence of a quiet
+  host.
+
+  The generalizable rule, and the reason this paragraph is in a benchmark
+  document rather than a commit message: **a drift control must share the
+  memory-access character of the thing it controls, or it cannot see the failure
+  modes that matter.** A control that is cheaper, smaller-working-set, or more
+  cache-friendly than the arms under test will certify a run that contention has
+  already ruined. The PHP-array control here is still the right instrument for
+  detecting *runner* drift — interpreter speed, CPU frequency, process
+  startup — and it is retained for that. It is simply not an instrument for
+  detecting memory-system contention, and it must not be read as one.
+
+  The runner consequently gates on co-tenancy directly. Load snapshots are taken
+  at phase boundaries, when none of the driver's own children are running, so
+  any process above 5% CPU at that instant is by construction somebody else's
+  work; the run self-marks contaminated when foreign CPU exceeds half a core,
+  independent of load average. When re-running, also take the host exclusively —
+  the convention on this project's bench host is a `/var/tmp/BENCH_LOCK` file
+  naming the agent and phases — and pin the workload
+  (`docker run --cpuset-cpus=...` or `taskset`). Pinning does not eliminate
+  LLC/bandwidth contention, but it removes scheduler migration as a variable and
+  makes a collision detectable rather than silent.
+
+### Memory — the headline, and the least equivocal result
+
+Peak RSS of a child process that builds one structure, median of 3 runs, with a
+per-arm empty-process floor subtracted so neither the interpreter nor the loaded
+extension is charged to the data. This is measured with `getrusage()` rather
+than `memory_get_usage()` on purpose: libJudy allocates through `malloc`,
+outside PHP's emalloc heap, so `memory_get_usage()` cannot see most of a Judy
+index and badly understates it. **Claim-grade, Linux x86-64 / gcc 14.2.0 /
+PHP 8.4.24, exclusive pinned host.**
+
+| workload | n | A: PHP array | B: system | C: bundled | **A/C** | B/C |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `int_to_int` (dense) | 100k | 2.8 MB | 960 KB | 1.1 MB | **2.50x** | 0.83x |
+| | 1M | 17.5 MB | 8.4 MB | 8.2 MB | **2.12x** | 1.02x |
+| | 8M | 129.6 MB | 66.0 MB | 66.2 MB | **1.96x** | 1.00x |
+| `int_sparse` (stride 4099) | 100k | 6.9 MB | 1.3 MB | 1.3 MB | **5.29x** | 1.00x |
+| | 1M | 41.1 MB | 12.6 MB | 12.8 MB | **3.22x** | 0.98x |
+| | 8M | 310.6 MB | 99.4 MB | 99.6 MB | **3.12x** | 1.00x |
+| `int_to_mixed` | 100k | 3.6 MB | 3.8 MB | 3.8 MB | **0.95x** | 1.00x |
+| | 1M | 30.4 MB | 38.6 MB | 38.8 MB | **0.78x** | 0.99x |
+| | 8M | 244.3 MB | 310.5 MB | 310.5 MB | **0.79x** | 1.00x |
+| `string_to_int` | 100k | 7.7 MB | 2.2 MB | 2.2 MB | **3.42x** | 1.00x |
+| | 1M | 76.7 MB | 20.4 MB | 20.4 MB | **3.75x** | 1.00x |
+| | 8M | 614.9 MB | 185.4 MB | 185.4 MB | **3.32x** | 1.00x |
+| `bitset` | 100k | 6.9 MB | 192 KB | 384 KB | **18.50x** | 0.50x |
+| | 1M | 41.1 MB | 1.9 MB | 1.9 MB | **21.92x** | 1.00x |
+| | 8M | 310.6 MB | 13.5 MB | 13.7 MB | **22.69x** | 0.99x |
+
+`A/C` above 1.00 means the PHP array uses that many times more memory.
+
+Reading this honestly:
+
+- **`Judy::BITSET` is the strongest case in the library**: 22.7x smaller than a
+  PHP array at 8M, and the advantage *grows* with scale (18.5x -> 22.7x). At 8M
+  the array costs ~40.7 bytes per element and Judy ~1.8.
+- **Sparse integer keys 3.1x, string keys 3.3x, dense integer keys 2.0x.** The
+  dense-integer case is the weakest because PHP's packed-array representation is
+  genuinely good — 17 bytes per element — and Judy's 8.7 only doubles it.
+- **`Judy::INT_TO_MIXED` LOSES, and the loss is stable at 0.78-0.79x from 1M
+  upward.** Storing arbitrary zvals means Judy holds a pointer to a separately
+  allocated zval per element (~40.7 bytes/element) where PHP's hashtable packs
+  them (~32). If your values are not integers, php-judy is not a memory win —
+  use it for the ordering or the API, not the footprint.
+- **B/C is 1.00 nearly everywhere**: the vendoring did **not** change memory.
+  That is expected and is a deliberate check — the O-series patches are
+  instruction-level changes, and `J1MU`/`JLMU` accounting is byte-identical
+  pre/post. The two exceptions are page-granularity artifacts at the smallest
+  size (192 KB vs 384 KB is one page rounding, not a regression).
+
+### Where PHP arrays win: per-element scalar operations
+
+The same run, timing rather than memory. **These are the cells where php-judy
+loses, and they are the majority.** Only rows whose PHP arm is a genuine PHP
+array are included.
+
+| operation | PHP array | php-judy | judy/array | winner |
+| --- | ---: | ---: | ---: | --- |
+| `bitset` write | 3.00 ms | 5.10 ms | 1.70x | PHP array |
+| `int_to_int` write | 3.07 ms | 7.10 ms | 2.31x | PHP array |
+| `string_to_int` write | 11.61 ms | 26.11 ms | 2.25x | PHP array |
+| `int_to_int` read | 1.07 ms | 3.44 ms | 3.21x | PHP array |
+| `string_to_int` read | 2.22 ms | 9.75 ms | 4.39x | PHP array |
+| `int_to_int` iterate | 0.91 ms | 6.04 ms | 6.62x | PHP array |
+| `string_to_int` iterate | 1.38 ms | 13.83 ms | 10.05x | PHP array |
+| `increment` (int keys) | 2.91 ms | 7.19 ms | 2.47x | PHP array |
+| `intersect` (bitset) | 4.60 ms | 4.34 ms | **0.94x** | **php-judy** |
+
+**Across the whole suite the PHP array won 42 of 43 comparable cells**, median
+4.19x, and the single php-judy win (`intersect` on BITSET) is inside the noise
+floor at 0.94x. The cause is not that Judy is a bad data structure — it is that
+every php-judy operation crosses the PHP/C boundary, which costs on the order of
+16 ns, while `$a[$k]` is an engine opcode. At 300k elements that per-call
+overhead dominates anything the C code below it saves.
+
+**So do not adopt php-judy for raw per-element speed.** Adopt it when you need
+one of the things the table above cannot show: a much smaller footprint, keys
+that come out **sorted** without an `ksort()`, bounded range reads, or set
+operations that stay in C.
+
+That last point is where the API earns its place. These rows compare a Judy
+native method against a PHP userland loop over the *same Judy object* — not
+against a PHP array, so they are a different question, but they show what moving
+a whole operation into C is worth:
+
+| operation | PHP loop over Judy | Judy native | ratio |
+| --- | ---: | ---: | ---: |
+| `populationCount()` | 5.86 ms | ~0.00 ms | O(1) vs O(n) |
+| `keys($start, $end)` range read | 7.08 ms | 0.31 ms | **0.04x** |
+| `equals()` | 13.78 ms | 3.26 ms | 0.24x |
+| `sumValues()` | 5.75 ms | 2.30 ms | 0.40x |
+| set `diff` / `xor` (int keys) | 12.75 / 25.55 ms | 5.23 / 10.41 ms | 0.41x |
+
+Ordered iteration deserves its own note, because the comparison above is not
+quite fair to Judy: a PHP array *cannot* iterate in key order at all without
+sorting first. The 6.62x and 10.05x iterate rows compare Judy's ordered walk
+against an array's **insertion-order** walk. If your code needs sorted order,
+the array arm must add a `ksort()` — which this benchmark does not charge it
+for. Read those rows as "the cost of ordering", not as a like-for-like loss.
+
+### B vs C — what the vendoring actually bought, decomposed
+
+**Claim-grade**, Linux x86-64 / gcc 14.2.0 / PHP 8.4.24, 300k elements
+(cache-resident, ~3% floor), 7 interleaved ABBA rounds, 3 independently linked
+builds per arm rotated across rounds, exclusive pinned host.
+
+The delivered difference between "PECL plus your distro's libJudy" and "the
+default bundled build" is **90 cells faster, 0 slower, 4 null**, against a
+PHP-array control reading **+0.00% [-0.12, +0.17]** across 43 rows.
+
+But that number bundles our source patches together with the switch from a
+shared distro library to a static in-extension one. Publishing it as "the
+vendoring speedup" would misattribute it, so a third arm **S** was built to
+split it: pristine Judy 1.0.5 (official tarball, sha256 `d2704089…`), compiled
+**static into the extension with the identical pinned CFLAGS**, verified
+unpatched at the instruction level (0 `popcnt`, 12 `bswap`, against arm C's 89
+and 985). S-vs-C therefore varies *only* the source patches.
+
+| key type | delivered (B→C) | our patches alone (S→C) | share attributable to our patches |
+| --- | ---: | ---: | ---: |
+| integer / bitset | **-17.7%** (n=33) | **-16.5%** (n=32) | **96.5%** |
+| string | **-22.2%** (n=57) | **-11.4%** (n=49) | **39.8%** |
+
+Share is the per-cell median of `ln(S→C) / ln(B→C)` over matched cells. The
+residual — shared-library linkage, Debian's hardening flags, and Debian's own
+patch 04 — is inferred, not measured directly.
+
+**The honest headline is therefore split by key type:**
+
+- **Integer and bitset paths: the gain is genuinely ours.** 96.5% of the -17.7%
+  survives when linkage and flags are held constant. The largest cells are
+  integer API operations — `equals` -28.3%, `fromArray` -25.7%, `putAll` -25.4%,
+  `intersect` -25.0% — consistent with O1 (hardware popcount) and O3 (word-access
+  node metadata) acting on every `JudyL` branch descend.
+- **String paths: users get the full -22.2%, but only about 40% of it is our
+  source changes.** O4's string-layer work is real and measurable (-11.4%), but
+  the majority of the string uplift comes from bundling the library into the
+  extension rather than from the patches.
+
+Why the linkage effect is *not* uniform across key types — offered as a
+hypothesis, not a measurement, since the bench host has no PMU: `JudySL` and
+`JudyHS` are layered on top of `JudyL`, so a single string operation performs
+several `JudyL` calls. In arm B each of those crosses the PLT into a shared
+object; in arms S and C it is a direct call inside the extension's own binary.
+Per-call overhead therefore scales with how many cross-library calls an
+operation makes, and string operations make several times more of them than
+integer operations do. This is falsifiable: a `-fno-plt` or `-Bsymbolic` build
+of the shared arm should close most of the string gap and little of the integer
+one. That test has not been run.
+
+The prediction, the falsifier, and the scoring of this decomposition were
+**pre-registered before the attribution arm was measured** — see
+[`research/three-arm-benchmark/PREREGISTRATION.md`](research/three-arm-benchmark/PREREGISTRATION.md).
+Both of the competing predictions recorded there turned out partly wrong, which
+is the point of writing them down first.
+
+### The control that makes the above believable
+
+Two builds of **identical source**, independently linked, rotated so no round
+ever compares a binary against itself, run through the same suite:
+
+| control | result |
+| --- | --- |
+| C-vs-C rebuild control, 94 cells | **0 faster, 0 slower, 94 null** |
+| PHP-array-only rows, same run | **-0.07% [-0.19, +0.01]** over 43 rows |
+| PHP-array-only rows, phase 1 | **+0.00% [-0.12, +0.17]** over 43 rows |
+| per-build spread, phase 1 faster cells | 0.07% - 2.15% |
+
+Every cell of the rebuild control is null. That is the apparatus demonstrating
+it does not manufacture wins: whatever page and cache layout differ between two
+separately linked binaries of the same code, it does not reach the claim floor.
+A cell whose per-build spread exceeded its own delta would have been demoted to
+null automatically; none in the reported set were.
+
+### Confidence tiers, and what is NOT measured
+
+| platform | toolchain | timing | memory | tier |
+| --- | --- | --- | --- | --- |
+| Linux x86-64, honeycomb | gcc 14.2.0, PHP 8.4.24, Debian 13 | measured | measured | **claim-grade** |
+| macOS arm64 | Apple clang 21, PHP 8.5.8, Homebrew | **not measured** | measured | **directional only** |
+| Alpine / musl x86-64 | gcc, PHP 8.4 | not measured | not measured | **not measured** |
+| Linux x86-64, out-of-cache (>=6M) | gcc 14.2.0 | not measured | measured (8M rows above) | **not measured** |
+| Windows | MSVC | not measured | not measured | **not measured** |
+
+- **macOS arm64 is directional, not claim-grade, and the hole is narrowed rather
+  than closed.** No timing was taken: the host failed the hygiene gate (load 4.22
+  on 8 cores against a threshold of 4, with browser processes above 50% CPU) and
+  was under memory pressure with active compression, which can depress RSS
+  readings. The memory ratios it produced track the Linux ones closely
+  (`bitset` 30.2x vs 22.7x, `int_to_mixed` 0.79x vs 0.79x, `string_to_int` 3.09x
+  vs 3.32x) and its B/C ratios are ~1.00, but they are reported as directional.
+  **Apple clang / arm64 remains this project's acknowledged measurement gap.**
+- **Out-of-cache timing is not measured, and the reason is a memory-safety
+  signal that is still open.** The intended 6M run aborted when arm B terminated
+  with SIGSEGV in the `core.int` group. Triage so far:
+
+  | check | result |
+  | --- | --- |
+  | macOS arm64, plain 6M `INT_TO_INT` insert loop, both arms | clean, no fault, identical `memoryUsage()` |
+  | linux/amd64, `judy-bench.php --group core.int --size 3000000`, arm **B** | `zend_mm_heap corrupted` |
+  | linux/amd64, same cell, arm **C** (bundled) | `zend_mm_heap corrupted` |
+
+  **Both arms corrupt the heap**, so this is explicitly **not** a
+  bundled-versus-system robustness claim, and nothing in this section should be
+  read as one. A simple large insert loop is clean, so it is specific to what the
+  `core.int` group does at scale. Whether the fault lies in the extension, in the
+  benchmark script, or in libJudy below both is **not yet established**, and it is
+  being tracked as its own correctness investigation rather than resolved here —
+  a memory-safety bug is not a benchmark footnote. The 8M rows in the memory
+  table are unaffected: those run in their own child processes and complete
+  cleanly.
+- **Alpine / musl is not measured.** It matters — musl's allocator is not
+  glibc's and Judy is allocation-heavy — and Alpine ships **pristine** 1.0.5, so
+  its B-vs-C would also include P1. Deferred for host scheduling reasons only.
+- **Windows is CI-artifact territory**; no rigorous number is offered.
+
+### Reproducing this
+
+```sh
+# Build BOTH arms from ONE tree with ONE toolchain, changing only --with-judy.
+phpize && ./configure --with-judy=/usr    && make && cp modules/judy.so judy-system.so
+make clean && phpize --clean
+phpize && ./configure --with-judy=bundled && make && cp modules/judy.so judy-bundled.so
+
+php scripts/bench-threearm.php \
+  --system-so judy-system.so --bundled-so judy-bundled.so \
+  --rounds 7 --size 300000 --assert-same-source \
+  --system-provenance "$(. /etc/os-release; echo "$PRETTY_NAME") $(dpkg-query -W -f='${Version}' libjudy-dev 2>/dev/null)" \
+  --out bench-threearm.json
+```
+
+Pass `--system-so` / `--bundled-so` more than once to rotate independent builds.
+Passing two *bundled* builds turns the run into the C-vs-C rebuild control.
+`--skip-timing` runs only the memory matrix, which is what makes a contended
+host still useful. Raw JSON and console output for every run quoted above are
+committed under `research/three-arm-benchmark/results/`.
+
+**Before trusting a re-run**: take the host exclusively, pin the workload, and
+read the `hygiene` block in the JSON. A run that self-marks `contaminated`
+asserts nothing, and — as the co-tenancy note above explains — a flat PHP-array
+control is not by itself evidence that the host was quiet.
+
+---
+
 ## Running the Benchmarks
 
 ### **Quick Benchmarks**
