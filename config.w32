@@ -8,6 +8,21 @@ if (PHP_JUDY != "no") {
 		// Bundled libJudy (libjudy/, Judy-1.0.5 + the documented patch
 		// series -- see libjudy/PATCHES.md). The P5 LLP64 patches are
 		// real source diffs now, so no download/patch step is needed.
+
+		// The bundled build is 64-bit-only: the committed
+		// Judy1Tables.c/JudyLTables.c were pre-generated under JU_64BIT
+		// and are wrong for 32-bit words. Refuse the target here, the
+		// way config.m4 does on unix, instead of letting the build run
+		// on and die inside a generated table file on its
+		// sizeof(Word_t) == 8 pin -- correct, but a dozen cryptic C2118
+		// errors deep in vendored sources. php-src sets
+		// X64 = TARGET_ARCH != 'x86', so x64 and arm64 both pass here
+		// and only a 32-bit target is rejected. ERROR() aborts the
+		// configure; a WARNING would still emit a broken DLL.
+		if (!X64) {
+			ERROR("the bundled libJudy currently supports 64-bit targets only (its pre-generated tables assume JU_64BIT); use --with-judy=DIR to link a system libJudy instead");
+		}
+
 		EXTENSION("judy", "php_judy.c judy_arrayaccess.c judy_handlers.c judy_iterator.c");
 		ADD_EXTENSION_DEP("judy", "json");
 		AC_DEFINE('HAVE_JUDY', 1, 'Have Judy library');
