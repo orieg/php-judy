@@ -20,7 +20,8 @@ function run_bench(string $extra, int $size = 200000): array {
     global $so, $script;
     $out = tempnam(sys_get_temp_dir(), 'jbm');
     $cmd = escapeshellarg(PHP_BINARY)
-        . ' -n -d memory_limit=2G -d extension=' . escapeshellarg($so)
+        . ' -n -d memory_limit=2G -d display_errors=stderr -d error_reporting=0'
+        . ' -d extension=' . escapeshellarg($so)
         . ' ' . escapeshellarg($script)
         . ' --group core.int --size ' . $size . ' --iterations 1'
         . ' ' . $extra
@@ -37,10 +38,20 @@ function run_bench(string $extra, int $size = 200000): array {
 // report a peak that is above an empty process, or the whole measurement is
 // worthless.
 $child = escapeshellarg(PHP_BINARY)
-    . ' -n -d memory_limit=2G -d extension=' . escapeshellarg($so)
+    . ' -n -d memory_limit=2G -d display_errors=stderr -d error_reporting=0'
+    . ' -d extension=' . escapeshellarg($so)
     . ' ' . escapeshellarg($script) . ' --mem-child ';
-$floor = json_decode((string)shell_exec($child . 'floor php 0 2>/dev/null'), true);
-$cell  = json_decode((string)shell_exec($child . 'core.int_to_int judy 200000 2>/dev/null'), true);
+$floor_raw = (string)shell_exec($child . 'floor php 0 2>/dev/null');
+$cell_raw  = (string)shell_exec($child . 'core.int_to_int judy 200000 2>/dev/null');
+$floor = json_decode($floor_raw, true);
+$cell  = json_decode($cell_raw, true);
+if (!is_array($floor) || !is_array($cell)) {
+    // Self-diagnosis: the CI log does not carry the .diff, so make the failure
+    // itself say what the child actually emitted.
+    echo "CHILD OUTPUT NOT JSON\n";
+    echo 'floor: ', substr($floor_raw, 0, 400), "\n";
+    echo 'cell: ',  substr($cell_raw, 0, 400), "\n";
+}
 
 echo "== child ==\n";
 echo "floor is json: ", is_array($floor) ? 'yes' : 'no', "\n";
