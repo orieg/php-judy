@@ -135,7 +135,7 @@ $opts = getopt('', [
     'arm:', 'bench:', 'rounds:', 'size:', 'iterations:', 'groups:',
     'mem-sizes:', 'mem-workloads:', 'mem-runs:', 'min-ms:', 'mem-min-bytes:',
     'platform:', 'label:', 'toolchain:', 'provenance:',
-    'baseline:', 'gate', 'allow-contaminated',
+    'baseline:', 'gate', 'allow-contaminated', 'control-ceiling:', 'strict-hygiene',
     'derive:', 'update-baseline:', 'tier:',
     'out:', 'quiet', 'help',
 ]);
@@ -672,7 +672,33 @@ $control_cc_dev = array_map(fn($r) => abs($r - 1.0) * 100.0, $control_cc);
 $control_cc_scatter = $control_cc ? gate_quantile($control_cc_dev, 0.90) : null;
 $control_cc_max     = $control_cc ? max($control_cc_dev) : null;
 
-// ---- hygiene ---------------------------------------------------------------
+// ---- hygiene, and what actually decides whether this run may assert ---------
+//
+// Load and co-tenancy are still SAMPLED and reported — they are what a human
+// needs in order to interpret a surprising result. They do not, however, decide
+// the run's fate here, and that is a deliberate departure from
+// bench-threearm.php's dedicated-host rule.
+//
+// Two reasons. First, a CI runner is a shared box by definition: GitHub's
+// arm64 macOS runners have 3 vCPUs, so `load < N/2` means load < 1.5 and
+// essentially every run trips it. A gate that is red on one platform every
+// single week is a gate somebody turns off.
+//
+// Second, and more important: the failure mode the load rule exists to catch
+// CANNOT hurt a ratio. A co-resident tenant stealing last-level cache and
+// memory bandwidth slows both arms of every pair — they are measured seconds
+// apart in the same round — so it divides out. That is exactly what destroyed
+// the absolute-number measurement on the dedicated host (2.2x on an untouched
+// arm) and exactly what a paired ratio is immune to. bench-threearm.php reports
+// absolute milliseconds and therefore keeps the strict gate; this driver
+// reports ratios and does not need it. `--strict-hygiene` restores the old
+// behaviour for anyone who wants it.
+//
+// What DOES decide the run's fate is a measurement rather than a proxy: the
+// C-vs-C rebuild control is two builds of identical source, so its scatter is a
+// direct reading of how much a cell can move today for no reason at all. When
+// that exceeds the ceiling, the run demonstrably cannot resolve anything worth
+// catching, and it says so instead of pretending.
 $hygiene_failed = false;
 $foreign_seen   = false;
 foreach ($loads as $l) {
@@ -680,12 +706,21 @@ foreach ($loads as $l) {
     if (!empty($l['foreign_busy'])) { $hygiene_failed = true; $foreign_seen = true; }
 }
 
-// A CI runner is a shared box by definition and will often sit above N/2 through
-// no fault of ours. Hygiene failure is therefore recorded and WIDENS the
-// threshold via the control below, rather than voiding the run outright as it
-// does on the dedicated host — but it also suppresses any REGRESSION verdict,
-// because a contaminated run may not accuse.
-$contaminated = $hygiene_failed;
+$control_ceiling = (float) ($opts['control-ceiling'] ?? 15.0);
+$inconclusive_reason = null;
+if ($control_cc_scatter !== null && $control_cc_scatter > $control_ceiling) {
+    $inconclusive_reason = sprintf(
+        'the C-vs-C rebuild control scattered %.2f%% (p90), above the %.1f%% ceiling — two '
+        . 'builds of identical source disagreed by more than any regression worth catching, '
+        . 'so this run cannot resolve one',
+        $control_cc_scatter, $control_ceiling);
+} elseif ($control_cc_scatter === null && $hygiene_failed) {
+    $inconclusive_reason = 'no C-vs-C rebuild control was available to measure this run\'s '
+        . 'noise, and host hygiene failed';
+} elseif (isset($opts['strict-hygiene']) && $hygiene_failed) {
+    $inconclusive_reason = 'host hygiene failed and --strict-hygiene was given';
+}
+$contaminated = $inconclusive_reason !== null;
 
 // ── Build this run's axes ───────────────────────────────────────────────────
 
@@ -933,9 +968,17 @@ $result = [
         'failed'         => $hygiene_failed,
         'foreign_tenant' => $foreign_seen,
         'contaminated'   => $contaminated,
-        'note'           => 'On a shared CI runner a hygiene failure widens the threshold via the '
-                          . 'C-vs-C control and suppresses REGRESSION verdicts, rather than voiding '
-                          . 'the run as it does on the dedicated host. A contaminated run may not accuse.',
+        'inconclusive_reason' => $inconclusive_reason,
+        'control_ceiling_pct' => $control_ceiling,
+        'decides_the_run'=> false,
+        'note'           => 'Sampled and reported for interpretation, but it does NOT decide this '
+                          . 'run\'s fate. LLC/bandwidth contention slows both arms of a pair equally '
+                          . '(they are measured seconds apart in the same round) and divides out of '
+                          . 'a ratio — it is what ruined the dedicated host\'s ABSOLUTE numbers, not '
+                          . 'something a paired ratio is exposed to. The C-vs-C rebuild control\'s '
+                          . 'scatter decides instead, because it is a direct measurement of how far '
+                          . 'a cell can move today for no reason. --strict-hygiene restores the '
+                          . 'dedicated-host rule.',
     ],
     'controls' => [
         'php_only' => [
@@ -1031,6 +1074,13 @@ if (!$quiet) {
     }
 
     echo "\n$line\n  GATE: $gate_status\n$line\n";
+    if ($inconclusive_reason !== null) {
+        echo "  INCONCLUSIVE: $inconclusive_reason\n";
+    }
+    if ($hygiene_failed) {
+        echo "  note: host hygiene sampled over threshold. Reported, not enforced — a paired\n"
+           . "        ratio is immune to the contention the load rule exists to catch.\n";
+    }
     foreach ($thresholds as $axis => $t) {
         printf("  %-18s threshold %5.2f%%  (offline floor %.2f%%, run control %s) — %s\n",
             $axis, $t['applied_pct'], $t['offline_floor_pct'],
