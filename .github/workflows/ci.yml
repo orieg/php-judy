@@ -491,12 +491,13 @@ jobs:
 
           git checkout -- php_judy.c
 
-  build-research:
-    # research/ holds standalone C harnesses that back measured claims in
-    # BENCHMARK.md and BACKEND_EVALUATION.md. Nothing there ships, so until
-    # this job existed nothing compiled it and nothing ran it -- which is how
-    # a generator came to ignore its own length argument for years (#122) and
-    # how a documented probe path shipped without ever having executed (#118).
+  build-harnesses:
+    # tools/ holds the standalone C harnesses that back measured claims in
+    # BENCHMARK.md and BACKEND_EVALUATION.md (plus the research/shm-arena
+    # spike, compiled only). Nothing there ships, so until this job existed
+    # nothing compiled it and nothing ran it -- which is how a generator came
+    # to ignore its own length argument for years (#122) and how a documented
+    # probe path shipped without ever having executed (#118).
     #
     # The parameter grid is what does the work here, not the sample size.
     # Every defect those two issues found is reachable at n = 1000; none of
@@ -512,7 +513,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libjudy-dev
 
       - name: Build every harness and run the sanitized smoke grid
-        run: ./research/ci-smoke.sh 1000
+        run: ./tools/ci-smoke.sh 1000
 
       - name: Run the sanitized grid again against the bundled libJudy
         # The step above links the harnesses against the system library --
@@ -528,10 +529,10 @@ jobs:
           POPCNT=""
           echo 'int main(void){return 0;}' > /tmp/popcnt-probe.c
           cc -Werror -mpopcnt -c /tmp/popcnt-probe.c -o /dev/null 2>/dev/null && POPCNT="-mpopcnt"
-          sh research/differential-fuzz/validation/build-stock.sh \
+          sh tools/differential-fuzz/validation/build-stock.sh \
             "$PWD/libjudy/src" /tmp/judy-bundled \
             -O2 -fno-lto -fno-unroll-loops $POPCNT
-          JUDY_PREFIX=/tmp/judy-bundled ./research/ci-smoke.sh 1000
+          JUDY_PREFIX=/tmp/judy-bundled ./tools/ci-smoke.sh 1000
 
       - name: Negative control -- reinstate the #122 bug, require the grid to catch it
         run: |
@@ -539,34 +540,34 @@ jobs:
           # truncating it, so every keylen below 16 silently emits the same
           # 16-byte key. Then require the grid to reject the tree.
           sed -i 's|if (keylen >= LONGKEY_MIN) {|if (keylen >= 0) {   /* CI negative control */|' \
-            research/write-probe-cost/probebench.c
-          grep -q 'CI negative control' research/write-probe-cost/probebench.c \
+            tools/write-probe-cost/probebench.c
+          grep -q 'CI negative control' tools/write-probe-cost/probebench.c \
             || { echo "::error::negative control did not apply -- the anchor line in probebench.c moved"; exit 1; }
 
           set +e
-          ./research/ci-smoke.sh 1000 > /tmp/research-negative-control.log 2>&1
+          ./tools/ci-smoke.sh 1000 > /tmp/harness-negative-control.log 2>&1
           rc=$?
           set -e
 
           if [ "$rc" -eq 0 ]; then
             echo "::error::the smoke grid passed on a tree with the issue #122 generator bug reinstated"
-            tail -40 /tmp/research-negative-control.log
+            tail -40 /tmp/harness-negative-control.log
             exit 1
           fi
-          grep -q 'make_key: emitted 16 bytes, wanted' /tmp/research-negative-control.log \
+          grep -q 'make_key: emitted 16 bytes, wanted' /tmp/harness-negative-control.log \
             || { echo "::error::the grid failed, but not via the key-length guard -- check the log"; \
-                 tail -40 /tmp/research-negative-control.log; exit 1; }
+                 tail -40 /tmp/harness-negative-control.log; exit 1; }
           echo "Negative control passed: the grid caught the reinstated generator bug."
 
-          git checkout -- research/write-probe-cost/probebench.c
+          git checkout -- tools/write-probe-cost/probebench.c
 
   differential-fuzz:
     # Differential fuzzing of the bundled libJudy against exact stdlib
-    # oracles (research/differential-fuzz/, #142 Stage 4): Judy1 vs std::set,
+    # oracles (tools/differential-fuzz/, #142 Stage 4): Judy1 vs std::set,
     # JudyL vs std::map, JudySL/JudyHS vs string maps, every return code and
     # value slot compared on every op. This is the invariant gate that would
     # have caught #131 (gcc -O3 silently losing Judy1 keys) in seconds --
-    # see the recorded validation runs in research/differential-fuzz/README.md.
+    # see the recorded validation runs in tools/differential-fuzz/README.md.
     #
     # Profile split (documented in that README): CI runs the bounded profile
     # only -- the fixed-seed 48-cell smoke grid plus a short random-seed soak
@@ -588,7 +589,7 @@ jobs:
           echo 'int main(void){return 0;}' > /tmp/popcnt-probe.c
           cc -Werror -mpopcnt -c /tmp/popcnt-probe.c -o /dev/null 2>/dev/null && POPCNT="-mpopcnt"
           echo "mpopcnt: ${POPCNT:-not accepted by this compiler}"
-          sh research/differential-fuzz/validation/build-stock.sh \
+          sh tools/differential-fuzz/validation/build-stock.sh \
             "$PWD/libjudy/src" /tmp/judy-prod \
             -O2 -fno-lto -fno-unroll-loops $POPCNT
           echo "JUDY_POPCNT=$POPCNT" >> "$GITHUB_ENV"
@@ -634,8 +635,8 @@ jobs:
         # bulk sweep included (the #127 Count==31 boundary). soak: fresh
         # random seeds every run, time-bounded so the job stays flat.
         run: |
-          make -C research/differential-fuzz JUDY_PREFIX=/tmp/judy-prod
-          cd research/differential-fuzz
+          make -C tools/differential-fuzz JUDY_PREFIX=/tmp/judy-prod
+          cd tools/differential-fuzz
           ./diffuzz smoke
           ./diffuzz soak 30
 
@@ -645,11 +646,11 @@ jobs:
         # #127-class overflows inside libJudy (validation run V3 in the
         # README caught the JudyInsArray off-by-one exactly this way).
         run: |
-          sh research/differential-fuzz/validation/build-stock.sh \
+          sh tools/differential-fuzz/validation/build-stock.sh \
             "$PWD/libjudy/src" /tmp/judy-asan \
             -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer
-          make -C research/differential-fuzz diffuzz-san JUDY_PREFIX=/tmp/judy-asan
-          cd research/differential-fuzz
+          make -C tools/differential-fuzz diffuzz-san JUDY_PREFIX=/tmp/judy-asan
+          cd tools/differential-fuzz
           UBSAN_OPTIONS=print_stacktrace=1 ./diffuzz-san smoke
 
       - name: Negative control -- plant the #131 truncation, require a divergence
@@ -667,14 +668,14 @@ jobs:
           grep -q 'CI negative control' /tmp/judy-broken-src/JudyCommon/JudyCascade.c \
             || { echo "::error::negative control did not apply -- the anchor line in JudyCascade.c moved"; exit 1; }
 
-          sh research/differential-fuzz/validation/build-stock.sh \
+          sh tools/differential-fuzz/validation/build-stock.sh \
             /tmp/judy-broken-src /tmp/judy-broken \
             -O2 -fno-lto -fno-unroll-loops $JUDY_POPCNT
-          make -C research/differential-fuzz clean >/dev/null
-          make -C research/differential-fuzz JUDY_PREFIX=/tmp/judy-broken
+          make -C tools/differential-fuzz clean >/dev/null
+          make -C tools/differential-fuzz JUDY_PREFIX=/tmp/judy-broken
 
           set +e
-          (cd research/differential-fuzz && ./diffuzz smoke) > /tmp/diffuzz-negctl.log 2>&1
+          (cd tools/differential-fuzz && ./diffuzz smoke) > /tmp/diffuzz-negctl.log 2>&1
           rc=$?
           set -e
 
@@ -749,6 +750,43 @@ jobs:
 
       - name: Build PECL package
         run: pecl package package.xml
+
+      - name: Verify the package ships no tooling or research paths
+        # The two checks above assert that everything under tests/ and
+        # libjudy/ ships. This asserts the other direction: tools/ and
+        # research/ must not. Both were absent from package.xml only by
+        # happenstance until this gate existed.
+        run: ./tools/check-package-contents.sh ./Judy-*.tgz
+
+      - name: Negative control -- ship a research file, require the check to fail
+        # An unfired gate is not a known-working gate. Add a research/ entry
+        # to package.xml, repackage, and require the same script to reject the
+        # tarball. Runs the script itself, not a copy of its logic.
+        run: |
+          sed -i 's|<dir name="/">|<dir name="/">\n         <file name="research/README.md" role="doc" />|' package.xml
+          grep -q 'name="research/README.md"' package.xml \
+            || { echo '::error::negative control did not apply -- the <dir name="/"> anchor in package.xml moved'; exit 1; }
+
+          rm -f ./Judy-*.tgz
+          pecl package package.xml
+
+          set +e
+          ./tools/check-package-contents.sh ./Judy-*.tgz > /tmp/pkg-negctl.log 2>&1
+          rc=$?
+          set -e
+          cat /tmp/pkg-negctl.log
+
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::the packaging check passed on a tarball that ships research/README.md"
+            exit 1
+          fi
+          grep -q 'research/README.md' /tmp/pkg-negctl.log \
+            || { echo "::error::the check failed, but not by naming the offending path -- see the log above"; exit 1; }
+          echo "Negative control passed: the check caught the deliberately-shipped research file."
+
+          git checkout -- package.xml
+          rm -f ./Judy-*.tgz
+          pecl package package.xml
 
       - name: Install from PECL package
         run: sudo pecl install --force ./Judy-*.tgz

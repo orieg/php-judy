@@ -6,7 +6,7 @@
 # cells. Writes o5p-bench.done when finished (coordinator watch marker).
 set -e
 
-. /var/tmp/jp113/o5p/o5p-lock.sh
+. /var/tmp/jp113/o5p/bench-lock.sh
 bench_lock_acquire "o5p-gate" "O5 reopen gate matrix (l3/mix/big/xover)" || exit 3
 ROOT=/var/tmp/jp113
 O5P=$ROOT/o5p
@@ -58,7 +58,7 @@ ps -A -o %cpu,%mem,comm --sort=-%cpu | head -6 >> $ENV
 # drift in it means the MACHINE changed, not the code. loadavg alone did
 # not catch the 2026-08-19 collision; this does.
 STAB=0
-python3 $O5P/o5p-stability.py $O5P/o5p-bench-l3.csv $O5P/o5p-bench-mix.csv \
+python3 $O5P/bench-stability.py $O5P/o5p-bench-l3.csv $O5P/o5p-bench-mix.csv \
     $O5P/o5p-bench-big.csv $O5P/o5p-bench-xover.csv > $O5P/o5p-stability.txt 2>&1 || STAB=1
 if [ $STAB -ne 0 ]; then
   echo "BASELINE-STABILITY GUARD FAILED -- see o5p-stability.txt" | tee -a $ENV

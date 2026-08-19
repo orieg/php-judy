@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Baseline-stability guard for the O5P gate CSVs.
+"""Baseline-stability guard for benchmark gate CSVs.
 
 WHY (2026-08-19): the O5-reopen out-of-cache sweep was corrupted by a
 concurrent php-judy benchmark campaign on the same host. Both campaigns
@@ -14,7 +14,13 @@ its per-trial medians must be stable within a cell. A spread beyond
 --tol (default 15%) means the machine changed under the benchmark, and
 NO ratio computed from those trials is interpretable.
 
-usage: o5p-stability.py [--tol 0.15] <csv> [csv...]
+Input format (what a campaign has to emit to use this): one CSV row per
+measurement, `arm,seed,corpus,n,trial,kernel,ns_per_op,hits`, with a `pre`
+arm that the change under test does not touch and a `serial` (or
+`serialold`) kernel. Those two names are the only coupling to the campaign
+this was written for -- emit them and any campaign can gate on this.
+
+usage: bench-stability.py [--tol 0.15] <csv> [csv...]
 exit 1 if any cell fails, so a driver can gate on it.
 """
 import sys, csv, statistics as st

@@ -250,11 +250,11 @@ Requires libJudy, gcc, and an **idle** machine — check `cat /proc/loadavg`
 before and between runs and treat anything above cores/2 as contaminated.
 
 Both harnesses are committed under
-[`research/backend-comparison/`](research/backend-comparison/). libart is not
+[`tools/backend-comparison/`](tools/backend-comparison/). libart is not
 vendored — clone it alongside:
 
 ```sh
-cd research/backend-comparison
+cd tools/backend-comparison
 git clone --depth 1 https://github.com/armon/libart.git
 
 # Step 2 — ART vs JudySL. One structure per process so peak RSS is attributable.

@@ -11,7 +11,7 @@
  *
  * corpus is one of:
  *   struct   (default) the original two-shape corpus, identical to
- *            research/write-probe-cost/probebench.c so the two harnesses agree
+ *            tools/write-probe-cost/probebench.c so the two harnesses agree
  *            byte for byte: "user:00001234:f5" padded with 'x' at
  *            keylen >= 16, a fixed-width mixed base-36 counter below it.
  *   rand     uniform-random bytes, exactly keylen of them, drawn from 1..255.

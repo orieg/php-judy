@@ -307,11 +307,15 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   tree (libJudy's node layout is internal and version-dependent). Load
   instructions and the full rationale: CONTRIBUTING.md "Debugging the extension
   itself".
-- **Measured claims have re-runnable harnesses**: `research/` (see
-  `research/README.md`) holds standalone C benches backing doc and issue
-  claims — `shm-arena/` for #83, `iteration-cost/` for #85. Nothing there
-  ships or builds with the extension. Re-run rather than trusting a number,
-  and only on an idle machine.
+- **Measured claims have re-runnable harnesses**: `tools/` holds the
+  standalone C benches backing doc and issue claims —
+  `tools/iteration-cost/` for #85, `tools/write-probe-cost/` for #85 step B3,
+  `tools/backend-comparison/` for BACKEND_EVALUATION.md — and
+  `tools/differential-fuzz/` is the correctness fuzzer CI runs per PR. What
+  they measured is written up in `research/README.md`; closed investigations
+  keep their evidence under `research/` (`shm-arena/` for #83). Nothing in
+  either tree ships or builds with the extension. Re-run rather than trusting
+  a number, and only on an idle machine.
 - **Backend choice is settled, don't relitigate it**: `BACKEND_EVALUATION.md`
   measures libJudy against ART (tie on lookup, 27% worse memory for ART) and
   explains why Masstree/HOT/Wormhole don't apply to a single-threaded,

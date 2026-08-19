@@ -299,7 +299,7 @@ static inline int judy_pack_short_string_internal(const char *str, size_t len, W
      - ADAPTIVE keys shorter than JUDY_SSO_MAX_LEN, even on an instance that
        asked for it. Their value lives in a JudyL keyed by the packed index and
        both sides reach it with a JLG — 17.6 ns against 184.7 ns for a JudySL
-       descend of the same key (research/write-probe-cost). Nothing to win and
+       descend of the same key (tools/write-probe-cost). Nothing to win and
        an order of magnitude to lose.
 
    JUDY_MIRRORS_PAYLOAD() answers "does this (instance, key length) mirror?".

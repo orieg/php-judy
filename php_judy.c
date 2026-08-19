@@ -760,7 +760,7 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 		   AND yields the slot the payload has to be written to, so it replaces
 		   the JHSG probe rather than adding a third lookup. The swap itself is
 		   roughly neutral (+3% at 16-byte keys, -9% at 40-byte on a hit, a
-		   large win on a miss — research/write-probe-cost); what the mirrored
+		   large win on a miss — tools/write-probe-cost); what the mirrored
 		   write actually pays for is touching two structures instead of one. */
 		if (intern->mirror_payload) {
 			JSLG(kslot, intern->key_index, (uint8_t *)key);

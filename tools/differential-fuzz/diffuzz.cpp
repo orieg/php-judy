@@ -186,7 +186,7 @@ struct WordGen {
 /* ----------------------------------------------- string-key generators
  *
  * The struct/rand/varlen corpora are ports of make_key() from
- * research/iteration-cost/iterbench.c (post-#139), including the #122
+ * tools/iteration-cost/iterbench.c (post-#139), including the #122
  * truncation fix and the unconditional exact-length check. boundary and
  * ffbias add the shapes that historically hid bugs: keys crossing the
  * 8-byte SSO/word boundary (lengths 4..9 exactly) and 0xFF-biased bytes.

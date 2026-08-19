@@ -89,8 +89,8 @@ function judy_new(int $type): Judy
         : new Judy($type);
 }
 
-// Same key shape as the issue's decomposition and as the C harness in
-// research/: a shared "user:" prefix every 10 keys, padded to $keylen.
+// Same key shape as the issue's decomposition and as the C harnesses in
+// tools/: a shared "user:" prefix every 10 keys, padded to $keylen.
 $keys = [];
 for ($i = 0; $i < $size; $i++) {
     $k = sprintf('user:%08d:f%d', intdiv($i, 10), $i % 10);

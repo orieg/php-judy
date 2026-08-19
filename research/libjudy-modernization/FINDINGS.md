@@ -1919,8 +1919,8 @@ round.
 - **Never reached:** the crossover sweep, the PHP-level A/B, the
   short-batch probe, and the residency sweep.
 
-Two process changes came out of it, both committed with the harness:
-`o5p-stability.py`, which fails any cell whose untouched `pre` baseline
+Two process changes came out of it, both committed and now general-purpose
+under `tools/`: `bench-stability.py`, which fails any cell whose untouched `pre` baseline
 drifts across trials (it flags the collided sweep at 116–142% and clears
 the L3 sweep at ≤3.7%), and a `/var/tmp/BENCH_LOCK` mutex every driver now
 takes. The collision was originally caught by luck — a partial read
@@ -2092,8 +2092,8 @@ Stated plainly, because they bound everything above.
 ## Reproduction
 
 The C harnesses for the popcount A/B, the corpus generator, the MLP prototype and
-the OOM injectors are **not committed here** — unlike `shm-arena/` and
-`iteration-cost/`, they were built in throwaway trees. The patches are described
+the OOM injectors are **not committed here** — unlike `research/shm-arena/` and
+`tools/iteration-cost/`, they were built in throwaway trees. The patches are described
 in [#113](https://github.com/orieg/php-judy/issues/113) (`popcnt.patch`,
 `JudyNoInline.c`, `searchlinear.patch` — the last of which **must not land without
 the `COPYINDEX` fix**, §6.2). Committing the harnesses is a precondition for
@@ -2104,7 +2104,7 @@ with the extension: `tests/bitset_immed_cascade_integrity_001.phpt`, which fails
 on a miscompiled system libJudy.
 
 Execution improved this position: the differential fuzzer is committed under
-[`research/differential-fuzz/`](../differential-fuzz/) ([PR #145](https://github.com/orieg/php-judy/pull/145),
+[`tools/differential-fuzz/`](../../tools/differential-fuzz/) ([PR #145](https://github.com/orieg/php-judy/pull/145),
 [#148](https://github.com/orieg/php-judy/pull/148)), and the O1/O3 measurement
 protocol runs against the vendored tree in this repository (raw CSVs, drivers
 and build trees for those rounds remain on the benchmark host, per the PR

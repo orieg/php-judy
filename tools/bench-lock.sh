@@ -1,5 +1,5 @@
 #!/bin/bash
-# o5p-lock.sh -- honeycomb exclusive-benchmark lock.
+# bench-lock.sh -- exclusive-benchmark lock for a shared bench host.
 #
 # WHY THIS EXISTS (2026-08-19): two php-judy benchmark campaigns ran
 # concurrently on honeycomb (this O5-reopen gate matrix pinned to core 2,
@@ -11,7 +11,11 @@
 # memory bandwidth no matter how their cores are pinned, so loadavg is
 # NOT a sufficient guard on a 24-core box. Mutual exclusion is.
 #
-# usage:  . o5p-lock.sh; bench_lock_acquire "<agent>" "<what>"; ... ; bench_lock_release
+# usage:  . bench-lock.sh; bench_lock_acquire "<agent>" "<what>"; ... ; bench_lock_release
+#
+# Take it from ANY benchmark campaign in this repo, not just the one it was
+# written for. Deployed to a remote bench host it is copied alongside the
+# harness that sources it (see research/libjudy-modernization/o5p-harness/).
 LOCK=/var/tmp/BENCH_LOCK
 
 bench_lock_acquire() {
