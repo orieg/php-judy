@@ -1914,6 +1914,111 @@ already long job, so it runs one build per arm, `rebuild_control_available` read
 `false` in its run JSON, and its threshold falls back to the offline floor alone.
 That is recorded rather than quietly equated with the other platforms.
 
+### Out-of-cache (n=6M): what survives when the working set leaves L3
+
+Everything above is cache-resident at 300k. This section is the same apparatus
+at **n=6,000,000**, where the structures no longer fit the host's 30 MB L3 and
+every Judy descend is a DRAM round trip. **Claim-grade**, Linux x86-64 /
+gcc 14.2.0 / PHP 8.4.24 / Debian 13, exclusively-held pinned honeycomb
+(`/var/tmp/BENCH_LOCK` held for the whole campaign, `--cpuset-cpus=2`), 7
+interleaved ABBA rounds, 3 independently linked builds per arm rotated across
+rounds, **~1.3% out-of-cache claim floor** applied automatically because
+6M ≥ the driver's `--dram-size` of 4M. Raw JSON and console output:
+`research/three-arm-benchmark/results/run6-out-of-cache-6m.{json,txt}`,
+`run6-attribution-6m.{json,txt}`, `run6-cvsc-control-6m.{json,txt}`.
+
+Host hygiene held flat across all four phase boundaries of all three runs:
+load1 1.00-1.22 against a threshold of 12.0, **foreign CPU 0.0% at every
+snapshot**, no run self-marked `contaminated`.
+
+#### The delivered difference, and its decomposition
+
+| | delivered (B→C) | our patches alone (S→C) | share attributable to our patches |
+| --- | ---: | ---: | ---: |
+| integer / bitset | **-12.0%** (n=37) | **-12.8%** (n=35) | **98.7%** |
+| string | **-19.7%** (n=34) | **-7.2%** (n=32) | **40.3%** |
+
+B→C is **71 cells faster, 0 slower, 2 null**; S→C is **68 faster, 0 slower,
+5 null**. Share is the per-cell median of `ln(S→C) / ln(B→C)` over matched
+cells, the same statistic as the cache-resident decomposition.
+
+**The headline finding is that the split barely moves with residency.**
+Cache-resident it was 96.5% integer / 39.8% string; out-of-cache it is 98.7% /
+40.3%. The prediction on record — that leaving cache should *raise* the patch
+share, because PLT/linkage overhead is fixed per call while memory stalls grow
+with the working set — is **not supported**: the integer share was already
+within a couple of points of 100% and the string share did not move at all.
+Whatever makes string paths gain more from bundling than from our patches is
+therefore not a cache-residency effect; it survives a 20x working set.
+
+The magnitudes do shrink, which is the expected direction: integer/bitset
+B→C goes from -17.7% cache-resident to **-12.0%** out-of-cache, and string from
+-22.2% to **-19.7%**. Instruction-level wins (O1 popcount, O3 word-access
+metadata) buy less when the pipeline is waiting on DRAM. This is consistent with
+the C-level gates, where O3's win survived DRAM-bound intact while O1's shrank.
+
+#### Memory at the same working set
+
+Peak RSS over the per-arm empty-process floor, median of 3 runs, n=6M.
+
+| workload | A: PHP array | B: system | C: bundled | **A/C** | B/C |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `int_to_int` (dense) | 129.6 MB | 49.5 MB | 49.7 MB | **2.61x** | 1.00x |
+| `int_sparse` (stride 4099) | 290.5 MB | 74.6 MB | 74.8 MB | **3.88x** | 1.00x |
+| `int_to_mixed` | 192.0 MB | 232.5 MB | 232.9 MB | **0.83x** | 1.00x |
+| `string_to_int` | 477.2 MB | 138.2 MB | 138.4 MB | **3.45x** | 1.00x |
+| `bitset` | 290.5 MB | 10.1 MB | 10.3 MB | **28.17x** | 0.98x |
+
+Same story as the 8M rows: `bitset` is the strongest case in the library,
+`int_to_mixed` still **loses** at 0.83x (in line with 0.79x at 8M), and B/C is
+1.00 everywhere — the vendoring did not change memory at this residency either.
+
+#### Where the PHP array wins, out-of-cache
+
+The A-vs-C comparison changes character more than anything else here. At 300k
+the PHP array won **42 of 43** comparable cells at a median of 4.19x. At 6M it
+wins **17 of 21**, median **1.97x**, and php-judy takes four cells outright:
+
+| operation | PHP array | php-judy | judy/array | winner |
+| --- | ---: | ---: | ---: | --- |
+| `bitset` free | 5.01 ms | 0.02 ms | **0.00x** | **php-judy** |
+| `int_to_int` free | 5.45 ms | 2.09 ms | **0.38x** | **php-judy** |
+| `xor` (bitset) | 221.28 ms | 172.93 ms | **0.78x** | **php-judy** |
+| `intersect` (bitset) | 95.43 ms | 87.03 ms | **0.91x** | **php-judy** |
+| `int_to_int` write | 91.95 ms | 144.70 ms | 1.57x | PHP array |
+| `int_to_int` read | 22.22 ms | 66.98 ms | 3.01x | PHP array |
+| `int_to_int` iterate | 18.66 ms | 113.10 ms | 6.06x | PHP array |
+
+The mechanism is the one the 300k section already gives: php-judy's per-call
+cost is a roughly fixed ~16 ns PHP/C boundary crossing, so as the per-element
+work grows with the working set, that fixed cost amortizes and the ratio falls.
+It does not invert the advice — **the array still wins the majority of scalar
+cells** — but "adopt php-judy for memory and ordering, not speed" is a weaker
+statement at 6M than at 300k, and the set-operation and teardown cells cross
+over entirely.
+
+#### The control, and the floor this run actually measured
+
+The C-vs-C rebuild control was re-run at 6M with the three arm-C builds rotated
+one position, so no round compares a binary against itself:
+
+| control | result |
+| --- | --- |
+| C-vs-C rebuild control at 6M, 73 cells | **0 faster, 0 slower, 73 null** |
+| PHP-array-only rows, B→C run | **-0.04% [-0.11, +0.02]** over 21 rows |
+| PHP-array-only rows, S→C run | **+0.04% [+0.00, +0.07]** over 21 rows |
+| PHP-array-only rows, C-vs-C run | **+0.01% [-0.02, +0.08]** over 21 rows |
+
+**One honest caveat on the floor.** The driver also reports how far the control
+rows themselves scatter, and at this residency that scatter exceeded the assumed
+1.3% floor in two of the three runs: **1.26%** in the B→C run (inside), but
+**2.63%** in the S→C run and **1.62%** in the C-vs-C control. The 1.3%
+out-of-cache floor is therefore *optimistic for these runs*, and any cell moving
+by less than about **2.6%** should be read as null regardless of what its CI
+says. Every figure quoted above is between 7.2% and 19.7%, far outside that
+band, so none of the headline claims depend on the difference — but a reader
+mining the raw JSON for small cells should apply the wider floor.
+
 ### Confidence tiers, and what is NOT measured
 
 There are now three tiers on this page and they are not interchangeable.
@@ -1932,7 +2037,7 @@ There are now three tiers on this page and they are not interchangeable.
 | **macOS arm64**, GitHub runner | Apple clang 21.0.0, PHP 8.4.24 | measured | measured | measured | **ci-relative** |
 | macOS arm64, local workstation | Apple clang 21, PHP 8.5.8, Homebrew | directional | directional | measured | **directional** |
 | Windows x64 | MSVC | see below | see below | see below | see below |
-| Linux x86-64, **out-of-cache** (>=6M) | gcc 14.2.0 | not measured | not measured | measured (8M rows above) | **not measured** |
+| Linux x86-64, **out-of-cache** (n=6M), honeycomb (dedicated) | gcc 14.2.0, PHP 8.4.24, Debian 13 | measured | measured | measured | **claim-grade** (integer/bitset + string API paths; `core.str` not measured — see below) |
 
 #### What the gate measured on each platform
 
@@ -2088,10 +2193,27 @@ per-arm process-floor subtraction is comparing small differences of large
 numbers. It is exactly the kind of figure that would mislead if quoted, which is
 why it sits below the gating floor and is not in the headline table above.
 
-#### Still not measured
+#### Still not measured, and one slot recently closed
 
-- **Out-of-cache timing is still not measured, but the memory-safety signal that
-  blocked it is resolved.** The intended 6M run aborted when arm B terminated
+- **Out-of-cache timing is now MEASURED** — see the
+  [out-of-cache section](#out-of-cache-n6m-what-survives-when-the-working-set-leaves-l3)
+  above for the figures. What follows is the record of the memory-safety
+  blocker that held the slot empty, kept because it is the reason the cell sat
+  unmeasured for so long. **One hole remains inside the cell**: the `core.str`
+  group cannot run at 6M at all, for a reason that has nothing to do with
+  php-judy. `judy-bench.php` sets `ini_set('memory_limit', '2G')`, which
+  overrides any `-d memory_limit=-1` a caller passes, and that group's own
+  fixtures — two 6M-element string-keyed PHP arrays plus their key lists, built
+  before any Judy work starts — exhaust it. It fails identically under every
+  arm with `Allowed memory size of 2147483648 bytes exhausted` at
+  `judy-bench.php` line 494. The measured cell therefore covers `core.int`,
+  `api.batch`, `api.setops` and `adv.iter`; string **API** paths are well
+  represented there (34 of the 71 faster cells are string-keyed), but the
+  `core.str` per-element write/read/iterate table is absent. Lifting the cap is
+  a change to a published benchmark fixture and is deliberately not bundled
+  into this measurement.
+
+  The original blocker, for the record: the intended 6M run aborted when arm B terminated
   with SIGSEGV in the `core.int` group, and at the time this section could not
   say whether the fault lay in the extension, the benchmark script, or libJudy.
   It is now established: the fault is **php-judy's own PHP-facing layer**, not
@@ -2136,13 +2258,15 @@ why it sits below the gating floor and is not in the headline table above.
   since become a floor rather than an override (methodology above), which does
   not affect this result either way.
 
-  **What this unblocks and what it does not.** The out-of-cache (>=6M) `core.int`
-  cell now runs to completion, so the arm can be scheduled; the slot in the tier
-  table stays `not measured` until it is actually run on an exclusively-held
-  honeycomb. Nothing above is a timing measurement — the runs in the table are
-  crash reproductions on a shared laptop and assert nothing about performance.
-  The 8M rows in the memory table were always unaffected: those run in their own
-  child processes and complete cleanly.
+  **What this unblocked.** The out-of-cache (>=6M) `core.int` cell runs to
+  completion, and the campaign was subsequently run on an exclusively-held
+  honeycomb — `core.int` at 6M completed `rc=0` under all three arms across 7
+  interleaved rounds, confirming on a third platform that the fix holds under
+  sustained load rather than in a single reproduction. Nothing in the table
+  above is a timing measurement: those runs are crash reproductions on a shared
+  laptop and assert nothing about performance. The 8M rows in the memory table
+  were always unaffected: those run in their own child processes and complete
+  cleanly.
 
   For the gate specifically: the slot is wired and needs no rework. Raise
   `BENCH_SIZE` past the driver's `--dram-size` in
@@ -2172,6 +2296,20 @@ php scripts/bench-threearm.php \
   --rounds 7 --size 300000 --assert-same-source \
   --system-provenance "$(. /etc/os-release; echo "$PRETTY_NAME") $(dpkg-query -W -f='${Version}' libjudy-dev 2>/dev/null)" \
   --out bench-threearm.json
+```
+
+For the **out-of-cache** cell, raise `--size` past the driver's `--dram-size`
+(default 4M) so the ~1.3% floor is selected, and drop `core.str` — its fixtures
+exceed the 2G cap `judy-bench.php` sets for itself and it cannot run at this
+size under any arm:
+
+```sh
+php scripts/bench-threearm.php \
+  --system-so judy-system.so --bundled-so judy-bundled.so \
+  --rounds 7 --size 6000000 --assert-same-source \
+  --groups core.int,api.batch,api.setops,adv.iter --mem-sizes 6000000 \
+  --system-provenance "$(. /etc/os-release; echo "$PRETTY_NAME") $(dpkg-query -W -f='${Version}' libjudy-dev 2>/dev/null)" \
+  --out research/three-arm-benchmark/results/run6-out-of-cache-6m.json
 ```
 
 Pass `--system-so` / `--bundled-so` more than once to rotate independent builds.

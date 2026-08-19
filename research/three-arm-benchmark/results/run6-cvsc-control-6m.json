@@ -1,0 +1,5831 @@
+{
+    "metadata": {
+        "schema": "judy-bench-threearm/1",
+        "label": "linux-x86_64-gcc14.2-php8.4-out-of-cache-6M-CvsC-REBUILD-CONTROL",
+        "date": "2026-08-19T06:39:40+00:00",
+        "php_version": "8.4.24",
+        "platform": "Linux x86_64",
+        "uname": "Linux 9eda8be811ef 6.8.0-136-generic #136~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Fri Jul  3 16:29:11 UTC  x86_64",
+        "judy_version": "2.5.2",
+        "system_so": [
+            "/work/builds/judy-C-2.so",
+            "/work/builds/judy-C-3.so",
+            "/work/builds/judy-C-1.so"
+        ],
+        "bundled_so": [
+            "/work/builds/judy-C-1.so",
+            "/work/builds/judy-C-2.so",
+            "/work/builds/judy-C-3.so"
+        ],
+        "system_so_sha256": [
+            "e045a13c7e649278937555e54798aa1296bda245cc7bad759770c3ebfab17b12",
+            "fb78079bf462da012789c29bef076168d23f50c47cb31ba47aa9299f481252d3",
+            "df5d52bc39e6792a0838d911d816e44a3dbd9966347aa837cd5754aaf4fe0f2a"
+        ],
+        "bundled_so_sha256": [
+            "df5d52bc39e6792a0838d911d816e44a3dbd9966347aa837cd5754aaf4fe0f2a",
+            "e045a13c7e649278937555e54798aa1296bda245cc7bad759770c3ebfab17b12",
+            "fb78079bf462da012789c29bef076168d23f50c47cb31ba47aa9299f481252d3"
+        ],
+        "system_provenance": "CONTROL: arm C builds rotated one position, so no round compares a binary against itself",
+        "bundled_provenance": "bundled libjudy/ static into the extension (P1-P7, O1 popcount, O3 bswap, O4 string-layer); vendor CFLAGS -O2 -fno-lto -fno-unroll-loops -mpopcnt",
+        "same_source_asserted": true,
+        "identical_builds": false,
+        "is_control_run": false,
+        "size": 6000000,
+        "iterations": 3,
+        "rounds": 7,
+        "groups": [
+            "core.int",
+            "api.batch",
+            "api.setops",
+            "adv.iter"
+        ],
+        "mem_sizes": [
+            100000,
+            1000000,
+            8000000
+        ],
+        "mem_workloads": [
+            "int_to_int",
+            "int_sparse",
+            "int_to_mixed",
+            "string_to_int",
+            "bitset"
+        ],
+        "mem_runs": 3,
+        "min_ms": 0.5,
+        "residency": "out-of-cache",
+        "claim_floor_pct": 1.3,
+        "cache_floor_pct": 3,
+        "dram_floor_pct": 1.3,
+        "timing_children": 56,
+        "memory_children": 0,
+        "wall_seconds": 1702.9
+    },
+    "hygiene": {
+        "snapshots": [
+            {
+                "phase": "start",
+                "at": "2026-08-19T06:11:17+00:00",
+                "load1": 1,
+                "cpus": 24,
+                "threshold": 12,
+                "over": false,
+                "cpus_known": true,
+                "foreign_cpu_pct": 0,
+                "foreign_busy": false,
+                "heavy": []
+            },
+            {
+                "phase": "after-timing",
+                "at": "2026-08-19T06:39:40+00:00",
+                "load1": 1,
+                "cpus": 24,
+                "threshold": 12,
+                "over": false,
+                "cpus_known": true,
+                "foreign_cpu_pct": 0,
+                "foreign_busy": false,
+                "heavy": []
+            },
+            {
+                "phase": "end",
+                "at": "2026-08-19T06:39:40+00:00",
+                "load1": 1,
+                "cpus": 24,
+                "threshold": 12,
+                "over": false,
+                "cpus_known": true,
+                "foreign_cpu_pct": 0,
+                "foreign_busy": false,
+                "heavy": []
+            }
+        ],
+        "failed": false,
+        "foreign_tenant": false,
+        "contaminated": false,
+        "note": "load average alone is necessary but not sufficient: a co-resident memory-bound benchmark contends for LLC and memory bandwidth at low load, and a PHP-array control does not detect it"
+    },
+    "control": {
+        "php_only": {
+            "median_ratio": 1.00007,
+            "delta_pct": 0.01,
+            "ci_delta_pct": [
+                -0.02,
+                0.08
+            ],
+            "measured_spread_pct": 1.62,
+            "row_count": 21,
+            "eligibility": "genuine PHP-array rows only (TAM_ARM_A_ROWS); Judy-touching .php rows are excluded because they carry real signal",
+            "rows": {
+                "core.bitset.write": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 1.00085,
+                    "delta_pct": 0.08,
+                    "ci_delta_pct": [
+                        -0.36,
+                        0.12
+                    ],
+                    "n": 7,
+                    "b_ms": 89.0391,
+                    "c_ms": 89.0926
+                },
+                "core.bitset.read": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 1.00756,
+                    "delta_pct": 0.76,
+                    "ci_delta_pct": [
+                        -1.95,
+                        2
+                    ],
+                    "n": 7,
+                    "b_ms": 22.2928,
+                    "c_ms": 22.4005
+                },
+                "core.bitset.iter": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 1.00146,
+                    "delta_pct": 0.15,
+                    "ci_delta_pct": [
+                        -0.35,
+                        0.24
+                    ],
+                    "n": 7,
+                    "b_ms": 18.7383,
+                    "c_ms": 18.7474
+                },
+                "core.bitset.free": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 0.99173,
+                    "delta_pct": -0.83,
+                    "ci_delta_pct": [
+                        -1.99,
+                        0.16
+                    ],
+                    "n": 7,
+                    "b_ms": 5.4383,
+                    "c_ms": 5.4037
+                },
+                "core.int_to_int.write": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 1.00101,
+                    "delta_pct": 0.1,
+                    "ci_delta_pct": [
+                        -0.09,
+                        0.21
+                    ],
+                    "n": 7,
+                    "b_ms": 91.9746,
+                    "c_ms": 91.9396
+                },
+                "core.int_to_int.read": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 1.01624,
+                    "delta_pct": 1.62,
+                    "ci_delta_pct": [
+                        -0.31,
+                        4.39
+                    ],
+                    "n": 7,
+                    "b_ms": 22.1334,
+                    "c_ms": 22.5936
+                },
+                "core.int_to_int.iter": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 0.99932,
+                    "delta_pct": -0.07,
+                    "ci_delta_pct": [
+                        -0.35,
+                        0.15
+                    ],
+                    "n": 7,
+                    "b_ms": 18.646,
+                    "c_ms": 18.6304
+                },
+                "core.int_to_int.free": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 1.00016,
+                    "delta_pct": 0.02,
+                    "ci_delta_pct": [
+                        -0.23,
+                        0.25
+                    ],
+                    "n": 7,
+                    "b_ms": 5.5033,
+                    "c_ms": 5.4909
+                },
+                "core.int_to_mixed.write": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 1.00053,
+                    "delta_pct": 0.05,
+                    "ci_delta_pct": [
+                        -0.35,
+                        0.11
+                    ],
+                    "n": 7,
+                    "b_ms": 264.5723,
+                    "c_ms": 264.6131
+                },
+                "core.int_to_mixed.read": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 0.99979,
+                    "delta_pct": -0.02,
+                    "ci_delta_pct": [
+                        -0.76,
+                        0.08
+                    ],
+                    "n": 7,
+                    "b_ms": 120.5508,
+                    "c_ms": 120.4712
+                },
+                "core.int_to_mixed.iter": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 0.99991,
+                    "delta_pct": -0.01,
+                    "ci_delta_pct": [
+                        -0.13,
+                        0.19
+                    ],
+                    "n": 7,
+                    "b_ms": 85.2117,
+                    "c_ms": 85.2443
+                },
+                "core.int_to_mixed.free": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 1.00335,
+                    "delta_pct": 0.33,
+                    "ci_delta_pct": [
+                        -0.39,
+                        0.47
+                    ],
+                    "n": 7,
+                    "b_ms": 45.9523,
+                    "c_ms": 46.0045
+                },
+                "core.int_to_packed.write": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 0.99953,
+                    "delta_pct": -0.05,
+                    "ci_delta_pct": [
+                        -0.2,
+                        0.09
+                    ],
+                    "n": 7,
+                    "b_ms": 246.9171,
+                    "c_ms": 246.7087
+                },
+                "core.int_to_packed.read": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 1.00007,
+                    "delta_pct": 0.01,
+                    "ci_delta_pct": [
+                        -0.08,
+                        0.15
+                    ],
+                    "n": 7,
+                    "b_ms": 106.508,
+                    "c_ms": 106.565
+                },
+                "core.int_to_packed.iter": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 1.00561,
+                    "delta_pct": 0.56,
+                    "ci_delta_pct": [
+                        -1.08,
+                        0.81
+                    ],
+                    "n": 7,
+                    "b_ms": 21.2987,
+                    "c_ms": 21.4491
+                },
+                "core.int_to_packed.free": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 0.99943,
+                    "delta_pct": -0.06,
+                    "ci_delta_pct": [
+                        -0.36,
+                        0.13
+                    ],
+                    "n": 7,
+                    "b_ms": 46.8813,
+                    "c_ms": 46.9316
+                },
+                "api.increment.int_to_int": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 1.00034,
+                    "delta_pct": 0.03,
+                    "ci_delta_pct": [
+                        -0.36,
+                        0.2
+                    ],
+                    "n": 7,
+                    "b_ms": 57.3449,
+                    "c_ms": 57.3308
+                },
+                "api.setop.union.bitset": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 0.99977,
+                    "delta_pct": -0.02,
+                    "ci_delta_pct": [
+                        -0.13,
+                        0.1
+                    ],
+                    "n": 7,
+                    "b_ms": 92.3327,
+                    "c_ms": 92.3199
+                },
+                "api.setop.intersect.bitset": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 0.99941,
+                    "delta_pct": -0.06,
+                    "ci_delta_pct": [
+                        -0.21,
+                        0.19
+                    ],
+                    "n": 7,
+                    "b_ms": 95.4238,
+                    "c_ms": 95.3282
+                },
+                "api.setop.diff.bitset": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 0.99984,
+                    "delta_pct": -0.02,
+                    "ci_delta_pct": [
+                        -0.67,
+                        0.42
+                    ],
+                    "n": 7,
+                    "b_ms": 42.968,
+                    "c_ms": 43.0712
+                },
+                "api.setop.xor.bitset": {
+                    "status": "null",
+                    "reason": "inside the 1.3% claim floor (CI straddles it)",
+                    "ratio": 0.99953,
+                    "delta_pct": -0.05,
+                    "ci_delta_pct": [
+                        -0.15,
+                        0.07
+                    ],
+                    "n": 7,
+                    "b_ms": 221.0534,
+                    "c_ms": 220.9355
+                }
+            }
+        },
+        "rebuild_control_run": false
+    },
+    "counts": {
+        "faster": 0,
+        "slower": 0,
+        "null": 73
+    },
+    "a_counts": {
+        "php-judy": 4,
+        "php-array": 17,
+        "parity": 0
+    },
+    "bundled_vs_system": {
+        "core.bitset.write": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00535,
+            "delta_pct": 0.54,
+            "ci_delta_pct": [
+                -0.19,
+                0.86
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.12,
+                "B2/C2": 0.76,
+                "B3/C3": 0.34
+            },
+            "build_spread_pct": 0.64,
+            "builds": 3,
+            "system_ms": 102.9144,
+            "bundled_ms": 103.2904,
+            "raw_delta_pct": 0.54,
+            "spread_pct": [
+                1,
+                1.6
+            ],
+            "system_runs_ms": [
+                102.9709,
+                102.621,
+                103.3654,
+                103.6089,
+                102.6955,
+                102.7792,
+                102.9144
+            ],
+            "bundled_runs_ms": [
+                103.5291,
+                103.6014,
+                104.2582,
+                102.9388,
+                103.2904,
+                102.5941,
+                103.042
+            ],
+            "paired_ratios": [
+                1.00542,
+                1.00955,
+                1.00864,
+                0.99353,
+                1.00579,
+                0.9982,
+                1.00124
+            ]
+        },
+        "core.bitset.read": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00583,
+            "delta_pct": 0.58,
+            "ci_delta_pct": [
+                -0.11,
+                0.64
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.31,
+                "B2/C2": -0.07,
+                "B3/C3": 0.6
+            },
+            "build_spread_pct": 0.67,
+            "builds": 3,
+            "system_ms": 67.2114,
+            "bundled_ms": 67.4609,
+            "raw_delta_pct": 0.59,
+            "spread_pct": [
+                2.7,
+                1.4
+            ],
+            "system_runs_ms": [
+                66.2346,
+                66.7491,
+                67.2114,
+                67.2502,
+                68.0768,
+                67.1686,
+                67.5875
+            ],
+            "bundled_runs_ms": [
+                66.6627,
+                67.2739,
+                67.6274,
+                67.4609,
+                67.4508,
+                67.5643,
+                67.5195
+            ],
+            "paired_ratios": [
+                1.00646,
+                1.00786,
+                1.00619,
+                1.00313,
+                0.9908,
+                1.00589,
+                0.99899
+            ]
+        },
+        "core.bitset.iter": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99954,
+            "delta_pct": -0.05,
+            "ci_delta_pct": [
+                -0.82,
+                0.63
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.82,
+                "B2/C2": 0.11,
+                "B3/C3": 0.29
+            },
+            "build_spread_pct": 1.11,
+            "builds": 3,
+            "system_ms": 107.3852,
+            "bundled_ms": 107.3283,
+            "raw_delta_pct": -0.04,
+            "spread_pct": [
+                2.1,
+                1.9
+            ],
+            "system_runs_ms": [
+                105.7724,
+                106.8999,
+                106.6841,
+                108.017,
+                107.3852,
+                107.7069,
+                107.7048
+            ],
+            "bundled_runs_ms": [
+                107.4569,
+                107.3283,
+                107.3677,
+                105.5746,
+                107.1974,
+                107.6647,
+                106.8242
+            ],
+            "paired_ratios": [
+                1.01593,
+                1.00401,
+                1.00641,
+                0.97739,
+                0.99825,
+                0.99961,
+                0.99182
+            ]
+        },
+        "core.int_to_int.write": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99956,
+            "delta_pct": -0.04,
+            "ci_delta_pct": [
+                -0.47,
+                0.09
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.22,
+                "B2/C2": 0.23,
+                "B3/C3": -0.26
+            },
+            "build_spread_pct": 0.49,
+            "builds": 3,
+            "system_ms": 144.758,
+            "bundled_ms": 144.6974,
+            "raw_delta_pct": -0.04,
+            "spread_pct": [
+                0.9,
+                0.6
+            ],
+            "system_runs_ms": [
+                145.0621,
+                144.607,
+                144.8585,
+                144.3932,
+                144.35,
+                144.758,
+                145.6105
+            ],
+            "bundled_runs_ms": [
+                144.7552,
+                144.6974,
+                144.8036,
+                144.537,
+                144.9315,
+                144.092,
+                144.625
+            ],
+            "paired_ratios": [
+                0.99788,
+                1.00063,
+                0.99962,
+                1.001,
+                1.00403,
+                0.9954,
+                0.99323
+            ]
+        },
+        "core.int_to_int.read": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99603,
+            "delta_pct": -0.4,
+            "ci_delta_pct": [
+                -0.45,
+                0.41
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.09,
+                "B2/C2": -0.45,
+                "B3/C3": -0.03
+            },
+            "build_spread_pct": 0.42,
+            "builds": 3,
+            "system_ms": 67.0556,
+            "bundled_ms": 66.9204,
+            "raw_delta_pct": -0.39,
+            "spread_pct": [
+                0.7,
+                0.7
+            ],
+            "system_runs_ms": [
+                67.0556,
+                67.2172,
+                66.9681,
+                66.8398,
+                67.1988,
+                67.287,
+                66.9313
+            ],
+            "bundled_runs_ms": [
+                66.7937,
+                66.9204,
+                67.2474,
+                67.191,
+                66.9043,
+                66.9698,
+                66.8778
+            ],
+            "paired_ratios": [
+                0.99609,
+                0.99558,
+                1.00417,
+                1.00525,
+                0.99562,
+                0.99529,
+                0.9992
+            ]
+        },
+        "core.int_to_int.iter": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99795,
+            "delta_pct": -0.21,
+            "ci_delta_pct": [
+                -0.31,
+                -0.16
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.3,
+                "B2/C2": -0.5,
+                "B3/C3": -0.17
+            },
+            "build_spread_pct": 0.33,
+            "builds": 3,
+            "system_ms": 113.4553,
+            "bundled_ms": 113.1879,
+            "raw_delta_pct": -0.2,
+            "spread_pct": [
+                1.6,
+                1.4
+            ],
+            "system_runs_ms": [
+                113.8752,
+                114.0793,
+                112.2169,
+                113.4553,
+                113.0713,
+                113.1876,
+                113.8098
+            ],
+            "bundled_runs_ms": [
+                113.5414,
+                113.1879,
+                112.0413,
+                113.6168,
+                112.8464,
+                113.0049,
+                113.4669
+            ],
+            "paired_ratios": [
+                0.99707,
+                0.99219,
+                0.99844,
+                1.00142,
+                0.99801,
+                0.99839,
+                0.99699
+            ]
+        },
+        "core.int_to_int.free": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.9994,
+            "delta_pct": -0.06,
+            "ci_delta_pct": [
+                -1.62,
+                3.15
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 3.15,
+                "B2/C2": -0.46,
+                "B3/C3": -1.06
+            },
+            "build_spread_pct": 4.21,
+            "builds": 3,
+            "system_ms": 2.0749,
+            "bundled_ms": 2.0924,
+            "raw_delta_pct": -0.05,
+            "spread_pct": [
+                6.2,
+                3.6
+            ],
+            "system_runs_ms": [
+                2.0071,
+                2.1155,
+                2.1359,
+                2.0668,
+                2.0744,
+                2.0896,
+                2.0749
+            ],
+            "bundled_runs_ms": [
+                2.1029,
+                2.0778,
+                2.1252,
+                2.1321,
+                2.0924,
+                2.0559,
+                2.0738
+            ],
+            "paired_ratios": [
+                1.04773,
+                0.98218,
+                0.99499,
+                1.03159,
+                1.00868,
+                0.98387,
+                0.99947
+            ]
+        },
+        "core.int_to_mixed.write": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00177,
+            "delta_pct": 0.18,
+            "ci_delta_pct": [
+                -0.62,
+                0.37
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.37,
+                "B2/C2": -0.74,
+                "B3/C3": 0.17
+            },
+            "build_spread_pct": 1.11,
+            "builds": 3,
+            "system_ms": 397.6057,
+            "bundled_ms": 397.5835,
+            "raw_delta_pct": 0.18,
+            "spread_pct": [
+                0.9,
+                0.7
+            ],
+            "system_runs_ms": [
+                396.3929,
+                398.7679,
+                397.4722,
+                397.6057,
+                399.9715,
+                397.7987,
+                397.2006
+            ],
+            "bundled_runs_ms": [
+                397.121,
+                396.3035,
+                397.5835,
+                399.0877,
+                396.5925,
+                399.1289,
+                399.282
+            ],
+            "paired_ratios": [
+                1.00184,
+                0.99382,
+                1.00028,
+                1.00373,
+                0.99155,
+                1.00334,
+                1.00524
+            ]
+        },
+        "core.int_to_mixed.read": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99804,
+            "delta_pct": -0.2,
+            "ci_delta_pct": [
+                -0.57,
+                0.07
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.3,
+                "B2/C2": 0.03,
+                "B3/C3": -0.17
+            },
+            "build_spread_pct": 0.33,
+            "builds": 3,
+            "system_ms": 277.7887,
+            "bundled_ms": 277.4582,
+            "raw_delta_pct": -0.19,
+            "spread_pct": [
+                0.7,
+                0.3
+            ],
+            "system_runs_ms": [
+                278.8838,
+                277.4417,
+                277.1235,
+                278.0082,
+                277.594,
+                278.9359,
+                277.7887
+            ],
+            "bundled_runs_ms": [
+                277.0008,
+                277.4582,
+                277.8098,
+                277.4817,
+                277.7968,
+                277.3524,
+                276.9828
+            ],
+            "paired_ratios": [
+                0.99325,
+                1.00006,
+                1.00248,
+                0.99811,
+                1.00073,
+                0.99432,
+                0.9971
+            ]
+        },
+        "core.int_to_mixed.iter": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00384,
+            "delta_pct": 0.38,
+            "ci_delta_pct": [
+                -0.16,
+                0.41
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.41,
+                "B2/C2": -0.18,
+                "B3/C3": 0.4
+            },
+            "build_spread_pct": 0.59,
+            "builds": 3,
+            "system_ms": 320.3281,
+            "bundled_ms": 321.3676,
+            "raw_delta_pct": 0.39,
+            "spread_pct": [
+                0.7,
+                1.2
+            ],
+            "system_runs_ms": [
+                319.6088,
+                320.3281,
+                320.2208,
+                319.5294,
+                321.7809,
+                321.4847,
+                320.3649
+            ],
+            "bundled_runs_ms": [
+                319.1305,
+                320.5377,
+                321.4704,
+                321.3676,
+                320.4675,
+                322.8354,
+                321.692
+            ],
+            "paired_ratios": [
+                0.9985,
+                1.00065,
+                1.0039,
+                1.00575,
+                0.99592,
+                1.0042,
+                1.00414
+            ]
+        },
+        "core.int_to_mixed.free": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00243,
+            "delta_pct": 0.24,
+            "ci_delta_pct": [
+                -0.2,
+                0.94
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.2,
+                "B2/C2": 0.19,
+                "B3/C3": 0.66
+            },
+            "build_spread_pct": 0.86,
+            "builds": 3,
+            "system_ms": 100.0649,
+            "bundled_ms": 100.2224,
+            "raw_delta_pct": 0.25,
+            "spread_pct": [
+                1.5,
+                0.7
+            ],
+            "system_runs_ms": [
+                99.2867,
+                100.149,
+                99.5175,
+                100.7777,
+                100.0649,
+                99.9783,
+                100.1627
+            ],
+            "bundled_runs_ms": [
+                100.2224,
+                100.3994,
+                100.5065,
+                99.8373,
+                100.2094,
+                100.3138,
+                99.9715
+            ],
+            "paired_ratios": [
+                1.00942,
+                1.0025,
+                1.00994,
+                0.99067,
+                1.00144,
+                1.00336,
+                0.99809
+            ]
+        },
+        "core.int_to_packed.write": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00175,
+            "delta_pct": 0.17,
+            "ci_delta_pct": [
+                -0.4,
+                0.52
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.52,
+                "B2/C2": -0.66,
+                "B3/C3": 0.27
+            },
+            "build_spread_pct": 1.18,
+            "builds": 3,
+            "system_ms": 345.2271,
+            "bundled_ms": 346.499,
+            "raw_delta_pct": 0.18,
+            "spread_pct": [
+                0.9,
+                0.7
+            ],
+            "system_runs_ms": [
+                347.849,
+                347.8936,
+                345.1473,
+                344.7629,
+                346.9026,
+                345.2271,
+                345.1974
+            ],
+            "bundled_runs_ms": [
+                346.8016,
+                344.7244,
+                345.7733,
+                347.1362,
+                345.5332,
+                346.499,
+                347.0186
+            ],
+            "paired_ratios": [
+                0.99699,
+                0.99089,
+                1.00181,
+                1.00688,
+                0.99605,
+                1.00368,
+                1.00528
+            ]
+        },
+        "core.int_to_packed.read": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99924,
+            "delta_pct": -0.08,
+            "ci_delta_pct": [
+                -0.38,
+                0.24
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.08,
+                "B2/C2": 0.39,
+                "B3/C3": -0.35
+            },
+            "build_spread_pct": 0.74,
+            "builds": 3,
+            "system_ms": 205.9561,
+            "bundled_ms": 205.7159,
+            "raw_delta_pct": -0.07,
+            "spread_pct": [
+                0.8,
+                0.6
+            ],
+            "system_runs_ms": [
+                206.2003,
+                204.6103,
+                206.353,
+                205.9561,
+                205.2407,
+                205.9938,
+                205.8597
+            ],
+            "bundled_runs_ms": [
+                206.1502,
+                205.1234,
+                205.7526,
+                205.1955,
+                206.3378,
+                205.1923,
+                205.7159
+            ],
+            "paired_ratios": [
+                0.99976,
+                1.00251,
+                0.99709,
+                0.99631,
+                1.00535,
+                0.99611,
+                0.9993
+            ]
+        },
+        "core.int_to_packed.iter": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99909,
+            "delta_pct": -0.09,
+            "ci_delta_pct": [
+                -0.52,
+                0.33
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.52,
+                "B2/C2": -0.27,
+                "B3/C3": 1.62
+            },
+            "build_spread_pct": 2.14,
+            "builds": 3,
+            "system_ms": 247.6756,
+            "bundled_ms": 247.529,
+            "raw_delta_pct": -0.08,
+            "spread_pct": [
+                2,
+                2
+            ],
+            "system_runs_ms": [
+                248.9333,
+                248.1972,
+                244.072,
+                247.6756,
+                247.7376,
+                247.2267,
+                247.5348
+            ],
+            "bundled_runs_ms": [
+                246.7407,
+                247.0867,
+                251.1994,
+                247.9423,
+                247.529,
+                248.0531,
+                246.2668
+            ],
+            "paired_ratios": [
+                0.99119,
+                0.99553,
+                1.0292,
+                1.00108,
+                0.99916,
+                1.00334,
+                0.99488
+            ]
+        },
+        "core.int_to_packed.free": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00423,
+            "delta_pct": 0.42,
+            "ci_delta_pct": [
+                0.19,
+                0.67
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.45,
+                "B2/C2": 0.2,
+                "B3/C3": 0.31
+            },
+            "build_spread_pct": 0.25,
+            "builds": 3,
+            "system_ms": 51.9124,
+            "bundled_ms": 52.086,
+            "raw_delta_pct": 0.43,
+            "spread_pct": [
+                0.5,
+                0.7
+            ],
+            "system_runs_ms": [
+                51.8424,
+                51.9358,
+                52.032,
+                51.8482,
+                52.0935,
+                51.9124,
+                51.8373
+            ],
+            "bundled_runs_ms": [
+                52.2361,
+                52.2872,
+                52.2554,
+                52.086,
+                51.9538,
+                52.0205,
+                51.9369
+            ],
+            "paired_ratios": [
+                1.00759,
+                1.00677,
+                1.00429,
+                1.00459,
+                0.99732,
+                1.00208,
+                1.00192
+            ]
+        },
+        "api.putAll.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00216,
+            "delta_pct": 0.22,
+            "ci_delta_pct": [
+                0.04,
+                0.66
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.16,
+                "B2/C2": 0.88,
+                "B3/C3": 0.41
+            },
+            "build_spread_pct": 0.72,
+            "builds": 3,
+            "system_ms": 126.5184,
+            "bundled_ms": 126.9472,
+            "raw_delta_pct": 0.22,
+            "spread_pct": [
+                0.4,
+                2
+            ],
+            "system_runs_ms": [
+                126.3793,
+                126.5929,
+                126.1661,
+                126.5184,
+                126.4242,
+                126.6768,
+                126.5621
+            ],
+            "bundled_runs_ms": [
+                127.219,
+                128.8889,
+                126.9472,
+                126.7272,
+                126.3701,
+                126.959,
+                126.6164
+            ],
+            "paired_ratios": [
+                1.00664,
+                1.01814,
+                1.00619,
+                1.00165,
+                0.99957,
+                1.00223,
+                1.00043
+            ]
+        },
+        "api.fromArray.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00388,
+            "delta_pct": 0.39,
+            "ci_delta_pct": [
+                0.11,
+                1.49
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.39,
+                "B2/C2": 0.8,
+                "B3/C3": -0.64
+            },
+            "build_spread_pct": 1.44,
+            "builds": 3,
+            "system_ms": 126.1438,
+            "bundled_ms": 126.6569,
+            "raw_delta_pct": 0.39,
+            "spread_pct": [
+                1.9,
+                1.7
+            ],
+            "system_runs_ms": [
+                126.1438,
+                125.8171,
+                128.2657,
+                126.4876,
+                126.0251,
+                126.0753,
+                126.3344
+            ],
+            "bundled_runs_ms": [
+                128.1859,
+                127.7053,
+                126.0614,
+                126.9866,
+                126.1725,
+                126.6569,
+                126.5282
+            ],
+            "paired_ratios": [
+                1.01619,
+                1.01501,
+                0.98281,
+                1.00395,
+                1.00117,
+                1.00461,
+                1.00153
+            ]
+        },
+        "api.toArray.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00197,
+            "delta_pct": 0.2,
+            "ci_delta_pct": [
+                0.03,
+                0.29
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.28,
+                "B2/C2": 0.44,
+                "B3/C3": -0.39
+            },
+            "build_spread_pct": 0.83,
+            "builds": 3,
+            "system_ms": 297.4057,
+            "bundled_ms": 297.8087,
+            "raw_delta_pct": 0.2,
+            "spread_pct": [
+                0.8,
+                1.3
+            ],
+            "system_runs_ms": [
+                298.7236,
+                297.9641,
+                297.4057,
+                297.1905,
+                296.7652,
+                299.0686,
+                296.968
+            ],
+            "bundled_runs_ms": [
+                299.3329,
+                300.5306,
+                297.5337,
+                298.0638,
+                296.8624,
+                296.6292,
+                297.8087
+            ],
+            "paired_ratios": [
+                1.00204,
+                1.00861,
+                1.00043,
+                1.00294,
+                1.00033,
+                0.99184,
+                1.00283
+            ]
+        },
+        "api.getAll.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99829,
+            "delta_pct": -0.17,
+            "ci_delta_pct": [
+                -0.86,
+                0.29
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.45,
+                "B2/C2": -0.87,
+                "B3/C3": 0.21
+            },
+            "build_spread_pct": 1.08,
+            "builds": 3,
+            "system_ms": 21.5246,
+            "bundled_ms": 21.4602,
+            "raw_delta_pct": -0.16,
+            "spread_pct": [
+                1.6,
+                0.9
+            ],
+            "system_runs_ms": [
+                21.6389,
+                21.7276,
+                21.4552,
+                21.3793,
+                21.5371,
+                21.5246,
+                21.4514
+            ],
+            "bundled_runs_ms": [
+                21.4534,
+                21.3874,
+                21.5188,
+                21.4602,
+                21.5017,
+                21.5554,
+                21.3573
+            ],
+            "paired_ratios": [
+                0.99143,
+                0.98434,
+                1.00296,
+                1.00378,
+                0.99836,
+                1.00143,
+                0.99561
+            ]
+        },
+        "api.increment.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99867,
+            "delta_pct": -0.13,
+            "ci_delta_pct": [
+                -0.46,
+                1.9
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.13,
+                "B2/C2": -0.05,
+                "B3/C3": 0.77
+            },
+            "build_spread_pct": 0.9,
+            "builds": 3,
+            "system_ms": 144.4002,
+            "bundled_ms": 144.84,
+            "raw_delta_pct": -0.13,
+            "spread_pct": [
+                3.1,
+                1
+            ],
+            "system_runs_ms": [
+                142.336,
+                144.2946,
+                141.8544,
+                145.2703,
+                146.2739,
+                145.3289,
+                144.4002
+            ],
+            "bundled_runs_ms": [
+                145.046,
+                144.8236,
+                144.84,
+                145.0326,
+                145.6087,
+                144.5177,
+                144.2171
+            ],
+            "paired_ratios": [
+                1.01904,
+                1.00367,
+                1.02105,
+                0.99836,
+                0.99545,
+                0.99442,
+                0.99873
+            ]
+        },
+        "api.keys.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00143,
+            "delta_pct": 0.14,
+            "ci_delta_pct": [
+                -0.01,
+                0.4
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.22,
+                "B2/C2": 0.03,
+                "B3/C3": 0.27
+            },
+            "build_spread_pct": 0.24,
+            "builds": 3,
+            "system_ms": 116.2315,
+            "bundled_ms": 116.3709,
+            "raw_delta_pct": 0.15,
+            "spread_pct": [
+                0.3,
+                0.8
+            ],
+            "system_runs_ms": [
+                116.3154,
+                116.3747,
+                116.2315,
+                116.3155,
+                116.0615,
+                116.0038,
+                116.11
+            ],
+            "bundled_runs_ms": [
+                117.0656,
+                116.3723,
+                116.7021,
+                116.3037,
+                116.1396,
+                116.1776,
+                116.3709
+            ],
+            "paired_ratios": [
+                1.00645,
+                0.99998,
+                1.00405,
+                0.9999,
+                1.00067,
+                1.0015,
+                1.00225
+            ]
+        },
+        "api.values.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00236,
+            "delta_pct": 0.24,
+            "ci_delta_pct": [
+                -0.49,
+                0.48
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.48,
+                "B2/C2": -0.21,
+                "B3/C3": 0.27
+            },
+            "build_spread_pct": 0.69,
+            "builds": 3,
+            "system_ms": 121.0197,
+            "bundled_ms": 121.1518,
+            "raw_delta_pct": 0.24,
+            "spread_pct": [
+                0.8,
+                0.9
+            ],
+            "system_runs_ms": [
+                121.1737,
+                121.0197,
+                120.9931,
+                120.7229,
+                121.3399,
+                120.4291,
+                121.2855
+            ],
+            "bundled_runs_ms": [
+                121.7607,
+                121.1518,
+                121.2863,
+                121.3113,
+                120.7021,
+                120.796,
+                120.7032
+            ],
+            "paired_ratios": [
+                1.00484,
+                1.00109,
+                1.00242,
+                1.00487,
+                0.99474,
+                1.00305,
+                0.9952
+            ]
+        },
+        "api.range.keys.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00151,
+            "delta_pct": 0.15,
+            "ci_delta_pct": [
+                -0.29,
+                0.24
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.24,
+                "B2/C2": -0.08,
+                "B3/C3": -0.07
+            },
+            "build_spread_pct": 0.32,
+            "builds": 3,
+            "system_ms": 10.1027,
+            "bundled_ms": 10.1029,
+            "raw_delta_pct": 0.16,
+            "spread_pct": [
+                0.5,
+                1.2
+            ],
+            "system_runs_ms": [
+                10.0747,
+                10.1034,
+                10.1027,
+                10.0782,
+                10.1295,
+                10.1144,
+                10.0865
+            ],
+            "bundled_runs_ms": [
+                10.1942,
+                10.1241,
+                10.0738,
+                10.1029,
+                10.0945,
+                10.1303,
+                10.071
+            ],
+            "paired_ratios": [
+                1.01186,
+                1.00205,
+                0.99714,
+                1.00245,
+                0.99654,
+                1.00157,
+                0.99846
+            ]
+        },
+        "api.range.size.string_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.9981,
+            "delta_pct": -0.19,
+            "ci_delta_pct": [
+                -0.28,
+                0.03
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.25,
+                "B2/C2": -10.09,
+                "B3/C3": 0.01
+            },
+            "build_spread_pct": 10.1,
+            "builds": 3,
+            "system_ms": 20.927,
+            "bundled_ms": 20.895,
+            "raw_delta_pct": -0.18,
+            "spread_pct": [
+                25,
+                0.1
+            ],
+            "system_runs_ms": [
+                20.9474,
+                20.927,
+                20.8606,
+                20.9584,
+                26.0971,
+                20.9069,
+                20.8919
+            ],
+            "bundled_runs_ms": [
+                20.8964,
+                20.8887,
+                20.879,
+                20.902,
+                20.8812,
+                20.895,
+                20.8997
+            ],
+            "paired_ratios": [
+                0.99757,
+                0.99817,
+                1.00088,
+                0.99731,
+                0.80013,
+                0.99943,
+                1.00037
+            ]
+        },
+        "api.sumValues.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99975,
+            "delta_pct": -0.02,
+            "ci_delta_pct": [
+                -0.74,
+                0.95
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.15,
+                "B2/C2": 0.11,
+                "B3/C3": 0.31
+            },
+            "build_spread_pct": 0.46,
+            "builds": 3,
+            "system_ms": 48.6313,
+            "bundled_ms": 48.5704,
+            "raw_delta_pct": -0.02,
+            "spread_pct": [
+                2.6,
+                0.9
+            ],
+            "system_runs_ms": [
+                48.6417,
+                48.6465,
+                48.3698,
+                47.4517,
+                48.1893,
+                48.6313,
+                48.7304
+            ],
+            "bundled_runs_ms": [
+                48.5704,
+                48.2895,
+                48.6883,
+                48.5117,
+                48.6519,
+                48.6224,
+                48.2631
+            ],
+            "paired_ratios": [
+                0.99853,
+                0.99266,
+                1.00658,
+                1.02234,
+                1.0096,
+                0.99982,
+                0.99041
+            ]
+        },
+        "api.deleteRange.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00042,
+            "delta_pct": 0.04,
+            "ci_delta_pct": [
+                -0.17,
+                0.29
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.04,
+                "B2/C2": 0.17,
+                "B3/C3": -0.13
+            },
+            "build_spread_pct": 0.3,
+            "builds": 3,
+            "system_ms": 236.426,
+            "bundled_ms": 236.4386,
+            "raw_delta_pct": 0.05,
+            "spread_pct": [
+                0.7,
+                0.5
+            ],
+            "system_runs_ms": [
+                237.3937,
+                236.7105,
+                236.7605,
+                236.1082,
+                236.2796,
+                236.426,
+                235.7333
+            ],
+            "bundled_runs_ms": [
+                236.6848,
+                237.4078,
+                236.367,
+                236.223,
+                236.4386,
+                236.2426,
+                237.1241
+            ],
+            "paired_ratios": [
+                0.99701,
+                1.00295,
+                0.99834,
+                1.00049,
+                1.00067,
+                0.99922,
+                1.0059
+            ]
+        },
+        "api.equals.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99876,
+            "delta_pct": -0.12,
+            "ci_delta_pct": [
+                -0.47,
+                0.23
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.12,
+                "B2/C2": -0.04,
+                "B3/C3": -0.43
+            },
+            "build_spread_pct": 0.55,
+            "builds": 3,
+            "system_ms": 71.2589,
+            "bundled_ms": 71.2299,
+            "raw_delta_pct": -0.12,
+            "spread_pct": [
+                1.4,
+                1.1
+            ],
+            "system_runs_ms": [
+                70.8172,
+                71.7951,
+                71.5073,
+                71.7927,
+                71.0613,
+                71.2589,
+                71.1478
+            ],
+            "bundled_runs_ms": [
+                70.9041,
+                71.5733,
+                70.9815,
+                71.4606,
+                71.2299,
+                71.1751,
+                71.6533
+            ],
+            "paired_ratios": [
+                1.00123,
+                0.99691,
+                0.99265,
+                0.99537,
+                1.00237,
+                0.99882,
+                1.0071
+            ]
+        },
+        "api.setop.union.bitset": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99613,
+            "delta_pct": -0.39,
+            "ci_delta_pct": [
+                -0.73,
+                0
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.39,
+                "B2/C2": -0.48,
+                "B3/C3": -0.17
+            },
+            "build_spread_pct": 0.31,
+            "builds": 3,
+            "system_ms": 182.7569,
+            "bundled_ms": 182.2432,
+            "raw_delta_pct": -0.38,
+            "spread_pct": [
+                0.4,
+                1.4
+            ],
+            "system_runs_ms": [
+                182.6022,
+                182.4288,
+                183.2332,
+                182.7569,
+                182.63,
+                182.7932,
+                183.1247
+            ],
+            "bundled_runs_ms": [
+                181.5513,
+                182.4452,
+                181.9018,
+                182.2432,
+                180.8925,
+                183.5307,
+                182.4286
+            ],
+            "paired_ratios": [
+                0.99424,
+                1.00009,
+                0.99273,
+                0.99719,
+                0.99049,
+                1.00403,
+                0.9962
+            ]
+        },
+        "api.setop.intersect.bitset": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00018,
+            "delta_pct": 0.02,
+            "ci_delta_pct": [
+                -0.24,
+                0.26
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.24,
+                "B2/C2": 0.21,
+                "B3/C3": 0.1
+            },
+            "build_spread_pct": 0.45,
+            "builds": 3,
+            "system_ms": 86.9386,
+            "bundled_ms": 87.023,
+            "raw_delta_pct": 0.02,
+            "spread_pct": [
+                0.3,
+                0.7
+            ],
+            "system_runs_ms": [
+                86.9883,
+                86.9296,
+                86.7526,
+                87.0255,
+                87.002,
+                86.8614,
+                86.9386
+            ],
+            "bundled_runs_ms": [
+                87.0823,
+                87.2857,
+                86.7014,
+                86.6387,
+                87.023,
+                87.0973,
+                86.739
+            ],
+            "paired_ratios": [
+                1.00108,
+                1.0041,
+                0.99941,
+                0.99556,
+                1.00024,
+                1.00272,
+                0.9977
+            ]
+        },
+        "api.setop.diff.bitset": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99724,
+            "delta_pct": -0.28,
+            "ci_delta_pct": [
+                -0.47,
+                -0.23
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.29,
+                "B2/C2": -0.24,
+                "B3/C3": -0.46
+            },
+            "build_spread_pct": 0.22,
+            "builds": 3,
+            "system_ms": 86.4064,
+            "bundled_ms": 86.1807,
+            "raw_delta_pct": -0.27,
+            "spread_pct": [
+                0.6,
+                0.3
+            ],
+            "system_runs_ms": [
+                86.0957,
+                86.3675,
+                86.624,
+                86.2303,
+                86.4205,
+                86.4064,
+                86.5852
+            ],
+            "bundled_runs_ms": [
+                85.9068,
+                86.1973,
+                86.0446,
+                85.9896,
+                86.188,
+                86.203,
+                86.1807
+            ],
+            "paired_ratios": [
+                0.99781,
+                0.99803,
+                0.99331,
+                0.99721,
+                0.99731,
+                0.99765,
+                0.99533
+            ]
+        },
+        "api.setop.xor.bitset": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99972,
+            "delta_pct": -0.03,
+            "ci_delta_pct": [
+                -0.36,
+                0.02
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.03,
+                "B2/C2": -0.13,
+                "B3/C3": -0.94
+            },
+            "build_spread_pct": 0.91,
+            "builds": 3,
+            "system_ms": 172.6795,
+            "bundled_ms": 172.6333,
+            "raw_delta_pct": -0.02,
+            "spread_pct": [
+                2,
+                0.4
+            ],
+            "system_runs_ms": [
+                173.2381,
+                172.5698,
+                172.5142,
+                172.6105,
+                172.6795,
+                176.0435,
+                172.7901
+            ],
+            "bundled_runs_ms": [
+                172.6333,
+                172.1726,
+                172.7222,
+                172.573,
+                172.658,
+                172.5479,
+                172.8364
+            ],
+            "paired_ratios": [
+                0.99651,
+                0.9977,
+                1.00121,
+                0.99978,
+                0.99988,
+                0.98014,
+                1.00027
+            ]
+        },
+        "api.setop.union.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00018,
+            "delta_pct": 0.02,
+            "ci_delta_pct": [
+                -0.06,
+                0.39
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.06,
+                "B2/C2": 0.12,
+                "B3/C3": 0.18
+            },
+            "build_spread_pct": 0.24,
+            "builds": 3,
+            "system_ms": 266.6844,
+            "bundled_ms": 266.542,
+            "raw_delta_pct": 0.02,
+            "spread_pct": [
+                1.4,
+                1.2
+            ],
+            "system_runs_ms": [
+                269.2462,
+                265.7668,
+                267.3203,
+                265.6889,
+                265.45,
+                267.5818,
+                266.6844
+            ],
+            "bundled_runs_ms": [
+                266.0118,
+                266.3595,
+                267.2503,
+                266.9231,
+                265.5157,
+                268.6401,
+                266.542
+            ],
+            "paired_ratios": [
+                0.98799,
+                1.00223,
+                0.99974,
+                1.00465,
+                1.00025,
+                1.00396,
+                0.99947
+            ]
+        },
+        "api.setop.intersect.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.0019,
+            "delta_pct": 0.19,
+            "ci_delta_pct": [
+                -0.08,
+                0.33
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.19,
+                "B2/C2": 0.24,
+                "B3/C3": 0
+            },
+            "build_spread_pct": 0.24,
+            "builds": 3,
+            "system_ms": 108.7621,
+            "bundled_ms": 109.1786,
+            "raw_delta_pct": 0.2,
+            "spread_pct": [
+                1.4,
+                0.7
+            ],
+            "system_runs_ms": [
+                109.162,
+                108.7293,
+                108.5825,
+                108.7621,
+                109.0094,
+                110.1331,
+                108.7188
+            ],
+            "bundled_runs_ms": [
+                109.3792,
+                109.0966,
+                109.2716,
+                108.9758,
+                109.1786,
+                109.4491,
+                108.6421
+            ],
+            "paired_ratios": [
+                1.00199,
+                1.00338,
+                1.00635,
+                1.00196,
+                1.00155,
+                0.99379,
+                0.99929
+            ]
+        },
+        "api.setop.diff.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00241,
+            "delta_pct": 0.24,
+            "ci_delta_pct": [
+                0.02,
+                0.29
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.02,
+                "B2/C2": 0.42,
+                "B3/C3": 0.27
+            },
+            "build_spread_pct": 0.4,
+            "builds": 3,
+            "system_ms": 107.5162,
+            "bundled_ms": 107.7468,
+            "raw_delta_pct": 0.25,
+            "spread_pct": [
+                0.5,
+                0.3
+            ],
+            "system_runs_ms": [
+                107.7868,
+                107.5228,
+                107.5162,
+                107.7197,
+                107.2462,
+                107.4633,
+                107.4065
+            ],
+            "bundled_runs_ms": [
+                107.6443,
+                107.7892,
+                107.8352,
+                107.7468,
+                107.8966,
+                107.7316,
+                107.6231
+            ],
+            "paired_ratios": [
+                0.99868,
+                1.00248,
+                1.00297,
+                1.00025,
+                1.00606,
+                1.0025,
+                1.00202
+            ]
+        },
+        "api.setop.xor.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99959,
+            "delta_pct": -0.04,
+            "ci_delta_pct": [
+                -0.16,
+                0.03
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.01,
+                "B2/C2": -0.07,
+                "B3/C3": 0.03
+            },
+            "build_spread_pct": 0.1,
+            "builds": 3,
+            "system_ms": 216.5268,
+            "bundled_ms": 216.5292,
+            "raw_delta_pct": -0.03,
+            "spread_pct": [
+                0.5,
+                0.6
+            ],
+            "system_runs_ms": [
+                216.5008,
+                217.3201,
+                216.3875,
+                216.5268,
+                217.248,
+                216.6472,
+                216.1735
+            ],
+            "bundled_runs_ms": [
+                215.9122,
+                217.2443,
+                216.8814,
+                216.5292,
+                217.0656,
+                216.3146,
+                216.2607
+            ],
+            "paired_ratios": [
+                0.99728,
+                0.99965,
+                1.00228,
+                1.00001,
+                0.99916,
+                0.99846,
+                1.0004
+            ]
+        },
+        "api.setop.union.string_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99666,
+            "delta_pct": -0.33,
+            "ci_delta_pct": [
+                -0.68,
+                0.15
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.48,
+                "B2/C2": -0.34,
+                "B3/C3": -0.11
+            },
+            "build_spread_pct": 0.37,
+            "builds": 3,
+            "system_ms": 1457.8843,
+            "bundled_ms": 1451.6506,
+            "raw_delta_pct": -0.33,
+            "spread_pct": [
+                1.2,
+                0.8
+            ],
+            "system_runs_ms": [
+                1443.3674,
+                1443.3199,
+                1455.0393,
+                1457.8843,
+                1461.2859,
+                1457.9058,
+                1461.5286
+            ],
+            "bundled_runs_ms": [
+                1456.186,
+                1445.5295,
+                1456.8962,
+                1451.0049,
+                1449.1989,
+                1453.1372,
+                1451.6506
+            ],
+            "paired_ratios": [
+                1.00888,
+                1.00153,
+                1.00128,
+                0.99528,
+                0.99173,
+                0.99673,
+                0.99324
+            ]
+        },
+        "api.setop.intersect.string_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99461,
+            "delta_pct": -0.54,
+            "ci_delta_pct": [
+                -0.85,
+                0.16
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.54,
+                "B2/C2": 0.16,
+                "B3/C3": -0.93
+            },
+            "build_spread_pct": 1.09,
+            "builds": 3,
+            "system_ms": 658.0594,
+            "bundled_ms": 654.4146,
+            "raw_delta_pct": -0.53,
+            "spread_pct": [
+                1.3,
+                1
+            ],
+            "system_runs_ms": [
+                658.0594,
+                656.4065,
+                658.0793,
+                660.0128,
+                656.279,
+                658.6609,
+                651.7415
+            ],
+            "bundled_runs_ms": [
+                654.5555,
+                657.4986,
+                653.7523,
+                654.4146,
+                657.3599,
+                650.8018,
+                652.5005
+            ],
+            "paired_ratios": [
+                0.99468,
+                1.00166,
+                0.99342,
+                0.99152,
+                1.00165,
+                0.98807,
+                1.00116
+            ]
+        },
+        "api.setop.diff.string_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99752,
+            "delta_pct": -0.25,
+            "ci_delta_pct": [
+                -0.3,
+                -0.05
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.06,
+                "B2/C2": -0.28,
+                "B3/C3": -0.17
+            },
+            "build_spread_pct": 0.22,
+            "builds": 3,
+            "system_ms": 676.7769,
+            "bundled_ms": 675.8546,
+            "raw_delta_pct": -0.24,
+            "spread_pct": [
+                0.3,
+                0.2
+            ],
+            "system_runs_ms": [
+                676.3714,
+                676.7769,
+                676.1229,
+                676.9902,
+                677.0647,
+                678.1581,
+                675.9835
+            ],
+            "bundled_runs_ms": [
+                676.0118,
+                674.7658,
+                675.8546,
+                674.7686,
+                675.4309,
+                676.2063,
+                676.0883
+            ],
+            "paired_ratios": [
+                0.99947,
+                0.99703,
+                0.9996,
+                0.99672,
+                0.99759,
+                0.99712,
+                1.00016
+            ]
+        },
+        "api.mergeWith.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99979,
+            "delta_pct": -0.02,
+            "ci_delta_pct": [
+                -0.21,
+                0.17
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.02,
+                "B2/C2": -0.12,
+                "B3/C3": 0.21
+            },
+            "build_spread_pct": 0.33,
+            "builds": 3,
+            "system_ms": 302.4911,
+            "bundled_ms": 302.2706,
+            "raw_delta_pct": -0.01,
+            "spread_pct": [
+                0.4,
+                0.6
+            ],
+            "system_runs_ms": [
+                301.7267,
+                302.3116,
+                302.7712,
+                303.0522,
+                302.4911,
+                302.2172,
+                302.7623
+            ],
+            "bundled_runs_ms": [
+                302.2706,
+                302.2591,
+                303.6292,
+                301.877,
+                301.8856,
+                302.6785,
+                302.7196
+            ],
+            "paired_ratios": [
+                1.0018,
+                0.99983,
+                1.00283,
+                0.99612,
+                0.998,
+                1.00153,
+                0.99986
+            ]
+        },
+        "api.mergeWith.string_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00158,
+            "delta_pct": 0.16,
+            "ci_delta_pct": [
+                -0.69,
+                0.55
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.55,
+                "B2/C2": -0.32,
+                "B3/C3": -0.28
+            },
+            "build_spread_pct": 0.87,
+            "builds": 3,
+            "system_ms": 1196.7711,
+            "bundled_ms": 1199.1589,
+            "raw_delta_pct": 0.16,
+            "spread_pct": [
+                1.1,
+                0.6
+            ],
+            "system_runs_ms": [
+                1196.4882,
+                1196.7711,
+                1204.3852,
+                1196.7252,
+                1207.8295,
+                1197.4384,
+                1195.1656
+            ],
+            "bundled_runs_ms": [
+                1203.1333,
+                1198.7457,
+                1196.1815,
+                1199.4586,
+                1198.2235,
+                1199.1589,
+                1203.8539
+            ],
+            "paired_ratios": [
+                1.00555,
+                1.00165,
+                0.99319,
+                1.00228,
+                0.99205,
+                1.00144,
+                1.00727
+            ]
+        },
+        "adv.forEach.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99341,
+            "delta_pct": -0.66,
+            "ci_delta_pct": [
+                -1.57,
+                0.16
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.16,
+                "B2/C2": -0.92,
+                "B3/C3": -1.24
+            },
+            "build_spread_pct": 1.4,
+            "builds": 3,
+            "system_ms": 191.4913,
+            "bundled_ms": 189.2088,
+            "raw_delta_pct": -0.65,
+            "spread_pct": [
+                2.2,
+                1.9
+            ],
+            "system_runs_ms": [
+                188.3301,
+                192.5708,
+                191.736,
+                191.7793,
+                191.4913,
+                189.4968,
+                188.8488
+            ],
+            "bundled_runs_ms": [
+                188.6499,
+                189.2088,
+                188.7412,
+                190.5277,
+                191.341,
+                187.7841,
+                191.4331
+            ],
+            "paired_ratios": [
+                1.0017,
+                0.98254,
+                0.98438,
+                0.99347,
+                0.99922,
+                0.99096,
+                1.01368
+            ]
+        },
+        "adv.forEach.string_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00279,
+            "delta_pct": 0.28,
+            "ci_delta_pct": [
+                -0.3,
+                0.74
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.3,
+                "B2/C2": 0.33,
+                "B3/C3": 0.46
+            },
+            "build_spread_pct": 0.76,
+            "builds": 3,
+            "system_ms": 354.2718,
+            "bundled_ms": 355.2179,
+            "raw_delta_pct": 0.29,
+            "spread_pct": [
+                0.3,
+                1.3
+            ],
+            "system_runs_ms": [
+                354.4656,
+                354.2718,
+                353.7296,
+                354.5587,
+                354.2062,
+                353.5141,
+                354.2804
+            ],
+            "bundled_runs_ms": [
+                353.317,
+                355.6096,
+                354.3725,
+                357.7588,
+                355.2179,
+                356.1392,
+                353.2424
+            ],
+            "paired_ratios": [
+                0.99676,
+                1.00378,
+                1.00182,
+                1.00903,
+                1.00286,
+                1.00743,
+                0.99707
+            ]
+        },
+        "adv.filter.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00144,
+            "delta_pct": 0.14,
+            "ci_delta_pct": [
+                -0.09,
+                0.3
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.3,
+                "B2/C2": 0.1,
+                "B3/C3": -0.08
+            },
+            "build_spread_pct": 0.38,
+            "builds": 3,
+            "system_ms": 273.3363,
+            "bundled_ms": 274.1818,
+            "raw_delta_pct": 0.15,
+            "spread_pct": [
+                1,
+                1.2
+            ],
+            "system_runs_ms": [
+                273.9368,
+                273.1097,
+                274.3544,
+                273.042,
+                275.9008,
+                273.2449,
+                273.3363
+            ],
+            "bundled_runs_ms": [
+                275.162,
+                273.8894,
+                274.7684,
+                272.8304,
+                275.6815,
+                272.4508,
+                274.1818
+            ],
+            "paired_ratios": [
+                1.00447,
+                1.00285,
+                1.00151,
+                0.99923,
+                0.99921,
+                0.99709,
+                1.00309
+            ]
+        },
+        "adv.filter.string_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00133,
+            "delta_pct": 0.13,
+            "ci_delta_pct": [
+                -0.13,
+                0.3
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.13,
+                "B2/C2": 0.03,
+                "B3/C3": 0.06
+            },
+            "build_spread_pct": 0.1,
+            "builds": 3,
+            "system_ms": 778.1213,
+            "bundled_ms": 779.4167,
+            "raw_delta_pct": 0.14,
+            "spread_pct": [
+                0.5,
+                1.3
+            ],
+            "system_runs_ms": [
+                781.3189,
+                778.2183,
+                777.5153,
+                778.1213,
+                779.6352,
+                778.088,
+                777.8136
+            ],
+            "bundled_runs_ms": [
+                780.3714,
+                779.4167,
+                776.1055,
+                786.174,
+                779.0178,
+                780.5108,
+                778.9007
+            ],
+            "paired_ratios": [
+                0.99879,
+                1.00154,
+                0.99819,
+                1.01035,
+                0.99921,
+                1.00311,
+                1.0014
+            ]
+        },
+        "adv.map.int_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99878,
+            "delta_pct": -0.12,
+            "ci_delta_pct": [
+                -0.31,
+                0.4
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.12,
+                "B2/C2": 0.16,
+                "B3/C3": -0.17
+            },
+            "build_spread_pct": 0.33,
+            "builds": 3,
+            "system_ms": 297.3932,
+            "bundled_ms": 297.005,
+            "raw_delta_pct": -0.12,
+            "spread_pct": [
+                0.6,
+                0.7
+            ],
+            "system_runs_ms": [
+                297.3932,
+                296.4656,
+                298.2774,
+                297.3481,
+                297.9866,
+                297.7154,
+                296.5485
+            ],
+            "bundled_runs_ms": [
+                297.0022,
+                298.7797,
+                298.1878,
+                297.005,
+                296.6816,
+                296.811,
+                297.7556
+            ],
+            "paired_ratios": [
+                0.99869,
+                1.00781,
+                0.9997,
+                0.99885,
+                0.99562,
+                0.99696,
+                1.00407
+            ]
+        },
+        "adv.map.string_to_int": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00176,
+            "delta_pct": 0.18,
+            "ci_delta_pct": [
+                -0.31,
+                0.33
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.06,
+                "B2/C2": -0.06,
+                "B3/C3": 0.25
+            },
+            "build_spread_pct": 0.31,
+            "builds": 3,
+            "system_ms": 1063.0113,
+            "bundled_ms": 1065.0726,
+            "raw_delta_pct": 0.18,
+            "spread_pct": [
+                0.4,
+                1.1
+            ],
+            "system_runs_ms": [
+                1063.0113,
+                1062.9835,
+                1064.7338,
+                1062.6359,
+                1066.0454,
+                1061.5137,
+                1065.2237
+            ],
+            "bundled_runs_ms": [
+                1062.4053,
+                1065.4901,
+                1066.6828,
+                1073.6319,
+                1062.3904,
+                1065.0726,
+                1061.943
+            ],
+            "paired_ratios": [
+                0.99943,
+                1.00236,
+                1.00183,
+                1.01035,
+                0.99657,
+                1.00335,
+                0.99692
+            ]
+        },
+        "adv.optiter.foreach.string_to_int_hash.default": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00466,
+            "delta_pct": 0.47,
+            "ci_delta_pct": [
+                -0.35,
+                1.4
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 1.21,
+                "B2/C2": 3.8,
+                "B3/C3": 0.06
+            },
+            "build_spread_pct": 3.74,
+            "builds": 3,
+            "system_ms": 22.0149,
+            "bundled_ms": 22.0996,
+            "raw_delta_pct": 0.47,
+            "spread_pct": [
+                0.6,
+                7.6
+            ],
+            "system_runs_ms": [
+                22.1188,
+                22.0176,
+                21.9957,
+                22.0094,
+                22.0149,
+                22.0844,
+                22.0149
+            ],
+            "bundled_runs_ms": [
+                21.9717,
+                23.6439,
+                22.0996,
+                22.2762,
+                22.0638,
+                22.0076,
+                22.325
+            ],
+            "paired_ratios": [
+                0.99335,
+                1.07386,
+                1.00472,
+                1.01212,
+                1.00222,
+                0.99652,
+                1.01409
+            ]
+        },
+        "adv.optiter.foreach.string_to_int_hash.optimized": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99814,
+            "delta_pct": -0.19,
+            "ci_delta_pct": [
+                -0.82,
+                0.04
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.01,
+                "B2/C2": -0.64,
+                "B3/C3": -0
+            },
+            "build_spread_pct": 0.64,
+            "builds": 3,
+            "system_ms": 12.8394,
+            "bundled_ms": 12.7521,
+            "raw_delta_pct": -0.18,
+            "spread_pct": [
+                1.1,
+                1.3
+            ],
+            "system_runs_ms": [
+                12.8572,
+                12.7916,
+                12.8249,
+                12.878,
+                12.8394,
+                12.7516,
+                12.89
+            ],
+            "bundled_runs_ms": [
+                12.7521,
+                12.743,
+                12.8487,
+                12.8777,
+                12.7244,
+                12.7287,
+                12.8962
+            ],
+            "paired_ratios": [
+                0.99183,
+                0.9962,
+                1.00186,
+                0.99998,
+                0.99104,
+                0.9982,
+                1.00048
+            ]
+        },
+        "adv.optiter.ratio.foreach.string_to_int_hash": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.98878,
+            "delta_pct": -1.12,
+            "ci_delta_pct": [
+                -1.35,
+                -0.16
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -1.21,
+                "B2/C2": -4.18,
+                "B3/C3": -0.06
+            },
+            "build_spread_pct": 4.12,
+            "builds": 3,
+            "system_ms": 58.3064,
+            "bundled_ms": 57.8093,
+            "raw_delta_pct": -1.12,
+            "spread_pct": [
+                1.4,
+                7.3
+            ],
+            "system_runs_ms": [
+                58.1278,
+                58.0972,
+                58.3064,
+                58.5114,
+                58.3214,
+                57.7402,
+                58.5514
+            ],
+            "bundled_runs_ms": [
+                58.0386,
+                53.8956,
+                58.1399,
+                57.8093,
+                57.6708,
+                57.8378,
+                57.766
+            ],
+            "paired_ratios": [
+                0.99847,
+                0.92768,
+                0.99714,
+                0.988,
+                0.98884,
+                1.00169,
+                0.98659
+            ]
+        },
+        "adv.optiter.values.string_to_int_hash.default": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99996,
+            "delta_pct": -0,
+            "ci_delta_pct": [
+                -0.27,
+                0.23
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.09,
+                "B2/C2": 4.08,
+                "B3/C3": -0.53
+            },
+            "build_spread_pct": 4.61,
+            "builds": 3,
+            "system_ms": 20.6024,
+            "bundled_ms": 20.5994,
+            "raw_delta_pct": 0,
+            "spread_pct": [
+                0.9,
+                8.9
+            ],
+            "system_runs_ms": [
+                20.6023,
+                20.6506,
+                20.7791,
+                20.5985,
+                20.6024,
+                20.6096,
+                20.5993
+            ],
+            "bundled_runs_ms": [
+                20.6214,
+                22.3911,
+                20.5994,
+                20.5991,
+                20.5485,
+                20.5707,
+                20.6475
+            ],
+            "paired_ratios": [
+                1.00093,
+                1.08428,
+                0.99135,
+                1.00003,
+                0.99738,
+                0.99811,
+                1.00234
+            ]
+        },
+        "adv.optiter.values.string_to_int_hash.optimized": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00028,
+            "delta_pct": 0.03,
+            "ci_delta_pct": [
+                -0.44,
+                0.06
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.05,
+                "B2/C2": -0.12,
+                "B3/C3": -0.02
+            },
+            "build_spread_pct": 0.17,
+            "builds": 3,
+            "system_ms": 10.5601,
+            "bundled_ms": 10.5611,
+            "raw_delta_pct": 0.03,
+            "spread_pct": [
+                4,
+                0.6
+            ],
+            "system_runs_ms": [
+                10.5601,
+                10.5595,
+                10.5617,
+                10.9719,
+                10.5622,
+                10.5575,
+                10.5488
+            ],
+            "bundled_runs_ms": [
+                10.5662,
+                10.5807,
+                10.5563,
+                10.5761,
+                10.5164,
+                10.5611,
+                10.5563
+            ],
+            "paired_ratios": [
+                1.00058,
+                1.00201,
+                0.99949,
+                0.96393,
+                0.99566,
+                1.00034,
+                1.00071
+            ]
+        },
+        "adv.optiter.ratio.values.string_to_int_hash": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99831,
+            "delta_pct": -0.17,
+            "ci_delta_pct": [
+                -3.62,
+                0.22
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.17,
+                "B2/C2": -3.89,
+                "B3/C3": 0.52
+            },
+            "build_spread_pct": 4.41,
+            "builds": 3,
+            "system_ms": 51.226,
+            "bundled_ms": 51.239,
+            "raw_delta_pct": -0.16,
+            "spread_pct": [
+                4.8,
+                8
+            ],
+            "system_runs_ms": [
+                51.2568,
+                51.1343,
+                50.8285,
+                53.2656,
+                51.267,
+                51.226,
+                51.2097
+            ],
+            "bundled_runs_ms": [
+                51.239,
+                47.2543,
+                51.2456,
+                51.3424,
+                51.1782,
+                51.3404,
+                51.1263
+            ],
+            "paired_ratios": [
+                0.99965,
+                0.92412,
+                1.00821,
+                0.96389,
+                0.99827,
+                1.00223,
+                0.99837
+            ]
+        },
+        "adv.optiter.toArray.string_to_int_hash.default": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99904,
+            "delta_pct": -0.1,
+            "ci_delta_pct": [
+                -0.5,
+                1.01
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.1,
+                "B2/C2": 3.21,
+                "B3/C3": -0.35
+            },
+            "build_spread_pct": 3.56,
+            "builds": 3,
+            "system_ms": 29.2795,
+            "bundled_ms": 29.2533,
+            "raw_delta_pct": -0.09,
+            "spread_pct": [
+                1,
+                7.1
+            ],
+            "system_runs_ms": [
+                29.2795,
+                29.23,
+                29.4601,
+                29.1595,
+                29.3255,
+                29.1591,
+                29.2937
+            ],
+            "bundled_runs_ms": [
+                29.2533,
+                31.2548,
+                29.2506,
+                29.4573,
+                29.1812,
+                29.1681,
+                29.2539
+            ],
+            "paired_ratios": [
+                0.99911,
+                1.06927,
+                0.99289,
+                1.01021,
+                0.99508,
+                1.00031,
+                0.99864
+            ]
+        },
+        "adv.optiter.toArray.string_to_int_hash.optimized": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99949,
+            "delta_pct": -0.05,
+            "ci_delta_pct": [
+                -0.58,
+                0.3
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.05,
+                "B2/C2": 0.36,
+                "B3/C3": -0.35
+            },
+            "build_spread_pct": 0.71,
+            "builds": 3,
+            "system_ms": 17.9729,
+            "bundled_ms": 17.9527,
+            "raw_delta_pct": -0.04,
+            "spread_pct": [
+                0.8,
+                1.4
+            ],
+            "system_runs_ms": [
+                18.0305,
+                17.8862,
+                17.9989,
+                17.9249,
+                18.0209,
+                17.9284,
+                17.9729
+            ],
+            "bundled_runs_ms": [
+                18.0224,
+                18.1197,
+                17.8625,
+                17.9792,
+                17.9182,
+                17.9409,
+                17.9527
+            ],
+            "paired_ratios": [
+                0.99955,
+                1.01305,
+                0.99242,
+                1.00303,
+                0.9943,
+                1.0007,
+                0.99888
+            ]
+        },
+        "adv.optiter.ratio.toArray.string_to_int_hash": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99947,
+            "delta_pct": -0.05,
+            "ci_delta_pct": [
+                -0.72,
+                0.03
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.02,
+                "B2/C2": -2.67,
+                "B3/C3": -0.01
+            },
+            "build_spread_pct": 2.69,
+            "builds": 3,
+            "system_ms": 61.4514,
+            "bundled_ms": 61.3687,
+            "raw_delta_pct": -0.05,
+            "spread_pct": [
+                0.8,
+                5.9
+            ],
+            "system_runs_ms": [
+                61.5807,
+                61.1912,
+                61.0959,
+                61.4719,
+                61.4514,
+                61.4846,
+                61.3542
+            ],
+            "bundled_runs_ms": [
+                61.6079,
+                57.9743,
+                61.0673,
+                61.0346,
+                61.403,
+                61.5084,
+                61.3687
+            ],
+            "paired_ratios": [
+                1.00044,
+                0.94743,
+                0.99953,
+                0.99289,
+                0.99921,
+                1.00039,
+                1.00024
+            ]
+        },
+        "adv.optiter.overwrite.string_to_int_hash.default": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00003,
+            "delta_pct": 0,
+            "ci_delta_pct": [
+                -0.06,
+                0.25
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.14,
+                "B2/C2": 0.1,
+                "B3/C3": -0.03
+            },
+            "build_spread_pct": 0.17,
+            "builds": 3,
+            "system_ms": 16.3043,
+            "bundled_ms": 16.3088,
+            "raw_delta_pct": 0.01,
+            "spread_pct": [
+                1.1,
+                0.7
+            ],
+            "system_runs_ms": [
+                16.367,
+                16.2671,
+                16.3199,
+                16.3279,
+                16.3043,
+                16.2846,
+                16.1946
+            ],
+            "bundled_runs_ms": [
+                16.3911,
+                16.3088,
+                16.3116,
+                16.2704,
+                16.2982,
+                16.2861,
+                16.3283
+            ],
+            "paired_ratios": [
+                1.00147,
+                1.00256,
+                0.99949,
+                0.99648,
+                0.99963,
+                1.00009,
+                1.00826
+            ]
+        },
+        "adv.optiter.overwrite.string_to_int_hash.optimized": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99969,
+            "delta_pct": -0.03,
+            "ci_delta_pct": [
+                -0.18,
+                0.31
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.31,
+                "B2/C2": -0.32,
+                "B3/C3": -0.1
+            },
+            "build_spread_pct": 0.63,
+            "builds": 3,
+            "system_ms": 18.928,
+            "bundled_ms": 18.9258,
+            "raw_delta_pct": -0.02,
+            "spread_pct": [
+                0.8,
+                0.8
+            ],
+            "system_runs_ms": [
+                18.928,
+                19.0237,
+                19.0034,
+                18.8764,
+                18.9162,
+                18.9545,
+                18.8653
+            ],
+            "bundled_runs_ms": [
+                19.0429,
+                18.9207,
+                18.9708,
+                18.9175,
+                18.8988,
+                18.9498,
+                18.9258
+            ],
+            "paired_ratios": [
+                1.00607,
+                0.99459,
+                0.99828,
+                1.00218,
+                0.99908,
+                0.99975,
+                1.00321
+            ]
+        },
+        "adv.optiter.ratio.overwrite.string_to_int_hash": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99939,
+            "delta_pct": -0.06,
+            "ci_delta_pct": [
+                -0.51,
+                0.45
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.45,
+                "B2/C2": -0.43,
+                "B3/C3": -0.08
+            },
+            "build_spread_pct": 0.88,
+            "builds": 3,
+            "system_ms": 116.3955,
+            "bundled_ms": 116.1784,
+            "raw_delta_pct": -0.05,
+            "spread_pct": [
+                1.1,
+                0.4
+            ],
+            "system_runs_ms": [
+                115.6471,
+                116.9458,
+                116.4428,
+                115.6084,
+                116.0193,
+                116.3955,
+                116.4908
+            ],
+            "bundled_runs_ms": [
+                116.1784,
+                116.0153,
+                116.3028,
+                116.269,
+                115.9565,
+                116.3559,
+                115.9085
+            ],
+            "paired_ratios": [
+                1.00459,
+                0.99204,
+                0.9988,
+                1.00571,
+                0.99946,
+                0.99966,
+                0.995
+            ]
+        },
+        "adv.optiter.increment.string_to_int_hash.default": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99704,
+            "delta_pct": -0.3,
+            "ci_delta_pct": [
+                -0.52,
+                0.16
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.23,
+                "B2/C2": -0.45,
+                "B3/C3": -0.15
+            },
+            "build_spread_pct": 0.3,
+            "builds": 3,
+            "system_ms": 16.2649,
+            "bundled_ms": 16.2288,
+            "raw_delta_pct": -0.29,
+            "spread_pct": [
+                0.8,
+                0.6
+            ],
+            "system_runs_ms": [
+                16.2649,
+                16.2686,
+                16.2495,
+                16.25,
+                16.346,
+                16.3008,
+                16.2163
+            ],
+            "bundled_runs_ms": [
+                16.2288,
+                16.2057,
+                16.2928,
+                16.2029,
+                16.2628,
+                16.212,
+                16.2437
+            ],
+            "paired_ratios": [
+                0.99778,
+                0.99613,
+                1.00266,
+                0.9971,
+                0.99491,
+                0.99455,
+                1.00169
+            ]
+        },
+        "adv.optiter.increment.string_to_int_hash.optimized": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00261,
+            "delta_pct": 0.26,
+            "ci_delta_pct": [
+                -0.29,
+                0.27
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.27,
+                "B2/C2": -0.01,
+                "B3/C3": -0.02
+            },
+            "build_spread_pct": 0.29,
+            "builds": 3,
+            "system_ms": 19.0357,
+            "bundled_ms": 19.0481,
+            "raw_delta_pct": 0.27,
+            "spread_pct": [
+                0.7,
+                0.9
+            ],
+            "system_runs_ms": [
+                19.0553,
+                19.0829,
+                19.0288,
+                19.0306,
+                19.0357,
+                19.108,
+                18.9787
+            ],
+            "bundled_runs_ms": [
+                19.0478,
+                19.0297,
+                19.0819,
+                19.209,
+                19.0866,
+                19.0481,
+                19.0306
+            ],
+            "paired_ratios": [
+                0.99961,
+                0.99721,
+                1.00279,
+                1.00937,
+                1.00267,
+                0.99687,
+                1.00273
+            ]
+        },
+        "adv.optiter.ratio.increment.string_to_int_hash": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00177,
+            "delta_pct": 0.18,
+            "ci_delta_pct": [
+                0.1,
+                0.77
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.18,
+                "B2/C2": 0.44,
+                "B3/C3": 0.12
+            },
+            "build_spread_pct": 0.32,
+            "builds": 3,
+            "system_ms": 117.1117,
+            "bundled_ms": 117.3705,
+            "raw_delta_pct": 0.18,
+            "spread_pct": [
+                0.7,
+                1.2
+            ],
+            "system_runs_ms": [
+                117.156,
+                117.2993,
+                117.1038,
+                117.1117,
+                116.4549,
+                117.2215,
+                117.0348
+            ],
+            "bundled_runs_ms": [
+                117.3705,
+                117.4263,
+                117.1184,
+                118.5524,
+                117.3636,
+                117.4939,
+                117.1568
+            ],
+            "paired_ratios": [
+                1.00183,
+                1.00108,
+                1.00012,
+                1.0123,
+                1.0078,
+                1.00232,
+                1.00104
+            ]
+        },
+        "adv.optiter.foreach.string_to_int_adaptive.default": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00159,
+            "delta_pct": 0.16,
+            "ci_delta_pct": [
+                -0.13,
+                0.81
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.31,
+                "B2/C2": 0.55,
+                "B3/C3": -0.08
+            },
+            "build_spread_pct": 0.63,
+            "builds": 3,
+            "system_ms": 30.1553,
+            "bundled_ms": 30.164,
+            "raw_delta_pct": 0.17,
+            "spread_pct": [
+                0.4,
+                1.5
+            ],
+            "system_runs_ms": [
+                30.0805,
+                30.1748,
+                30.1659,
+                30.1553,
+                30.2024,
+                30.1118,
+                30.075
+            ],
+            "bundled_runs_ms": [
+                30.1302,
+                30.5504,
+                30.0964,
+                30.403,
+                30.164,
+                30.139,
+                30.1697
+            ],
+            "paired_ratios": [
+                1.00165,
+                1.01245,
+                0.9977,
+                1.00821,
+                0.99873,
+                1.0009,
+                1.00315
+            ]
+        },
+        "adv.optiter.foreach.string_to_int_adaptive.optimized": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00405,
+            "delta_pct": 0.41,
+            "ci_delta_pct": [
+                0.04,
+                1.58
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 1.01,
+                "B2/C2": 0.26,
+                "B3/C3": 0.82
+            },
+            "build_spread_pct": 0.75,
+            "builds": 3,
+            "system_ms": 13.9597,
+            "bundled_ms": 14.0233,
+            "raw_delta_pct": 0.41,
+            "spread_pct": [
+                0.8,
+                1.7
+            ],
+            "system_runs_ms": [
+                13.9597,
+                13.9658,
+                13.9112,
+                13.9564,
+                13.9926,
+                13.9583,
+                14.026
+            ],
+            "bundled_runs_ms": [
+                13.9662,
+                14.0233,
+                14.1589,
+                14.1774,
+                14.01,
+                13.9405,
+                14.1685
+            ],
+            "paired_ratios": [
+                1.00047,
+                1.00412,
+                1.01781,
+                1.01584,
+                1.00124,
+                0.99872,
+                1.01016
+            ]
+        },
+        "adv.optiter.ratio.foreach.string_to_int_adaptive": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00246,
+            "delta_pct": 0.25,
+            "ci_delta_pct": [
+                -0.22,
+                0.75
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.69,
+                "B2/C2": -0.29,
+                "B3/C3": 0.89
+            },
+            "build_spread_pct": 1.18,
+            "builds": 3,
+            "system_ms": 46.3295,
+            "bundled_ms": 46.4463,
+            "raw_delta_pct": 0.25,
+            "spread_pct": [
+                1.1,
+                2.5
+            ],
+            "system_runs_ms": [
+                46.4079,
+                46.2831,
+                46.1156,
+                46.2817,
+                46.3295,
+                46.355,
+                46.6367
+            ],
+            "bundled_runs_ms": [
+                46.3528,
+                45.9022,
+                47.0453,
+                46.6316,
+                46.4463,
+                46.254,
+                46.9627
+            ],
+            "paired_ratios": [
+                0.99881,
+                0.99177,
+                1.02016,
+                1.00756,
+                1.00252,
+                0.99782,
+                1.00699
+            ]
+        },
+        "adv.optiter.values.string_to_int_adaptive.default": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00164,
+            "delta_pct": 0.16,
+            "ci_delta_pct": [
+                0.08,
+                0.61
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.12,
+                "B2/C2": 1.16,
+                "B3/C3": 0.35
+            },
+            "build_spread_pct": 1.04,
+            "builds": 3,
+            "system_ms": 29.2235,
+            "bundled_ms": 29.2602,
+            "raw_delta_pct": 0.17,
+            "spread_pct": [
+                0.8,
+                2.5
+            ],
+            "system_runs_ms": [
+                29.2235,
+                29.2662,
+                29.243,
+                29.0767,
+                29.2083,
+                29.1914,
+                29.3105
+            ],
+            "bundled_runs_ms": [
+                29.2602,
+                29.8669,
+                29.4247,
+                29.1264,
+                29.29,
+                29.2168,
+                29.1898
+            ],
+            "paired_ratios": [
+                1.00126,
+                1.02053,
+                1.00621,
+                1.00171,
+                1.0028,
+                1.00087,
+                0.99588
+            ]
+        },
+        "adv.optiter.values.string_to_int_adaptive.optimized": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00068,
+            "delta_pct": 0.07,
+            "ci_delta_pct": [
+                -0.18,
+                0.43
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.16,
+                "B2/C2": 0.48,
+                "B3/C3": -0.12
+            },
+            "build_spread_pct": 0.64,
+            "builds": 3,
+            "system_ms": 12.3768,
+            "bundled_ms": 12.4109,
+            "raw_delta_pct": 0.07,
+            "spread_pct": [
+                0.5,
+                1.4
+            ],
+            "system_runs_ms": [
+                12.4321,
+                12.3754,
+                12.3788,
+                12.3745,
+                12.3768,
+                12.3746,
+                12.3967
+            ],
+            "bundled_runs_ms": [
+                12.4109,
+                12.3846,
+                12.4134,
+                12.429,
+                12.4886,
+                12.3116,
+                12.3778
+            ],
+            "paired_ratios": [
+                0.99829,
+                1.00074,
+                1.0028,
+                1.0044,
+                1.00903,
+                0.99491,
+                0.99848
+            ]
+        },
+        "adv.optiter.ratio.values.string_to_int_adaptive": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99698,
+            "delta_pct": -0.3,
+            "ci_delta_pct": [
+                -0.6,
+                0.26
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.25,
+                "B2/C2": -0.66,
+                "B3/C3": -0.47
+            },
+            "build_spread_pct": 0.91,
+            "builds": 3,
+            "system_ms": 42.3743,
+            "bundled_ms": 42.4046,
+            "raw_delta_pct": -0.3,
+            "spread_pct": [
+                0.6,
+                2.8
+            ],
+            "system_runs_ms": [
+                42.5414,
+                42.2856,
+                42.3309,
+                42.5582,
+                42.3743,
+                42.3913,
+                42.2944
+            ],
+            "bundled_runs_ms": [
+                42.4157,
+                41.4659,
+                42.1871,
+                42.6727,
+                42.6377,
+                42.1387,
+                42.4046
+            ],
+            "paired_ratios": [
+                0.99705,
+                0.98062,
+                0.9966,
+                1.00269,
+                1.00622,
+                0.99404,
+                1.00261
+            ]
+        },
+        "adv.optiter.toArray.string_to_int_adaptive.default": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99844,
+            "delta_pct": -0.16,
+            "ci_delta_pct": [
+                -0.36,
+                -0.1
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.2,
+                "B2/C2": 0.36,
+                "B3/C3": -0.23
+            },
+            "build_spread_pct": 0.59,
+            "builds": 3,
+            "system_ms": 39.5282,
+            "bundled_ms": 39.4543,
+            "raw_delta_pct": -0.15,
+            "spread_pct": [
+                0.5,
+                1.4
+            ],
+            "system_runs_ms": [
+                39.5506,
+                39.5282,
+                39.4945,
+                39.3549,
+                39.5391,
+                39.4846,
+                39.5628
+            ],
+            "bundled_runs_ms": [
+                39.4732,
+                39.8585,
+                39.4543,
+                39.2959,
+                39.5012,
+                39.3467,
+                39.3645
+            ],
+            "paired_ratios": [
+                0.99804,
+                1.00836,
+                0.99898,
+                0.9985,
+                0.99904,
+                0.99651,
+                0.99499
+            ]
+        },
+        "adv.optiter.toArray.string_to_int_adaptive.optimized": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99681,
+            "delta_pct": -0.32,
+            "ci_delta_pct": [
+                -0.48,
+                0.62
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.48,
+                "B2/C2": 0.28,
+                "B3/C3": -0.32
+            },
+            "build_spread_pct": 0.76,
+            "builds": 3,
+            "system_ms": 21.6917,
+            "bundled_ms": 21.6275,
+            "raw_delta_pct": -0.31,
+            "spread_pct": [
+                1,
+                1
+            ],
+            "system_runs_ms": [
+                21.7157,
+                21.7347,
+                21.6306,
+                21.6441,
+                21.5074,
+                21.6917,
+                21.7205
+            ],
+            "bundled_runs_ms": [
+                21.6121,
+                21.6667,
+                21.5598,
+                21.7793,
+                21.6988,
+                21.6275,
+                21.5714
+            ],
+            "paired_ratios": [
+                0.99523,
+                0.99687,
+                0.99673,
+                1.00625,
+                1.0089,
+                0.99704,
+                0.99314
+            ]
+        },
+        "adv.optiter.ratio.toArray.string_to_int_adaptive": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99807,
+            "delta_pct": -0.19,
+            "ci_delta_pct": [
+                -0.29,
+                0.77
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.19,
+                "B2/C2": -0.08,
+                "B3/C3": -0.09
+            },
+            "build_spread_pct": 0.11,
+            "builds": 3,
+            "system_ms": 54.9061,
+            "bundled_ms": 54.7991,
+            "raw_delta_pct": -0.19,
+            "spread_pct": [
+                1.1,
+                1.9
+            ],
+            "system_runs_ms": [
+                54.9061,
+                54.9851,
+                54.7687,
+                54.9973,
+                54.3954,
+                54.9372,
+                54.9013
+            ],
+            "bundled_runs_ms": [
+                54.7512,
+                54.359,
+                54.645,
+                55.4239,
+                54.932,
+                54.9663,
+                54.7991
+            ],
+            "paired_ratios": [
+                0.99718,
+                0.98861,
+                0.99774,
+                1.00776,
+                1.00986,
+                1.00053,
+                0.99814
+            ]
+        },
+        "adv.optiter.overwrite.string_to_int_adaptive.default": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 1.00018,
+            "delta_pct": 0.02,
+            "ci_delta_pct": [
+                -0.12,
+                0.19
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": 0.02,
+                "B2/C2": 0.09,
+                "B3/C3": -0.17
+            },
+            "build_spread_pct": 0.26,
+            "builds": 3,
+            "system_ms": 24.5312,
+            "bundled_ms": 24.4643,
+            "raw_delta_pct": 0.02,
+            "spread_pct": [
+                1.1,
+                1.2
+            ],
+            "system_runs_ms": [
+                24.4004,
+                24.4885,
+                24.5345,
+                24.5662,
+                24.5312,
+                24.4441,
+                24.6614
+            ],
+            "bundled_runs_ms": [
+                24.4063,
+                24.4643,
+                24.4403,
+                24.5384,
+                24.6019,
+                24.4558,
+                24.7088
+            ],
+            "paired_ratios": [
+                1.00024,
+                0.99901,
+                0.99616,
+                0.99887,
+                1.00288,
+                1.00048,
+                1.00192
+            ]
+        },
+        "adv.optiter.overwrite.string_to_int_adaptive.optimized": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.99877,
+            "delta_pct": -0.12,
+            "ci_delta_pct": [
+                -0.26,
+                0.21
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.12,
+                "B2/C2": -0.03,
+                "B3/C3": -0.12
+            },
+            "build_spread_pct": 0.09,
+            "builds": 3,
+            "system_ms": 26.2319,
+            "bundled_ms": 26.2199,
+            "raw_delta_pct": -0.12,
+            "spread_pct": [
+                0.4,
+                0.5
+            ],
+            "system_runs_ms": [
+                26.1625,
+                26.1964,
+                26.2382,
+                26.2687,
+                26.271,
+                26.2319,
+                26.2065
+            ],
+            "bundled_runs_ms": [
+                26.2199,
+                26.2612,
+                26.1729,
+                26.2381,
+                26.1958,
+                26.2396,
+                26.1409
+            ],
+            "paired_ratios": [
+                1.00219,
+                1.00247,
+                0.99751,
+                0.99884,
+                0.99714,
+                1.00029,
+                0.9975
+            ]
+        },
+        "adv.optiter.ratio.overwrite.string_to_int_adaptive": {
+            "status": "null",
+            "reason": "inside the 1.3% claim floor (CI straddles it)",
+            "ratio": 0.9999,
+            "delta_pct": -0.01,
+            "ci_delta_pct": [
+                -0.45,
+                0.19
+            ],
+            "n": 7,
+            "per_build_delta_pct": {
+                "B1/C1": -0.01,
+                "B2/C2": -0.12,
+                "B3/C3": 0.05
+            },
+            "build_spread_pct": 0.17,
+            "builds": 3,
+            "system_ms": 106.9745,
+            "bundled_ms": 107.089,
+            "raw_delta_pct": -0,
+            "spread_pct": [
+                1,
+                1.5
+            ],
+            "system_runs_ms": [
+                107.2214,
+                106.9745,
+                106.944,
+                106.9303,
+                107.0922,
+                107.3141,
+                106.2653
+            ],
+            "bundled_runs_ms": [
+                107.4311,
+                107.345,
+                107.089,
+                106.9264,
+                106.4788,
+                107.2943,
+                105.7959
+            ],
+            "paired_ratios": [
+                1.00196,
+                1.00346,
+                1.00136,
+                0.99996,
+                0.99427,
+                0.99982,
+                0.99558
+            ]
+        }
+    },
+    "array_vs_bundled": {
+        "core.bitset.write": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.15657,
+            "delta_pct": 15.66,
+            "ci_delta_pct": [
+                15.29,
+                16.37
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                89.6848,
+                89.0306,
+                89.096,
+                89.2851,
+                88.8262,
+                89.0783,
+                89.0926
+            ],
+            "judy_runs_ms": [
+                103.5291,
+                103.6014,
+                104.2582,
+                102.9388,
+                103.2904,
+                102.5941,
+                103.042
+            ],
+            "array_ms": 89.0926,
+            "judy_ms": 103.2904,
+            "judy_over_array": 1.159,
+            "winner": "php-array"
+        },
+        "core.bitset.read": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 3.00323,
+            "delta_pct": 200.32,
+            "ci_delta_pct": [
+                200.14,
+                206.58
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                23.3201,
+                22.4005,
+                21.9358,
+                22.1006,
+                22.4613,
+                22.511,
+                22.0234
+            ],
+            "judy_runs_ms": [
+                66.6627,
+                67.2739,
+                67.6274,
+                67.4609,
+                67.4508,
+                67.5643,
+                67.5195
+            ],
+            "array_ms": 22.4005,
+            "judy_ms": 67.4609,
+            "judy_over_array": 3.012,
+            "winner": "php-array"
+        },
+        "core.bitset.iter": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 5.72311,
+            "delta_pct": 472.31,
+            "ci_delta_pct": [
+                468.74,
+                473.69
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                18.7309,
+                18.7535,
+                18.7155,
+                18.7883,
+                18.7474,
+                18.7237,
+                18.7827
+            ],
+            "judy_runs_ms": [
+                107.4569,
+                107.3283,
+                107.3677,
+                105.5746,
+                107.1974,
+                107.6647,
+                106.8242
+            ],
+            "array_ms": 18.7474,
+            "judy_ms": 107.3283,
+            "judy_over_array": 5.725,
+            "winner": "php-array"
+        },
+        "core.bitset.free": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.0034,
+            "delta_pct": -99.66,
+            "ci_delta_pct": [
+                -99.67,
+                -99.65
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                5.3832,
+                5.442,
+                5.4037,
+                5.4495,
+                5.3465,
+                5.2573,
+                5.5001
+            ],
+            "judy_runs_ms": [
+                0.0183,
+                0.0181,
+                0.0181,
+                0.019,
+                0.0187,
+                0.0181,
+                0.0187
+            ],
+            "array_ms": 5.4037,
+            "judy_ms": 0.0183,
+            "judy_over_array": 0.003,
+            "winner": "php-judy"
+        },
+        "core.int_to_int.write": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.57273,
+            "delta_pct": 57.27,
+            "ci_delta_pct": [
+                57.07,
+                57.64
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                91.7713,
+                92.1225,
+                92.0658,
+                91.9022,
+                91.9396,
+                91.933,
+                91.9924
+            ],
+            "judy_runs_ms": [
+                144.7552,
+                144.6974,
+                144.8036,
+                144.537,
+                144.9315,
+                144.092,
+                144.625
+            ],
+            "array_ms": 91.9396,
+            "judy_ms": 144.6974,
+            "judy_over_array": 1.574,
+            "winner": "php-array"
+        },
+        "core.int_to_int.read": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 2.9739,
+            "delta_pct": 197.39,
+            "ci_delta_pct": [
+                190.07,
+                204.14
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                23.17,
+                22.0034,
+                22.6295,
+                22.5936,
+                22.147,
+                23.0878,
+                21.8186
+            ],
+            "judy_runs_ms": [
+                66.7937,
+                66.9204,
+                67.2474,
+                67.191,
+                66.9043,
+                66.9698,
+                66.8778
+            ],
+            "array_ms": 22.5936,
+            "judy_ms": 66.9204,
+            "judy_over_array": 2.962,
+            "winner": "php-array"
+        },
+        "core.int_to_int.iter": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 6.07345,
+            "delta_pct": 507.35,
+            "ci_delta_pct": [
+                506.12,
+                509.04
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                18.6947,
+                18.6743,
+                18.624,
+                18.6386,
+                18.6031,
+                18.5909,
+                18.6304
+            ],
+            "judy_runs_ms": [
+                113.5414,
+                113.1879,
+                112.0413,
+                113.6168,
+                112.8464,
+                113.0049,
+                113.4669
+            ],
+            "array_ms": 18.6304,
+            "judy_ms": 113.1879,
+            "judy_over_array": 6.075,
+            "winner": "php-array"
+        },
+        "core.int_to_int.free": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.38332,
+            "delta_pct": -61.67,
+            "ci_delta_pct": [
+                -62.34,
+                -61.17
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                5.3387,
+                5.4205,
+                5.4738,
+                5.4909,
+                5.4927,
+                5.5058,
+                5.5071
+            ],
+            "judy_runs_ms": [
+                2.1029,
+                2.0778,
+                2.1252,
+                2.1321,
+                2.0924,
+                2.0559,
+                2.0738
+            ],
+            "array_ms": 5.4909,
+            "judy_ms": 2.0924,
+            "judy_over_array": 0.381,
+            "winner": "php-judy"
+        },
+        "core.int_to_mixed.write": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.50535,
+            "delta_pct": 50.54,
+            "ci_delta_pct": [
+                50.22,
+                50.89
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                263.0329,
+                263.7963,
+                264.6691,
+                265.1122,
+                264.3359,
+                264.674,
+                264.6131
+            ],
+            "judy_runs_ms": [
+                397.121,
+                396.3035,
+                397.5835,
+                399.0877,
+                396.5925,
+                399.1289,
+                399.282
+            ],
+            "array_ms": 264.6131,
+            "judy_ms": 397.5835,
+            "judy_over_array": 1.503,
+            "winner": "php-array"
+        },
+        "core.int_to_mixed.read": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 2.30475,
+            "delta_pct": 130.48,
+            "ci_delta_pct": [
+                129.05,
+                130.63
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                119.6728,
+                120.3852,
+                120.4545,
+                120.5556,
+                120.4712,
+                121.0885,
+                120.9403
+            ],
+            "judy_runs_ms": [
+                277.0008,
+                277.4582,
+                277.8098,
+                277.4817,
+                277.7968,
+                277.3524,
+                276.9828
+            ],
+            "array_ms": 120.4712,
+            "judy_ms": 277.4582,
+            "judy_over_array": 2.303,
+            "winner": "php-array"
+        },
+        "core.int_to_mixed.iter": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 3.7691,
+            "delta_pct": 276.91,
+            "ci_delta_pct": [
+                276.02,
+                277.6
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                84.716,
+                85.2443,
+                85.277,
+                85.2637,
+                85.2912,
+                85.1529,
+                85.1937
+            ],
+            "judy_runs_ms": [
+                319.1305,
+                320.5377,
+                321.4704,
+                321.3676,
+                320.4675,
+                322.8354,
+                321.692
+            ],
+            "array_ms": 85.2443,
+            "judy_ms": 321.3676,
+            "judy_over_array": 3.77,
+            "winner": "php-array"
+        },
+        "core.int_to_mixed.free": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 2.17558,
+            "delta_pct": 117.56,
+            "ci_delta_pct": [
+                117.31,
+                118.35
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                45.5028,
+                46.0041,
+                46.1975,
+                46.3683,
+                45.8931,
+                46.1491,
+                46.0045
+            ],
+            "judy_runs_ms": [
+                100.2224,
+                100.3994,
+                100.5065,
+                99.8373,
+                100.2094,
+                100.3138,
+                99.9715
+            ],
+            "array_ms": 46.0045,
+            "judy_ms": 100.2224,
+            "judy_over_array": 2.179,
+            "winner": "php-array"
+        },
+        "core.int_to_packed.write": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.40497,
+            "delta_pct": 40.5,
+            "ci_delta_pct": [
+                40.15,
+                40.62
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                246.5169,
+                246.8007,
+                246.7087,
+                246.8698,
+                246.3533,
+                246.6245,
+                246.8507
+            ],
+            "judy_runs_ms": [
+                346.8016,
+                344.7244,
+                345.7733,
+                347.1362,
+                345.5332,
+                346.499,
+                347.0186
+            ],
+            "array_ms": 246.7087,
+            "judy_ms": 346.499,
+            "judy_over_array": 1.404,
+            "winner": "php-array"
+        },
+        "core.int_to_packed.read": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.93013,
+            "delta_pct": 93.01,
+            "ci_delta_pct": [
+                92.31,
+                93.72
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                106.0976,
+                106.4081,
+                106.565,
+                106.6997,
+                106.515,
+                106.8346,
+                106.5811
+            ],
+            "judy_runs_ms": [
+                206.1502,
+                205.1234,
+                205.7526,
+                205.1955,
+                206.3378,
+                205.1923,
+                205.7159
+            ],
+            "array_ms": 106.565,
+            "judy_ms": 205.7159,
+            "judy_over_array": 1.93,
+            "winner": "php-array"
+        },
+        "core.int_to_packed.iter": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 11.5403,
+            "delta_pct": 1054.03,
+            "ci_delta_pct": [
+                1046.01,
+                1056.68
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                21.3681,
+                21.4118,
+                21.4557,
+                21.4356,
+                21.4491,
+                21.6486,
+                21.4891
+            ],
+            "judy_runs_ms": [
+                246.7407,
+                247.0867,
+                251.1994,
+                247.9423,
+                247.529,
+                248.0531,
+                246.2668
+            ],
+            "array_ms": 21.4491,
+            "judy_ms": 247.529,
+            "judy_over_array": 11.54,
+            "winner": "php-array"
+        },
+        "core.int_to_packed.free": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.10956,
+            "delta_pct": 10.96,
+            "ci_delta_pct": [
+                10.82,
+                12.02
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                46.5067,
+                46.6748,
+                46.9316,
+                46.943,
+                46.8586,
+                46.9425,
+                46.9365
+            ],
+            "judy_runs_ms": [
+                52.2361,
+                52.2872,
+                52.2554,
+                52.086,
+                51.9538,
+                52.0205,
+                51.9369
+            ],
+            "array_ms": 46.9316,
+            "judy_ms": 52.086,
+            "judy_over_array": 1.11,
+            "winner": "php-array"
+        },
+        "api.increment.int_to_int": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 2.52622,
+            "delta_pct": 152.62,
+            "ci_delta_pct": [
+                151.29,
+                153.63
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                57.4264,
+                57.3282,
+                57.1079,
+                57.2335,
+                57.3308,
+                57.5099,
+                57.4161
+            ],
+            "judy_runs_ms": [
+                145.046,
+                144.8236,
+                144.84,
+                145.0326,
+                145.6087,
+                144.5177,
+                144.2171
+            ],
+            "array_ms": 57.3308,
+            "judy_ms": 144.84,
+            "judy_over_array": 2.526,
+            "winner": "php-array"
+        },
+        "api.setop.union.bitset": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.97392,
+            "delta_pct": 97.39,
+            "ci_delta_pct": [
+                97.03,
+                97.63
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                92.084,
+                92.3861,
+                92.3199,
+                92.2163,
+                92.2997,
+                92.4636,
+                92.4196
+            ],
+            "judy_runs_ms": [
+                181.5513,
+                182.4452,
+                181.9018,
+                182.2432,
+                180.8925,
+                183.5307,
+                182.4286
+            ],
+            "array_ms": 92.3199,
+            "judy_ms": 182.2432,
+            "judy_over_array": 1.974,
+            "winner": "php-array"
+        },
+        "api.setop.intersect.bitset": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.91316,
+            "delta_pct": -8.68,
+            "ci_delta_pct": [
+                -9,
+                -8.63
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                95.3642,
+                95.5221,
+                95.2784,
+                95.3289,
+                95.2379,
+                95.3282,
+                95.2779
+            ],
+            "judy_runs_ms": [
+                87.0823,
+                87.2857,
+                86.7014,
+                86.6387,
+                87.023,
+                87.0973,
+                86.739
+            ],
+            "array_ms": 95.3282,
+            "judy_ms": 87.023,
+            "judy_over_array": 0.913,
+            "winner": "php-judy"
+        },
+        "api.setop.diff.bitset": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 2.00127,
+            "delta_pct": 100.13,
+            "ci_delta_pct": [
+                99.13,
+                100.59
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                43.0903,
+                43.0712,
+                42.8964,
+                43.1818,
+                42.9419,
+                43.0001,
+                43.3038
+            ],
+            "judy_runs_ms": [
+                85.9068,
+                86.1973,
+                86.0446,
+                85.9896,
+                86.188,
+                86.203,
+                86.1807
+            ],
+            "array_ms": 43.0712,
+            "judy_ms": 86.1807,
+            "judy_over_array": 2.001,
+            "winner": "php-array"
+        },
+        "api.setop.xor.bitset": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.78097,
+            "delta_pct": -21.9,
+            "ci_delta_pct": [
+                -21.99,
+                -21.85
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                221.2381,
+                220.7149,
+                220.3835,
+                221.5829,
+                220.9355,
+                220.8733,
+                221.3108
+            ],
+            "judy_runs_ms": [
+                172.6333,
+                172.1726,
+                172.7222,
+                172.573,
+                172.658,
+                172.5479,
+                172.8364
+            ],
+            "array_ms": 220.9355,
+            "judy_ms": 172.6333,
+            "judy_over_array": 0.781,
+            "winner": "php-judy"
+        }
+    },
+    "judy_vs_phploop": {
+        "api.putAll.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.69163,
+            "delta_pct": -30.84,
+            "ci_delta_pct": [
+                -31.2,
+                -30.13
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                183.9409,
+                182.564,
+                184.1205,
+                184.2078,
+                181.0401,
+                181.7061,
+                184.2404
+            ],
+            "judy_runs_ms": [
+                127.219,
+                128.8889,
+                126.9472,
+                126.7272,
+                126.3701,
+                126.959,
+                126.6164
+            ],
+            "array_ms": 183.9409,
+            "judy_ms": 126.9472,
+            "judy_over_array": 0.69,
+            "winner": "php-judy"
+        },
+        "api.fromArray.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.69689,
+            "delta_pct": -30.31,
+            "ci_delta_pct": [
+                -31.32,
+                -30.3
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                183.9409,
+                182.564,
+                184.1205,
+                184.2078,
+                181.0401,
+                181.7061,
+                184.2404
+            ],
+            "judy_runs_ms": [
+                128.1859,
+                127.7053,
+                126.0614,
+                126.9866,
+                126.1725,
+                126.6569,
+                126.5282
+            ],
+            "array_ms": 183.9409,
+            "judy_ms": 126.6569,
+            "judy_over_array": 0.689,
+            "winner": "php-judy"
+        },
+        "api.toArray.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.81922,
+            "delta_pct": -18.08,
+            "ci_delta_pct": [
+                -19.43,
+                -17.28
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                361.8582,
+                361.0163,
+                369.6339,
+                369.9241,
+                362.8758,
+                361.3363,
+                363.5289
+            ],
+            "judy_runs_ms": [
+                299.3329,
+                300.5306,
+                297.5337,
+                298.0638,
+                296.8624,
+                296.6292,
+                297.8087
+            ],
+            "array_ms": 362.8758,
+            "judy_ms": 297.8087,
+            "judy_over_array": 0.821,
+            "winner": "php-judy"
+        },
+        "api.getAll.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.78267,
+            "delta_pct": -21.73,
+            "ci_delta_pct": [
+                -21.98,
+                -21.56
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                27.5093,
+                27.3961,
+                27.448,
+                27.3589,
+                27.4722,
+                27.3908,
+                27.3727
+            ],
+            "judy_runs_ms": [
+                21.4534,
+                21.3874,
+                21.5188,
+                21.4602,
+                21.5017,
+                21.5554,
+                21.3573
+            ],
+            "array_ms": 27.3961,
+            "judy_ms": 21.4602,
+            "judy_over_array": 0.783,
+            "winner": "php-judy"
+        },
+        "api.keys.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.59766,
+            "delta_pct": -40.23,
+            "ci_delta_pct": [
+                -40.33,
+                -39.97
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                194.608,
+                195.1364,
+                194.4017,
+                194.9093,
+                194.3223,
+                194.386,
+                194.0352
+            ],
+            "judy_runs_ms": [
+                117.0656,
+                116.3723,
+                116.7021,
+                116.3037,
+                116.1396,
+                116.1776,
+                116.3709
+            ],
+            "array_ms": 194.4017,
+            "judy_ms": 116.3709,
+            "judy_over_array": 0.599,
+            "winner": "php-judy"
+        },
+        "api.values.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.62243,
+            "delta_pct": -37.76,
+            "ci_delta_pct": [
+                -37.89,
+                -37.56
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                194.7043,
+                195.0539,
+                194.6364,
+                194.2798,
+                195.0228,
+                194.0706,
+                194.0993
+            ],
+            "judy_runs_ms": [
+                121.7607,
+                121.1518,
+                121.2863,
+                121.3113,
+                120.7021,
+                120.796,
+                120.7032
+            ],
+            "array_ms": 194.6364,
+            "judy_ms": 121.1518,
+            "judy_over_array": 0.622,
+            "winner": "php-judy"
+        },
+        "api.range.keys.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.06833,
+            "delta_pct": -93.17,
+            "ci_delta_pct": [
+                -93.18,
+                -93.13
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                147.3523,
+                147.6245,
+                147.799,
+                148.2483,
+                147.7981,
+                147.5425,
+                147.3843
+            ],
+            "judy_runs_ms": [
+                10.1942,
+                10.1241,
+                10.0738,
+                10.1029,
+                10.0945,
+                10.1303,
+                10.071
+            ],
+            "array_ms": 147.6245,
+            "judy_ms": 10.1029,
+            "judy_over_array": 0.068,
+            "winner": "php-judy"
+        },
+        "api.sumValues.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.41371,
+            "delta_pct": -58.63,
+            "ci_delta_pct": [
+                -58.92,
+                -58.52
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                117.2445,
+                117.7887,
+                117.2657,
+                117.8513,
+                117.5985,
+                117.2197,
+                117.4874
+            ],
+            "judy_runs_ms": [
+                48.5704,
+                48.2895,
+                48.6883,
+                48.5117,
+                48.6519,
+                48.6224,
+                48.2631
+            ],
+            "array_ms": 117.4874,
+            "judy_ms": 48.5704,
+            "judy_over_array": 0.413,
+            "winner": "php-judy"
+        },
+        "api.populationCount.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0,
+            "delta_pct": -100,
+            "ci_delta_pct": [
+                -100,
+                -100
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                118.5981,
+                118.5139,
+                118.8917,
+                118.5017,
+                118.7512,
+                118.5495,
+                118.9009
+            ],
+            "judy_runs_ms": [
+                0.0001,
+                0.0001,
+                0.0001,
+                0.0001,
+                0.0001,
+                0.0001,
+                0.0001
+            ],
+            "array_ms": 118.5981,
+            "judy_ms": 0.0001,
+            "judy_over_array": 0,
+            "winner": "php-judy"
+        },
+        "api.deleteRange.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.69731,
+            "delta_pct": -30.27,
+            "ci_delta_pct": [
+                -30.28,
+                -30.2
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                339.0827,
+                340.4971,
+                339.026,
+                338.7645,
+                339.0726,
+                340.6048,
+                338.4292
+            ],
+            "judy_runs_ms": [
+                236.6848,
+                237.4078,
+                236.367,
+                236.223,
+                236.4386,
+                236.2426,
+                237.1241
+            ],
+            "array_ms": 339.0726,
+            "judy_ms": 236.4386,
+            "judy_over_array": 0.697,
+            "winner": "php-judy"
+        },
+        "api.equals.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.25836,
+            "delta_pct": -74.16,
+            "ci_delta_pct": [
+                -74.24,
+                -74.02
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                275.2826,
+                274.3383,
+                275.0185,
+                275.4818,
+                275.6951,
+                279.0331,
+                275.7982
+            ],
+            "judy_runs_ms": [
+                70.9041,
+                71.5733,
+                70.9815,
+                71.4606,
+                71.2299,
+                71.1751,
+                71.6533
+            ],
+            "array_ms": 275.4818,
+            "judy_ms": 71.2299,
+            "judy_over_array": 0.259,
+            "winner": "php-judy"
+        },
+        "api.setop.union.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.52522,
+            "delta_pct": -47.48,
+            "ci_delta_pct": [
+                -48.04,
+                -47.42
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                511.7407,
+                512.6343,
+                508.2764,
+                508.1559,
+                512.1782,
+                510.8513,
+                507.4871
+            ],
+            "judy_runs_ms": [
+                266.0118,
+                266.3595,
+                267.2503,
+                266.9231,
+                265.5157,
+                268.6401,
+                266.542
+            ],
+            "array_ms": 510.8513,
+            "judy_ms": 266.542,
+            "judy_over_array": 0.522,
+            "winner": "php-judy"
+        },
+        "api.setop.intersect.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.4397,
+            "delta_pct": -56.03,
+            "ci_delta_pct": [
+                -56.17,
+                -55.95
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                248.2874,
+                248.9242,
+                247.4937,
+                247.8431,
+                250.7527,
+                248.6994,
+                247.4147
+            ],
+            "judy_runs_ms": [
+                109.3792,
+                109.0966,
+                109.2716,
+                108.9758,
+                109.1786,
+                109.4491,
+                108.6421
+            ],
+            "array_ms": 248.2874,
+            "judy_ms": 109.1786,
+            "judy_over_array": 0.44,
+            "winner": "php-judy"
+        },
+        "api.setop.diff.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.42062,
+            "delta_pct": -57.94,
+            "ci_delta_pct": [
+                -58.13,
+                -57.83
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                257.0943,
+                255.5964,
+                255.6251,
+                255.5157,
+                256.5155,
+                256.7289,
+                258.0161
+            ],
+            "judy_runs_ms": [
+                107.6443,
+                107.7892,
+                107.8352,
+                107.7468,
+                107.8966,
+                107.7316,
+                107.6231
+            ],
+            "array_ms": 256.5155,
+            "judy_ms": 107.7468,
+            "judy_over_array": 0.42,
+            "winner": "php-judy"
+        },
+        "api.setop.xor.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.4223,
+            "delta_pct": -57.77,
+            "ci_delta_pct": [
+                -57.96,
+                -57.75
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                513.6419,
+                514.1964,
+                512.6318,
+                512.4351,
+                514.0115,
+                513.703,
+                518.191
+            ],
+            "judy_runs_ms": [
+                215.9122,
+                217.2443,
+                216.8814,
+                216.5292,
+                217.0656,
+                216.3146,
+                216.2607
+            ],
+            "array_ms": 513.703,
+            "judy_ms": 216.5292,
+            "judy_over_array": 0.422,
+            "winner": "php-judy"
+        },
+        "api.setop.union.string_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.85484,
+            "delta_pct": -14.52,
+            "ci_delta_pct": [
+                -14.61,
+                -14.4
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                1705.4141,
+                1695.7374,
+                1691.987,
+                1695.1918,
+                1695.2818,
+                1698.897,
+                1698.5351
+            ],
+            "judy_runs_ms": [
+                1456.186,
+                1445.5295,
+                1456.8962,
+                1451.0049,
+                1449.1989,
+                1453.1372,
+                1451.6506
+            ],
+            "array_ms": 1695.7374,
+            "judy_ms": 1451.6506,
+            "judy_over_array": 0.856,
+            "winner": "php-judy"
+        },
+        "api.setop.intersect.string_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.83607,
+            "delta_pct": -16.39,
+            "ci_delta_pct": [
+                -16.52,
+                -16.02
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                782.895,
+                778.9871,
+                780.6602,
+                783.3191,
+                782.7751,
+                779.5563,
+                781.885
+            ],
+            "judy_runs_ms": [
+                654.5555,
+                657.4986,
+                653.7523,
+                654.4146,
+                657.3599,
+                650.8018,
+                652.5005
+            ],
+            "array_ms": 781.885,
+            "judy_ms": 654.4146,
+            "judy_over_array": 0.837,
+            "winner": "php-judy"
+        },
+        "api.setop.diff.string_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.86328,
+            "delta_pct": -13.67,
+            "ci_delta_pct": [
+                -13.73,
+                -13.63
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                785.428,
+                781.721,
+                782.7709,
+                781.2465,
+                782.4031,
+                781.2483,
+                783.7065
+            ],
+            "judy_runs_ms": [
+                676.0118,
+                674.7658,
+                675.8546,
+                674.7686,
+                675.4309,
+                676.2063,
+                676.0883
+            ],
+            "array_ms": 782.4031,
+            "judy_ms": 675.8546,
+            "judy_over_array": 0.864,
+            "winner": "php-judy"
+        },
+        "api.mergeWith.int_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.77802,
+            "delta_pct": -22.2,
+            "ci_delta_pct": [
+                -22.27,
+                -21.45
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                389.1072,
+                388.7147,
+                387.5015,
+                388.0063,
+                388.4021,
+                384.6571,
+                385.4086
+            ],
+            "judy_runs_ms": [
+                302.2706,
+                302.2591,
+                303.6292,
+                301.877,
+                301.8856,
+                302.6785,
+                302.7196
+            ],
+            "array_ms": 388.0063,
+            "judy_ms": 302.2706,
+            "judy_over_array": 0.779,
+            "winner": "php-judy"
+        },
+        "api.mergeWith.string_to_int": {
+            "status": "FASTER",
+            "reason": null,
+            "ratio": 0.90797,
+            "delta_pct": -9.2,
+            "ci_delta_pct": [
+                -9.42,
+                -9.03
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                1324.5522,
+                1333.7724,
+                1317.4222,
+                1322.1221,
+                1322.8413,
+                1318.1872,
+                1320.7195
+            ],
+            "judy_runs_ms": [
+                1203.1333,
+                1198.7457,
+                1196.1815,
+                1199.4586,
+                1198.2235,
+                1199.1589,
+                1203.8539
+            ],
+            "array_ms": 1322.1221,
+            "judy_ms": 1199.1589,
+            "judy_over_array": 0.907,
+            "winner": "php-judy"
+        },
+        "adv.forEach.int_to_int": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.48851,
+            "delta_pct": 48.85,
+            "ci_delta_pct": [
+                47.79,
+                50.38
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                126.9255,
+                127.1133,
+                127.7099,
+                127.041,
+                127.2395,
+                127.5299,
+                127.1751
+            ],
+            "judy_runs_ms": [
+                188.6499,
+                189.2088,
+                188.7412,
+                190.5277,
+                191.341,
+                187.7841,
+                191.4331
+            ],
+            "array_ms": 127.1751,
+            "judy_ms": 189.2088,
+            "judy_over_array": 1.488,
+            "winner": "php-array"
+        },
+        "adv.forEach.string_to_int": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.17079,
+            "delta_pct": 17.08,
+            "ci_delta_pct": [
+                16.29,
+                17.34
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                303.9356,
+                303.2739,
+                303.0868,
+                304.4504,
+                303.3989,
+                303.5143,
+                303.7525
+            ],
+            "judy_runs_ms": [
+                353.317,
+                355.6096,
+                354.3725,
+                357.7588,
+                355.2179,
+                356.1392,
+                353.2424
+            ],
+            "array_ms": 303.5143,
+            "judy_ms": 355.2179,
+            "judy_over_array": 1.17,
+            "winner": "php-array"
+        },
+        "adv.filter.int_to_int": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.21774,
+            "delta_pct": 21.77,
+            "ci_delta_pct": [
+                21.17,
+                22.71
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                225.1427,
+                225.5612,
+                223.9135,
+                225.1673,
+                223.7512,
+                224.8918,
+                225.157
+            ],
+            "judy_runs_ms": [
+                275.162,
+                273.8894,
+                274.7684,
+                272.8304,
+                275.6815,
+                272.4508,
+                274.1818
+            ],
+            "array_ms": 225.1427,
+            "judy_ms": 274.1818,
+            "judy_over_array": 1.218,
+            "winner": "php-array"
+        },
+        "adv.filter.string_to_int": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.05729,
+            "delta_pct": 5.73,
+            "ci_delta_pct": [
+                5.57,
+                5.83
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                738.089,
+                738.2657,
+                736.4677,
+                742.7815,
+                736.1121,
+                737.8964,
+                737.6048
+            ],
+            "judy_runs_ms": [
+                780.3714,
+                779.4167,
+                776.1055,
+                786.174,
+                779.0178,
+                780.5108,
+                778.9007
+            ],
+            "array_ms": 737.8964,
+            "judy_ms": 779.4167,
+            "judy_over_array": 1.056,
+            "winner": "php-array"
+        },
+        "adv.map.int_to_int": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.08708,
+            "delta_pct": 8.71,
+            "ci_delta_pct": [
+                8.29,
+                9.26
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                273.6264,
+                274.8468,
+                272.5881,
+                274.6765,
+                271.535,
+                274.0795,
+                272.6637
+            ],
+            "judy_runs_ms": [
+                297.0022,
+                298.7797,
+                298.1878,
+                297.005,
+                296.6816,
+                296.811,
+                297.7556
+            ],
+            "array_ms": 273.6264,
+            "judy_ms": 297.005,
+            "judy_over_array": 1.085,
+            "winner": "php-array"
+        },
+        "adv.map.string_to_int": {
+            "status": "SLOWER",
+            "reason": null,
+            "ratio": 1.02215,
+            "delta_pct": 2.21,
+            "ci_delta_pct": [
+                1.84,
+                2.28
+            ],
+            "n": 7,
+            "array_runs_ms": [
+                1044.7553,
+                1046.2459,
+                1042.6354,
+                1049.7296,
+                1039.3689,
+                1041.5016,
+                1039.352
+            ],
+            "judy_runs_ms": [
+                1062.4053,
+                1065.4901,
+                1066.6828,
+                1073.6319,
+                1062.3904,
+                1065.0726,
+                1061.943
+            ],
+            "array_ms": 1042.6354,
+            "judy_ms": 1065.0726,
+            "judy_over_array": 1.022,
+            "winner": "php-array"
+        }
+    },
+    "memory": [],
+    "verify": {
+        "B1": {
+            "loaded": 1,
+            "version": "2.5.2",
+            "paths": [
+                "/work/builds/judy-C-2.so"
+            ],
+            "inis": [
+                "/tmp/judy-bench-threearm-390/B1-ini/judy.ini"
+            ],
+            "main_loads_judy": 0
+        },
+        "B2": {
+            "loaded": 1,
+            "version": "2.5.2",
+            "paths": [
+                "/work/builds/judy-C-3.so"
+            ],
+            "inis": [
+                "/tmp/judy-bench-threearm-390/B2-ini/judy.ini"
+            ],
+            "main_loads_judy": 0
+        },
+        "B3": {
+            "loaded": 1,
+            "version": "2.5.2",
+            "paths": [
+                "/work/builds/judy-C-1.so"
+            ],
+            "inis": [
+                "/tmp/judy-bench-threearm-390/B3-ini/judy.ini"
+            ],
+            "main_loads_judy": 0
+        },
+        "C1": {
+            "loaded": 1,
+            "version": "2.5.2",
+            "paths": [
+                "/work/builds/judy-C-1.so"
+            ],
+            "inis": [
+                "/tmp/judy-bench-threearm-390/C1-ini/judy.ini"
+            ],
+            "main_loads_judy": 0
+        },
+        "C2": {
+            "loaded": 1,
+            "version": "2.5.2",
+            "paths": [
+                "/work/builds/judy-C-2.so"
+            ],
+            "inis": [
+                "/tmp/judy-bench-threearm-390/C2-ini/judy.ini"
+            ],
+            "main_loads_judy": 0
+        },
+        "C3": {
+            "loaded": 1,
+            "version": "2.5.2",
+            "paths": [
+                "/work/builds/judy-C-3.so"
+            ],
+            "inis": [
+                "/tmp/judy-bench-threearm-390/C3-ini/judy.ini"
+            ],
+            "main_loads_judy": 0
+        }
+    }
+}
