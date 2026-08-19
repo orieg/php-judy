@@ -88,6 +88,7 @@
          <file name="examples/benchmarks/run-benchmarks-robust.php" role="doc" />
          <file name="examples/benchmarks/run-benchmarks.php" role="doc" />
          <file name="examples/benchmarks/run_comprehensive_benchmarks.php" role="doc" />
+         <file name="baselines/arm-ratios.json" role="doc" />
          <file name="baselines/latest.json" role="doc" />
          <file md5sum="abc7eb31bb88857463ec941514e5f019" name="tests/001.phpt" role="test" />
          <file name="tests/arrayaccess_void_return_001.phpt" role="test" />
@@ -408,7 +409,11 @@
          <file name="BACKEND_EVALUATION.md" role="doc" />
          <file name="API.md" role="doc" />
          <file name="scripts/api-metadata.php" role="doc" />
+         <file name="scripts/bench-arm-s.php" role="doc" />
          <file name="scripts/bench-compare.php" role="doc" />
+         <file name="scripts/bench-gate-report.php" role="doc" />
+         <file name="scripts/bench-gate.php" role="doc" />
+         <file name="scripts/bench-lib.php" role="doc" />
          <file name="scripts/bench-threearm.php" role="doc" />
          <file name="scripts/generate-api-docs.php" role="doc" />
          <file name="scripts/judy_debug_common.py" role="doc" />

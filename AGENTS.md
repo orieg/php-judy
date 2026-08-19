@@ -329,7 +329,12 @@ is [orieg/judy-cache](https://github.com/orieg/judy-cache).
   `libjudy/PATCHES.md`, and `-O3` on the vendored units is a correctness
   hazard rather than an optimization.
 - **Benchmarks**: suite in `examples/benchmarks/`; CI compares PRs against
-  `baselines/latest.json`. Don't update the baseline in a feature PR.
+  `baselines/latest.json`. A separate cross-platform gate
+  (`scripts/bench-gate.php`, weekly + on `libjudy/` changes) compares the
+  bundled tree against a *pristine-static* arm S reconstructed from our own
+  pre-patch commit, on Linux glibc, Alpine musl, macOS arm64 and Windows. It
+  gates on within-run arm ratios, never on absolute times. Don't update
+  `baselines/latest.json` or `baselines/arm-ratios.json` in a feature PR.
 - **Verify you are testing the build you think you are.** If any ini file
   under `conf.d/` already loads `judy.so` (a Docker image built with
   `docker-php-ext-enable judy`, a system install, a PIE install), that copy

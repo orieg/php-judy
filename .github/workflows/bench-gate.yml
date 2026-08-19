@@ -1,0 +1,459 @@
+# Cross-platform performance regression gate.
+#
+# WHY THIS IS A SEPARATE WORKFLOW, AND WHY IT IS NOT PER-PR
+# ---------------------------------------------------------
+# ci.yml runs on every push and every PR and has no schedule. What this gate
+# needs is the opposite: it is a TIME SERIES. The question it answers — "has any
+# supported platform got slower since the last recorded baseline?" — is not
+# answerable from one PR's worth of data, and paying its build cost on every PR
+# would buy nothing but latency. ci.yml already carries an advisory
+# release-over-release benchmark (bench-compare.php) for the per-PR case, and
+# the project's own report says of it: "Advisory — benchmarks never gate a merge."
+#
+# So the triggers are:
+#   schedule           the actual requirement — regression over time
+#   workflow_dispatch  re-runs, threshold derivation, baseline refresh
+#   release            a published release should have a recorded measurement
+#   pull_request       ONLY when libjudy/ or the gate's own machinery changes.
+#                      The S->C axis can only move when libjudy/ moves, so this
+#                      narrow filter catches the highest-value case at its
+#                      cheapest moment without taxing every unrelated PR.
+#
+# HOW IT AVOIDS COMPARING NUMBERS ACROSS NOISY RUNNERS
+# ----------------------------------------------------
+# It never compares an absolute time. Every quantity it gates on is a ratio of
+# two arms measured in the SAME interleaved rounds on the SAME runner, so a slow
+# runner slows both arms and the ratio does not move. See the header of
+# scripts/bench-gate.php.
+#
+# ARM S IS WHAT MAKES THIS PORTABLE
+# ---------------------------------
+# The comparison arm is NOT a system libJudy. Debian patches its package, Alpine
+# and Homebrew do not, Windows has no package, and the SourceForge download was
+# deliberately deleted from CI (#146) and must not return. Arm S is our own
+# vendored tree reconstructed at the last commit before the first patch, built
+# static into the extension with the identical pinned CFLAGS — no package, no
+# network, available on every platform, and verified unpatched against the
+# pristine import commit on each one. See scripts/bench-arm-s.php.
+
+name: Benchmark Gate
+
+on:
+  schedule:
+    # Weekly, Monday early UTC. Frequent enough to bisect a regression to one
+    # week of commits, infrequent enough that the runner cost is negligible.
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      repeats:
+        description: "Gate runs per platform (>=2 feeds --derive for threshold work)"
+        required: false
+        default: "1"
+      rounds:
+        description: "Interleaved rounds per benchmark group"
+        required: false
+        default: "5"
+      size:
+        description: "Elements per benchmark (300000 is cache-resident)"
+        required: false
+        default: "300000"
+      gate:
+        description: "Fail the job on a regression (false = measure and report only)"
+        required: false
+        default: "true"
+  release:
+    types: [published]
+  pull_request:
+    branches: [main]
+    paths:
+      - "libjudy/**"
+      - "scripts/bench-gate.php"
+      - "scripts/bench-arm-s.php"
+      - "scripts/bench-lib.php"
+      - "tools/bench-gate/**"
+      - "baselines/arm-ratios.json"
+      - ".github/workflows/bench-gate.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  # Two gate runs on one repo would contend for runner capacity and, worse,
+  # could land on the same physical host — the exact co-tenancy failure the
+  # driver's foreign-tenant detector exists to catch.
+  group: bench-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BENCH_ROUNDS: ${{ github.event.inputs.rounds || '5' }}
+  BENCH_SIZE: ${{ github.event.inputs.size || '300000' }}
+  BENCH_REPEATS: ${{ github.event.inputs.repeats || '2' }}
+  BENCH_GROUPS: "core.int,core.str,api.setops"
+  BENCH_MEM_SIZES: "1000000"
+
+jobs:
+  # ── Linux / glibc / x86-64 ────────────────────────────────────────────────
+  # The reference platform: the only one with a claim-grade dedicated-host
+  # measurement to compare against (BENCHMARK.md). Also the only Linux platform
+  # with a system libJudy package, so it carries arm B as a reported extra.
+  linux-glibc:
+    name: gate / linux-glibc-x86_64
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # NOT shallow: arm S is reconstructed by `git archive` at a pinned
+          # historical commit, which a depth-1 clone does not have.
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: json
+          coverage: none
+
+      - name: Build arms A/S/C from one tree with one toolchain
+        run: |
+          set -euo pipefail
+          ./tools/bench-gate/build-arms.sh "$RUNNER_TEMP/arms" 2
+          cc --version | head -1 > "$RUNNER_TEMP/toolchain.txt"
+
+      - name: Build arm B against the distro libJudy (reported, never gated)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y libjudy-dev
+          # Same source, same compiler, same PHP; only --with-judy differs.
+          src="$RUNNER_TEMP/src-B"
+          rm -rf "$src"; mkdir -p "$src"
+          git archive --format=tar HEAD | tar -x -C "$src"
+          ( cd "$src" && phpize >/dev/null && ./configure --with-judy=/usr >/dev/null \
+            && make -j"$(nproc)" >/dev/null )
+          cp "$src/modules/judy.so" "$RUNNER_TEMP/arms/judy-B-1.so"
+          dpkg-query -W -f='${Version}' libjudy-dev > "$RUNNER_TEMP/libjudy-version.txt"
+
+      - name: Run the gate
+        env:
+          GATE_FLAG: ${{ (github.event.inputs.gate == 'false') && ' ' || '--gate' }}
+        run: |
+          set -euo pipefail
+          ./tools/bench-gate/run-gate.sh \
+            --platform linux-glibc-x86_64 \
+            --arms "$RUNNER_TEMP/arms" \
+            --with-b \
+            --toolchain "$(cat "$RUNNER_TEMP/toolchain.txt") / PHP $(php -r 'echo PHP_VERSION;')" \
+            --provenance "Debian/Ubuntu libjudy-dev $(cat "$RUNNER_TEMP/libjudy-version.txt") (Baskins patch 04 applied)" \
+            --out-dir "$RUNNER_TEMP/results" \
+            $GATE_FLAG
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-gate-linux-glibc-x86_64
+          path: ${{ runner.temp }}/results
+          retention-days: 90
+
+  # ── Linux / musl / x86-64 ─────────────────────────────────────────────────
+  # Genuinely informative rather than box-ticking: musl's allocator is not
+  # glibc's and Judy is allocation-heavy — a prior analysis attributed ~24% of
+  # DRAM traffic to glibc's allocator serving Judy's node churn. Alpine ships a
+  # `main/judy` package but arm B is deliberately omitted here: the gate's axes
+  # are S->C and A->C, and a distro package that moves independently of this
+  # repository is not a regression axis.
+  #
+  # Not a `container:` job — GitHub's node runtime for actions/checkout is
+  # glibc-linked, which is why ci.yml's Alpine job also drives Docker directly.
+  linux-musl:
+    name: gate / linux-musl-x86_64
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Run the gate inside Alpine
+        env:
+          GATE_FLAG: ${{ (github.event.inputs.gate == 'false') && ' ' || '--gate' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/results"
+          docker run --rm \
+            -v "$PWD:/src" \
+            -v "$RUNNER_TEMP/results:/results" \
+            -e BENCH_ROUNDS -e BENCH_SIZE -e BENCH_REPEATS \
+            -e BENCH_GROUPS -e BENCH_MEM_SIZES \
+            -e CI \
+            -e "GATE_FLAG=$GATE_FLAG" \
+            php:8.4-cli-alpine sh -euc '
+              # python3 is for tools/bench-stability.py, the shared contention
+              # guard; without it the guard reports UNAVAILABLE rather than
+              # failing, but this platform should actually run it.
+              apk add --no-cache --virtual .b $PHPIZE_DEPS git bash python3 >/dev/null
+              # The bind-mounted checkout is the git repo arm S is reconstructed
+              # from; the build itself happens in a scratch tree that
+              # build-arms.sh populates with `git archive`, so the mounted
+              # worktree is never built in and cannot contribute stale objects.
+              git config --global --add safe.directory /src
+              cd /src
+              ./tools/bench-gate/build-arms.sh /tmp/arms 2
+              ./tools/bench-gate/run-gate.sh \
+                --platform linux-musl-x86_64 \
+                --arms /tmp/arms \
+                --toolchain "$(cc --version | head -1) / musl / PHP $(php -r "echo PHP_VERSION;")" \
+                --out-dir /results \
+                $GATE_FLAG
+            '
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-gate-linux-musl-x86_64
+          path: ${{ runner.temp }}/results
+          retention-days: 90
+
+  # ── macOS / arm64 ─────────────────────────────────────────────────────────
+  # The highest-value gap this workflow closes. arm64 is this project's ONLY
+  # non-x86 coverage and no merged optimization had ever been timed on Apple
+  # clang before it. GitHub's macOS runners are noisy — but the gate compares
+  # ratios of arms measured in the same interleaved rounds, which is exactly the
+  # comparison that survives a noisy host, and the C-vs-C rebuild control
+  # measures how noisy this particular runner was and widens the threshold to
+  # match. Absolute macOS numbers remain "directional"; these ratios are
+  # "ci-relative", which is a real tier and is labelled as one.
+  macos-arm64:
+    name: gate / macos-arm64
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: json
+          coverage: none
+
+      - name: Build arms A/S/C
+        run: |
+          set -euo pipefail
+          ./tools/bench-gate/build-arms.sh "$RUNNER_TEMP/arms" 2
+
+      - name: Build arm B against Homebrew's pristine libJudy (reported, never gated)
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          brew install judy
+          prefix="$(brew --prefix judy)"
+          src="$RUNNER_TEMP/src-B"
+          rm -rf "$src"; mkdir -p "$src"
+          git archive --format=tar HEAD | tar -x -C "$src"
+          ( cd "$src" && phpize >/dev/null && ./configure --with-judy="$prefix" >/dev/null \
+            && make -j"$(sysctl -n hw.ncpu)" >/dev/null )
+          cp "$src/modules/judy.so" "$RUNNER_TEMP/arms/judy-B-1.so"
+
+      - name: Run the gate
+        env:
+          GATE_FLAG: ${{ (github.event.inputs.gate == 'false') && ' ' || '--gate' }}
+        run: |
+          set -euo pipefail
+          extra=""
+          [ -f "$RUNNER_TEMP/arms/judy-B-1.so" ] && extra="--with-b"
+          ./tools/bench-gate/run-gate.sh \
+            --platform macos-arm64 \
+            --arms "$RUNNER_TEMP/arms" \
+            $extra \
+            --toolchain "$(cc --version | head -1) / PHP $(php -r 'echo PHP_VERSION;')" \
+            --provenance "Homebrew judy 1.0.5 — PRISTINE, no Baskins patch (the formula has no patch stanza)" \
+            --out-dir "$RUNNER_TEMP/results" \
+            $GATE_FLAG
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-gate-macos-arm64
+          path: ${{ runner.temp }}/results
+          retention-days: 90
+
+  # ── Windows / x64 ─────────────────────────────────────────────────────────
+  # Relative-only, and possible at all ONLY because of arm S: there is no
+  # Windows libJudy package, and the SourceForge download that used to stand in
+  # for one is gone for good (#146). Both arms are built through the same
+  # php-windows-builder action from the same tree, with libjudy/ swapped between
+  # invocations — so compiler, PHP and extension source are held constant
+  # exactly as on the POSIX platforms.
+  #
+  # One build per arm here rather than two: a second MSVC build roughly doubles
+  # an already long job, and without it the C-vs-C rebuild control is
+  # unavailable, so this platform's threshold falls back to its offline floor
+  # alone. That is recorded in the run JSON
+  # (`metadata.rebuild_control_available: false`) and the tier is labelled
+  # accordingly rather than being quietly equated with the POSIX platforms.
+  windows-x64:
+    name: gate / windows-x64
+    runs-on: windows-latest
+    timeout-minutes: 60
+    # Slower and more fragile than the POSIX jobs, and the axes it can measure
+    # are the same ones. Kept off the narrow per-PR trigger.
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # windows-latest has no PHP on PATH. This one runs the arm-S staging and
+      # the gate driver itself; the DLLs are LOADED by the builder's own PHP
+      # (captured below), because only that one is guaranteed ABI-compatible
+      # with what php-windows-builder produced.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: json
+          coverage: none
+
+      - name: Stage and verify the arm-S source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          # NOT named TMP: that is a standard Windows environment variable, and
+          # clobbering it makes PHP's sys_get_temp_dir() hand back a POSIX path
+          # that nothing on Windows can use. Same class of bug as assigning to
+          # GROUPS in a bash-as-/bin/sh script.
+          BENCH_TMP="$(cygpath -u "$RUNNER_TEMP")"
+          echo "BENCH_TMP=$BENCH_TMP" >> "$GITHUB_ENV"
+          # Verified BEFORE anything is built: a broken reconstruction must fail
+          # here rather than quietly produce a meaningless delta.
+          php scripts/bench-arm-s.php --dest "$BENCH_TMP/arm-s" \
+            --manifest "$BENCH_TMP/arm-s-manifest.json"
+
+      - name: Build arm C (the shipped bundled tree)
+        uses: php/php-windows-builder/extension@v1
+        with:
+          php-version: "8.4"
+          arch: x64
+          ts: nts
+          run-tests: "false"
+
+      - name: Set arm C aside, capture the runtime, and swap in arm S
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$BENCH_TMP/arms"
+
+          # Exactly one DLL must exist, or we do not know which arm we captured.
+          mapfile -t dlls < <(find . -name 'php_judy.dll')
+          if [ "${#dlls[@]}" -ne 1 ]; then
+            printf 'expected exactly one php_judy.dll, found %d:\n' "${#dlls[@]}"
+            printf '  %s\n' "${dlls[@]}"
+            exit 1
+          fi
+          cp "${dlls[0]}" "$BENCH_TMP/arms/judy-C-1.dll"
+
+          # The PHP that will LOAD both DLLs has to be the one they were built
+          # against; setup-php's copy is a different build and may not be ABI
+          # compatible. Capture the builder's runtime before the tree is wiped.
+          mapfile -t phps < <(find . -name 'php.exe')
+          if [ "${#phps[@]}" -lt 1 ]; then echo 'no php.exe under the build tree'; exit 1; fi
+          cp -R "$(dirname "${phps[0]}")" "$BENCH_TMP/php-runtime"
+          "$BENCH_TMP/php-runtime/php.exe" -v
+
+          # Keep the shipped tree so it can be restored, then replace libjudy/
+          # with the verified pre-patch tree. Nothing else about the checkout
+          # changes, so compiler, PHP and extension source are held constant.
+          mv libjudy "$BENCH_TMP/libjudy-C"
+          cp -R "$BENCH_TMP/arm-s/libjudy" libjudy
+
+          # The action packages its output into build/<hash>/artifacts/<name>.zip
+          # and the name depends only on extension/PHP/arch — not on the build —
+          # so a second invocation collides with the first zip and fails AFTER
+          # linking a perfectly good DLL. Remove the whole tree, and check that
+          # the removal actually happened rather than assuming it.
+          rm -rf build
+          if [ -d build ]; then echo "could not remove build/"; exit 1; fi
+
+      # continue-on-error is narrow, not blanket: the action's final step
+      # PACKAGES the DLL into a zip whose name is derived from
+      # extension/PHP/arch, so the second invocation can collide on that name
+      # and fail after linking a perfectly good DLL. The next step is the real
+      # check — it requires exactly ONE php_judy.dll to exist and requires it to
+      # differ byte-wise from arm C's, so a genuine compile failure (which
+      # leaves none, the tree having just been wiped) still fails the job.
+      - name: Build arm S (pristine-static)
+        continue-on-error: true
+        uses: php/php-windows-builder/extension@v1
+        with:
+          php-version: "8.4"
+          arch: x64
+          ts: nts
+          run-tests: "false"
+
+      - name: Restore the shipped tree and collect arm S
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t dlls < <(find . -name 'php_judy.dll')
+          if [ "${#dlls[@]}" -ne 1 ]; then
+            printf 'expected exactly one php_judy.dll, found %d\n' "${#dlls[@]}"
+            exit 1
+          fi
+          cp "${dlls[0]}" "$BENCH_TMP/arms/judy-S-1.dll"
+          rm -rf libjudy && mv "$BENCH_TMP/libjudy-C" libjudy
+
+          # The two arms must not be byte-identical: that would mean the
+          # libjudy/ swap did not take and the run compares a build with itself.
+          if cmp -s "$BENCH_TMP/arms/judy-C-1.dll" "$BENCH_TMP/arms/judy-S-1.dll"; then
+            echo "arm S and arm C are byte-identical — the libjudy/ swap did not take"
+            exit 1
+          fi
+
+      - name: Run the gate
+        shell: bash
+        env:
+          GATE_FLAG: ${{ (github.event.inputs.gate == 'false') && ' ' || '--gate' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$BENCH_TMP/results"
+          cp "$BENCH_TMP/arm-s-manifest.json" "$BENCH_TMP/results/"
+          # Driven by the BUILDER's php.exe: it is the one the DLLs load into,
+          # and bench-gate.php spawns its children with PHP_BINARY.
+          "$BENCH_TMP/php-runtime/php.exe" scripts/bench-gate.php \
+            --arm "C=$BENCH_TMP/arms/judy-C-1.dll" \
+            --arm "S=$BENCH_TMP/arms/judy-S-1.dll" \
+            --platform windows-x64 \
+            --tier ci-relative-single-build \
+            --toolchain "MSVC / PHP $("$BENCH_TMP/php-runtime/php.exe" -r 'echo PHP_VERSION;')" \
+            --rounds "$BENCH_ROUNDS" --size "$BENCH_SIZE" \
+            --groups "$BENCH_GROUPS" --mem-sizes "$BENCH_MEM_SIZES" \
+            --baseline baselines/arm-ratios.json \
+            --out "$BENCH_TMP/results/gate-windows-x64-1.json" \
+            $GATE_FLAG
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-gate-windows-x64
+          path: ${{ runner.temp }}/results
+          retention-days: 90
+
+  # ── Consolidated summary ──────────────────────────────────────────────────
+  summary:
+    name: gate / summary
+    needs: [linux-glibc, linux-musl, macos-arm64, windows-x64]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: bench-gate-*
+          path: results
+        continue-on-error: true
+      - name: Render the summary
+        run: php scripts/bench-gate-report.php results >> "$GITHUB_STEP_SUMMARY"

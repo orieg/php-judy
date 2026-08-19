@@ -1,0 +1,18 @@
+{
+    "object": "\/tmp\/arms\/judy-S-1.so",
+    "census": {
+        "tool": "objdump",
+        "arch": "x86_64",
+        "popcnt": 0,
+        "bswap": 12,
+        "cnt": 0,
+        "rev": 0,
+        "fingerprint": {
+            "o1": "popcnt",
+            "o3": "bswap"
+        },
+        "o1_count": 0,
+        "o3_count": 12,
+        "note": "arm S must read popcnt == 0; arm C reads it in the dozens. The bswap count is corroboration only (the mnemonic has incidental non-O3 uses)."
+    }
+}
