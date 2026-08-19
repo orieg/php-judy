@@ -64,13 +64,23 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
   [The optimizeIteration mirror](#the-optimizeiteration-mirror-measured) and in
   the bounded-read benchmarks described there.
 - **Test Methodology**: Multiple iterations with statistical analysis (min/max/median/percentiles)
-- **Memory Measurement**: `memory_get_usage(true)` and `Judy::memoryUsage()`.
-  **Both under-report, and `memory_get_usage()` is blind to a Judy index
-  entirely** — libJudy allocates through `malloc(3)`, outside PHP's memory
-  manager (see [issue #172](https://github.com/orieg/php-judy/issues/172) and
-  the note further down this file). The figures in this section inherit that
-  limitation. The measurements taken with peak RSS, which does see it, are in
-  [Three-arm benchmark](#three-arm-benchmark-array-vs-system-libjudy-vs-bundled-libjudy-measured).
+- **Memory Measurement**: the figures in *this* section were taken with
+  `memory_get_usage(true)` and `Judy::memoryUsage()` and **inherit those
+  instruments' limits** — `memory_get_usage()` reports PHP's Zend heap, and
+  libJudy allocates every trie node with plain `malloc(3)`, so it is blind to a
+  Judy index entirely (for `BITSET` and `INT_TO_INT` it returns the wrapper
+  object and nothing else, ~160 bytes at any element count), while
+  `Judy::memoryUsage()` is not the same instrument across types: exact for the
+  trie in `BITSET`/`INT_TO_INT`, blind to the `emalloc`'d zvals behind
+  `INT_TO_MIXED`/`INT_TO_PACKED`, and only a payload approximation for
+  `STRING_TO_*` (see [#172](https://github.com/orieg/php-judy/issues/172)).
+  **The instrument now in use is peak RSS** — `getrusage()['ru_maxrss']` read in
+  a child process that builds exactly one structure, with an empty-process floor
+  subtracted. It is uniform across every type, and is what
+  [`judy-bench.php`](examples/benchmarks/judy-bench.php) reports as `rss_bytes`
+  and what the [three-arm memory study](#memory--the-headline-and-the-least-equivocal-result)
+  measures. Table 1's memory column below is superseded by that table; prefer it
+  for any memory figure.
 
 *Note: Results may vary based on hardware, system load, and PHP configuration. All benchmarks use the same Docker environment for consistency.*
 
@@ -85,7 +95,14 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 > [Judy in PHP Developer Tooling](#judy-in-php-developer-tooling).
 
 **Use Judy Arrays When:**
-- ✅ Memory is constrained (savings are type-dependent — see [Three-arm benchmark](#three-arm-benchmark-array-vs-system-libjudy-vs-bundled-libjudy-measured))
+- ✅ Memory is constrained — **but the saving is strongly type-dependent, and
+  one type is a loss.** Measured as peak RSS against a PHP array: `BITSET`
+  18.5-22.7x smaller, sparse integer keys 3.1-5.3x, string keys 3.3-3.8x, dense
+  integer keys 2.0-2.5x — and `INT_TO_MIXED` **1.05-1.3x larger** (a loss, stable at ~1.3x from 1M up). No single
+  range covers those; read the per-type figures in
+  [Memory — the headline](#memory--the-headline-and-the-least-equivocal-result) before
+  sizing anything. (The "2-4x" this line used to quote came from an instrument
+  that could not see a Judy index; see [#172](https://github.com/orieg/php-judy/issues/172).)
 - ✅ Large datasets (> 1M elements) where memory efficiency matters
 - ✅ Sequential access patterns and ordered iteration
 - ✅ Range queries and ordered operations
@@ -121,6 +138,14 @@ Our benchmark suite tests multiple scenarios to provide realistic performance da
 ## 📈 **Key Performance Findings**
 
 ### **Table 1: Memory Efficiency & Performance Trade-offs**
+
+> ⚠️ **The "Memory Savings" column is superseded.** It was produced by the
+> `Judy::memoryUsage()` / `memory_get_usage(true)` mix described in
+> [#172](https://github.com/orieg/php-judy/issues/172), which cannot see libJudy's `malloc`'d
+> trie, and it reports a single figure per size where the real ratio is
+> type-dependent (`BITSET` 18.5-22.7x, `INT_TO_MIXED` a *loss* of up to 1.3x). The
+> "Performance Impact" column is unaffected. For memory, use the peak-RSS table
+> in [Memory — the headline](#memory--the-headline-and-the-least-equivocal-result).
 
 | Dataset Size | Memory Savings | Performance Impact | Best Use Case       | Recommendation                        |
 | ------------ | -------------- | ------------------ | ------------------- | ------------------------------------- |
@@ -241,15 +266,25 @@ returns an empty array for an empty range. And a walk is right when you mean to
 ## Key Findings
 
 ### **Memory Efficiency**
-- Judy arrays use less memory than PHP arrays for most types, but **"2-4x" was
-  the wrong summary**: it came from `memory_get_usage()`, which cannot see a
-  Judy index at all (#172). Measured with peak RSS, the saving is strongly
-  type-dependent — `BITSET` far above that range, `string_to_int` ~3.4x,
-  `int_to_int` ~2.1x, and **`INT_TO_MIXED` is a loss**, using ~1.1x *more*
-  than a PHP array. Per-type figures:
-  [Three-arm benchmark](#three-arm-benchmark-array-vs-system-libjudy-vs-bundled-libjudy-measured).
-- The advantage grows with scale for `BITSET` (18.5x at 100k -> 22.7x at 8M)
-- String-based Judy arrays show moderate memory savings with performance trade-offs
+
+Measured as peak RSS against a PHP array holding the same data — **there is no
+single ratio, and `INT_TO_MIXED` is a loss.** Full table, with n and CIs, in
+[Memory — the headline](#memory--the-headline-and-the-least-equivocal-result).
+
+| Type / key shape | vs PHP array | Note |
+| --- | --- | --- |
+| `BITSET` | **18.5-22.7x smaller** | The library's strongest case; the advantage *grows* with scale |
+| Sparse integer keys (`INT_TO_INT`) | **3.1-5.3x smaller** | Shrinks with scale; a PHP array cannot pack a sparse range |
+| String keys (`STRING_TO_INT`) | **3.3-3.8x smaller** | Roughly flat from 100k to 8M |
+| Dense integer keys (`INT_TO_INT`) | **2.0-2.5x smaller** | Weakest win — PHP's packed array is genuinely good here |
+| `INT_TO_MIXED` | **1.05-1.3x LARGER** | A regression, and it worsens with scale (~1.05x at 100k, stable ~1.3x from 1M up). Judy holds a pointer to a separately allocated zval where PHP packs it — use this type for the ordering or the API, not the footprint |
+
+- The ratio is **not** consistent across dataset sizes: `BITSET` improves with
+  scale (18.5x at 100k to 22.7x at 8M) while sparse integer keys degrade
+  (5.3x to 3.1x).
+- The earlier "2-4x across the board" summary is withdrawn: it came from
+  `memory_get_usage()`, which reports PHP's Zend heap and is blind to the
+  `malloc`'d trie that is most of a Judy index ([#172](https://github.com/orieg/php-judy/issues/172)).
 
 ### **Performance Characteristics**
 - **Access Pattern Sensitivity**: Judy's performance heavily depends on access patterns (see "The Key Difference: O(log n) vs O(1)" section above)
@@ -612,7 +647,11 @@ Memcached. It measures in-process data-structure behavior only.
 - Shared hosting with limited memory
 - Docker containers with memory limits
 - Applications where memory usage is critical
-- **Benefit**: 3.5x less memory usage than PHP arrays
+- **Benefit**: smaller peak RSS than a PHP array for every type except
+  `INT_TO_MIXED` — 18.5-22.7x for `BITSET`, 3.1-5.3x for sparse integer keys,
+  3.3-3.8x for string keys, 2.0-2.5x for dense integer keys, and a 1.05-1.3x
+  *increase* for `INT_TO_MIXED`
+  ([per-type table](#memory--the-headline-and-the-least-equivocal-result))
 
 **2. Sequential Access Patterns**
 - Iterating through all keys/values
@@ -1351,15 +1390,20 @@ $j->memoryUsage(); // 0 — freed
   Judy BITSET:     ~ 50 KB   (10x less)
 ```
 
-**Dense integer counters**: `INT_TO_INT` with sequential keys uses 2-4x less memory than a PHP array at large scale (100K+ elements), because Judy compresses dense key ranges into compact leaf nodes.
+*Illustrative, and not peak RSS*: the Judy rows are `memoryUsage()` (trie only)
+against `memory_get_usage()` for the array, so the two sides are different
+instruments and the ratios are indicative rather than claim-grade. For measured
+peak-RSS ratios at 100k-8M see [Memory — the headline](#memory--the-headline-and-the-least-equivocal-result).
 
-**Bitset/presence tracking**: `BITSET` stores only the bit index with no value storage. At 1M elements, a Judy `BITSET` uses ~10x less memory than `$php_array[$i] = true`.
+**Dense integer counters**: `INT_TO_INT` with sequential keys uses 2.0-2.5x less memory than a PHP array at large scale (100k-8M measured), because Judy compresses dense key ranges into compact leaf nodes. This is the *weakest* of Judy's memory wins — PHP's packed-array representation is genuinely efficient for dense integer keys. Sparse keys are where the type pays off: 3.1-5.3x over the same range ([measured](#memory--the-headline-and-the-least-equivocal-result)).
+
+**Bitset/presence tracking**: `BITSET` stores only the bit index with no value storage. Measured as peak RSS against `$php_array[$k] = true`, it is **21.9x smaller at 1M** and 22.7x at 8M on stride-7 keys ([measured](#memory--the-headline-and-the-least-equivocal-result)), and better still on dense keys — >40x at 500k ([#172](https://github.com/orieg/php-judy/issues/172)). Any "~10x" figure predates the peak-RSS instrument and understates this by half.
 
 ### When PHP Arrays Win
 
 **Small datasets (< 1K elements)**: PHP's hash table has lower fixed overhead. The crossover point depends on key density, but Judy's memory advantage typically appears above ~1K elements.
 
-**Mixed-type values with frequent access**: `INT_TO_MIXED` stores `zval *` pointers in JudyL slots, so the zval heap cost is identical to PHP arrays. The `memoryUsage()` value only reflects Judy trie overhead, not the stored values. For small-to-medium datasets, PHP arrays will use less total memory.
+**Mixed-type values with frequent access**: `INT_TO_MIXED` stores `zval *` pointers in JudyL slots, so the zval heap cost is identical to PHP arrays. The `memoryUsage()` value only reflects Judy trie overhead, not the stored values. **PHP arrays use less total memory here at every size measured**, not just small ones — peak RSS puts Judy 1.05x larger at 100k and a stable ~1.3x larger from 1M to 8M ([measured](#memory--the-headline-and-the-least-equivocal-result)).
 
 **String-keyed lookups**: JudySL's byte-by-byte trie traversal uses more memory per key than PHP's hash table for short, common-prefix-free keys.
 
