@@ -103,8 +103,10 @@ slot cannot pass as a miss. Leave `MULTIGET` unset for stock/system
 libraries, which lack the symbol. To force the pipelined path onto every
 tree (the production entry point falls back to serial probes below its
 tiny-tree/tiny-batch thresholds), build the prefix with
-`-DcJL_MULTIGET_SERIAL_POP1=0 -DcJL_MULTIGET_SERIAL_COUNT=1`; lane-count
-variants build with `-DcJL_MULTIGET_LANES=<1..64>`.
+`-DcJL_MULTIGET_SERIAL_POP1=0 -DcJL_MULTIGET_SERIAL_COUNT=1`; add
+`-DcJL_MULTIGET_PART_SHIFT=0` to force the counting partition on at every
+batch size (its adaptive form only engages on long bimodal batches);
+lane-count variants build with `-DcJL_MULTIGET_LANES=<1..64>`.
 
 ### `--no-bulk` and stock libraries
 
@@ -190,18 +192,19 @@ AND harness instrumented) 48-cell smoke clean; 300 s soak (7300 cells,
 thresholds compiled out) clean.
 
 **V6 — the O5-reopen counting partition, watched to fail (recorded
-2026-08-18, Apple clang, arm64, thresholds compiled out).** The #142 O5
-reopen moved a stable counting partition inside `JudyLMultiGet` (keys
-grouped by a discriminating byte, each key carrying its original result
-slot through the pipeline). A deliberately broken build with an
-off-by-one in the partition's scatter slots (`pslots[pos] = i + 1`
-instead of `i` -- results land one slot away) was caught in the
-`multiget` phase at op#=255 of the first `judyl/uniform` cell:
-`multiget[0/17] key 0x7b122ea940ae576c: batched 0x100fc8040 != serial
-0xb04c882a0`. The intact partitioned build passes the 48-cell smoke and
-a 300 s soak (6704 cells) clean, and the ASan+UBSan instrumented smoke
-clean, all with thresholds compiled out so the partitioned pipeline runs
-on every tree.
+2026-08-18, Apple clang, arm64, thresholds compiled out and
+`-DcJL_MULTIGET_PART_SHIFT=0` pinned so the partition runs forced on
+every batch).** The #142 O5 reopen moved a stable counting partition
+inside `JudyLMultiGet` (keys grouped by a discriminating byte, each key
+carrying its original result slot through the pipeline). A deliberately
+broken build with an off-by-one in the partition's scatter slots
+(`pslots[pos] = i + 1` instead of `i` -- results land one slot away) was
+caught in the `multiget` phase at op#=255 of the first `judyl/uniform`
+cell: `multiget[0/17] key 0x7b122ea940ae576c: batched != serial`. The
+intact build passes the 48-cell smoke and a 300 s soak clean in the same
+forced-partition configuration, the ASan+UBSan instrumented smoke clean,
+and the smoke and a 300 s soak (6704 cells) clean in the
+adaptive-decision configuration without the pin.
 
 ## CI
 
@@ -216,8 +219,10 @@ output, so the fuzzed and shipped tables cannot drift apart.
 Both fuzz steps build the harness with `MULTIGET=1`: the production-flag
 grid exercises `JudyLMultiGet`'s serial-fallback contract (the fuzzer's
 trees sit below the shipped thresholds), and the sanitized grid compiles
-the thresholds out so the pipelined + counting-partition path runs on
-every tree, under ASan+UBSan and the per-slot pointer-identity oracle.
+the thresholds out and pins the partition byte (forcing the partition on
+at every batch size) so the pipelined + counting-partition path runs on
+every tree with maximal reordering, under ASan+UBSan and the per-slot
+pointer-identity oracle.
 
 **Profile split** — CI runs the bounded profile only; the long soaks stay a
 local / pre-release tool:

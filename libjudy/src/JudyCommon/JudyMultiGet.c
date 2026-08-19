@@ -63,17 +63,19 @@
 // Heterogeneous batches are partitioned before they enter the lanes
 // (#142 O5 reopen): the lanes lose when they simultaneously hold keys of
 // divergent descend classes (the original O5 gate's heterogeneous-batch
-// kill, x0.74) and win when they agree.  A per-call analysis of the
-// first cJL_MULTIGET_PART_BLOCK chunk picks a discriminating key byte
-// and decides from its histogram whether the batch is bimodal (dominant
-// class + tail); only then is each chunk grouped by a stable one-pass
-// counting partition -- unimodal batches skip the scatter and run at the
-// unpartitioned pipeline's speed.  Grouping is invisible to the caller:
-// each key carries its original result slot through the pipeline, so
-// PPValue[] comes back in input order.  cJL_MULTIGET_PARTITION=0
-// restores the input-order pipeline for benchmarking.  Callers amortize
-// the analysis by passing large batches (php-judy's getAll gathers 4096
-// keys per call).
+// kill, x0.74) and win when they agree.  Long batches (Count >=
+// cJL_MULTIGET_PART_MIN_COUNT, so the cost amortizes) get a per-call
+// analysis of their first cJL_MULTIGET_PART_BLOCK keys: it picks a
+// discriminating key byte and decides from its histogram whether the
+// batch is bimodal (dominant class + tail); only then is each chunk
+// grouped by a stable one-pass counting partition.  Everything else --
+// short batches, unimodal batches -- runs the archived input-order
+// pipeline unchanged.  Grouping is invisible to the caller: each key
+// carries its original result slot through the pipeline, so PPValue[]
+// comes back in input order.  cJL_MULTIGET_PARTITION=0 compiles the
+// partition out (bench control); cJL_MULTIGET_PART_SHIFT pins the byte
+// and forces the partition on at any Count (bench/fuzz arms).
+// php-judy's getAll gathers 4096 keys per call and so qualifies.
 //
 // This TU is JudyL-only: the API returns value-area pointers.  (A Judy1
 // MultiTest variant would need none of the value-area code; it has no
@@ -162,6 +164,19 @@ extern Word_t JudyLMultiGet(Pcvoid_t PArray, const Word_t *PIndex,
                                         // batches (dense runs, uniform
                                         // sparse) skip the scatter, keeping
                                         // them at archived-impl speed.
+
+#ifndef cJL_MULTIGET_PART_MIN_COUNT     // batches shorter than this skip the
+#define cJL_MULTIGET_PART_MIN_COUNT 2048// partition analysis entirely and run
+#endif                                  // the plain pipeline: the analysis
+                                        // reads ~one chunk (~400 cycles), so
+                                        // only a call long enough to amortize
+                                        // it below the ~3% claim floor on
+                                        // cache-resident corpora may pay it.
+                                        // php-judy's getAll gathers 4096 keys
+                                        // per call and so qualifies; C
+                                        // callers wanting the partition on
+                                        // heterogeneous batches should batch
+                                        // at least this many keys per call.
 
 // ****************************************************************************
 // PREFETCH: advisory; expanding to nothing is correct (only slower).
@@ -662,22 +677,23 @@ JudyMGLeaf:
 }
 
 // ****************************************************************************
-// J L   M G   P I P E L I N E
+// J L   M G   P I P E L I N E   ( P A R T I T I O N E D   C H U N K )
 //
-// Run the lane machine over Keys[0..Count-1] against the tree rooted at
-// Pjptop, writing each key's answer to PPValue[Base + Slots[i]] (a NULL
-// Slots means identity: PPValue[Base + i]).  Returns the number of
-// present keys.  Factored out of JudyLMultiGet() so the counting
-// partition below can feed it class-grouped chunks while every answer
-// still lands in the caller's slot for that key: the lane carries its
-// absolute output slot through the descend, so no inverse-permutation
-// scatter pass exists to get wrong.
+// Run the lane machine over one class-grouped chunk Keys[0..Count-1]
+// against the tree rooted at Pjptop, writing each key's answer to
+// PPValue[Base + Slots[i]].  Returns the number of present keys.  Only
+// the partitioned path uses this; every key carries its original result
+// slot through the descend, so no inverse-permutation scatter pass
+// exists to get wrong.  (The unpartitioned path keeps the archived
+// implementation's inline loop in JudyLMultiGet() itself -- routing it
+// through a shared parameterized function measured ~0.7-1 ns/key on
+// compute-bound corpora.)
 
 static Word_t jl_mg_pipeline(
         Pcvoid_t        PArray,         // for the per-key fallback only.
         Pjp_t           Pjptop,         // top JP of PArray's JPM.
-        const Word_t   *Keys,           // keys, possibly class-grouped.
-        const uint16_t *Slots,          // chunk-local result slots, or NULL.
+        const Word_t   *Keys,           // class-grouped chunk of keys.
+        const uint16_t *Slots,          // chunk-local result slots.
         Word_t          Base,           // PPValue[] offset of this chunk.
         PPvoid_t       *PPValue,        // caller's result slots (absolute).
         Word_t          Count)          // number of keys in this chunk.
@@ -691,8 +707,7 @@ static Word_t jl_mg_pipeline(
 #define JL_MG_LANE_START(Lane,I)                                        \
         {                                                               \
             (Lane)->mg_Index    = Keys[(I)];                            \
-            (Lane)->mg_Slot     = Base + ((Slots != (const uint16_t *)  \
-                                  NULL) ? (Word_t)Slots[(I)] : (I));    \
+            (Lane)->mg_Slot     = Base + (Word_t) Slots[(I)];           \
             (Lane)->mg_Pjp      = Pjptop;                               \
             (Lane)->mg_State    = JL_MG_JP;                             \
             (Lane)->mg_Fallback = 0;                                    \
@@ -809,47 +824,44 @@ FUNCTION Word_t JudyLMultiGet(
 
 // Pipelined path.  The array is known to start with a JPM here.
 //
-// Whether the batch is partitioned is decided ONCE per call, from its
-// first cJL_MULTIGET_PART_BLOCK keys (batch composition is in practice
-// stationary within a call; a stale decision costs only speed, never
-// correctness):
+// Long batches (Count >= cJL_MULTIGET_PART_MIN_COUNT) get a per-call
+// composition analysis of their first cJL_MULTIGET_PART_BLOCK keys
+// (composition is in practice stationary within a call; a stale
+// decision costs only speed, never correctness):
 //
-//   1. diff  = OR of (key XOR key0) over the first chunk; the partition
-//      byte is diff's highest nonzero byte (chunk-adaptive, so 32-bit-
-//      ranged key sets partition as well as full-width ones).
+//   1. diff  = OR of (key XOR key0); the partition byte is diff's
+//      highest nonzero byte (chunk-adaptive, so 32-bit-ranged key sets
+//      partition as well as full-width ones).
 //   2. A uint8 histogram of that byte yields maxcount (the dominant
 //      value's population) and nonzero (distinct values).  Partition is
 //      enabled iff maxcount * nonzero >= cJL_MULTIGET_PART_BIMODAL * m:
 //      a dominant class PLUS a tail (bimodal composition -- the original
 //      O5 gate's heterogeneous kill, x0.74) is where grouping pays.
 //      Unimodal batches -- uniform sparse (flat histogram) and dense
-//      runs (near-uniform over the byte's few values) -- skip the
-//      partition entirely.
+//      runs (near-uniform over the byte's few values) -- are left alone.
 //
 // A partitioned call runs in cJL_MULTIGET_PART_BLOCK chunks, each
-// grouped by a stable one-pass counting partition; results are
-// unaffected because every key carries its original slot through the
-// pipeline (see jl_mg_pipeline).  An UNpartitioned call runs as ONE
-// continuous pipeline over the whole batch -- chunking it would drain
-// and refill the lanes at every chunk boundary, which measured ~1 ns/key
-// against the archived impl on deep-sparse corpora.
+// grouped by a stable one-pass counting partition and pipelined with
+// its keys' original slots carried through (see jl_mg_pipeline).
+// Everything else -- short batches, unimodal batches, partition
+// compiled out -- runs the archived implementation's inline loop below,
+// byte-for-byte the #142 O5 gate's machine.
 
         {
-            Pjp_t  Pjptop = &(P_JPM(PArray)->jpm_JP);
+            Pjp_t Pjptop = &(P_JPM(PArray)->jpm_JP);
 
 #if cJL_MULTIGET_PARTITION
-            int    do_part = 0;
-            int    shift   = 0;
-
-            {
-                Word_t m0 = (Count < (Word_t) cJL_MULTIGET_PART_BLOCK)
-                          ? Count : (Word_t) cJL_MULTIGET_PART_BLOCK;
+            int   do_part = 0;
+            int   shift   = 0;
 
 #if (cJL_MULTIGET_PART_SHIFT >= 0)
-                (void) m0;
-                shift   = cJL_MULTIGET_PART_SHIFT;      // pinned (bench arm);
-                do_part = 1;                            // decision forced on.
+            shift   = cJL_MULTIGET_PART_SHIFT;  // pinned (bench/fuzz arm);
+            do_part = 1;                        // forced on at any Count.
 #else
+            if (Count >= (Word_t) cJL_MULTIGET_PART_MIN_COUNT)
+            {
+                Word_t m0   = (Count < (Word_t) cJL_MULTIGET_PART_BLOCK)
+                            ? Count : (Word_t) cJL_MULTIGET_PART_BLOCK;
                 Word_t diff = 0;
                 Word_t i;
 
@@ -879,8 +891,8 @@ FUNCTION Word_t JudyLMultiGet(
                     do_part = ((Word_t) maxcount * nonzero
                             >= (Word_t) cJL_MULTIGET_PART_BIMODAL * m0);
                 }
-#endif // adaptive
             }
+#endif // adaptive
 
             if (do_part)
             {
@@ -928,9 +940,75 @@ FUNCTION Word_t JudyLMultiGet(
             }
 #endif // cJL_MULTIGET_PARTITION
 
-            hits += jl_mg_pipeline(PArray, Pjptop, PIndex,
-                                   (const uint16_t *) NULL,
-                                   (Word_t) 0, PPValue, Count);
+// Unpartitioned pipeline: the archived implementation's driver loop,
+// verbatim.
+
+            {
+                jl_mg_lane_t lanes[cJL_MULTIGET_LANES];
+                int          live = 0;
+                int          l;
+
+#define JL_MG_LANE_START(Lane,Slot)                                     \
+                {                                                       \
+                    (Lane)->mg_Index    = PIndex[(Slot)];               \
+                    (Lane)->mg_Slot     = (Slot);                       \
+                    (Lane)->mg_Pjp      = Pjptop;                       \
+                    (Lane)->mg_State    = JL_MG_JP;                     \
+                    (Lane)->mg_Fallback = 0;                            \
+                    JL_MG_PREFETCH(Pjptop);                             \
+                }
+
+                for (l = 0; l < cJL_MULTIGET_LANES; ++l)  // lanes beyond
+                    lanes[l].mg_State = JL_MG_DONE;       // Count must
+                                                          // read as done.
+
+                for (next = 0; live < cJL_MULTIGET_LANES && next < Count;
+                     ++next)
+                {
+                    JL_MG_LANE_START(&lanes[live], next);
+                    ++live;
+                }
+
+                while (live > 0)
+                {
+                    for (l = 0; l < cJL_MULTIGET_LANES; ++l)
+                    {
+                        jl_mg_lane_t *Lane = &lanes[l];
+
+                        if (Lane->mg_State == JL_MG_DONE)
+                            continue;
+
+                        jl_mg_step(Lane, PPValue);
+
+                        if (Lane->mg_State != JL_MG_DONE)
+                            continue;
+
+                        // Lane finished: resolve fallbacks (unrecognized
+                        // JP type -- never taken on a healthy tree),
+                        // count, and refill the lane.
+
+                        if (Lane->mg_Fallback)
+                            PPValue[Lane->mg_Slot] =
+                                JudyLGet(PArray, Lane->mg_Index, PJE0);
+
+                        if (PPValue[Lane->mg_Slot] != (PPvoid_t) NULL
+                         && PPValue[Lane->mg_Slot] != PPJERR)
+                            ++hits;
+
+                        if (next < Count)
+                        {
+                            JL_MG_LANE_START(Lane, next);
+                            ++next;
+                        }
+                        else
+                        {
+                            --live;
+                        }
+                    }
+                }
+
+#undef JL_MG_LANE_START
+            }
         }
 
         return(hits);
