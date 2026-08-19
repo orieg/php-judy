@@ -1,0 +1,20 @@
+# Heap-corruption triage (surfaced by, not caused by, the three-arm benchmark)
+
+Both arms, both sizes. NOT a bundled-vs-system difference.
+
+## linux/amd64 (Docker), judy-bench.php --group core.int --iterations 1
+arm=B n=3000000  rc=0        PHP array                     156.09         91.70         75.39         30.00       64.0 MB zend_mm_heap corrupted 
+arm=B n=6000000  rc=0        PHP array                     430.23        187.85        141.98         58.76      128.0 MB zend_mm_heap corrupted 
+arm=C n=3000000  rc=0        PHP array                     151.92         90.83         77.12         29.12       64.0 MB zend_mm_heap corrupted 
+arm=C n=6000000  rc=0        PHP array                     367.46        195.77        140.10         73.84      128.0 MB zend_mm_heap corrupted 
+
+## macOS arm64, minimal 6M INT_TO_INT insert loop (control: clean)
+  n=1000000 arm=B rc=0 count=1000000 mem=8323832
+  n=1000000 arm=C rc=0 count=1000000 mem=8323832
+  n=6000000 arm=B rc=0 count=6000000 mem=49885112
+  n=6000000 arm=C rc=0 count=6000000 mem=49885112
+  n=6000000 arm=B rc=0 (memory_limit=2G) count=6000000 mem=49885112
+  n=6000000 arm=C rc=0 (memory_limit=2G) count=6000000 mem=49885112
+
+## honeycomb native x86-64
+  arm=B n=6000000 judy-bench core.int -> SIGSEGV (status 139)

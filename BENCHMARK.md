@@ -1772,12 +1772,25 @@ null automatically; none in the reported set were.
   (`bitset` 30.2x vs 22.7x, `int_to_mixed` 0.79x vs 0.79x, `string_to_int` 3.09x
   vs 3.32x) and its B/C ratios are ~1.00, but they are reported as directional.
   **Apple clang / arm64 remains this project's acknowledged measurement gap.**
-- **Out-of-cache timing is not measured.** The intended 6M run aborted: arm B
-  terminated with SIGSEGV in the `core.int` group. That is under separate
-  investigation and is deliberately **not** reported as a php-judy-versus-system
-  robustness claim — a single uncharacterized crash is not a result. The 8M rows
-  in the memory table are unaffected, since those run in their own child
-  processes.
+- **Out-of-cache timing is not measured, and the reason is a memory-safety
+  signal that is still open.** The intended 6M run aborted when arm B terminated
+  with SIGSEGV in the `core.int` group. Triage so far:
+
+  | check | result |
+  | --- | --- |
+  | macOS arm64, plain 6M `INT_TO_INT` insert loop, both arms | clean, no fault, identical `memoryUsage()` |
+  | linux/amd64, `judy-bench.php --group core.int --size 3000000`, arm **B** | `zend_mm_heap corrupted` |
+  | linux/amd64, same cell, arm **C** (bundled) | `zend_mm_heap corrupted` |
+
+  **Both arms corrupt the heap**, so this is explicitly **not** a
+  bundled-versus-system robustness claim, and nothing in this section should be
+  read as one. A simple large insert loop is clean, so it is specific to what the
+  `core.int` group does at scale. Whether the fault lies in the extension, in the
+  benchmark script, or in libJudy below both is **not yet established**, and it is
+  being tracked as its own correctness investigation rather than resolved here —
+  a memory-safety bug is not a benchmark footnote. The 8M rows in the memory
+  table are unaffected: those run in their own child processes and complete
+  cleanly.
 - **Alpine / musl is not measured.** It matters — musl's allocator is not
   glibc's and Judy is allocation-heavy — and Alpine ships **pristine** 1.0.5, so
   its B-vs-C would also include P1. Deferred for host scheduling reasons only.
