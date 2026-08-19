@@ -1,0 +1,75 @@
+php-judy three-arm benchmark
+  A  PHP native array
+  B  php-judy + system libJudy  : /private/tmp/claude-501/-Users-nicolas-Documents-git-orieg-php-judy--claude-worktrees-quizzical-grothendieck-3fa8aa/06f561e1-3f48-402b-9b8d-e74604df5c75/scratchpad/mac/builds/judy-B-.so
+  C  php-judy + bundled libJudy : /private/tmp/claude-501/-Users-nicolas-Documents-git-orieg-php-judy--claude-worktrees-quizzical-grothendieck-3fa8aa/06f561e1-3f48-402b-9b8d-e74604df5c75/scratchpad/mac/builds/judy-C-.so
+  memory int_to_int     n=100000    A=3.0 MB     B=944.0 KB   C=1.1 MB      A/C=2.73x
+  memory int_to_int     n=1000000   A=16.8 MB    B=8.2 MB     C=8.2 MB      A/C=2.05x
+  memory int_to_int     n=8000000   A=123.6 MB   B=63.9 MB    C=64.0 MB     A/C=1.93x
+  memory int_sparse     n=100000    A=6.9 MB     B=1.5 MB     C=1.5 MB      A/C=4.68x
+  memory int_sparse     n=1000000   A=41.0 MB    B=12.7 MB    C=12.7 MB     A/C=3.22x
+  memory int_sparse     n=8000000   A=310.7 MB   B=100.3 MB   C=100.3 MB    A/C=3.10x
+  memory int_to_mixed   n=100000    A=3.4 MB     B=3.8 MB     C=3.8 MB      A/C=0.90x
+  memory int_to_mixed   n=1000000   A=30.4 MB    B=38.6 MB    C=38.6 MB     A/C=0.79x
+  memory int_to_mixed   n=8000000   A=244.2 MB   B=308.2 MB   C=308.3 MB    A/C=0.79x
+  memory string_to_int  n=100000    A=7.6 MB     B=2.3 MB     C=2.2 MB      A/C=3.40x
+  memory string_to_int  n=1000000   A=76.7 MB    B=20.8 MB    C=22.5 MB     A/C=3.41x
+  memory string_to_int  n=8000000   A=614.9 MB   B=198.8 MB   C=198.7 MB    A/C=3.09x
+  memory bitset         n=100000    A=6.9 MB     B=320.0 KB   C=336.0 KB    A/C=21.09x
+  memory bitset         n=1000000   A=41.0 MB    B=1.5 MB     C=1.4 MB      A/C=28.53x
+  memory bitset         n=8000000   A=310.7 MB   B=10.3 MB    C=10.3 MB     A/C=30.22x
+
+------------------------------------------------------------------------------------------------
+php-judy three-arm benchmark — macos-arm64-appleclang21-php8.5-MEMORY-ONLY
+------------------------------------------------------------------------------------------------
+  PHP 8.5.8, Darwin arm64
+  arm B system libJudy : Homebrew judy 1.0.5 (bottle) — PRISTINE upstream tarball, formula carries no patch stanza
+  arm C bundled libJudy: bundled libjudy/ (vendored Judy-1.0.5 + P1-P7, O1, O3, O4)
+  size 300000 (cache-resident), 7 rounds, 3 iterations, floor 3.0%
+  same-source attested : yes
+
+  host hygiene
+    start          load1=4.22   cpus=8 threshold=4.0 *** OVER THRESHOLD ***
+      heavy: 156.4% bfs
+      heavy:  71.1% /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+      heavy:  65.1% /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)
+      heavy:  44.8% /System/Library/PrivateFrameworks/XprotectFramework.framework/Versions/A/XPCServices/XprotectService.xpc/Contents/MacOS/XprotectService
+      heavy:  18.1% /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)
+    after-memory   load1=4.11   cpus=8 threshold=4.0 *** OVER THRESHOLD ***
+      heavy:  74.3% /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)
+      heavy:  41.2% /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)
+      heavy:  36.7% /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+      heavy:  11.8% agy
+      heavy:   8.4% /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)
+    end            load1=4.11   cpus=8 threshold=4.0 *** OVER THRESHOLD ***
+      heavy:  53.3% /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)
+      heavy:  49.2% /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)
+      heavy:  43.5% /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+      heavy:  10.6% agy
+      heavy:  10.2% /Applications/Google Chrome.app/Contents/Frameworks/Google Chrome Framework.framework/Versions/151.0.7922.138/Helpers/Google Chrome Helper (Renderer).app/Contents/MacOS/Google Chrome Helper (Renderer)
+
+  control (PHP-only rows, touch no libJudy): +0.00% [+0.00, +0.00] over 0 rows
+  measured control scatter: 0.00%  (assumed floor 3.0%)
+  *** RUN FLAGGED CONTAMINATED — all verdicts suppressed to null ***
+
+------------------------------------------------------------------------------------------------
+  MEMORY — peak RSS over per-arm empty-process floor (the headline axis)
+------------------------------------------------------------------------------------------------
+  workload                n      A array     B system    C bundled       A/C       B/C
+  int_to_int         100000       3.0 MB     944.0 KB       1.1 MB     2.73x     0.84x
+  int_to_int        1000000      16.8 MB       8.2 MB       8.2 MB     2.05x     1.00x
+  int_to_int        8000000     123.6 MB      63.9 MB      64.0 MB     1.93x     1.00x
+  int_sparse         100000       6.9 MB       1.5 MB       1.5 MB     4.68x     1.01x
+  int_sparse        1000000      41.0 MB      12.7 MB      12.7 MB     3.22x     1.00x
+  int_sparse        8000000     310.7 MB     100.3 MB     100.3 MB     3.10x     1.00x
+  int_to_mixed       100000       3.4 MB       3.8 MB       3.8 MB     0.90x     0.98x
+  int_to_mixed      1000000      30.4 MB      38.6 MB      38.6 MB     0.79x     1.00x
+  int_to_mixed      8000000     244.2 MB     308.2 MB     308.3 MB     0.79x     1.00x
+  string_to_int      100000       7.6 MB       2.3 MB       2.2 MB     3.40x     1.01x
+  string_to_int     1000000      76.7 MB      20.8 MB      22.5 MB     3.41x     0.93x
+  string_to_int     8000000     614.9 MB     198.8 MB     198.7 MB     3.09x     1.00x
+  bitset             100000       6.9 MB     320.0 KB     336.0 KB    21.09x     0.95x
+  bitset            1000000      41.0 MB       1.5 MB       1.4 MB    28.53x     1.03x
+  bitset            8000000     310.7 MB      10.3 MB      10.3 MB    30.22x     1.00x
+  A/C above 1.00 means the PHP array uses that many times more memory than php-judy.
+
+Wrote /private/tmp/claude-501/-Users-nicolas-Documents-git-orieg-php-judy--claude-worktrees-quizzical-grothendieck-3fa8aa/06f561e1-3f48-402b-9b8d-e74604df5c75/scratchpad/mac/results/mac-memory.json

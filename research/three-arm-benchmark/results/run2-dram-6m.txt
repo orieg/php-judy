@@ -1,0 +1,7 @@
+php-judy three-arm benchmark
+  A  PHP native array
+  B  php-judy + system libJudy  : /work/builds/judy-B-1.so, /work/builds/judy-B-2.so, /work/builds/judy-B-3.so
+  C  php-judy + bundled libJudy : /work/builds/judy-C-1.so, /work/builds/judy-C-2.so, /work/builds/judy-C-3.so
+arm B1: group core.int failed (status 139)
+Segmentation fault (core dumped)
+

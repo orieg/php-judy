@@ -96,4 +96,64 @@ as "the vendoring speedup" without this decomposition printed beside it.
 
 ## Result
 
-*(To be filled in after `run5-attribution.json` exists. Prediction above is frozen.)*
+Measured 2026-08-19, `run5-attribution.json`, exclusive pinned host, hygiene
+clean (`failed=false`, `foreign_tenant=false`), php-only control
+`-0.08% [-0.21, +0.05]` over 43 rows, 81 FASTER / 0 SLOWER / 13 null. Arm S
+verified unpatched at the instruction level (popcnt=0, bswap=12) against arm C
+(popcnt=89, bswap=985).
+
+| family | S-vs-C (patches only) | B-vs-C (full delivered) | patch share of the gain |
+| --- | --- | --- | --- |
+| int/bitset-keyed | **-16.54%** (n=32) | -17.66% (n=33) | **96.5%** |
+| string-keyed | **-11.36%** (n=49) | -22.16% (n=57) | **39.8%** |
+
+Patch share is the per-cell median of `ln(S-vs-C ratio) / ln(B-vs-C ratio)` over
+matched cells. B-vs-S is not measured directly; it is the residual, and is
+described as such.
+
+### Scoring — this was a split decision, and both predictions lost something
+
+**On integer paths I was right and the coordinator was wrong.** Our source
+patches explain **96.5%** of the delivered integer-path gain. Linkage and
+hardening flags contribute roughly one percentage point of the -17.66%. The
+prediction that S-vs-C would be "small, plausibly single-digit" is falsified for
+this family: -16.54% is neither small nor single-digit, and the largest S-vs-C
+cells are exactly the integer API operations (`api.equals.int_to_int` -28.3%,
+`api.fromArray.int_to_int` -25.7%, `api.putAll.int_to_int` -25.4%).
+
+**On string paths the coordinator's concern was justified and my prediction
+failed.** I predicted S-vs-C would carry more than half the effect in BOTH
+families. It carries only **39.8%** on strings — the majority of the string
+uplift is NOT our source patches. My string threshold (">=10%") was met at
+-11.36%, so O4 and the JudyL-layer effect are real and measurable, but they are
+not the main story there. Had this been published as "vendoring made string
+operations 22% faster because of our patches", it would have been wrong by
+roughly a factor of two.
+
+**Both of us were wrong about the shape of the linkage effect.** I predicted it
+would be "under 10% and roughly key-type-agnostic"; the coordinator implicitly
+predicted the same uniformity. It is strongly key-type-**specific**: about one
+point on integer paths versus roughly eleven on string paths.
+
+The most plausible mechanism for that asymmetry — offered as a hypothesis, not a
+measurement, since the host has no PMU — is call frequency. `JudySL` and
+`JudyHS` are layered *on top of* `JudyL`: one string operation performs several
+`JudyL` calls, each an exported-symbol call that in arm B crosses the PLT into a
+shared object, whereas in arms S and C it is a direct call inside the
+extension's own binary. PLT and hardening overhead therefore scale with the
+number of cross-library calls per PHP-level operation, and string operations
+make several times more of them than integer operations do. This predicts the
+observed asymmetry and is falsifiable: a `-fno-plt` or `-Bsymbolic` build of the
+shared arm should close most of the string gap and little of the integer one.
+
+### Consequence for BENCHMARK.md
+
+The headline is split by key type rather than stated once:
+
+- **Integer/bitset paths**: the gain is genuinely ours (96.5% attributable to
+  the vendored patches).
+- **String paths**: the delivered gain is real and users get all of it, but only
+  about 40% is attributable to our source changes; the rest comes from bundling
+  the library into the extension instead of linking a distro shared object.
+
+Both numbers are published, with the decomposition beside them.
