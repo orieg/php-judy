@@ -136,8 +136,8 @@ $opts = getopt('', [
     'mem-sizes:', 'mem-workloads:', 'mem-runs:', 'min-ms:', 'mem-min-bytes:',
     'platform:', 'label:', 'toolchain:', 'provenance:',
     'baseline:', 'gate', 'allow-contaminated', 'control-ceiling:', 'strict-hygiene',
-    'derive:', 'update-baseline:', 'tier:',
-    'out:', 'quiet', 'help',
+    'derive:', 'update-baseline:', 'tier:', 'allow-mixed-commits',
+    'out:', 'quiet', 'help', 'stability-csv:',
 ]);
 
 if (isset($opts['help'])) {
@@ -295,16 +295,45 @@ if (isset($opts['derive'])) {
             . "); derive one platform at a time\n");
         exit(2);
     }
-    $commits = array_unique(array_map(fn($r) => $r['metadata']['commit'] ?? '?', $runs));
-    if (count($commits) !== 1) {
-        fwrite(STDERR, "--derive: runs span several commits (" . implode(', ', $commits)
-            . "). The floor must be measured with the code held constant, or it\n"
-            . "  measures real change and not noise.\n");
+    // What must be held constant is the CODE, and for the S->C axis the code is
+    // libjudy/'s tree. Requiring one commit would be both too strict and too
+    // loose: too strict because the runs that matter most come from separate
+    // dispatches (different runner VMs, which is the variance the gate actually
+    // faces, and a docs-only commit in between changes nothing measurable), and
+    // too loose because one commit says nothing about which tree was built.
+    $trees = array_unique(array_map(fn($r) => $r['metadata']['libjudy_tree'] ?? '?', $runs));
+    if (count($trees) !== 1 || reset($trees) === '?') {
+        fwrite(STDERR, "--derive: runs span several libjudy/ trees (" . implode(', ', $trees)
+            . "). The S->C axis measures exactly that tree, so a floor derived across\n"
+            . "  two of them measures real change and not noise.\n");
+        exit(2);
+    }
+    $commits = array_values(array_unique(array_map(fn($r) => $r['metadata']['commit'] ?? '?', $runs)));
+    if (count($commits) !== 1 && !isset($opts['allow-mixed-commits'])) {
+        fwrite(STDERR, "--derive: runs span several commits:\n");
+        foreach ($commits as $c) { fwrite(STDERR, "    $c\n"); }
+        fwrite(STDERR, "  libjudy/ is identical across them, so the S->C axis is comparable, but the\n"
+            . "  extension sources may not be and the A->C axis could be measuring a real change.\n"
+            . "  Pass --allow-mixed-commits if the differences are docs/CI only. The commits are\n"
+            . "  recorded in the output either way.\n");
         exit(2);
     }
 
-    $derived  = ['platform' => reset($plats), 'commit' => reset($commits),
-                 'runs' => count($runs), 'run_files' => array_keys($runs), 'axes' => []];
+    $derived = [
+        'platform'      => reset($plats),
+        'libjudy_tree'  => reset($trees),
+        'commits'       => $commits,
+        'mixed_commits' => count($commits) !== 1,
+        'runs'          => count($runs),
+        'run_files'     => array_keys($runs),
+        // Distinct runner instances are what the derivation is really after: the
+        // gate compares against a baseline recorded on a DIFFERENT VM on a
+        // different day, so a floor derived only from repeats inside one job
+        // understates the variance it will actually face.
+        'distinct_hosts' => count(array_unique(array_map(
+            fn($r) => $r['metadata']['uname'] ?? '?', $runs))),
+        'axes'          => [],
+    ];
     $axes = [
         'timing.s_over_c' => ['timing', 's_over_c'],
         'timing.a_over_c' => ['timing', 'a_over_c'],
@@ -372,7 +401,16 @@ if (isset($opts['derive'])) {
         // Pool the ratios across the derivation runs: the stored baseline is the
         // median of several runs, not one lucky one.
         $plat = reset($plats);
-        $entry = ['recorded' => reset($runs)['metadata'], 'noise' => $derived['axes']];
+        $entry = [
+            'recorded'       => reset($runs)['metadata'],
+            'derived_from'   => [
+                'runs'           => $derived['runs'],
+                'distinct_hosts' => $derived['distinct_hosts'],
+                'commits'        => $derived['commits'],
+                'libjudy_tree'   => $derived['libjudy_tree'],
+            ],
+            'noise' => $derived['axes'],
+        ];
         foreach ($axes as $axis => [$section, $key]) {
             $pool = [];
             $gateable = [];
@@ -934,8 +972,9 @@ if ($baseline_platform !== null) {
 
 // ── Output ──────────────────────────────────────────────────────────────────
 
-$commit = trim((string) @shell_exec(
-    'git -C ' . escapeshellarg(__DIR__) . ' rev-parse HEAD 2> ' . TAM_DEVNULL));
+$git = 'git -C ' . escapeshellarg(__DIR__) . ' ';
+$commit       = trim((string) @shell_exec($git . 'rev-parse HEAD 2> ' . TAM_DEVNULL));
+$libjudy_tree = trim((string) @shell_exec($git . 'rev-parse HEAD:libjudy 2> ' . TAM_DEVNULL));
 
 $result = [
     'metadata' => [
@@ -944,6 +983,10 @@ $result = [
         'label'       => $opts['label'] ?? $platform,
         'tier'        => $opts['tier'] ?? 'ci-relative',
         'commit'      => $commit ?: null,
+        // The tree that actually determines the S->C axis. Recorded separately
+        // from the commit so a floor can be derived across docs/CI-only commits
+        // without pretending the measured code changed.
+        'libjudy_tree'=> $libjudy_tree ?: null,
         'date'        => date('c'),
         'php_version' => PHP_VERSION,
         'uname'       => php_uname(),
@@ -1024,6 +1067,44 @@ $result = [
 ];
 
 file_put_contents($out_file, json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
+
+// ---- the shared baseline-stability contract --------------------------------
+//
+// tools/bench-stability.py is this repo's contention detector: it takes an
+// UNTOUCHED baseline arm as a canary and fails when that arm's own absolute
+// timings move between trials, which is strictly stronger than the loadavg
+// heuristic that both of the campaigns that once corrupted each other passed.
+// Rather than reimplement that idea, this driver emits the CSV contract the
+// tool already reads (`arm,seed,corpus,n,trial,kernel,ns_per_op,hits`, with the
+// canary arm named `pre` and the kernel named `serial`) so the SAME tool can be
+// run over a gate run unchanged.
+//
+// Arm S is the canary: it is reconstructed from a pinned historical commit, so
+// no change in this repository can move it. Rounds are trials.
+//
+// Note what the two instruments answer, because they are not the same question.
+// bench-stability.py asks "were the ABSOLUTE times stable?". This gate's
+// verdicts never depend on that — both members of every pair are measured
+// seconds apart in the same round, so a drift that moves them together divides
+// out. A stability failure here therefore means "absolute numbers from this run
+// are not quotable", not "the gate's ratios are wrong". Both statements are
+// worth having, which is why the CSV is emitted rather than the check being
+// declared inapplicable.
+if (isset($opts['stability-csv'])) {
+    $rows = ["arm,seed,corpus,n,trial,kernel,ns_per_op,hits"];
+    foreach ($all_handles as $h) {
+        // `pre` is the tool's reserved name for the untouched baseline.
+        $arm_name = $role_of[$h] === 'S' ? 'pre' : strtolower($role_of[$h]);
+        foreach ($judy_ms[$h] as $id => $series) {
+            foreach ($series as $trial => $ms) {
+                // ns per element, so cells of different cost are comparable.
+                $rows[] = sprintf('%s,%s,%s,%d,%d,serial,%.4f,%d',
+                    $arm_name, $h, $id, $size, $trial + 1, $ms * 1e6 / max(1, $size), $size);
+            }
+        }
+    }
+    file_put_contents($opts['stability-csv'], implode("\n", $rows) . "\n");
+}
 
 if (!$quiet) {
     $line = str_repeat('-', 92);

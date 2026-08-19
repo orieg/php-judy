@@ -70,7 +70,7 @@ on:
       - "scripts/bench-gate.php"
       - "scripts/bench-arm-s.php"
       - "scripts/bench-lib.php"
-      - "research/three-arm-benchmark/**"
+      - "tools/bench-gate/**"
       - "baselines/arm-ratios.json"
       - ".github/workflows/bench-gate.yml"
 
@@ -116,7 +116,7 @@ jobs:
       - name: Build arms A/S/C from one tree with one toolchain
         run: |
           set -euo pipefail
-          ./research/three-arm-benchmark/build-arms.sh "$RUNNER_TEMP/arms" 2
+          ./tools/bench-gate/build-arms.sh "$RUNNER_TEMP/arms" 2
           cc --version | head -1 > "$RUNNER_TEMP/toolchain.txt"
 
       - name: Build arm B against the distro libJudy (reported, never gated)
@@ -138,7 +138,7 @@ jobs:
           GATE_FLAG: ${{ (github.event.inputs.gate == 'false') && ' ' || '--gate' }}
         run: |
           set -euo pipefail
-          ./research/three-arm-benchmark/run-gate.sh \
+          ./tools/bench-gate/run-gate.sh \
             --platform linux-glibc-x86_64 \
             --arms "$RUNNER_TEMP/arms" \
             --with-b \
@@ -193,8 +193,8 @@ jobs:
               # worktree is never built in and cannot contribute stale objects.
               git config --global --add safe.directory /src
               cd /src
-              ./research/three-arm-benchmark/build-arms.sh /tmp/arms 2
-              ./research/three-arm-benchmark/run-gate.sh \
+              ./tools/bench-gate/build-arms.sh /tmp/arms 2
+              ./tools/bench-gate/run-gate.sh \
                 --platform linux-musl-x86_64 \
                 --arms /tmp/arms \
                 --toolchain "$(cc --version | head -1) / musl / PHP $(php -r "echo PHP_VERSION;")" \
@@ -236,7 +236,7 @@ jobs:
       - name: Build arms A/S/C
         run: |
           set -euo pipefail
-          ./research/three-arm-benchmark/build-arms.sh "$RUNNER_TEMP/arms" 2
+          ./tools/bench-gate/build-arms.sh "$RUNNER_TEMP/arms" 2
 
       - name: Build arm B against Homebrew's pristine libJudy (reported, never gated)
         continue-on-error: true
@@ -258,7 +258,7 @@ jobs:
           set -euo pipefail
           extra=""
           [ -f "$RUNNER_TEMP/arms/judy-B-1.so" ] && extra="--with-b"
-          ./research/three-arm-benchmark/run-gate.sh \
+          ./tools/bench-gate/run-gate.sh \
             --platform macos-arm64 \
             --arms "$RUNNER_TEMP/arms" \
             $extra \
@@ -362,9 +362,24 @@ jobs:
           # changes, so compiler, PHP and extension source are held constant.
           mv libjudy "$TMP/libjudy-C"
           cp -R "$TMP/arm-s/libjudy" libjudy
-          rm -rf build
 
+          # The action packages its output into build/<hash>/artifacts/<name>.zip
+          # and the name depends only on extension/PHP/arch — not on the build —
+          # so a second invocation collides with the first zip and fails AFTER
+          # linking a perfectly good DLL. Remove the whole tree, and check that
+          # the removal actually happened rather than assuming it.
+          rm -rf build
+          if [ -d build ]; then echo "could not remove build/"; exit 1; fi
+
+      # continue-on-error is narrow, not blanket: the action's final step
+      # PACKAGES the DLL into a zip whose name is derived from
+      # extension/PHP/arch, so the second invocation can collide on that name
+      # and fail after linking a perfectly good DLL. The next step is the real
+      # check — it requires exactly ONE php_judy.dll to exist and requires it to
+      # differ byte-wise from arm C's, so a genuine compile failure (which
+      # leaves none, the tree having just been wiped) still fails the job.
       - name: Build arm S (pristine-static)
+        continue-on-error: true
         uses: php/php-windows-builder/extension@v1
         with:
           php-version: "8.4"

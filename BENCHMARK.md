@@ -2088,7 +2088,7 @@ of arm S. One script builds every arm from one tree with one toolchain:
 # Two independently linked builds of each of arms S and C. Two, not one:
 # they are rotated across rounds, and C1-vs-C2 is the rebuild control that
 # measures how far a cell can move for no reason on this machine today.
-./research/three-arm-benchmark/build-arms.sh /tmp/arms 2
+./tools/bench-gate/build-arms.sh /tmp/arms 2
 
 php scripts/bench-gate.php \
   --arm C=/tmp/arms/judy-C-1.so --arm C=/tmp/arms/judy-C-2.so \
