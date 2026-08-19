@@ -15,6 +15,38 @@
  */
 
 $dir = $argv[1] ?? '.';
+
+// The gate records, per cell, whether a ratio is resolvable at all: small memory
+// cells are page-quantised and move tens of percent between identical runs, so
+// bench-gate.php marks them `gateable: false` and refuses to derive a floor from
+// them. That judgement lives in the committed baseline, and until now this report
+// did not read it -- so a cell the tooling knows is noise rendered with exactly
+// the same authority as one measured to 2%. A dense Judy1 bitset is the worst
+// case: at 1e6 keys it is ~128 KB, comparable to the RSS floor's own scatter, and
+// on musl it has come out anywhere from ~23x to ~223x across runs.
+$baseline_path = getenv('JUDY_ARM_RATIOS') ?: (__DIR__ . '/../baselines/arm-ratios.json');
+$baseline = is_file($baseline_path)
+    ? (json_decode((string) @file_get_contents($baseline_path), true) ?: [])
+    : [];
+
+/** The baseline's verdict for one cell, or null when it has never been derived. */
+function judy_cell_quality(array $baseline, string $plat, string $axis, string $cell): ?array {
+    [$section, $key] = explode('.', $axis, 2);
+    $c = $baseline['platforms'][$plat][$section][$key][$cell] ?? null;
+    return is_array($c) ? $c : null;
+}
+
+/** Render a ratio, marking it when the baseline says it is not resolvable. */
+function judy_fmt_ratio(?float $v, string $fmt, array $baseline, string $plat,
+                        string $axis, string $cell, array &$flagged): string {
+    if ($v === null) { return '—'; }
+    $q = judy_cell_quality($baseline, $plat, $axis, $cell);
+    if ($q !== null && ($q['gateable'] ?? true) === false) {
+        $flagged["$plat|$cell"] = $q['spread_pct'] ?? null;
+        return '~' . sprintf($fmt, $v) . ' ⚠';
+    }
+    return sprintf($fmt, $v);
+}
 if (!is_dir($dir)) {
     fwrite(STDERR, "not a directory: $dir\n");
     exit(2);
@@ -134,8 +166,9 @@ foreach ($axis_titles as $key => $title) {
 // Memory, which is the least equivocal axis and deserves its own table.
 $mem = [];
 foreach ($runs as $plat => $r) {
-    foreach ($r['memory']['a_over_c'] ?? [] as $k => $c) { $mem[$k][$plat] = $c['ratio']; }
+    foreach ($r['memory']['a_over_c'] ?? [] as $k => $c) { $mem[$k][$plat] = (float) $c['ratio']; }
 }
+$mem_flagged = [];
 if ($mem) {
     echo "\n### Memory — PHP array bytes / php-judy bytes (above 1.00 is a php-judy win)\n\n";
     $plats = array_keys($runs);
@@ -143,8 +176,26 @@ if ($mem) {
     echo '| --- |' . str_repeat(' ---: |', count($plats)) . "\n";
     ksort($mem);
     foreach ($mem as $k => $byplat) {
-        $row = array_map(fn($p) => isset($byplat[$p]) ? sprintf('%.2fx', $byplat[$p]) : '—', $plats);
+        // A regular closure, not an arrow function: `fn()` captures by value, so a
+        // by-reference accumulator silently collects nothing.
+        $row = array_map(
+            function ($p) use ($byplat, $baseline, $k, &$mem_flagged) {
+                return judy_fmt_ratio($byplat[$p] ?? null, '%.2fx', $baseline, $p,
+                                      'memory.a_over_c', $k, $mem_flagged);
+            },
+            $plats);
         echo "| `$k` | " . implode(' | ', $row) . " |\n";
+    }
+    if ($mem_flagged) {
+        echo "\n> ⚠ Not resolvable by this instrument, and therefore **not gated**: the";
+        echo " structure is small enough that run-to-run scatter swamps the signal.";
+        echo " Recorded for completeness; do not quote these as measurements.";
+        foreach ($mem_flagged as $what => $spread) {
+            [$p, $cell] = explode('|', $what, 2);
+            echo "\n> `$cell` on `$p` — baseline spread "
+                . ($spread === null ? 'unknown' : sprintf('%.1f%%', $spread)) . '.';
+        }
+        echo "\n";
     }
 }
 
