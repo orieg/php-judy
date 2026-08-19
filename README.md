@@ -747,9 +747,16 @@ A release touches two version files, which must stay in lockstep (CI enforces bo
 Then:
 
 3. Refresh `BENCHMARK.md` version/date stamps.
-4. Bump the CI performance baseline in `.github/workflows/ci.yml` (the `pie install orieg/judy:X.Y.Z` step) to the previous release, so benchmark comparisons stay apples-to-apples.
+4. Confirm the CI performance baseline in `.github/workflows/ci.yml` (the `pie install orieg/judy:X.Y.Z` step) names the *previous* release, so benchmark comparisons stay apples-to-apples. Normally it already does — step 7 of the previous release set it.
 5. Tag and publish the GitHub release as `vX.Y.Z`. The `Publish Release` workflow validates the tag against `package.xml`, builds the Windows DLLs, and attaches them plus the PECL `.tgz`.
 6. Upload the `.tgz` to pecl.php.net (manual, requires a PECL account).
+7. **Once the release is actually on pecl.php.net**, in one dedicated commit (never inside a feature PR — it is a baseline move):
+   - bump the `pie install orieg/judy:X.Y.Z` pin in `.github/workflows/ci.yml` to the just-published release, and
+   - replace `baselines/latest.json` with the `benchmark-linux-php8.4` artifact from the CI run **on the tagged commit**, keeping the parameters identical to the baseline it replaces (PHP 8.4, Linux x86_64, size 500000, iterations 7, suite `all`).
+
+   Neither can be done before the tag exists and the package is installable: the numbers must come from a build that reports the new version, and the pin must resolve on PECL. Record the interleaved comparison and its PHP-array control in the commit message, as `0b064b0` does.
+
+`baselines/arm-ratios.json` is **not** part of this cycle. It is the cross-platform gate's reference, refreshed by `bench-gate.php --derive --update-baseline` when a platform's floors need re-deriving — also in its own PR, but on the gate's schedule rather than the release's. See [BENCHMARK.md](BENCHMARK.md#reproducing-the-gate-on-any-platform).
 
 `Dockerfile.validate` can smoke-test an already-built `.tgz` via `pecl install`.
 
