@@ -81,10 +81,11 @@ reproduction holds across platforms and stdlibs). Exit status: 0 ok,
 1 divergence, 2 usage/environment error.
 
 `JUDY_PREFIX` selects the library (default `/opt/homebrew` on macOS, `/usr`
-elsewhere). Point `JUDY_PREFIX` at the vendored bundled build once #142
-Stage 1 lands. `validation/build-stock.sh <src> <prefix> [CFLAGS...]` builds
-a linkable prefix from pristine 1.0.5 sources (e.g. this repo's `libjudy/src`)
-at any flags — that is how the validation below sanitizes the library itself.
+elsewhere). `validation/build-stock.sh <src> <prefix> [CFLAGS...]` builds a
+linkable prefix from Judy-1.0.5-layout sources at any flags — point it at
+this repo's `libjudy/src` to fuzz the bundled tree (what the CI job does),
+or at a pristine import to reproduce the validation runs below; sanitizer
+CFLAGS are how the library itself gets instrumented.
 
 ### `--no-bulk` and stock libraries
 
@@ -152,13 +153,31 @@ divergence.
 
 ## CI
 
-Deliberately not wired into CI yet: #142 Stage 1 owns the `ci.yml` rewrite,
-and wiring this in now would conflict. The smoke mode is shaped for
-`research/ci-smoke.sh` (warning-clean at `-Wall -Wextra -Werror`, sanitized
-build target, seconds-scale fixed-seed run, non-zero exit with reproduction
-line) and should join it — plus a bundled-tree cell in the extension CI —
-once Stage 1 lands. Until Stage 2's P3 lands, a stock system-lib CI cell
-must run `--no-bulk`.
+The `differential-fuzz` job in `.github/workflows/ci.yml` runs this harness
+on every PR against the **bundled** tree (`libjudy/src`, built by
+`validation/build-stock.sh` at config.m4's shipped flag set: `-O2 -fno-lto
+-fno-unroll-loops -DJU_64BIT`, `-mpopcnt` when accepted), so CI fuzzes the
+bytes a release build ships. The job also byte-compares the committed
+pre-generated `Judy1Tables.c`/`JudyLTables.c` against fresh generator
+output, so the fuzzed and shipped tables cannot drift apart.
+
+**Profile split** — CI runs the bounded profile only; the long soaks stay a
+local / pre-release tool:
+
+| where | build | run |
+| --- | --- | --- |
+| CI, every PR | production flags | `smoke` (48 cells x 60k ops, fixed seeds) + `soak 30` (fresh random seeds each run) |
+| CI, every PR | ASan+UBSan, library **and** harness | `smoke` |
+| CI, every PR | production flags, #131-class truncation planted | negative control: `smoke` must diverge with the judy1 missing-key signature |
+| local, pre-release | any of the above | `soak 300`+ per build, plus `--no-bulk` soaks against system libraries |
+
+The negative control re-creates #131's silent-key-loss behavior at the
+source level (truncating the `jp_1Index` immediate copy in `JudyCascade.c`
+to 8 bytes) so the gate is watched-to-fail on every run, on any compiler.
+
+`research/ci-smoke.sh` (the `build-research` job) additionally runs the
+iterbench/probebench ASan+UBSan grid against the same bundled-tree build via
+`JUDY_PREFIX`, alongside its system-library pass.
 
 Nothing in this directory ships: `research/` is excluded from `package.xml`
 by design.
