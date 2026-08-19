@@ -227,6 +227,20 @@ function gate_default_platform(): string
 const GATE_CELL_FLOOR_CEILING     = 50.0;
 const GATE_CELL_FLOOR_CEILING_MEM = 15.0;
 
+/**
+ * How much evidence a PER-CELL floor needs before it is allowed to be tighter
+ * than the pooled axis floor.
+ *
+ * A per-cell floor is estimated from that one cell's handful of observations,
+ * while the axis floor pools ~50 cells. When what is being estimated is a
+ * systematic per-runner offset — which is what cross-runner drift is — the
+ * pooled statistic is far better conditioned, and letting a thin per-cell
+ * estimate go below it is how the first gated run produced five false
+ * regressions against its own baseline.
+ */
+const GATE_MIN_RUNS_FOR_PER_CELL_FLOORS  = 8;
+const GATE_MIN_HOSTS_FOR_PER_CELL_FLOORS = 4;
+
 // ── Statistics local to the gate ────────────────────────────────────────────
 
 /**
@@ -398,10 +412,42 @@ if (isset($opts['derive'])) {
         // is hand-excluded; the data decides, and every cell's floor and verdict
         // is written into the baseline where a reader can audit it.
         $ceiling = ($section === 'memory') ? GATE_CELL_FLOOR_CEILING_MEM : GATE_CELL_FLOOR_CEILING;
-        $floor_min = ($section === 'memory') ? 1.0 : 2.0;
+
+        // The AXIS floor is a LOWER BOUND on every cell's floor, not a fallback
+        // for cells without one — and that is the correction the first gated run
+        // forced.
+        //
+        // The first attempt set each cell's floor from its own worst observed
+        // drift x 1.25 and let it go below the axis number. It cried wolf
+        // immediately: five S->C cells on glibc were flagged as regressions
+        // against a baseline derived from that same code, having moved 2.5-12.8%
+        // against per-cell floors of 2-9.5%.
+        //
+        // The reason is not a bug, it is the estimator. Cross-runner drift is a
+        // SYSTEMATIC per-runner offset, not random per-measurement noise: it is
+        // consistent within a job and differs between jobs, so repeats inside one
+        // job cannot see it and a per-cell maximum over four samples badly
+        // understates it. Every one of the five flagged cells moved by less than
+        // the axis p95 (14.6%) — the axis statistic, pooled over ~50 cells, had
+        // the sample size to see what the per-cell one did not.
+        //
+        // So a cell's floor may be WIDER than the axis floor, never narrower,
+        // until there are enough runs across enough distinct runners for a
+        // per-cell estimate to mean anything. That threshold is stated rather
+        // than assumed, and the baseline records which regime it was built in.
+        $axis_floor = round(max(1.0, ceil(gate_quantile($drifts, 0.95) * 1.25 * 2) / 2), 2);
+        $per_cell_trustworthy = count($runs) >= GATE_MIN_RUNS_FOR_PER_CELL_FLOORS
+            && $derived['distinct_hosts'] >= GATE_MIN_HOSTS_FOR_PER_CELL_FLOORS;
+        $floor_min = $per_cell_trustworthy
+            ? (($section === 'memory') ? 1.0 : 2.0)
+            : $axis_floor;
+
         $cell_floors = [];
         foreach ($per_cell as $id => $worst) {
-            $f = max($floor_min, ceil($worst * 1.25 * 2) / 2);
+            // x1.5 rather than x1.25: with a handful of samples the observed
+            // worst is routinely exceeded by the next run, which is exactly how
+            // the first gated run failed.
+            $f = max($floor_min, ceil($worst * 1.5 * 2) / 2);
             $cell_floors[$id] = [
                 'floor_pct'    => round($f, 2),
                 'worst_drift_pct' => round($worst, 3),
@@ -419,9 +465,19 @@ if (isset($opts['derive'])) {
             'gateable_cells'    => $gateable_n,
             'ungateable_cells'  => count($cell_floors) - $gateable_n,
             'cell_floor_ceiling_pct' => $ceiling,
-            'cell_floor_rule'   => 'each cell: max(' . $floor_min . ', its own worst cross-run '
-                                 . 'drift x 1.25, rounded up to 0.5pp); above ' . $ceiling
-                                 . '% the cell is reported but not gated',
+            'cell_floor_rule'   => sprintf(
+                'each cell: max(%.2f, its own worst cross-run drift x 1.5, rounded up to 0.5pp); '
+                . 'above %.1f%% the cell is reported but not gated',
+                $floor_min, $ceiling),
+            'per_cell_below_axis_allowed' => $per_cell_trustworthy,
+            'axis_floor_is_lower_bound'   => !$per_cell_trustworthy,
+            'why' => $per_cell_trustworthy
+                ? sprintf('%d runs across %d distinct runners is enough for a per-cell estimate',
+                    count($runs), $derived['distinct_hosts'])
+                : sprintf('only %d runs across %d distinct runners — too few for a per-cell '
+                    . 'estimate of a SYSTEMATIC per-runner offset, so the axis floor (%.2f%%, '
+                    . 'pooled over %d cells) is the lower bound for every cell',
+                    count($runs), $derived['distinct_hosts'], $axis_floor, count($per_cell)),
             'cells'            => count($per_cell),
             'pairwise_samples' => count($drifts),
             'median_drift_pct' => round(gate_quantile($drifts, 0.50), 3),

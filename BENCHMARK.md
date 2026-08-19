@@ -1982,43 +1982,74 @@ destructor-timing cells whose cost is dominated by allocator return behaviour
 rather than by anything this project controls, while the median cell on the same
 axis reproduces to 8%.
 
-**So the floor is per cell, not per axis.** Each cell gets a floor derived from
-its own cross-run drift: `max(2%, worst drift x 1.25)`, rounded up to 0.5pp. A
-stable cell gets a tight gate; a cell that cannot reproduce itself gets a loose
-one that will effectively never fire, which is the correct outcome — a cell that
-cannot reproduce itself cannot detect a regression. Above a ceiling (50% timing,
-15% memory) the cell is reported but not gated at all, because carrying a "190%
-threshold" in the baseline would suggest coverage that does not exist. Nothing is
-hand-excluded; the data decides, and every cell's floor, its worst observed
-drift, and whether it is gated are all written into the baseline where a reviewer
-can audit them.
+**So the floor is per cell — but the pooled axis floor is a lower bound on every
+cell, not a fallback.** That second half was learned the hard way. The first
+attempt let each cell's floor be its own worst observed drift x 1.25, free to go
+below the axis number, and it **cried wolf on the very first gated run**: five
+S → C cells on glibc were reported as regressions against a baseline derived
+from that same code, having moved 2.5-12.8% against per-cell floors of 2-9.5%.
+
+The reason is not a bug, it is the estimator. **Cross-runner drift is a
+systematic per-runner offset, not random per-measurement noise** — consistent
+within a job, different between jobs. A per-cell maximum over four samples badly
+understates it, and every one of the five flagged cells had moved by less than
+the axis p95 of 14.6%: the pooled statistic, over ~50 cells, had the sample size
+to see what the per-cell one did not. So a cell's floor may be *wider* than the
+axis floor and never narrower, until there are enough runs across enough distinct
+runners (currently ≥8 runs on ≥4 runners) for a per-cell estimate to mean
+anything. The baseline records which regime it was built in
+(`axis_floor_is_lower_bound`), so the constraint lifts itself as scheduled runs
+accumulate rather than needing anyone to remember.
+
+Above a ceiling (50% timing, 15% memory) a cell is reported but not gated at all,
+because carrying a "190% threshold" in the baseline would suggest coverage that
+does not exist. Nothing is hand-excluded; the data decides, and every cell's
+floor, its worst observed drift and whether it is gated are written into the
+baseline where a reviewer can audit them.
 
 | platform | axis | cells gated | per-cell floor (min / median / max) |
 | --- | --- | ---: | --- |
-| Linux glibc x86-64 | S → C | 51 / 51 | 2% / **3.5%** / 32.5% |
-| | A → C | 31 / 42 | 4% / 21% / 46.5% |
-| | memory | 3 / 3 | 2% / **2%** / 6% |
-| Linux musl x86-64 | S → C | 52 / 52 | 2% / **5%** / 16.5% |
-| | A → C | 38 / 43 | 2.5% / 22.5% / 45% |
-| | memory | 3 / 3 | 2.5% / **3%** / 4% |
-| macOS arm64 | S → C | 51 / 51 | 2% / **8%** / 21.5% |
-| | A → C | 42 / 42 | 2% / 4.5% / 28.5% |
-| | memory | 3 / 3 | 1% / **2.5%** / 10% |
+| Linux glibc x86-64 | S → C | 51 / 51 | 18.5% / **18.5%** / 38.5% |
+| | A → C | **0 / 42** | — (axis floor 97.5% exceeds the 50% ceiling) |
+| | memory | 3 / 3 | 6% / **6%** / 7% |
+| Linux musl x86-64 | S → C | 52 / 52 | 11% / **11%** / 19.5% |
+| | A → C | 33 / 43 | 46.5% / 46.5% / 46.5% |
+| | memory | 3 / 3 | 4% / **4%** / 4.5% |
+| macOS arm64 | S → C | 51 / 51 | 16% / **16%** / 26% |
+| | A → C | 42 / 42 | 16% / 16% / 34% |
+| | memory | 3 / 3 | 10% / **10%** / 12% |
+
+**Held-out validation.** Applying these floors to two later gate runs per
+platform that were *not* part of the derivation, with the measured code
+unchanged, gives **0 flags over 300 evaluated cells** — against 5 from the
+floors they replaced. That is the number that matters for a gate: not how tight
+it is, but whether it is silent when nothing changed.
 
 Reading that honestly:
 
-- **S → C is the axis this gate is actually good at.** The median cell gates at
-  3.5% on glibc, and every cell on every platform is gateable. That is the axis
-  that answers "did the vendored patches erode", so the gate is sharpest exactly
-  where it needs to be.
-- **A → C is the weaker axis and loses cells.** 11 of 42 on glibc and 5 of 43 on
-  musl are not gated at all — they are the `.free` cells, plus a few
-  string-iteration ones. They are still measured and reported; they simply cannot
-  carry a verdict. macOS loses none, which is not macOS being better but its
-  `.free` cells being less pathological than glibc's.
-- **Memory is the sharpest axis**, gating at 2-3% median. It is also the axis
-  carrying php-judy's least equivocal claim, so a tight gate there is worth more
-  than a tight gate on timing.
+- **This is a coarse gate on timing, and pretending otherwise would be the
+  defect.** At an 11-18.5% S → C floor it catches gross breakage — an
+  optimization silently compiled out, a patch reverted, a flag lost from the
+  vendored CFLAGS, all of which are 15-25% effects — and it will not see
+  anything subtler. The sharp instrument for small effects remains
+  `bench-threearm.php` on the dedicated host, where the claim floor is ~3%. What
+  this buys that the dedicated host cannot is *every platform, every week,
+  without anyone scheduling a box*.
+- **S → C is nonetheless the axis it is best at**, and it is the one that matters
+  for the vendored tree: every cell on every platform is gateable, on all three
+  platforms.
+- **A → C is not usable as a gate on glibc at all** — 0 of 42 cells, because its
+  axis floor of 97.5% exceeds the ceiling. The `.free` cells drift up to 188%
+  between runners and drag the pooled statistic with them. It is still measured
+  and reported on every platform, and it does gate on musl (33/43) and macOS
+  (42/42). Recording that glibc's A → C coverage is zero is more useful than
+  quietly carrying a threshold that could never fire.
+- **Memory gates at 4-10%** and is the axis carrying php-judy's least equivocal
+  claim, so it is worth more than its width suggests: a footprint regression is
+  usually a representation change, which moves RSS by tens of percent.
+- **These floors should tighten.** They are derived from 4 runs on 2 runners; at
+  ≥8 runs on ≥4 runners the per-cell floors are allowed below the pooled one,
+  and the baseline flips itself out of the conservative regime.
 - **A run's own C-vs-C rebuild control can only widen a threshold, never narrow
   one.** Measured on these runs: p90 per-cell deviation 1.9-3.1% on Linux and
   5.1-6.4% on macOS, against maxima of 3.1-20.7%. On a normal run the stored

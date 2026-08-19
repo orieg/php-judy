@@ -1,6 +1,6 @@
 {
     "schema": "judy-bench-arm-ratios/1",
-    "generated": "2026-08-19T05:40:17+00:00",
+    "generated": "2026-08-19T06:04:05+00:00",
     "note": "Per-platform WITHIN-RUN arm ratios, the reference the recurring gate (.github/workflows/bench-gate.yml, scripts/bench-gate.php) compares against. These are ratios of two arms measured in the same interleaved rounds, NOT absolute times: a ratio survives a change of runner, an absolute time does not. baselines/latest.json is a different instrument (absolute ms for the release-over-release bench-compare.php run) and the two are not interchangeable. Like latest.json, this file moves ONLY in a dedicated commit/PR, never inside a feature PR, and the noise floors are DERIVED (bench-gate.php --derive) from repeated same-commit CI runs rather than chosen.",
     "platforms": {
         "linux-glibc-x86_64": {
@@ -83,257 +83,257 @@
                 "timing.s_over_c": {
                     "per_cell_floors": {
                         "core.bitset.write": {
-                            "floor_pct": 32.5,
+                            "floor_pct": 38.5,
                             "worst_drift_pct": 25.658,
                             "gateable": true
                         },
                         "core.int_to_int.write": {
-                            "floor_pct": 26,
+                            "floor_pct": 31,
                             "worst_drift_pct": 20.498,
                             "gateable": true
                         },
                         "api.setop.union.bitset": {
-                            "floor_pct": 24,
+                            "floor_pct": 28.5,
                             "worst_drift_pct": 18.982,
                             "gateable": true
                         },
                         "api.setop.union.int_to_int": {
-                            "floor_pct": 20.5,
+                            "floor_pct": 24.5,
                             "worst_drift_pct": 16.174,
                             "gateable": true
                         },
                         "api.setop.intersect.int_to_int": {
-                            "floor_pct": 18,
+                            "floor_pct": 22,
                             "worst_drift_pct": 14.342,
                             "gateable": true
                         },
                         "api.setop.diff.int_to_int": {
-                            "floor_pct": 15,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 11.933,
                             "gateable": true
                         },
                         "api.mergeWith.int_to_int": {
-                            "floor_pct": 14.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 11.377,
                             "gateable": true
                         },
                         "core.int_to_int.read": {
-                            "floor_pct": 13.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 10.76,
                             "gateable": true
                         },
                         "core.int_to_mixed.free": {
-                            "floor_pct": 10,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 7.661,
                             "gateable": true
                         },
                         "api.setop.xor.int_to_int": {
-                            "floor_pct": 9.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 7.395,
                             "gateable": true
                         },
                         "core.bitset.read": {
-                            "floor_pct": 9.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 7.203,
                             "gateable": true
                         },
                         "core.int_to_mixed.iter": {
-                            "floor_pct": 8.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 6.544,
                             "gateable": true
                         },
                         "api.setop.intersect.bitset": {
-                            "floor_pct": 8.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 6.535,
                             "gateable": true
                         },
                         "core.int_to_int.iter": {
-                            "floor_pct": 8.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 6.47,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.read": {
-                            "floor_pct": 8,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 6.238,
                             "gateable": true
                         },
                         "core.int_to_mixed.write": {
-                            "floor_pct": 8,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 6.04,
                             "gateable": true
                         },
                         "core.int_to_packed.iter": {
-                            "floor_pct": 7.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 5.971,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.read": {
-                            "floor_pct": 7,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 5.522,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.read": {
-                            "floor_pct": 6.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 5.121,
                             "gateable": true
                         },
                         "core.string_to_int_hash.read": {
-                            "floor_pct": 5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 3.86,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.free": {
-                            "floor_pct": 5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 3.713,
                             "gateable": true
                         },
                         "core.int_to_packed.write": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 3.476,
                             "gateable": true
                         },
                         "core.string_to_mixed.free": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 3.251,
                             "gateable": true
                         },
                         "core.string_to_int_hash.write": {
-                            "floor_pct": 4,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 3.13,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.iter": {
-                            "floor_pct": 4,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 3.081,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.free": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.761,
                             "gateable": true
                         },
                         "core.string_to_int_hash.iter": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.745,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.free": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.703,
                             "gateable": true
                         },
                         "core.string_to_int.write": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.64,
                             "gateable": true
                         },
                         "api.setop.diff.bitset": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.487,
                             "gateable": true
                         },
                         "core.string_to_int.free": {
-                            "floor_pct": 3,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.205,
                             "gateable": true
                         },
                         "core.bitset.iter": {
-                            "floor_pct": 3,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.184,
                             "gateable": true
                         },
                         "core.string_to_mixed.write": {
-                            "floor_pct": 3,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.149,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.iter": {
-                            "floor_pct": 3,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.116,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.write": {
-                            "floor_pct": 3,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.036,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.write": {
-                            "floor_pct": 3,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.012,
                             "gateable": true
                         },
                         "api.setop.diff.string_to_int": {
-                            "floor_pct": 3,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 2.011,
                             "gateable": true
                         },
                         "core.int_to_packed.free": {
-                            "floor_pct": 2.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 1.927,
                             "gateable": true
                         },
                         "core.string_to_mixed.iter": {
-                            "floor_pct": 2.5,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 1.903,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.write": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 1.362,
                             "gateable": true
                         },
                         "core.int_to_mixed.read": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 1.318,
                             "gateable": true
                         },
                         "core.string_to_int.read": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 1.239,
                             "gateable": true
                         },
                         "core.string_to_int.iter": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 1.126,
                             "gateable": true
                         },
                         "api.setop.xor.bitset": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 1.117,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.iter": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 0.97,
                             "gateable": true
                         },
                         "core.int_to_packed.read": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 0.81,
                             "gateable": true
                         },
                         "core.string_to_int_hash.free": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 0.81,
                             "gateable": true
                         },
                         "api.mergeWith.string_to_int": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 0.733,
                             "gateable": true
                         },
                         "api.setop.intersect.string_to_int": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 0.709,
                             "gateable": true
                         },
                         "core.string_to_mixed.read": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 0.57,
                             "gateable": true
                         },
                         "api.setop.union.string_to_int": {
-                            "floor_pct": 2,
+                            "floor_pct": 18.5,
                             "worst_drift_pct": 0.39,
                             "gateable": true
                         }
@@ -341,7 +341,10 @@
                     "gateable_cells": 51,
                     "ungateable_cells": 0,
                     "cell_floor_ceiling_pct": 50,
-                    "cell_floor_rule": "each cell: max(2, its own worst cross-run drift x 1.25, rounded up to 0.5pp); above 50% the cell is reported but not gated",
+                    "cell_floor_rule": "each cell: max(18.50, its own worst cross-run drift x 1.5, rounded up to 0.5pp); above 50.0% the cell is reported but not gated",
+                    "per_cell_below_axis_allowed": false,
+                    "axis_floor_is_lower_bound": true,
+                    "why": "only 4 runs across 2 distinct runners \u2014 too few for a per-cell estimate of a SYSTEMATIC per-runner offset, so the axis floor (18.50%, pooled over 51 cells) is the lower bound for every cell",
                     "cells": 51,
                     "pairwise_samples": 306,
                     "median_drift_pct": 1.296,
@@ -365,220 +368,223 @@
                 "timing.a_over_c": {
                     "per_cell_floors": {
                         "core.string_to_int_adaptive.free": {
-                            "floor_pct": 235.5,
+                            "floor_pct": 282.5,
                             "worst_drift_pct": 188.242,
                             "gateable": false
                         },
                         "core.string_to_int_hash.free": {
-                            "floor_pct": 230.5,
+                            "floor_pct": 276.5,
                             "worst_drift_pct": 184.043,
                             "gateable": false
                         },
                         "core.string_to_int.free": {
-                            "floor_pct": 188,
+                            "floor_pct": 225.5,
                             "worst_drift_pct": 150.129,
                             "gateable": false
                         },
                         "api.setop.union.bitset": {
-                            "floor_pct": 97.5,
+                            "floor_pct": 117,
                             "worst_drift_pct": 77.698,
                             "gateable": false
                         },
                         "core.int_to_packed.free": {
-                            "floor_pct": 84,
+                            "floor_pct": 101,
                             "worst_drift_pct": 67.139,
                             "gateable": false
                         },
                         "core.int_to_mixed.free": {
-                            "floor_pct": 75.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 60.09,
                             "gateable": false
                         },
                         "api.setop.xor.bitset": {
-                            "floor_pct": 69,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 54.998,
                             "gateable": false
                         },
                         "core.bitset.iter": {
-                            "floor_pct": 67,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 53.495,
                             "gateable": false
                         },
                         "core.int_to_int.iter": {
-                            "floor_pct": 61.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 49.022,
                             "gateable": false
                         },
                         "api.setop.intersect.bitset": {
-                            "floor_pct": 60,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 47.801,
                             "gateable": false
                         },
                         "core.bitset.write": {
-                            "floor_pct": 53,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 42.102,
                             "gateable": false
                         },
                         "api.setop.diff.bitset": {
-                            "floor_pct": 46.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 36.85,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed_hash.free": {
-                            "floor_pct": 46,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 36.445,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.int_to_int.write": {
-                            "floor_pct": 39,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 31.131,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_int.write": {
-                            "floor_pct": 39,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 31.108,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_int_adaptive.write": {
-                            "floor_pct": 37.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 29.78,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed_hash.write": {
-                            "floor_pct": 36.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 28.841,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.int_to_mixed.iter": {
-                            "floor_pct": 32,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 25.588,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_int_hash.write": {
-                            "floor_pct": 32,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 25.561,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_int_adaptive.read": {
-                            "floor_pct": 32,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 25.453,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed.write": {
-                            "floor_pct": 32,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 25.449,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed_adaptive.free": {
-                            "floor_pct": 30.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 24.319,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed.free": {
-                            "floor_pct": 30.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 24.033,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed_adaptive.write": {
-                            "floor_pct": 30,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 23.848,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_int_hash.read": {
-                            "floor_pct": 30,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 23.615,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.int_to_packed.write": {
-                            "floor_pct": 22.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 17.793,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.int_to_mixed.read": {
-                            "floor_pct": 21,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 16.626,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed_adaptive.iter": {
-                            "floor_pct": 19,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 14.831,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.int_to_mixed.write": {
-                            "floor_pct": 16,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 12.459,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed_adaptive.read": {
-                            "floor_pct": 15.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 12.249,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_int.read": {
-                            "floor_pct": 14,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 11.1,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed_hash.read": {
-                            "floor_pct": 11,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 8.701,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.int_to_packed.read": {
-                            "floor_pct": 10,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 7.784,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.int_to_packed.iter": {
-                            "floor_pct": 9,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 6.951,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.bitset.read": {
-                            "floor_pct": 8.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 6.531,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_int.iter": {
-                            "floor_pct": 7.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 5.88,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed.read": {
-                            "floor_pct": 6,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 4.519,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.int_to_int.read": {
-                            "floor_pct": 5.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 4.289,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_int_adaptive.iter": {
-                            "floor_pct": 5.5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 4.068,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_int_hash.iter": {
-                            "floor_pct": 5,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 3.79,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed.iter": {
-                            "floor_pct": 4,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 3.063,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed_hash.iter": {
-                            "floor_pct": 4,
+                            "floor_pct": 97.5,
                             "worst_drift_pct": 2.871,
-                            "gateable": true
+                            "gateable": false
                         }
                     },
-                    "gateable_cells": 31,
-                    "ungateable_cells": 11,
+                    "gateable_cells": 0,
+                    "ungateable_cells": 42,
                     "cell_floor_ceiling_pct": 50,
-                    "cell_floor_rule": "each cell: max(2, its own worst cross-run drift x 1.25, rounded up to 0.5pp); above 50% the cell is reported but not gated",
+                    "cell_floor_rule": "each cell: max(97.50, its own worst cross-run drift x 1.5, rounded up to 0.5pp); above 50.0% the cell is reported but not gated",
+                    "per_cell_below_axis_allowed": false,
+                    "axis_floor_is_lower_bound": true,
+                    "why": "only 4 runs across 2 distinct runners \u2014 too few for a per-cell estimate of a SYSTEMATIC per-runner offset, so the axis floor (97.50%, pooled over 42 cells) is the lower bound for every cell",
                     "cells": 42,
                     "pairwise_samples": 252,
                     "median_drift_pct": 8.111,
@@ -602,17 +608,17 @@
                 "memory.a_over_c": {
                     "per_cell_floors": {
                         "int_to_int@1000000": {
-                            "floor_pct": 6,
+                            "floor_pct": 7,
                             "worst_drift_pct": 4.573,
                             "gateable": true
                         },
                         "string_to_int@1000000": {
-                            "floor_pct": 2,
+                            "floor_pct": 6,
                             "worst_drift_pct": 1.27,
                             "gateable": true
                         },
                         "int_sparse@1000000": {
-                            "floor_pct": 2,
+                            "floor_pct": 6,
                             "worst_drift_pct": 1.229,
                             "gateable": true
                         }
@@ -620,7 +626,10 @@
                     "gateable_cells": 3,
                     "ungateable_cells": 0,
                     "cell_floor_ceiling_pct": 15,
-                    "cell_floor_rule": "each cell: max(1, its own worst cross-run drift x 1.25, rounded up to 0.5pp); above 15% the cell is reported but not gated",
+                    "cell_floor_rule": "each cell: max(6.00, its own worst cross-run drift x 1.5, rounded up to 0.5pp); above 15.0% the cell is reported but not gated",
+                    "per_cell_below_axis_allowed": false,
+                    "axis_floor_is_lower_bound": true,
+                    "why": "only 4 runs across 2 distinct runners \u2014 too few for a per-cell estimate of a SYSTEMATIC per-runner offset, so the axis floor (6.00%, pooled over 3 cells) is the lower bound for every cell",
                     "cells": 3,
                     "pairwise_samples": 18,
                     "median_drift_pct": 0.898,
@@ -1304,262 +1313,262 @@
                 "timing.s_over_c": {
                     "per_cell_floors": {
                         "core.int_to_mixed.read": {
-                            "floor_pct": 16.5,
+                            "floor_pct": 19.5,
                             "worst_drift_pct": 12.978,
                             "gateable": true
                         },
                         "api.setop.xor.bitset": {
-                            "floor_pct": 14.5,
+                            "floor_pct": 17.5,
                             "worst_drift_pct": 11.574,
                             "gateable": true
                         },
                         "api.setop.intersect.bitset": {
-                            "floor_pct": 13.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 10.542,
                             "gateable": true
                         },
                         "core.string_to_int_hash.read": {
-                            "floor_pct": 12,
+                            "floor_pct": 14,
                             "worst_drift_pct": 9.319,
                             "gateable": true
                         },
                         "api.setop.diff.bitset": {
-                            "floor_pct": 12,
+                            "floor_pct": 14,
                             "worst_drift_pct": 9.302,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.read": {
-                            "floor_pct": 11.5,
+                            "floor_pct": 14,
                             "worst_drift_pct": 9.108,
                             "gateable": true
                         },
                         "core.int_to_int.free": {
-                            "floor_pct": 10.5,
+                            "floor_pct": 12.5,
                             "worst_drift_pct": 8.231,
                             "gateable": true
                         },
                         "core.bitset.read": {
-                            "floor_pct": 10.5,
+                            "floor_pct": 12.5,
                             "worst_drift_pct": 8.177,
                             "gateable": true
                         },
                         "core.int_to_packed.free": {
-                            "floor_pct": 10.5,
+                            "floor_pct": 12.5,
                             "worst_drift_pct": 8.019,
                             "gateable": true
                         },
                         "core.int_to_int.write": {
-                            "floor_pct": 10,
+                            "floor_pct": 12,
                             "worst_drift_pct": 7.968,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.read": {
-                            "floor_pct": 9.5,
+                            "floor_pct": 11.5,
                             "worst_drift_pct": 7.409,
                             "gateable": true
                         },
                         "core.int_to_mixed.free": {
-                            "floor_pct": 9,
+                            "floor_pct": 11,
                             "worst_drift_pct": 6.98,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.free": {
-                            "floor_pct": 8.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 6.629,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.read": {
-                            "floor_pct": 8.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 6.535,
                             "gateable": true
                         },
                         "core.int_to_packed.read": {
-                            "floor_pct": 8.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 6.478,
                             "gateable": true
                         },
                         "core.string_to_mixed.read": {
-                            "floor_pct": 8,
+                            "floor_pct": 11,
                             "worst_drift_pct": 6.132,
                             "gateable": true
                         },
                         "core.int_to_int.read": {
-                            "floor_pct": 8,
+                            "floor_pct": 11,
                             "worst_drift_pct": 6.085,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.iter": {
-                            "floor_pct": 7.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 5.88,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.iter": {
-                            "floor_pct": 7.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 5.699,
                             "gateable": true
                         },
                         "core.bitset.write": {
-                            "floor_pct": 7,
+                            "floor_pct": 11,
                             "worst_drift_pct": 5.276,
                             "gateable": true
                         },
                         "core.int_to_packed.iter": {
-                            "floor_pct": 7,
+                            "floor_pct": 11,
                             "worst_drift_pct": 5.248,
                             "gateable": true
                         },
                         "core.int_to_mixed.iter": {
-                            "floor_pct": 6.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 4.883,
                             "gateable": true
                         },
                         "core.string_to_mixed.write": {
-                            "floor_pct": 6,
+                            "floor_pct": 11,
                             "worst_drift_pct": 4.405,
                             "gateable": true
                         },
                         "core.bitset.iter": {
-                            "floor_pct": 5.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 4.242,
                             "gateable": true
                         },
                         "api.setop.union.int_to_int": {
-                            "floor_pct": 5.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 4.148,
                             "gateable": true
                         },
                         "api.setop.union.bitset": {
-                            "floor_pct": 5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 3.926,
                             "gateable": true
                         },
                         "core.string_to_mixed.iter": {
-                            "floor_pct": 5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 3.871,
                             "gateable": true
                         },
                         "core.string_to_int.read": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 3.537,
                             "gateable": true
                         },
                         "api.mergeWith.int_to_int": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 3.533,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.free": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 3.485,
                             "gateable": true
                         },
                         "api.mergeWith.string_to_int": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 3.357,
                             "gateable": true
                         },
                         "api.setop.diff.string_to_int": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 3.329,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.write": {
-                            "floor_pct": 4,
+                            "floor_pct": 11,
                             "worst_drift_pct": 3.196,
                             "gateable": true
                         },
                         "api.setop.intersect.string_to_int": {
-                            "floor_pct": 4,
+                            "floor_pct": 11,
                             "worst_drift_pct": 3.178,
                             "gateable": true
                         },
                         "api.setop.union.string_to_int": {
-                            "floor_pct": 4,
+                            "floor_pct": 11,
                             "worst_drift_pct": 3.134,
                             "gateable": true
                         },
                         "core.int_to_packed.write": {
-                            "floor_pct": 4,
+                            "floor_pct": 11,
                             "worst_drift_pct": 3.085,
                             "gateable": true
                         },
                         "core.string_to_mixed.free": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 2.689,
                             "gateable": true
                         },
                         "core.string_to_int.write": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 2.685,
                             "gateable": true
                         },
                         "core.int_to_mixed.write": {
-                            "floor_pct": 3,
+                            "floor_pct": 11,
                             "worst_drift_pct": 2.351,
                             "gateable": true
                         },
                         "core.string_to_int.iter": {
-                            "floor_pct": 3,
+                            "floor_pct": 11,
                             "worst_drift_pct": 2.146,
                             "gateable": true
                         },
                         "core.int_to_int.iter": {
-                            "floor_pct": 3,
+                            "floor_pct": 11,
                             "worst_drift_pct": 2.033,
                             "gateable": true
                         },
                         "core.string_to_int_hash.iter": {
-                            "floor_pct": 2.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 1.847,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.iter": {
-                            "floor_pct": 2.5,
+                            "floor_pct": 11,
                             "worst_drift_pct": 1.652,
                             "gateable": true
                         },
                         "api.setop.diff.int_to_int": {
-                            "floor_pct": 2,
+                            "floor_pct": 11,
                             "worst_drift_pct": 1.423,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.write": {
-                            "floor_pct": 2,
+                            "floor_pct": 11,
                             "worst_drift_pct": 1.355,
                             "gateable": true
                         },
                         "core.string_to_int.free": {
-                            "floor_pct": 2,
+                            "floor_pct": 11,
                             "worst_drift_pct": 1.297,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.write": {
-                            "floor_pct": 2,
+                            "floor_pct": 11,
                             "worst_drift_pct": 1.289,
                             "gateable": true
                         },
                         "core.string_to_int_hash.write": {
-                            "floor_pct": 2,
+                            "floor_pct": 11,
                             "worst_drift_pct": 1.198,
                             "gateable": true
                         },
                         "api.setop.intersect.int_to_int": {
-                            "floor_pct": 2,
+                            "floor_pct": 11,
                             "worst_drift_pct": 0.999,
                             "gateable": true
                         },
                         "api.setop.xor.int_to_int": {
-                            "floor_pct": 2,
+                            "floor_pct": 11,
                             "worst_drift_pct": 0.817,
                             "gateable": true
                         },
                         "core.string_to_int_hash.free": {
-                            "floor_pct": 2,
+                            "floor_pct": 11,
                             "worst_drift_pct": 0.737,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.free": {
-                            "floor_pct": 2,
+                            "floor_pct": 11,
                             "worst_drift_pct": 0.693,
                             "gateable": true
                         }
@@ -1567,7 +1576,10 @@
                     "gateable_cells": 52,
                     "ungateable_cells": 0,
                     "cell_floor_ceiling_pct": 50,
-                    "cell_floor_rule": "each cell: max(2, its own worst cross-run drift x 1.25, rounded up to 0.5pp); above 50% the cell is reported but not gated",
+                    "cell_floor_rule": "each cell: max(11.00, its own worst cross-run drift x 1.5, rounded up to 0.5pp); above 50.0% the cell is reported but not gated",
+                    "per_cell_below_axis_allowed": false,
+                    "axis_floor_is_lower_bound": true,
+                    "why": "only 4 runs across 2 distinct runners \u2014 too few for a per-cell estimate of a SYSTEMATIC per-runner offset, so the axis floor (11.00%, pooled over 52 cells) is the lower bound for every cell",
                     "cells": 52,
                     "pairwise_samples": 312,
                     "median_drift_pct": 1.638,
@@ -1591,225 +1603,228 @@
                 "timing.a_over_c": {
                     "per_cell_floors": {
                         "core.string_to_mixed_adaptive.iter": {
-                            "floor_pct": 80.5,
+                            "floor_pct": 96.5,
                             "worst_drift_pct": 64.221,
                             "gateable": false
                         },
                         "core.int_to_int.free": {
-                            "floor_pct": 67.5,
+                            "floor_pct": 81,
                             "worst_drift_pct": 53.832,
                             "gateable": false
                         },
                         "core.string_to_mixed_hash.iter": {
-                            "floor_pct": 67,
+                            "floor_pct": 80.5,
                             "worst_drift_pct": 53.544,
                             "gateable": false
                         },
                         "core.string_to_mixed.iter": {
-                            "floor_pct": 58,
+                            "floor_pct": 69.5,
                             "worst_drift_pct": 46.073,
                             "gateable": false
                         },
                         "core.int_to_packed.iter": {
-                            "floor_pct": 51,
+                            "floor_pct": 61,
                             "worst_drift_pct": 40.445,
                             "gateable": false
                         },
                         "core.string_to_mixed_hash.read": {
-                            "floor_pct": 45,
+                            "floor_pct": 54,
                             "worst_drift_pct": 35.678,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed.read": {
-                            "floor_pct": 44.5,
+                            "floor_pct": 53,
                             "worst_drift_pct": 35.215,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed_adaptive.read": {
-                            "floor_pct": 44,
+                            "floor_pct": 53,
                             "worst_drift_pct": 35.172,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed_adaptive.free": {
-                            "floor_pct": 44,
+                            "floor_pct": 53,
                             "worst_drift_pct": 35.002,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_mixed.free": {
-                            "floor_pct": 43.5,
+                            "floor_pct": 52.5,
                             "worst_drift_pct": 34.683,
-                            "gateable": true
+                            "gateable": false
                         },
                         "core.string_to_int_hash.free": {
-                            "floor_pct": 37,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 29.348,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.free": {
-                            "floor_pct": 35,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 27.802,
                             "gateable": true
                         },
                         "api.setop.intersect.bitset": {
-                            "floor_pct": 34.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 27.365,
                             "gateable": true
                         },
                         "core.int_to_packed.read": {
-                            "floor_pct": 34,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 26.811,
                             "gateable": true
                         },
                         "core.int_to_mixed.iter": {
-                            "floor_pct": 32.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 25.723,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.free": {
-                            "floor_pct": 32.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 25.698,
                             "gateable": true
                         },
                         "core.string_to_int.free": {
-                            "floor_pct": 30,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 23.612,
                             "gateable": true
                         },
                         "core.string_to_int.read": {
-                            "floor_pct": 28,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 22.322,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.read": {
-                            "floor_pct": 24.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 19.571,
                             "gateable": true
                         },
                         "core.int_to_packed.free": {
-                            "floor_pct": 24,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 19.115,
                             "gateable": true
                         },
                         "core.string_to_int.iter": {
-                            "floor_pct": 24,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 18.818,
                             "gateable": true
                         },
                         "core.string_to_int_hash.iter": {
-                            "floor_pct": 22.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 17.809,
                             "gateable": true
                         },
                         "core.string_to_int_hash.read": {
-                            "floor_pct": 22.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 17.76,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.write": {
-                            "floor_pct": 22.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 17.634,
                             "gateable": true
                         },
                         "api.setop.xor.bitset": {
-                            "floor_pct": 20,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 15.63,
                             "gateable": true
                         },
                         "core.string_to_int_hash.write": {
-                            "floor_pct": 19.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 15.538,
                             "gateable": true
                         },
                         "core.int_to_int.read": {
-                            "floor_pct": 18.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 14.632,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.iter": {
-                            "floor_pct": 18.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 14.61,
                             "gateable": true
                         },
                         "api.setop.diff.bitset": {
-                            "floor_pct": 18.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 14.573,
                             "gateable": true
                         },
                         "api.setop.union.bitset": {
-                            "floor_pct": 18,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 14.298,
                             "gateable": true
                         },
                         "core.bitset.write": {
-                            "floor_pct": 17.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 13.829,
                             "gateable": true
                         },
                         "core.int_to_mixed.free": {
-                            "floor_pct": 15,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 11.839,
                             "gateable": true
                         },
                         "core.int_to_int.write": {
-                            "floor_pct": 14,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 10.989,
                             "gateable": true
                         },
                         "core.bitset.read": {
-                            "floor_pct": 13.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 10.605,
                             "gateable": true
                         },
                         "core.string_to_int.write": {
-                            "floor_pct": 12.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 9.963,
                             "gateable": true
                         },
                         "core.int_to_packed.write": {
-                            "floor_pct": 11.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 8.814,
                             "gateable": true
                         },
                         "core.bitset.iter": {
-                            "floor_pct": 11,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 8.414,
                             "gateable": true
                         },
                         "core.int_to_mixed.read": {
-                            "floor_pct": 10,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 7.88,
                             "gateable": true
                         },
                         "core.int_to_int.iter": {
-                            "floor_pct": 8,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 6.052,
                             "gateable": true
                         },
                         "core.int_to_mixed.write": {
-                            "floor_pct": 7,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 5.387,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.write": {
-                            "floor_pct": 5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 3.634,
                             "gateable": true
                         },
                         "core.string_to_mixed.write": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 2.774,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.write": {
-                            "floor_pct": 2.5,
+                            "floor_pct": 46.5,
                             "worst_drift_pct": 1.703,
                             "gateable": true
                         }
                     },
-                    "gateable_cells": 38,
-                    "ungateable_cells": 5,
+                    "gateable_cells": 33,
+                    "ungateable_cells": 10,
                     "cell_floor_ceiling_pct": 50,
-                    "cell_floor_rule": "each cell: max(2, its own worst cross-run drift x 1.25, rounded up to 0.5pp); above 50% the cell is reported but not gated",
+                    "cell_floor_rule": "each cell: max(46.50, its own worst cross-run drift x 1.5, rounded up to 0.5pp); above 50.0% the cell is reported but not gated",
+                    "per_cell_below_axis_allowed": false,
+                    "axis_floor_is_lower_bound": true,
+                    "why": "only 4 runs across 2 distinct runners \u2014 too few for a per-cell estimate of a SYSTEMATIC per-runner offset, so the axis floor (46.50%, pooled over 43 cells) is the lower bound for every cell",
                     "cells": 43,
                     "pairwise_samples": 258,
                     "median_drift_pct": 10.605,
@@ -1833,17 +1848,17 @@
                 "memory.a_over_c": {
                     "per_cell_floors": {
                         "int_sparse@1000000": {
-                            "floor_pct": 4,
+                            "floor_pct": 4.5,
                             "worst_drift_pct": 2.814,
                             "gateable": true
                         },
                         "int_to_int@1000000": {
-                            "floor_pct": 3,
+                            "floor_pct": 4,
                             "worst_drift_pct": 2.224,
                             "gateable": true
                         },
                         "string_to_int@1000000": {
-                            "floor_pct": 2.5,
+                            "floor_pct": 4,
                             "worst_drift_pct": 1.685,
                             "gateable": true
                         }
@@ -1851,7 +1866,10 @@
                     "gateable_cells": 3,
                     "ungateable_cells": 0,
                     "cell_floor_ceiling_pct": 15,
-                    "cell_floor_rule": "each cell: max(1, its own worst cross-run drift x 1.25, rounded up to 0.5pp); above 15% the cell is reported but not gated",
+                    "cell_floor_rule": "each cell: max(4.00, its own worst cross-run drift x 1.5, rounded up to 0.5pp); above 15.0% the cell is reported but not gated",
+                    "per_cell_below_axis_allowed": false,
+                    "axis_floor_is_lower_bound": true,
+                    "why": "only 4 runs across 2 distinct runners \u2014 too few for a per-cell estimate of a SYSTEMATIC per-runner offset, so the axis floor (4.00%, pooled over 3 cells) is the lower bound for every cell",
                     "cells": 3,
                     "pairwise_samples": 18,
                     "median_drift_pct": 1.076,
@@ -2553,257 +2571,257 @@
                 "timing.s_over_c": {
                     "per_cell_floors": {
                         "core.bitset.write": {
-                            "floor_pct": 21.5,
+                            "floor_pct": 26,
                             "worst_drift_pct": 17.01,
                             "gateable": true
                         },
                         "core.bitset.read": {
-                            "floor_pct": 21,
+                            "floor_pct": 25,
                             "worst_drift_pct": 16.449,
                             "gateable": true
                         },
                         "api.setop.diff.bitset": {
-                            "floor_pct": 19.5,
+                            "floor_pct": 23.5,
                             "worst_drift_pct": 15.424,
                             "gateable": true
                         },
                         "core.string_to_int_hash.read": {
-                            "floor_pct": 18,
+                            "floor_pct": 21.5,
                             "worst_drift_pct": 14.316,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.free": {
-                            "floor_pct": 18,
+                            "floor_pct": 21.5,
                             "worst_drift_pct": 14.234,
                             "gateable": true
                         },
                         "api.setop.union.bitset": {
-                            "floor_pct": 18,
+                            "floor_pct": 21.5,
                             "worst_drift_pct": 14.072,
                             "gateable": true
                         },
                         "core.bitset.iter": {
-                            "floor_pct": 17.5,
+                            "floor_pct": 21,
                             "worst_drift_pct": 13.687,
                             "gateable": true
                         },
                         "core.string_to_int_hash.write": {
-                            "floor_pct": 17.5,
+                            "floor_pct": 20.5,
                             "worst_drift_pct": 13.625,
                             "gateable": true
                         },
                         "core.string_to_int_hash.iter": {
-                            "floor_pct": 16,
+                            "floor_pct": 19.5,
                             "worst_drift_pct": 12.761,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.iter": {
-                            "floor_pct": 14.5,
+                            "floor_pct": 17,
                             "worst_drift_pct": 11.263,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.free": {
-                            "floor_pct": 13.5,
+                            "floor_pct": 16.5,
                             "worst_drift_pct": 10.772,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.iter": {
-                            "floor_pct": 13.5,
+                            "floor_pct": 16.5,
                             "worst_drift_pct": 10.679,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.write": {
-                            "floor_pct": 13.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 10.482,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.free": {
-                            "floor_pct": 12.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 9.981,
                             "gateable": true
                         },
                         "api.mergeWith.string_to_int": {
-                            "floor_pct": 12.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 9.968,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.read": {
-                            "floor_pct": 12.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 9.763,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.write": {
-                            "floor_pct": 12,
+                            "floor_pct": 16,
                             "worst_drift_pct": 9.578,
                             "gateable": true
                         },
                         "api.setop.union.int_to_int": {
-                            "floor_pct": 12,
+                            "floor_pct": 16,
                             "worst_drift_pct": 9.377,
                             "gateable": true
                         },
                         "api.setop.xor.bitset": {
-                            "floor_pct": 11.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 9.118,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.write": {
-                            "floor_pct": 11.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 9.107,
                             "gateable": true
                         },
                         "core.string_to_int.write": {
-                            "floor_pct": 11,
+                            "floor_pct": 16,
                             "worst_drift_pct": 8.657,
                             "gateable": true
                         },
                         "core.string_to_int.iter": {
-                            "floor_pct": 10.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 8.184,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.read": {
-                            "floor_pct": 10.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 8.042,
                             "gateable": true
                         },
                         "core.int_to_packed.write": {
-                            "floor_pct": 9,
+                            "floor_pct": 16,
                             "worst_drift_pct": 7.094,
                             "gateable": true
                         },
                         "core.string_to_mixed.free": {
-                            "floor_pct": 8.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 6.696,
                             "gateable": true
                         },
                         "core.string_to_int.free": {
-                            "floor_pct": 8,
+                            "floor_pct": 16,
                             "worst_drift_pct": 6.369,
                             "gateable": true
                         },
                         "core.string_to_mixed.read": {
-                            "floor_pct": 7.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 5.681,
                             "gateable": true
                         },
                         "core.string_to_int.read": {
-                            "floor_pct": 7,
+                            "floor_pct": 16,
                             "worst_drift_pct": 5.405,
                             "gateable": true
                         },
                         "core.int_to_mixed.free": {
-                            "floor_pct": 7,
+                            "floor_pct": 16,
                             "worst_drift_pct": 5.212,
                             "gateable": true
                         },
                         "core.int_to_packed.read": {
-                            "floor_pct": 6.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 5.164,
                             "gateable": true
                         },
                         "api.setop.xor.int_to_int": {
-                            "floor_pct": 6.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 4.959,
                             "gateable": true
                         },
                         "api.setop.intersect.bitset": {
-                            "floor_pct": 6.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 4.853,
                             "gateable": true
                         },
                         "core.string_to_int_hash.free": {
-                            "floor_pct": 6,
+                            "floor_pct": 16,
                             "worst_drift_pct": 4.601,
                             "gateable": true
                         },
                         "core.int_to_int.write": {
-                            "floor_pct": 6,
+                            "floor_pct": 16,
                             "worst_drift_pct": 4.567,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.read": {
-                            "floor_pct": 5.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 4.32,
                             "gateable": true
                         },
                         "core.int_to_mixed.read": {
-                            "floor_pct": 5.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 4.29,
                             "gateable": true
                         },
                         "core.int_to_mixed.iter": {
-                            "floor_pct": 5.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 4.219,
                             "gateable": true
                         },
                         "core.int_to_int.iter": {
-                            "floor_pct": 5.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 4.133,
                             "gateable": true
                         },
                         "core.int_to_packed.free": {
-                            "floor_pct": 5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 3.703,
                             "gateable": true
                         },
                         "api.setop.union.string_to_int": {
-                            "floor_pct": 5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 3.696,
                             "gateable": true
                         },
                         "core.int_to_mixed.write": {
-                            "floor_pct": 5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 3.614,
                             "gateable": true
                         },
                         "core.string_to_mixed.write": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 3.572,
                             "gateable": true
                         },
                         "api.setop.intersect.int_to_int": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 3.311,
                             "gateable": true
                         },
                         "core.int_to_int.read": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 3.288,
                             "gateable": true
                         },
                         "api.mergeWith.int_to_int": {
-                            "floor_pct": 4,
+                            "floor_pct": 16,
                             "worst_drift_pct": 3.086,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.iter": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 2.725,
                             "gateable": true
                         },
                         "api.setop.intersect.string_to_int": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 2.57,
                             "gateable": true
                         },
                         "core.int_to_packed.iter": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 2.468,
                             "gateable": true
                         },
                         "api.setop.diff.int_to_int": {
-                            "floor_pct": 3,
+                            "floor_pct": 16,
                             "worst_drift_pct": 2.14,
                             "gateable": true
                         },
                         "api.setop.diff.string_to_int": {
-                            "floor_pct": 2,
+                            "floor_pct": 16,
                             "worst_drift_pct": 1.048,
                             "gateable": true
                         },
                         "core.string_to_mixed.iter": {
-                            "floor_pct": 2,
+                            "floor_pct": 16,
                             "worst_drift_pct": 0.659,
                             "gateable": true
                         }
@@ -2811,7 +2829,10 @@
                     "gateable_cells": 51,
                     "ungateable_cells": 0,
                     "cell_floor_ceiling_pct": 50,
-                    "cell_floor_rule": "each cell: max(2, its own worst cross-run drift x 1.25, rounded up to 0.5pp); above 50% the cell is reported but not gated",
+                    "cell_floor_rule": "each cell: max(16.00, its own worst cross-run drift x 1.5, rounded up to 0.5pp); above 50.0% the cell is reported but not gated",
+                    "per_cell_below_axis_allowed": false,
+                    "axis_floor_is_lower_bound": true,
+                    "why": "only 4 runs across 2 distinct runners \u2014 too few for a per-cell estimate of a SYSTEMATIC per-runner offset, so the axis floor (16.00%, pooled over 51 cells) is the lower bound for every cell",
                     "cells": 51,
                     "pairwise_samples": 306,
                     "median_drift_pct": 2.932,
@@ -2835,212 +2856,212 @@
                 "timing.a_over_c": {
                     "per_cell_floors": {
                         "core.string_to_int.free": {
-                            "floor_pct": 28.5,
+                            "floor_pct": 34,
                             "worst_drift_pct": 22.602,
                             "gateable": true
                         },
                         "core.string_to_int_hash.free": {
-                            "floor_pct": 21.5,
+                            "floor_pct": 25.5,
                             "worst_drift_pct": 16.931,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.free": {
-                            "floor_pct": 20,
+                            "floor_pct": 23.5,
                             "worst_drift_pct": 15.621,
                             "gateable": true
                         },
                         "core.string_to_mixed.free": {
-                            "floor_pct": 17.5,
+                            "floor_pct": 21,
                             "worst_drift_pct": 13.854,
                             "gateable": true
                         },
                         "core.int_to_packed.free": {
-                            "floor_pct": 17,
+                            "floor_pct": 20.5,
                             "worst_drift_pct": 13.349,
                             "gateable": true
                         },
                         "core.int_to_mixed.free": {
-                            "floor_pct": 13,
+                            "floor_pct": 16,
                             "worst_drift_pct": 10.031,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.free": {
-                            "floor_pct": 12,
+                            "floor_pct": 16,
                             "worst_drift_pct": 9.301,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.free": {
-                            "floor_pct": 10.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 8.166,
                             "gateable": true
                         },
                         "core.string_to_int.write": {
-                            "floor_pct": 10.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 8.082,
                             "gateable": true
                         },
                         "api.setop.intersect.bitset": {
-                            "floor_pct": 9.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 7.227,
                             "gateable": true
                         },
                         "core.string_to_int_hash.write": {
-                            "floor_pct": 8.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 6.658,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.write": {
-                            "floor_pct": 8.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 6.577,
                             "gateable": true
                         },
                         "core.int_to_mixed.write": {
-                            "floor_pct": 8,
+                            "floor_pct": 16,
                             "worst_drift_pct": 6.22,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.write": {
-                            "floor_pct": 7.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 5.764,
                             "gateable": true
                         },
                         "core.int_to_packed.write": {
-                            "floor_pct": 7.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 5.618,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.iter": {
-                            "floor_pct": 7,
+                            "floor_pct": 16,
                             "worst_drift_pct": 5.53,
                             "gateable": true
                         },
                         "api.setop.diff.bitset": {
-                            "floor_pct": 6.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 4.937,
                             "gateable": true
                         },
                         "core.string_to_mixed.write": {
-                            "floor_pct": 6.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 4.855,
                             "gateable": true
                         },
                         "core.bitset.write": {
-                            "floor_pct": 5.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 4.298,
                             "gateable": true
                         },
                         "core.int_to_int.read": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 3.529,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.write": {
-                            "floor_pct": 4.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 3.411,
                             "gateable": true
                         },
                         "api.setop.xor.bitset": {
-                            "floor_pct": 4,
+                            "floor_pct": 16,
                             "worst_drift_pct": 3.023,
                             "gateable": true
                         },
                         "core.bitset.read": {
-                            "floor_pct": 4,
+                            "floor_pct": 16,
                             "worst_drift_pct": 3.01,
                             "gateable": true
                         },
                         "core.string_to_mixed.read": {
-                            "floor_pct": 4,
+                            "floor_pct": 16,
                             "worst_drift_pct": 2.918,
                             "gateable": true
                         },
                         "core.int_to_packed.iter": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 2.707,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.read": {
-                            "floor_pct": 3.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 2.558,
                             "gateable": true
                         },
                         "api.setop.union.bitset": {
-                            "floor_pct": 3,
+                            "floor_pct": 16,
                             "worst_drift_pct": 2.307,
                             "gateable": true
                         },
                         "core.int_to_mixed.iter": {
-                            "floor_pct": 3,
+                            "floor_pct": 16,
                             "worst_drift_pct": 2.233,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.iter": {
-                            "floor_pct": 3,
+                            "floor_pct": 16,
                             "worst_drift_pct": 2.041,
                             "gateable": true
                         },
                         "core.int_to_int.write": {
-                            "floor_pct": 3,
+                            "floor_pct": 16,
                             "worst_drift_pct": 2.024,
                             "gateable": true
                         },
                         "core.string_to_mixed.iter": {
-                            "floor_pct": 2.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 1.961,
                             "gateable": true
                         },
                         "core.string_to_int_adaptive.iter": {
-                            "floor_pct": 2.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 1.843,
                             "gateable": true
                         },
                         "core.int_to_mixed.read": {
-                            "floor_pct": 2.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 1.624,
                             "gateable": true
                         },
                         "core.string_to_int_hash.read": {
-                            "floor_pct": 2.5,
+                            "floor_pct": 16,
                             "worst_drift_pct": 1.603,
                             "gateable": true
                         },
                         "core.int_to_packed.read": {
-                            "floor_pct": 2,
+                            "floor_pct": 16,
                             "worst_drift_pct": 1.494,
                             "gateable": true
                         },
                         "core.string_to_int.iter": {
-                            "floor_pct": 2,
+                            "floor_pct": 16,
                             "worst_drift_pct": 1.3,
                             "gateable": true
                         },
                         "core.string_to_int.read": {
-                            "floor_pct": 2,
+                            "floor_pct": 16,
                             "worst_drift_pct": 1.263,
                             "gateable": true
                         },
                         "core.int_to_int.iter": {
-                            "floor_pct": 2,
+                            "floor_pct": 16,
                             "worst_drift_pct": 1.082,
                             "gateable": true
                         },
                         "core.bitset.iter": {
-                            "floor_pct": 2,
+                            "floor_pct": 16,
                             "worst_drift_pct": 0.983,
                             "gateable": true
                         },
                         "core.string_to_mixed_adaptive.read": {
-                            "floor_pct": 2,
+                            "floor_pct": 16,
                             "worst_drift_pct": 0.968,
                             "gateable": true
                         },
                         "core.string_to_mixed_hash.read": {
-                            "floor_pct": 2,
+                            "floor_pct": 16,
                             "worst_drift_pct": 0.963,
                             "gateable": true
                         },
                         "core.string_to_int_hash.iter": {
-                            "floor_pct": 2,
+                            "floor_pct": 16,
                             "worst_drift_pct": 0.58,
                             "gateable": true
                         }
@@ -3048,7 +3069,10 @@
                     "gateable_cells": 42,
                     "ungateable_cells": 0,
                     "cell_floor_ceiling_pct": 50,
-                    "cell_floor_rule": "each cell: max(2, its own worst cross-run drift x 1.25, rounded up to 0.5pp); above 50% the cell is reported but not gated",
+                    "cell_floor_rule": "each cell: max(16.00, its own worst cross-run drift x 1.5, rounded up to 0.5pp); above 50.0% the cell is reported but not gated",
+                    "per_cell_below_axis_allowed": false,
+                    "axis_floor_is_lower_bound": true,
+                    "why": "only 4 runs across 2 distinct runners \u2014 too few for a per-cell estimate of a SYSTEMATIC per-runner offset, so the axis floor (16.00%, pooled over 42 cells) is the lower bound for every cell",
                     "cells": 42,
                     "pairwise_samples": 252,
                     "median_drift_pct": 1.624,
@@ -3072,17 +3096,17 @@
                 "memory.a_over_c": {
                     "per_cell_floors": {
                         "string_to_int@1000000": {
-                            "floor_pct": 10,
+                            "floor_pct": 12,
                             "worst_drift_pct": 7.936,
                             "gateable": true
                         },
                         "int_to_int@1000000": {
-                            "floor_pct": 2.5,
+                            "floor_pct": 10,
                             "worst_drift_pct": 1.681,
                             "gateable": true
                         },
                         "int_sparse@1000000": {
-                            "floor_pct": 1,
+                            "floor_pct": 10,
                             "worst_drift_pct": 0.798,
                             "gateable": true
                         }
@@ -3090,7 +3114,10 @@
                     "gateable_cells": 3,
                     "ungateable_cells": 0,
                     "cell_floor_ceiling_pct": 15,
-                    "cell_floor_rule": "each cell: max(1, its own worst cross-run drift x 1.25, rounded up to 0.5pp); above 15% the cell is reported but not gated",
+                    "cell_floor_rule": "each cell: max(10.00, its own worst cross-run drift x 1.5, rounded up to 0.5pp); above 15.0% the cell is reported but not gated",
+                    "per_cell_below_axis_allowed": false,
+                    "axis_floor_is_lower_bound": true,
+                    "why": "only 4 runs across 2 distinct runners \u2014 too few for a per-cell estimate of a SYSTEMATIC per-runner offset, so the axis floor (10.00%, pooled over 3 cells) is the lower bound for every cell",
                     "cells": 3,
                     "pairwise_samples": 18,
                     "median_drift_pct": 0.525,
