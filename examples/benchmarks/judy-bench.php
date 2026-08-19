@@ -27,7 +27,7 @@
 // ── CLI argument parsing ────────────────────────────────────────────────────
 
 $opts = getopt('', ['json:', 'size:', 'iterations:', 'suite:', 'group:', 'list-groups',
-                    'memory-limit:']);
+                    'memory-limit:', 'memory:', 'memory-runs:']);
 $size       = isset($opts['size'])       ? (int)$opts['size']       : 500000;
 $iterations = isset($opts['iterations']) ? (int)$opts['iterations'] : 5;
 $suite      = isset($opts['suite'])      ? $opts['suite']           : 'all';
@@ -113,6 +113,22 @@ if ($mem_target !== null && ini_set('memory_limit', $mem_target) === false) {
     exit(1);
 }
 $memory_limit = (string)ini_get('memory_limit');
+// --memory rss  measure each structure's footprint as peak RSS of a child
+//               process, minus an empty-process floor (the default, and the
+//               only instrument here that can see a Judy index at all).
+// --memory off  skip it; emit only the emalloc-heap figure, as before. The
+//               automated drivers pass this: they have their own peak-RSS
+//               memory axis and only want timings out of this script.
+$mem_mode = isset($opts['memory']) ? (string)$opts['memory'] : 'rss';
+if (!in_array($mem_mode, ['rss', 'off'], true)) {
+    fwrite(STDERR, "Invalid --memory: $mem_mode. Choose from: rss, off\n");
+    exit(1);
+}
+$mem_runs = isset($opts['memory-runs']) ? (int)$opts['memory-runs'] : 3;
+if ($mem_runs < 1) {
+    fwrite(STDERR, "Invalid --memory-runs: must be >= 1\n");
+    exit(1);
+}
 
 // Groups are the finest unit the runner can execute on its own. Each one owns
 // its setup, so running a group in isolation costs only that group's work —
@@ -182,6 +198,22 @@ function bench_median(callable $fn, int $iterations): array {
 /**
  * Measure emalloc'd PHP heap consumed while $fn() runs.
  * $fn must return the created container.
+ *
+ * WHAT THIS DOES NOT MEASURE. libJudy is the single caller of malloc(3) for
+ * every trie node it builds (`libjudy/src/JudyCommon/JudyMalloc.c`; there is no
+ * emalloc interception anywhere in the vendored tree, and a system libJudy has
+ * none either), so PHP's memory manager never sees a Judy index. For BITSET and
+ * INT_TO_INT — where the *only* thing on the Zend heap is the wrapper object —
+ * this returns ~160 bytes no matter how many elements were inserted. Types that
+ * store zvals (INT_TO_MIXED, INT_TO_PACKED, the *_to_mixed family) look
+ * plausible here only because their payload genuinely is emalloc'd; the trie
+ * holding it still is not counted.
+ *
+ * It is kept, unchanged, because it is a real measurement of one real thing —
+ * PHP-heap pressure — and because bench-compare / bench-gate / bench-threearm
+ * key their "this row is memory, not timing" test on the `heap_bytes` field.
+ * The figure a reader wants for "how big is the structure" is `rss_bytes`,
+ * measured by bench_mem_cell() below. See issue #172.
  */
 function measure_heap(callable $fn): int {
     gc_collect_cycles();
@@ -210,6 +242,232 @@ function measure_free(callable $create_fn, int $iterations): array {
     return ['median' => $times[intdiv($iterations, 2)], 'runs' => $times];
 }
 
+// ── Memory: peak RSS of a child process ─────────────────────────────────────
+//
+// The honest instrument for "how big is this structure". Same shape as the
+// three-arm study's (scripts/bench-lib.php) and the coverage-index example's:
+// build exactly one container in a fresh process, read getrusage()['ru_maxrss'],
+// and subtract an empty-process floor so neither the interpreter nor the loaded
+// extension is charged to the data. Unlike Judy::memoryUsage() it is uniform
+// across every type — memoryUsage() reports J1MU/JLMU (exact for the trie, but
+// blind to the emalloc'd zvals of INT_TO_MIXED / INT_TO_PACKED) and, for the
+// STRING_TO_* family, only a payload-bytes approximation with libJudy's
+// JudySL/JudyHS internals missing entirely.
+//
+// It costs one process per (type, arm) plus one floor. That is why the drivers
+// pass --memory off.
+
+/** ru_maxrss is bytes on macOS, kilobytes on Linux. */
+function bench_peak_rss(): int {
+    $ru = getrusage();
+    return (int)$ru['ru_maxrss'] * (PHP_OS_FAMILY === 'Darwin' ? 1 : 1024);
+}
+
+/**
+ * The Judy type constant and value shape behind each core.* id, so a child can
+ * rebuild the identical structure from the id alone.
+ *
+ * The child builds DIRECTLY from the loop counter rather than copying out of a
+ * fixture array the way the timing closures do, because a fixture array kept
+ * alive alongside the structure would land in the same peak.
+ */
+function bench_mem_spec(string $id): ?array {
+    static $specs = null;
+    if ($specs === null) {
+        $specs = [
+            'core.bitset'                 => ['BITSET',                 'bool',  'int'],
+            'core.int_to_int'             => ['INT_TO_INT',             'int',   'int'],
+            'core.int_to_mixed'           => ['INT_TO_MIXED',           'mixed', 'int'],
+            'core.int_to_packed'          => ['INT_TO_PACKED',          'mixed', 'int'],
+            'core.string_to_int'          => ['STRING_TO_INT',          'int',   'str'],
+            'core.string_to_mixed'        => ['STRING_TO_MIXED',        'mixed', 'str'],
+            'core.string_to_int_hash'     => ['STRING_TO_INT_HASH',     'int',   'str'],
+            'core.string_to_mixed_hash'   => ['STRING_TO_MIXED_HASH',   'mixed', 'str'],
+            'core.string_to_int_adaptive' => ['STRING_TO_INT_ADAPTIVE', 'int',   'str'],
+            'core.string_to_mixed_adaptive' => ['STRING_TO_MIXED_ADAPTIVE', 'mixed', 'str'],
+        ];
+    }
+    return $specs[$id] ?? null;
+}
+
+/** The value stored at ordinal $i, matching the parent's generators exactly. */
+function bench_mem_value(string $shape, int $i) {
+    if ($shape === 'bool') { return true; }
+    if ($shape === 'int')  { return $i; }
+    switch ($i & 3) {
+        case 0:  return "str_$i";
+        case 1:  return $i * 7;
+        case 2:  return [$i, $i + 1];
+        default: return ($i & 1) === 0;
+    }
+}
+
+/**
+ * Child entry point. Returns immediately unless --mem-child is present; builds
+ * one structure, prints one JSON line and exits when it is.
+ */
+function bench_mem_child_main(array $argv): void {
+    $at = array_search('--mem-child', $argv, true);
+    if ($at === false) { return; }
+
+    $id   = (string)($argv[$at + 1] ?? 'floor');
+    $impl = (string)($argv[$at + 2] ?? 'php');   // 'judy' | 'php'
+    $n    = (int)   ($argv[$at + 3] ?? 0);
+
+    $count = 0;
+    $index_bytes = null;
+    $before = memory_get_usage();
+
+    if ($id === 'floor') {
+        // Nothing built. Establishes the process floor: interpreter plus the
+        // loaded extension, with no data structure at all.
+        $store = null;
+    } else {
+        $spec = bench_mem_spec($id);
+        if ($spec === null) {
+            fwrite(STDERR, "mem-child: unknown workload $id\n");
+            exit(2);
+        }
+        [$type_name, $shape, $keys] = $spec;
+
+        if ($impl === 'judy') {
+            if (!extension_loaded('judy')) {
+                fwrite(STDERR, "mem-child: judy extension not loaded\n");
+                exit(2);
+            }
+            if (!defined("Judy::$type_name")) {
+                fwrite(STDERR, "mem-child: this build has no Judy::$type_name\n");
+                exit(3);
+            }
+            $store = new Judy(constant("Judy::$type_name"));
+        } else {
+            $store = [];
+        }
+
+        if ($keys === 'int') {
+            for ($i = 0; $i < $n; $i++) { $store[$i] = bench_mem_value($shape, $i); }
+        } else {
+            for ($i = 0; $i < $n; $i++) { $store["key_$i"] = bench_mem_value($shape, $i); }
+        }
+        $count = count($store);
+        if ($impl === 'judy') { $index_bytes = $store->memoryUsage(); }
+    }
+
+    // Read the population back so no optimiser can elide the build and so the
+    // pages are genuinely resident when peak RSS is sampled.
+    echo json_encode([
+        'id'          => $id,
+        'impl'        => $impl,
+        'n'           => $n,
+        'count'       => $count,
+        'peak_rss'    => bench_peak_rss(),
+        'heap_bytes'  => memory_get_usage() - $before,
+        'index_bytes' => $index_bytes,
+        'judy_version' => extension_loaded('judy') ? judy_version() : null,
+    ]), "\n";
+    exit(0);
+}
+
+/**
+ * Flags every memory child is spawned with. Mirrors examples/coverage-index.php:
+ * point the child at a specific judy.so when one is identifiable, with -n so an
+ * already-enabled judy in conf.d cannot silently shadow the build under test;
+ * otherwise inherit the parent's ini (which is how CI loads it, via
+ * PHP_INI_SCAN_DIR) and take that.
+ */
+function bench_mem_child_flags(): string {
+    static $flags = null;
+    if ($flags !== null) { return $flags; }
+
+    $limit = (string)ini_get('memory_limit');
+    $so    = getenv('JUDY_SO') ?: null;
+    if ($so === null) {
+        $local = __DIR__ . '/../../modules/judy.so';
+        if (is_file($local)) { $so = realpath($local); }
+    }
+    $flags = $so !== null
+        ? ' -n -d memory_limit=' . escapeshellarg($limit) . ' -d extension=' . escapeshellarg($so)
+        : ' -d memory_limit=' . escapeshellarg($limit);
+    return $flags;
+}
+
+/** Run one memory child and decode its JSON line, or null if it failed. */
+function bench_mem_run(string $id, string $impl, int $n): ?array {
+    $cmd = escapeshellarg(PHP_BINARY) . bench_mem_child_flags()
+        . ' ' . escapeshellarg(__FILE__)
+        . ' --mem-child ' . escapeshellarg($id) . ' ' . escapeshellarg($impl) . ' ' . $n;
+    $out = shell_exec($cmd . ' 2>' . (DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null'));
+    $last = trim(strrchr("\n" . trim((string)$out), "\n") ?: '');
+    $row  = json_decode($last, true);
+    return is_array($row) && isset($row['peak_rss']) ? $row : null;
+}
+
+/**
+ * Peak-RSS footprint of one structure, floor subtracted, median of $runs.
+ * Returns null when the measurement is not available on this platform or the
+ * child could not be verified — a missing number is correct where a wrong one
+ * is not.
+ */
+function bench_mem_cell(string $id, string $impl, int $n): ?int {
+    global $mem_mode, $mem_runs, $mem_floor, $mem_unavailable;
+
+    if ($mem_mode !== 'rss' || $mem_unavailable) { return null; }
+
+    if ($mem_floor === null) {
+        // The floor is measured more times than a cell because its SPREAD, not
+        // just its centre, is load-bearing: it is this measurement's resolution.
+        // A structure smaller than that spread cannot be resolved by subtracting
+        // the floor from a peak, and saying so is the only honest option — a
+        // 500,000-element dense BITSET is ~41 KB by J1MU against a floor that
+        // moves ~250 KB run to run, so a point estimate for it would swing 4x
+        // between runs. bench_mem_resolution() is what the report uses to mark
+        // such a cell as an upper bound instead of quoting the noise.
+        $floors = [];
+        for ($r = 0; $r < max(5, $mem_runs); $r++) {
+            $row = bench_mem_run('floor', 'php', 0);
+            // A child that cannot report the same extension the parent is
+            // running would measure something other than the build under test.
+            if ($row === null || $row['judy_version'] !== judy_version()) {
+                $mem_unavailable = true;
+                fwrite(STDERR, "  note: peak-RSS memory measurement unavailable "
+                    . "(child process could not be verified); reporting PHP heap only\n");
+                return null;
+            }
+            $floors[] = (int)$row['peak_rss'];
+        }
+        sort($floors);
+        $mem_floor = [
+            'median' => $floors[intdiv(count($floors), 2)],
+            'spread' => $floors[count($floors) - 1] - $floors[0],
+        ];
+    }
+
+    $peaks = [];
+    for ($r = 0; $r < $mem_runs; $r++) {
+        $row = bench_mem_run($id, $impl, $n);
+        if ($row === null) { return null; }
+        $peaks[] = (int)$row['peak_rss'];
+    }
+    sort($peaks);
+    return max(0, $peaks[intdiv(count($peaks), 2)] - $mem_floor['median']);
+}
+
+/**
+ * The smallest footprint this instrument can report as a measurement rather
+ * than an upper bound, in bytes.
+ *
+ * Twice the observed run-to-run spread of the empty-process floor. Twice
+ * because the spread is itself estimated from a handful of samples and so
+ * understates the true variability — a cell one spread above the floor is not
+ * reliably distinguishable from it. Observed on macOS arm64 (16 KB pages): a
+ * ~250 KB floor spread, against which a dense 500,000-element BITSET (41 KB by
+ * J1MU) simply does not resolve.
+ */
+function bench_mem_resolution(): ?int {
+    global $mem_floor;
+    return $mem_floor === null ? null : 2 * (int)$mem_floor['spread'];
+}
+
 function fmt_bytes(int $bytes): string {
     if ($bytes <= 0)       return '—';
     if ($bytes >= 1 << 20) return sprintf('%.1f MB', $bytes / (1 << 20));
@@ -226,6 +484,27 @@ function fmt_ratio(float $baseline, float $optimized): string {
     return sprintf('%8.1fx', $baseline / $optimized);
 }
 
+// ── Memory harness state ────────────────────────────────────────────────────
+
+/** Empty-process peak RSS, measured once and reused by every cell. */
+$mem_floor = null;
+
+// getrusage() is POSIX and PHP does not provide it on Windows, so there is no
+// whole-process instrument to reach for there. Report no memory figure rather
+// than substituting one that cannot see a Judy index.
+$mem_unavailable = !function_exists('getrusage') || !function_exists('shell_exec');
+if ($mem_mode === 'rss' && $mem_unavailable) {
+    fwrite(STDERR, "  note: peak-RSS memory measurement unavailable on this platform "
+        . "(no getrusage()); reporting PHP heap only\n");
+}
+
+// Must come after the harness is defined and before anything expensive runs.
+bench_mem_child_main($argv);
+
+$mem_method = ($mem_mode === 'rss' && !$mem_unavailable)
+    ? 'peak_rss_child_floor_subtracted'
+    : 'php_heap_only';
+
 // ── Results collector ───────────────────────────────────────────────────────
 
 $json_results = [
@@ -239,6 +518,12 @@ $json_results = [
         'suite'        => $suite,
         'groups'       => $active_groups,
         'memory_limit' => $memory_limit,
+        // Which instrument produced `rss_bytes`, and at what n. Consumers that
+        // quote a memory figure should quote the size with it: Judy's advantage
+        // is scale-dependent (BENCHMARK.md measures BITSET at 18.5x at 100k and
+        // 22.7x at 8M on its own workload).
+        'memory_method' => $mem_method,
+        'memory_runs'   => ($mem_method === 'php_heap_only') ? 0 : $mem_runs,
     ],
     'benchmarks' => [],
 ];
@@ -246,9 +531,13 @@ $json_results = [
 /**
  * Record a benchmark result into the JSON structure.
  * $id is a stable dotted key like "core.int_to_int.write".
- * $data has keys: median, runs (optional), heap (optional).
+ *
+ * `heap_bytes` doubles as the marker every driver uses to tell a memory row
+ * from a timing row (bench-compare.php, bench-gate.php, bench-threearm.php all
+ * test `array_key_exists('heap_bytes', ...)`), so it is always emitted on a
+ * memory row even when `rss_bytes` is the number worth reading.
  */
-function record(string $id, float $median_ms, array $runs = [], ?int $heap = null): void {
+function record(string $id, float $median_ms, array $runs = [], ?int $heap = null, ?int $rss = null): void {
     global $json_results;
     $entry = ['median_ms' => round($median_ms, 4)];
     if (!empty($runs)) {
@@ -256,6 +545,9 @@ function record(string $id, float $median_ms, array $runs = [], ?int $heap = nul
     }
     if ($heap !== null) {
         $entry['heap_bytes'] = $heap;
+    }
+    if ($rss !== null) {
+        $entry['rss_bytes'] = $rss;
     }
     $json_results['benchmarks'][$id] = $entry;
 }
@@ -318,6 +610,10 @@ echo "  php-judy Benchmark Suite — " . number_format($size) . " elements, $ite
 echo "  PHP " . phpversion() . " | Judy ext " . judy_version() . " | " . PHP_OS . " " . php_uname('m') . "\n";
 echo "  Suite: $suite | Groups: " . implode(',', $active_groups) . "\n";
 echo "  memory_limit: $memory_limit\n";
+echo "  Memory: " . ($mem_method === 'php_heap_only'
+        ? 'not measured (PHP heap cannot see a Judy index; see --memory)'
+        : "peak RSS of a child process, empty-process floor subtracted, median of $mem_runs")
+    . "\n";
 echo "$div\n\n";
 
 // ╔═══════════════════════════════════════════════════════════════════════════╗
@@ -360,9 +656,14 @@ function bench_core_type(
     $fr_judy = measure_free($populate_judy, $iterations);
     $fr_php  = measure_free($populate_php, $iterations);
 
-    // Heap
+    // Memory. Two instruments, deliberately: the emalloc heap (what PHP's own
+    // memory manager sees) and, when it can be measured, the structure's actual
+    // footprint as floor-subtracted peak RSS of a child process. Only the
+    // second one can see a Judy index — see measure_heap()'s note.
     $h_judy = measure_heap(function() use ($populate_judy) { return $populate_judy(); });
     $h_php  = measure_heap(function() use ($populate_php)  { return $populate_php(); });
+    $m_judy = bench_mem_cell($id_prefix, 'judy', $size);
+    $m_php  = bench_mem_cell($id_prefix, 'php',  $size);
 
     unset($j_ref, $p_ref);
 
@@ -375,8 +676,8 @@ function bench_core_type(
     record("{$id_prefix}.iter.php",   $f_php['median'],  $f_php['runs']);
     record("{$id_prefix}.free.judy",  $fr_judy['median'], $fr_judy['runs']);
     record("{$id_prefix}.free.php",   $fr_php['median'],  $fr_php['runs']);
-    record("{$id_prefix}.heap.judy",  0, [], $h_judy);
-    record("{$id_prefix}.heap.php",   0, [], $h_php);
+    record("{$id_prefix}.heap.judy",  0, [], $h_judy, $m_judy);
+    record("{$id_prefix}.heap.php",   0, [], $h_php,  $m_php);
 
     return [
         'label'   => $label,
@@ -385,7 +686,21 @@ function bench_core_type(
         'iter'    => [$f_judy['median'], $f_php['median']],
         'free'    => [$fr_judy['median'], $fr_php['median']],
         'heap'    => [$h_judy, $h_php],
+        'mem'     => [$m_judy, $m_php],
     ];
+}
+
+/**
+ * The memory column: the structure's footprint when it could be measured, and
+ * an explicit marker when it could not. Never the emalloc heap dressed up as a
+ * footprint — that is the number that read 160 B for a 500,000-element BITSET.
+ */
+function fmt_mem(?int $bytes): string {
+    if ($bytes === null) { return 'n/a'; }
+    $res = bench_mem_resolution();
+    // Below the instrument's resolution the honest statement is an upper bound.
+    if ($res !== null && $bytes <= $res) { return '< ' . fmt_bytes(max($res, 1)); }
+    return fmt_bytes($bytes);
 }
 
 $col = [24, 12, 12, 12, 12, 12, 12];
@@ -395,7 +710,7 @@ if (bench_group('core.int')) {
 echo "── Core: Integer-Keyed Types ────────────────────────────────────────────────\n\n";
 
 printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$col[5]}s\n",
-    'Type', 'Write(ms)', 'Read(ms)', 'Iter(ms)', 'Free(ms)', 'Heap');
+    'Type', 'Write(ms)', 'Read(ms)', 'Iter(ms)', 'Free(ms)', 'Memory');
 printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$col[5]}s\n",
     str_repeat('─', $col[0]),
     str_repeat('─', $col[1]), str_repeat('─', $col[2]),
@@ -423,12 +738,12 @@ printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$c
     'BITSET',
     sprintf('%.2f', $r['write'][0]), sprintf('%.2f', $r['read'][0]),
     sprintf('%.2f', $r['iter'][0]),  sprintf('%.2f', $r['free'][0]),
-    fmt_bytes($r['heap'][0]));
+    fmt_mem($r['mem'][0]));
 printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$col[5]}s\n",
     '  PHP array',
     sprintf('%.2f', $r['write'][1]), sprintf('%.2f', $r['read'][1]),
     sprintf('%.2f', $r['iter'][1]),  sprintf('%.2f', $r['free'][1]),
-    fmt_bytes($r['heap'][1]));
+    fmt_mem($r['mem'][1]));
 unset($j_ref_bs, $p_ref_bs);
 
 // -- INT_TO_INT --
@@ -452,12 +767,12 @@ printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$c
     'INT_TO_INT',
     sprintf('%.2f', $r['write'][0]), sprintf('%.2f', $r['read'][0]),
     sprintf('%.2f', $r['iter'][0]),  sprintf('%.2f', $r['free'][0]),
-    fmt_bytes($r['heap'][0]));
+    fmt_mem($r['mem'][0]));
 printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$col[5]}s\n",
     '  PHP array',
     sprintf('%.2f', $r['write'][1]), sprintf('%.2f', $r['read'][1]),
     sprintf('%.2f', $r['iter'][1]),  sprintf('%.2f', $r['free'][1]),
-    fmt_bytes($r['heap'][1]));
+    fmt_mem($r['mem'][1]));
 unset($j_ref_ii, $p_ref_ii);
 
 // -- INT_TO_MIXED --
@@ -491,12 +806,12 @@ printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$c
     'INT_TO_MIXED',
     sprintf('%.2f', $r['write'][0]), sprintf('%.2f', $r['read'][0]),
     sprintf('%.2f', $r['iter'][0]),  sprintf('%.2f', $r['free'][0]),
-    fmt_bytes($r['heap'][0]));
+    fmt_mem($r['mem'][0]));
 printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$col[5]}s\n",
     '  PHP array',
     sprintf('%.2f', $r['write'][1]), sprintf('%.2f', $r['read'][1]),
     sprintf('%.2f', $r['iter'][1]),  sprintf('%.2f', $r['free'][1]),
-    fmt_bytes($r['heap'][1]));
+    fmt_mem($r['mem'][1]));
 unset($j_ref_im, $p_ref_im);
 
 // -- INT_TO_PACKED --
@@ -522,12 +837,12 @@ if ($has_packed) {
         'INT_TO_PACKED',
         sprintf('%.2f', $r['write'][0]), sprintf('%.2f', $r['read'][0]),
         sprintf('%.2f', $r['iter'][0]),  sprintf('%.2f', $r['free'][0]),
-        fmt_bytes($r['heap'][0]));
+        fmt_mem($r['mem'][0]));
     printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$col[5]}s\n",
         '  PHP array',
         sprintf('%.2f', $r['write'][1]), sprintf('%.2f', $r['read'][1]),
         sprintf('%.2f', $r['iter'][1]),  sprintf('%.2f', $r['free'][1]),
-        fmt_bytes($r['heap'][1]));
+        fmt_mem($r['mem'][1]));
     unset($j_ref_ip, $p_ref_ip);
 }
 
@@ -543,7 +858,7 @@ if (bench_group('core.str')) {
 echo "── Core: String-Keyed Types ────────────────────────────────────────────────\n\n";
 
 printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$col[5]}s\n",
-    'Type', 'Write(ms)', 'Read(ms)', 'Iter(ms)', 'Free(ms)', 'Heap');
+    'Type', 'Write(ms)', 'Read(ms)', 'Iter(ms)', 'Free(ms)', 'Memory');
 printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$col[5]}s\n",
     str_repeat('─', $col[0]),
     str_repeat('─', $col[1]), str_repeat('─', $col[2]),
@@ -589,12 +904,12 @@ function bench_str_type(string $id, string $label, int $jtype, array $data, arra
         $label,
         sprintf('%.2f', $r['write'][0]), sprintf('%.2f', $r['read'][0]),
         sprintf('%.2f', $r['iter'][0]),  sprintf('%.2f', $r['free'][0]),
-        fmt_bytes($r['heap'][0]));
+        fmt_mem($r['mem'][0]));
     printf("  %-{$col[0]}s  %{$col[1]}s  %{$col[2]}s  %{$col[3]}s  %{$col[4]}s  %{$col[5]}s\n",
         '  PHP array',
         sprintf('%.2f', $r['write'][1]), sprintf('%.2f', $r['read'][1]),
         sprintf('%.2f', $r['iter'][1]),  sprintf('%.2f', $r['free'][1]),
-        fmt_bytes($r['heap'][1]));
+        fmt_mem($r['mem'][1]));
     unset($j_ref, $p_ref);
 }
 
@@ -1536,9 +1851,24 @@ echo "\n";
 echo "$div\n";
 echo "  Benchmark complete — " . date('Y-m-d H:i:s') . "\n";
 echo "  All timings: median of $iterations iterations via hrtime(true), 1 warmup run\n";
+if ($mem_method === 'php_heap_only') {
+    echo "  Memory: NOT MEASURED. libJudy allocates through malloc(3), outside PHP's\n";
+    echo "          memory manager, so memory_get_usage() cannot see a Judy index.\n";
+} else {
+    echo "  Memory: peak RSS of a child process building one structure of "
+        . number_format($size) . " elements,\n";
+    echo "          minus an empty-process floor. Measured with getrusage(), not\n";
+    echo "          memory_get_usage(), for the reason above. Judy's memory advantage is\n";
+    echo "          scale- and type-dependent — see BENCHMARK.md for the curve.\n";
+}
 echo "$div\n";
 
 // ── JSON output ─────────────────────────────────────────────────────────────
+
+// The floor's run-to-run spread is this instrument's resolution, and it is only
+// known once at least one cell has run. Consumers need it to tell a measured
+// footprint from an upper bound — see fmt_mem().
+$json_results['metadata']['memory_resolution_bytes'] = bench_mem_resolution();
 
 if ($json_file !== null) {
     $json = json_encode($json_results, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);

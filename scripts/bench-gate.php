@@ -656,6 +656,10 @@ function gate_run_group(string $handle, string $group, int $size, int $iteration
         . ' --size ' . $size
         . ' --iterations ' . $iterations
         . ' --json ' . escapeshellarg($json)
+        // Last on purpose: PHP's getopt() stops parsing at an option it does
+        // not know, so a --memory placed before --json would swallow it in any
+        // judy-bench.php that predates the flag.
+        . ' --memory off'
         . ' > ' . TAM_DEVNULL . ' 2> ' . escapeshellarg($err);
     exec($cmd, $_, $status);
     $stderr = (string) @file_get_contents($err);

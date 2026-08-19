@@ -263,6 +263,10 @@ function run_group(string $arm, string $group): array {
         . ' --size ' . $size
         . ' --iterations ' . $iterations
         . ' --json ' . escapeshellarg($json)
+        // Last on purpose: PHP's getopt() stops parsing at an option it does
+        // not know, so a --memory placed before --json would swallow it in any
+        // judy-bench.php that predates the flag.
+        . ' --memory off'
         . ' > /dev/null 2> ' . escapeshellarg($err);
 
     exec($cmd, $_, $status);
