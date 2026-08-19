@@ -60,6 +60,16 @@
 // x0.86-0.95 (gate record).  The thresholds are compile-time tunables so
 // the fuzzer can force the pipelined path onto arbitrarily small trees.
 //
+// Batches are partitioned before they enter the lanes (#142 O5 reopen):
+// each cJL_MULTIGET_PART_BLOCK chunk is grouped by a discriminating key
+// byte with a stable one-pass counting partition, because the lanes lose
+// when they simultaneously hold keys of divergent descend classes (the
+// original O5 gate's heterogeneous-batch kill, x0.74) and win when they
+// agree.  Grouping is invisible to the caller: each key carries its
+// original result slot through the pipeline, so PPValue[] comes back in
+// input order.  cJL_MULTIGET_PARTITION=0 restores the input-order
+// pipeline for benchmarking.
+//
 // This TU is JudyL-only: the API returns value-area pointers.  (A Judy1
 // MultiTest variant would need none of the value-area code; it has no
 // caller today and is deliberately not provided.)
@@ -69,6 +79,8 @@
 #if (! defined(JUDYL) || defined(JUDY1))
 #error:  JudyMultiGet.c compiles only as the JUDYL variant (-DJUDYL).
 #endif
+
+#include <string.h>                     // memset() for the partition counters.
 
 #include "JudyL.h"
 #include "JudyPrivate1L.h"
@@ -107,6 +119,33 @@ extern Word_t JudyLMultiGet(Pcvoid_t PArray, const Word_t *PIndex,
 #define cJL_MULTIGET_SERIAL_COUNT 4     // serially (pipeline fill cost).
 #endif
 
+#ifndef cJL_MULTIGET_PARTITION          // 1: group each chunk's keys by a
+#define cJL_MULTIGET_PARTITION 1        // discriminating byte (stable one-pass
+#endif                                  // counting partition) before running
+                                        // the lanes, so in-flight lookups
+                                        // share a descend class.  The #142 O5
+                                        // drop's heterogeneous-batch loss
+                                        // (mixed dense+sparse batches x0.74)
+                                        // is an ORDERING effect: the same keys
+                                        // grouped by class win.  0 restores
+                                        // the input-order pipeline (bench
+                                        // control only).
+
+#ifndef cJL_MULTIGET_PART_BLOCK         // keys partitioned + pipelined per
+#define cJL_MULTIGET_PART_BLOCK 256     // chunk; bounds the stack buffers
+#endif                                  // (256 keys = 2 KB + 512 B slots).
+
+#if (cJL_MULTIGET_PART_BLOCK < 16) || (cJL_MULTIGET_PART_BLOCK > 65536)
+#error:  cJL_MULTIGET_PART_BLOCK must be in 16..65536 (slots are uint16_t).
+#endif
+
+#ifndef cJL_MULTIGET_PART_SHIFT         // partition byte: -1 = adaptive (the
+#define cJL_MULTIGET_PART_SHIFT (-1)    // highest byte in which the chunk's
+#endif                                  // keys differ, so 32-bit-ranged key
+                                        // sets partition just as well as
+                                        // full-width ones); 0..56 pins a
+                                        // fixed shift (bench arms only).
+
 // ****************************************************************************
 // PREFETCH: advisory; expanding to nothing is correct (only slower).
 
@@ -135,6 +174,26 @@ static void jl_mg_prefetch_range(const void *Addr, Word_t Bytes)
         if (Bytes >  64) JL_MG_PREFETCH(P +  64);
         if (Bytes > 128) JL_MG_PREFETCH(P + 128);
         if (Bytes > 192) JL_MG_PREFETCH(P + 192);
+}
+
+// ****************************************************************************
+// PARTITION BYTE: given the OR of (key XOR key0) over a chunk (nonzero),
+// return the shift of the highest byte in which any two keys differ.
+// Grouping on that byte is grouping by top-level descend digit for the
+// key range the chunk actually spans -- a chunk of 32-bit-ranged keys
+// partitions on byte 3, not on an all-zero byte 7.
+
+static int jl_mg_part_shift(Word_t Diff)
+{
+#if defined(__GNUC__) || defined(__clang__)
+        return (int)(63 - __builtin_clzll((unsigned long long)Diff)) & ~7;
+#else
+        int Shift = 56;
+
+        while (Shift > 0 && (((Diff >> Shift) & 0xffU) == 0))
+            Shift -= 8;
+        return(Shift);
+#endif
 }
 
 // ****************************************************************************
@@ -586,6 +645,97 @@ JudyMGLeaf:
 }
 
 // ****************************************************************************
+// J L   M G   P I P E L I N E
+//
+// Run the lane machine over Keys[0..Count-1] against the tree rooted at
+// Pjptop, writing each key's answer to PPValue[Base + Slots[i]] (a NULL
+// Slots means identity: PPValue[Base + i]).  Returns the number of
+// present keys.  Factored out of JudyLMultiGet() so the counting
+// partition below can feed it class-grouped chunks while every answer
+// still lands in the caller's slot for that key: the lane carries its
+// absolute output slot through the descend, so no inverse-permutation
+// scatter pass exists to get wrong.
+
+static Word_t jl_mg_pipeline(
+        Pcvoid_t        PArray,         // for the per-key fallback only.
+        Pjp_t           Pjptop,         // top JP of PArray's JPM.
+        const Word_t   *Keys,           // keys, possibly class-grouped.
+        const uint16_t *Slots,          // chunk-local result slots, or NULL.
+        Word_t          Base,           // PPValue[] offset of this chunk.
+        PPvoid_t       *PPValue,        // caller's result slots (absolute).
+        Word_t          Count)          // number of keys in this chunk.
+{
+        jl_mg_lane_t lanes[cJL_MULTIGET_LANES];
+        Word_t       hits = 0;
+        Word_t       next;
+        int          live = 0;
+        int          l;
+
+#define JL_MG_LANE_START(Lane,I)                                        \
+        {                                                               \
+            (Lane)->mg_Index    = Keys[(I)];                            \
+            (Lane)->mg_Slot     = Base + ((Slots != (const uint16_t *)  \
+                                  NULL) ? (Word_t)Slots[(I)] : (I));    \
+            (Lane)->mg_Pjp      = Pjptop;                               \
+            (Lane)->mg_State    = JL_MG_JP;                             \
+            (Lane)->mg_Fallback = 0;                                    \
+            JL_MG_PREFETCH(Pjptop);                                     \
+        }
+
+        for (l = 0; l < cJL_MULTIGET_LANES; ++l)  // lanes beyond Count
+            lanes[l].mg_State = JL_MG_DONE;       // must read as done.
+
+        for (next = 0; live < cJL_MULTIGET_LANES && next < Count; ++next)
+        {
+            JL_MG_LANE_START(&lanes[live], next);
+            ++live;
+        }
+
+        while (live > 0)
+        {
+            for (l = 0; l < cJL_MULTIGET_LANES; ++l)
+            {
+                jl_mg_lane_t *Lane = &lanes[l];
+
+                if (Lane->mg_State == JL_MG_DONE)
+                    continue;
+
+                jl_mg_step(Lane, PPValue);
+
+                if (Lane->mg_State != JL_MG_DONE)
+                    continue;
+
+                // Lane finished: resolve fallbacks (unrecognized JP
+                // type -- never taken on a healthy tree), count, and
+                // refill the lane with the next pending key.
+
+                if (Lane->mg_Fallback)
+                    PPValue[Lane->mg_Slot] =
+                        JudyLGet(PArray, Lane->mg_Index, PJE0);
+
+                if (PPValue[Lane->mg_Slot] != (PPvoid_t) NULL
+                 && PPValue[Lane->mg_Slot] != PPJERR)
+                    ++hits;
+
+                if (next < Count)
+                {
+                    JL_MG_LANE_START(Lane, next);
+                    ++next;
+                }
+                else
+                {
+                    --live;
+                }
+            }
+        }
+
+#undef JL_MG_LANE_START
+
+        return(hits);
+
+} // jl_mg_pipeline()
+
+// ****************************************************************************
 // J U D Y   L   M U L T I   G E T
 //
 // Look up Count independent keys PIndex[0..Count-1] in PArray.  On return,
@@ -641,71 +791,90 @@ FUNCTION Word_t JudyLMultiGet(
         }
 
 // Pipelined path.  The array is known to start with a JPM here.
+//
+// The keys run in chunks of cJL_MULTIGET_PART_BLOCK.  Each chunk is
+// grouped by a discriminating key byte with a stable one-pass counting
+// partition before it enters the lanes: the #142 O5 gate's
+// heterogeneous-batch loss (mixed dense+sparse batches x0.74 while
+// either class alone wins on the same tree) is an ORDERING effect --
+// when the in-flight lanes hold keys of one descend class the machine
+// wins, and grouping restores that within each chunk.  Results are
+// unaffected: every key carries its original slot through the pipeline
+// (see jl_mg_pipeline), so PPValue[] is filled exactly as if the keys
+// had run in input order.
 
         {
-            jl_mg_lane_t lanes[cJL_MULTIGET_LANES];
-            Pjp_t        Pjptop = &(P_JPM(PArray)->jpm_JP);
-            int          live   = 0;
-            int          l;
+            Pjp_t  Pjptop = &(P_JPM(PArray)->jpm_JP);
+            Word_t base;
 
-#define JL_MG_LANE_START(Lane,Slot)                                     \
-            {                                                           \
-                (Lane)->mg_Index    = PIndex[(Slot)];                   \
-                (Lane)->mg_Slot     = (Slot);                           \
-                (Lane)->mg_Pjp      = Pjptop;                           \
-                (Lane)->mg_State    = JL_MG_JP;                         \
-                (Lane)->mg_Fallback = 0;                                \
-                JL_MG_PREFETCH(Pjptop);                                 \
-            }
-
-            for (l = 0; l < cJL_MULTIGET_LANES; ++l)  // lanes beyond Count
-                lanes[l].mg_State = JL_MG_DONE;       // must read as done.
-
-            for (next = 0; live < cJL_MULTIGET_LANES && next < Count; ++next)
+            for (base = 0; base < Count; base += cJL_MULTIGET_PART_BLOCK)
             {
-                JL_MG_LANE_START(&lanes[live], next);
-                ++live;
-            }
+                const Word_t *chunk = PIndex + base;
+                Word_t        m     = Count - base;
 
-            while (live > 0)
-            {
-                for (l = 0; l < cJL_MULTIGET_LANES; ++l)
+                if (m > (Word_t) cJL_MULTIGET_PART_BLOCK)
+                    m = (Word_t) cJL_MULTIGET_PART_BLOCK;
+
+#if cJL_MULTIGET_PARTITION
                 {
-                    jl_mg_lane_t *Lane = &lanes[l];
+                    Word_t   pkeys [cJL_MULTIGET_PART_BLOCK];
+                    uint16_t pslots[cJL_MULTIGET_PART_BLOCK];
+                    unsigned counts[257];
+                    Word_t   diff;
+                    Word_t   i;
+                    int      shift;
+                    int      b;
 
-                    if (Lane->mg_State == JL_MG_DONE)
-                        continue;
+// Pick the partition byte for THIS chunk (see jl_mg_part_shift); a
+// chunk whose keys are all equal has nothing to group:
 
-                    jl_mg_step(Lane, PPValue);
+#if (cJL_MULTIGET_PART_SHIFT >= 0)
+                    shift = cJL_MULTIGET_PART_SHIFT;    // pinned (bench arm).
+                    diff  = 1;                          // never skip.
+#else
+                    diff = 0;
+                    for (i = 1; i < m; ++i)
+                        diff |= chunk[i] ^ chunk[0];
+                    shift = (diff != 0) ? jl_mg_part_shift(diff) : 0;
+#endif
 
-                    if (Lane->mg_State != JL_MG_DONE)
-                        continue;
-
-                    // Lane finished: resolve fallbacks (unrecognized JP
-                    // type -- never taken on a healthy tree), count, and
-                    // refill the lane with the next pending key.
-
-                    if (Lane->mg_Fallback)
-                        PPValue[Lane->mg_Slot] =
-                            JudyLGet(PArray, Lane->mg_Index, PJE0);
-
-                    if (PPValue[Lane->mg_Slot] != (PPvoid_t) NULL
-                     && PPValue[Lane->mg_Slot] != PPJERR)
-                        ++hits;
-
-                    if (next < Count)
+                    if (diff == 0)
                     {
-                        JL_MG_LANE_START(Lane, next);
-                        ++next;
+                        hits += jl_mg_pipeline(PArray, Pjptop, chunk,
+                                               (const uint16_t *) NULL,
+                                               base, PPValue, m);
+                        continue;
                     }
-                    else
+
+// Stable counting partition on the chosen byte: one counting pass, one
+// placement pass; pslots[] remembers each key's chunk-local input
+// position so the pipeline writes results to the caller's slots:
+
+                    memset(counts, 0, sizeof(counts));
+
+                    for (i = 0; i < m; ++i)
+                        counts[((chunk[i] >> shift) & 0xff) + 1]++;
+
+                    for (b = 1; b < 257; ++b)
+                        counts[b] += counts[b - 1];
+
+                    for (i = 0; i < m; ++i)
                     {
-                        --live;
+                        unsigned pos = counts[(chunk[i] >> shift) & 0xff]++;
+
+                        pkeys [pos] = chunk[i];
+                        pslots[pos] = (uint16_t) i;
                     }
+
+                    hits += jl_mg_pipeline(PArray, Pjptop, pkeys, pslots,
+                                           base, PPValue, m);
                 }
+#else  // cJL_MULTIGET_PARTITION == 0: input-order pipeline (bench control).
+                hits += jl_mg_pipeline(PArray, Pjptop, chunk,
+                                       (const uint16_t *) NULL,
+                                       base, PPValue, m);
+#endif
             }
-
-#undef JL_MG_LANE_START
         }
 
         return(hits);
