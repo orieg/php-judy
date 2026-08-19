@@ -1761,7 +1761,7 @@ null automatically; none in the reported set were.
 | Linux x86-64, honeycomb | gcc 14.2.0, PHP 8.4.24, Debian 13 | measured | measured | **claim-grade** |
 | macOS arm64 | Apple clang 21, PHP 8.5.8, Homebrew | **not measured** | measured | **directional only** |
 | Alpine / musl x86-64 | gcc, PHP 8.4 | not measured | not measured | **not measured** |
-| Linux x86-64, out-of-cache (>=6M) | gcc 14.2.0 | not measured | measured (8M rows above) | **not measured** |
+| Linux x86-64, out-of-cache (>=6M) | gcc 14.2.0 | not measured (unblocked, not yet run) | measured (8M rows above) | **not measured** |
 | Windows | MSVC | not measured | not measured | **not measured** |
 
 - **macOS arm64 is directional, not claim-grade, and the hole is narrowed rather
@@ -1772,25 +1772,56 @@ null automatically; none in the reported set were.
   (`bitset` 30.2x vs 22.7x, `int_to_mixed` 0.79x vs 0.79x, `string_to_int` 3.09x
   vs 3.32x) and its B/C ratios are ~1.00, but they are reported as directional.
   **Apple clang / arm64 remains this project's acknowledged measurement gap.**
-- **Out-of-cache timing is not measured, and the reason is a memory-safety
-  signal that is still open.** The intended 6M run aborted when arm B terminated
-  with SIGSEGV in the `core.int` group. Triage so far:
+- **Out-of-cache timing is still not measured, but the memory-safety signal that
+  blocked it is resolved.** The intended 6M run aborted when arm B terminated
+  with SIGSEGV in the `core.int` group, and at the time this section could not
+  say whether the fault lay in the extension, the benchmark script, or libJudy.
+  It is now established: the fault is **php-judy's own PHP-facing layer**, not
+  libJudy and not the benchmark. `judy_free_array_internal()` walked the
+  container calling `zval_ptr_dtor()` + `efree()` on each stored zval while the
+  freed pointers stayed reachable in the container; once the GC root buffer
+  filled, `gc_collect_cycles()` ran synchronously inside that loop and
+  `judy_object_get_gc()` re-walked the half-freed container. Use-after-free,
+  surfacing as `zend_mm_heap corrupted` or SIGSEGV. Tracked as
+  [#162](https://github.com/orieg/php-judy/issues/162), fixed in `dcc368e`
+  (unlink the container before the destructive walk), covered by
+  `tests/regression_gc_teardown_reentrancy_001.phpt`.
 
-  | check | result |
-  | --- | --- |
-  | macOS arm64, plain 6M `INT_TO_INT` insert loop, both arms | clean, no fault, identical `memoryUsage()` |
-  | linux/amd64, `judy-bench.php --group core.int --size 3000000`, arm **B** | `zend_mm_heap corrupted` |
-  | linux/amd64, same cell, arm **C** (bundled) | `zend_mm_heap corrupted` |
+  That the crash reproduced under **both** arms was the correct reading and
+  remains so: it is explicitly **not** a bundled-versus-system robustness claim,
+  and nothing in this section should be read as one. The bundled-vs-system
+  comparison was never the variable.
 
-  **Both arms corrupt the heap**, so this is explicitly **not** a
-  bundled-versus-system robustness claim, and nothing in this section should be
-  read as one. A simple large insert loop is clean, so it is specific to what the
-  `core.int` group does at scale. Whether the fault lies in the extension, in the
-  benchmark script, or in libJudy below both is **not yet established**, and it is
-  being tracked as its own correctness investigation rather than resolved here —
-  a memory-safety bug is not a benchmark footnote. The 8M rows in the memory
-  table are unaffected: those run in their own child processes and complete
-  cleanly.
+  Post-fix verification, one tree per arm built from the two commits and driven
+  by the identical `judy-bench.php` (`--group core.int --iterations 1`). The
+  pre-fix column at 3M/6M on linux/amd64 also reproduces the original triage
+  above, which covered arms **B** and **C**; the post-fix runs below are arm
+  **C** (bundled) only.
+
+  | check | pre-fix (`172e489`) | post-fix (`dcc368e`) |
+  | --- | --- | --- |
+  | macOS arm64, plain 6M `INT_TO_INT` insert loop, both arms | clean | clean |
+  | linux/amd64 (`php:8.4-cli`, gcc 14.2.0), `core.int` n=3M | `zend_mm_heap corrupted` (rc=134) | clean (rc=0) |
+  | linux/amd64, `core.int` n=6M | `zend_mm_heap corrupted` (rc=134) | clean (rc=0) |
+  | linux/amd64, `regression_gc_teardown_reentrancy_001` body | `zend_mm_heap corrupted` (rc=134) | clean (rc=0) |
+  | macOS arm64 (PHP 8.5.8), `core.int` n=3M | clean | clean |
+  | macOS arm64, `core.int` n=6M | `zend_mm_heap corrupted` (rc=134) | clean (rc=0) |
+
+  The insert-only loop stayed clean throughout because it never puts the Judy
+  object in the GC root buffer; `judy-bench.php` does, via `count()` and the
+  closures it hands the container to. macOS needed 6M to fault where linux/amd64
+  faulted at 3M — an allocator difference, not a different bug. The `2G`
+  `memory_limit` that `judy-bench.php` sets was a candidate mechanism (a bailout
+  unwinding through an in-progress Judy write) and is ruled out: the post-fix 6M
+  runs complete under that same cap without a fatal.
+
+  **What this unblocks and what it does not.** The out-of-cache (>=6M) `core.int`
+  cell now runs to completion, so the arm can be scheduled; the slot in the tier
+  table stays `not measured` until it is actually run on an exclusively-held
+  honeycomb. Nothing above is a timing measurement — the runs in the table are
+  crash reproductions on a shared laptop and assert nothing about performance.
+  The 8M rows in the memory table were always unaffected: those run in their own
+  child processes and complete cleanly.
 - **Alpine / musl is not measured.** It matters — musl's allocator is not
   glibc's and Judy is allocation-heavy — and Alpine ships **pristine** 1.0.5, so
   its B-vs-C would also include P1. Deferred for host scheduling reasons only.
