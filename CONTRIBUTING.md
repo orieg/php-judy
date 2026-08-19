@@ -33,8 +33,8 @@ that a new "somewhere to put this" is almost never needed.
 | Runnable user-facing demos | `examples/` (and `examples/benchmarks/` for the PHP benchmark suite) | **yes** |
 | User and maintainer docs | repo-root `*.md` (`README.md`, `API.md`, `AGENTS.md`, `BENCHMARK.md`, …) | **yes** |
 | PHP and Python helpers a *user of the package* may want — API-doc generation, the benchmark drivers, the lldb/gdb pretty-printers | `scripts/` | **yes** (`role="doc"`) |
-| Benchmark baseline the CI gate compares against | `baselines/` | **yes** (`role="doc"`) |
-| Developer tooling: C harnesses, the differential fuzzer, packaging and CI helper scripts | `tools/` | no |
+| Benchmark baselines the CI gates compare against — `latest.json` (absolute ms, release-over-release) and `arm-ratios.json` (per-platform within-run arm ratios, cross-platform gate). Both move only in dedicated PRs | `baselines/` | **yes** (`role="doc"`) |
+| Developer tooling: C harnesses, the differential fuzzer, the shared bench lock and stability guard, the benchmark-gate build/run drivers (`tools/bench-gate/`), packaging and CI helper scripts | `tools/` | no |
 | Evidence records: findings, pre-registrations, result dumps, closed spikes | `research/` | no |
 
 Two rules keep the split from eroding:
