@@ -1543,10 +1543,13 @@ published number in this project.
   every driver passes its children — `scripts/bench-compare.php` directly, and
   `scripts/bench-threearm.php` and `scripts/bench-gate.php` through the shared
   launcher in `scripts/bench-lib.php`. That made the `core.str` group impossible
-  to run at `--size 6000000` under **any** arm: the group materialises two
-  6M-element string-keyed PHP arrays plus their key lists before the first Judy
-  call, and died inside its own fixture builder, so the failure was a property
-  of the harness and not a signal about either library. It was the second of the
+  to run at `--size 6000000` under **any** arm, so the failure was a property of
+  the harness and not a signal about either library. It is **not** the fixtures
+  that overflow, contrary to what this section said until it was measured: the
+  four fixture arrays peak at 1.69 GB and complete under a `2G` cap. What
+  overflows is `bench_str_type()`'s own `$p_pop` closure, which builds the
+  **PHP-array arm's duplicate** of the 6M-element array on top of those
+  fixtures, after `$j_pop()` has already populated a Judy container. It was the second of the
   two blockers on the out-of-cache row below — the other being the memory-safety
   one that [#162](https://github.com/orieg/php-judy/issues/162) closed — and the
   reason the run that filled that row covers the integer, bitset and string
@@ -2207,21 +2210,37 @@ why it sits below the gating floor and is not in the headline table above.
   group did not run at 6M, for a reason that had nothing to do with php-judy.
   At the time of this run `judy-bench.php` set `ini_set('memory_limit', '2G')`
   unconditionally, which overrode the `-d memory_limit=-1` the driver passes,
-  and that group's own fixtures — two 6M-element string-keyed PHP arrays plus
-  their key lists, built before any Judy work starts — exhausted it. It failed
-  identically under every arm with `Allowed memory size of 2147483648 bytes
-  exhausted` inside its own fixture builder. The measured cell therefore covers
-  `core.int`, `api.batch`, `api.setops` and `adv.iter`; string **API** paths are
-  well represented there (34 of the 71 faster cells are string-keyed), but the
-  `core.str` per-element write/read/iterate table is absent.
+  and the group exhausted that cap. It failed identically under every arm with
+  `Allowed memory size of 2147483648 bytes exhausted`. The measured cell
+  therefore covers `core.int`, `api.batch`, `api.setops` and `adv.iter`; string
+  **API** paths are well represented there (34 of the 71 faster cells are
+  string-keyed), but the `core.str` per-element write/read/iterate table is
+  absent.
 
   Lifting the cap was deliberately not bundled into this measurement. It landed
   separately in [#170](https://github.com/orieg/php-judy/pull/170), which made
   the `2G` a floor a lower caller is raised to rather than an override, so the
-  harness no longer refuses the group (methodology above). **That is not the
-  same as the cell being complete**: whether `core.str` actually finishes at 6M
-  uncapped is an open question only a re-run can answer, and this cell has not
-  been re-taken; the figures linked above are that run as published.
+  harness no longer refuses the group (methodology above).
+
+  **The group is now confirmed to run at this size, and the cause above is
+  measured rather than inferred.** On honeycomb (Debian 13 container, gcc
+  14.2.0, PHP 8.4.24, bundled arm), `--group core.str --size 6000000
+  --iterations 1`:
+
+  | `memory_limit` | outcome | peak RSS |
+  | --- | --- | --- |
+  | `2G` (the pre-#170 cap, reproduced) | `rc=255`, `Allowed memory size of 2147483648 bytes exhausted (tried to allocate 335544320 bytes)` at the `$p_pop` array copy | 1.77 GB |
+  | `-1` (what every driver passes) | **`rc=0` — completes** | **3.70 GB** |
+
+  The failing allocation is byte-for-byte the one the original report quoted,
+  so this is the same failure, not a lookalike. Budget the group at ~3.7 GB of
+  RSS at n=6M rather than at the fixtures' 1.69 GB.
+
+  **That is still not the same as the cell being complete**: the above is a
+  feasibility and memory measurement on a single arm, asserting nothing about
+  timing. The three-arm `core.str` cell has not been re-taken, and the figures
+  linked above remain that run as published. Tracked in
+  [#179](https://github.com/orieg/php-judy/issues/179).
 
   The original blocker, for the record: the intended 6M run aborted when arm B terminated
   with SIGSEGV in the `core.int` group, and at the time this section could not
@@ -2328,10 +2347,12 @@ php scripts/bench-threearm.php \
 
 For the **out-of-cache** cell, raise `--size` past the driver's `--dram-size`
 (default 4M) so the ~1.3% floor is selected. The command below reproduces the
-cell **as published**, which drops `core.str`: its fixtures exhausted the
+cell **as published**, which drops `core.str`: that group exhausted the
 unconditional `2G` cap `judy-bench.php` set for itself at the time. That cap is
-now a floor rather than an override (#170), so a fresh run may attempt the
-group — but it would be a new measurement, not a reproduction of this one:
+now a floor rather than an override (#170), and the group has since been
+confirmed to complete at this size uncapped (see above), so a fresh run can
+include it — but that would be a new measurement, not a reproduction of this
+one:
 
 ```sh
 php scripts/bench-threearm.php \
