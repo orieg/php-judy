@@ -24,6 +24,13 @@ OPT      ?= -O2 -g
 CPPFLAGS += -I$(JUDY_PREFIX)/include
 LDFLAGS  += -L$(JUDY_PREFIX)/lib
 LDLIBS    = -lJudy
+
+# MULTIGET=1: the library under test is a bundled-tree build that has
+# JudyLMultiGet (#142 patch O5) -- enables the batched-vs-serial oracle
+# mode.  Leave unset for stock/system libJudy, which lacks the symbol.
+ifeq ($(MULTIGET),1)
+CPPFLAGS += -DHAVE_JUDYL_MULTIGET
+endif
 SAN       = -fsanitize=address,undefined -fno-sanitize-recover=all \
             -fno-omit-frame-pointer
 
