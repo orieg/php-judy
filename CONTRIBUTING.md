@@ -19,6 +19,46 @@ isolation is load-bearing for correctness, not a style preference; see the
 warning below. The bundled build requires a 64-bit target: `configure` refuses
 otherwise and points at `--with-judy=DIR`.
 
+## Where code lives
+
+Every kind of file in this repo has exactly one home. Before adding a
+directory or a top-level file, find its row here — the point of the table is
+that a new "somewhere to put this" is almost never needed.
+
+| Content | Home | Ships in the PECL package? |
+| ------- | ---- | -------------------------- |
+| Extension sources and headers | repo root (`php_judy.c`, `judy_*.c/h`, `Judy.stub.php`, `Judy_arginfo.h`, `config.m4`, `config.w32`) | **yes** |
+| Vendored third-party C | `libjudy/` — pristine upstream plus the ledgered patch series in [libjudy/PATCHES.md](libjudy/PATCHES.md) | **yes** |
+| Behaviour tests | `tests/` — one `.phpt` per behaviour change, plus any `.inc` fixtures they drive | **yes** |
+| Runnable user-facing demos | `examples/` (and `examples/benchmarks/` for the PHP benchmark suite) | **yes** |
+| User and maintainer docs | repo-root `*.md` (`README.md`, `API.md`, `AGENTS.md`, `BENCHMARK.md`, …) | **yes** |
+| Developer tooling: C harnesses, the differential fuzzer, CI helper scripts | `tools/` | no |
+| PHP and Python helper scripts run by hand or by CI | `scripts/` | no |
+| Evidence records: findings, pre-registrations, result dumps, closed spikes | `research/` | no |
+| Benchmark baseline the CI gate compares against | `baselines/` | no |
+
+Two rules keep the split from eroding:
+
+- **Permanence decides the home, not provenance.** Something CI runs, or that
+  a future contributor would re-run, is tooling and belongs in `tools/` even
+  if it was written for one investigation. `research/` holds what a
+  measurement *found*; `tools/` holds what produced it. This is why
+  `ci-smoke.sh`, the benchmark harnesses and the differential fuzzer moved out
+  of `research/`: a CI gate named after a research folder invites someone to
+  delete it as stale.
+- **Anything not shipped stays not shipped.** `package.xml` lists every file
+  in the tarball, and the `validate-pecl` job asserts both directions:
+  everything tracked under `tests/` and `libjudy/` must be listed, and
+  [`tools/check-package-contents.sh`](tools/check-package-contents.sh) rejects
+  a tarball that carries any `tools/` or `research/` path. Adding a shipped
+  file means adding its `<file>` entry; adding an unshipped one means adding
+  nothing.
+
+Ambiguous case, recorded rather than silently decided: `research/shm-arena/`
+is a closed feasibility spike (issue #83, closed not planned) whose C is still
+compiled by `tools/ci-smoke.sh` as a rot guard. It stayed a record because
+nobody re-runs it; the gate reaches into `research/` for it deliberately.
+
 ## Building from source
 
 ```sh
@@ -303,9 +343,10 @@ pristine import has to stay readable:
 Two CI jobs guard this code specifically: `differential-fuzz` runs the bundled
 tree against exact `std::set`/`std::map` oracles at the shipped production
 flags, with a planted #131-class defect every run as a negative control, and
-`build-research` re-runs the ASan/UBSan harness grid against the bundled tree
-as well as a system library. Both live under
-[`research/differential-fuzz/`](research/differential-fuzz/).
+`build-harnesses` re-runs the ASan/UBSan harness grid against the bundled
+tree as well as a system library. The fuzzer lives under
+[`tools/differential-fuzz/`](tools/differential-fuzz/); the grid is driven by
+[`tools/ci-smoke.sh`](tools/ci-smoke.sh).
 
 ## Code conventions
 

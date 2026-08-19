@@ -175,7 +175,7 @@ The negative control re-creates #131's silent-key-loss behavior at the
 source level (truncating the `jp_1Index` immediate copy in `JudyCascade.c`
 to 8 bytes) so the gate is watched-to-fail on every run, on any compiler.
 
-`tools/ci-smoke.sh` (the `build-research` job) additionally runs the
+`tools/ci-smoke.sh` (the `build-harnesses` job) additionally runs the
 iterbench/probebench ASan+UBSan grid against the same bundled-tree build via
 `JUDY_PREFIX`, alongside its system-library pass.
 
