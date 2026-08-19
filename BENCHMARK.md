@@ -1984,7 +1984,9 @@ interleaved ABBA rounds, 3 independently linked builds per arm rotated across
 rounds, **~1.3% out-of-cache claim floor** applied automatically because
 6M ≥ the driver's `--dram-size` of 4M. Raw JSON and console output:
 `research/three-arm-benchmark/results/run6-out-of-cache-6m.{json,txt}`,
-`run6-attribution-6m.{json,txt}`, `run6-cvsc-control-6m.{json,txt}`.
+`run6-attribution-6m.{json,txt}`, `run6-cvsc-control-6m.{json,txt}`; the
+`core.str` completion run (below) is `run7-out-of-cache-6m-str.{json,txt}` and
+`run7-cvsc-control-6m-str.{json,txt}`.
 
 Host hygiene held flat across all four phase boundaries of all three runs:
 load1 1.00-1.22 against a threshold of 12.0, **foreign CPU 0.0% at every
@@ -2015,6 +2017,62 @@ B→C goes from -17.7% cache-resident to **-12.0%** out-of-cache, and string fro
 -22.2% to **-19.7%**. Instruction-level wins (O1 popcount, O3 word-access
 metadata) buy less when the pipeline is waiting on DRAM. This is consistent with
 the C-level gates, where O3's win survived DRAM-bound intact while O1's shrank.
+
+#### The `core.str` per-element table, filled (run7, 2026-08-19)
+
+The one group the original campaign could not run — `core.str` per-element
+write/read/iterate/free, blocked by the unconditional `2G` `memory_limit`
+documented below — was measured after
+[#170](https://github.com/orieg/php-judy/pull/170) lifted the cap. Same
+apparatus, same host, same protocol: 7 interleaved ABBA rounds, 3 independently
+linked builds per arm rotated across rounds, `--cpuset-cpus=2`, bench lock held
+throughout, foreign CPU 0.0% at every phase boundary, PHP-only drift control
++0.12% [-0.01, +0.21] over 45 rows, run not self-marked contaminated. The C-vs-C
+rebuild control at the same working set read null everywhere, as it must for
+any of this to be interpretable: 97 of 97 cells null, median |delta| 0.14%,
+p90 0.44%, worst 1.02% — all inside the 1.3% floor.
+
+**Replication first, because it is the more load-bearing number:** this run
+re-measured every group run6 covered, and the overlapping aggregates reproduce
+run6 within half a point — integer/bitset **-11.6%** (n=38) against run6's
+-12.0%, string API **-18.8%** (n=35) against -19.7%. The arms were rebuilt
+independently for this run — different `.so` binaries, fresh links — and landed
+on the same medians, which is what licenses reading the new cells at face
+value.
+
+The new cells, B→C median per-round delta (all 24 FASTER, every CI clear of the
+1.3% floor by 7x or more, per-build spread ≤ 1.7% on every cell):
+
+| type | write | read | iter | free |
+| --- | ---: | ---: | ---: | ---: |
+| `STRING_TO_INT` | -28.4% | -36.8% | -36.2% | **-42.6%** |
+| `STRING_TO_MIXED` | -28.2% | -33.6% | -34.6% | -39.1% |
+| `STRING_TO_INT_HASH` | -19.1% | -9.7% | -34.5% | -30.5% |
+| `STRING_TO_MIXED_HASH` | -27.4% | -32.5% | -32.8% | -34.2% |
+| `STRING_TO_INT_ADAPTIVE` | -19.2% | -9.9% | -35.0% | -30.5% |
+| `STRING_TO_MIXED_ADAPTIVE` | -25.5% | -10.8% | -32.5% | -32.9% |
+
+Median across the 24 cells: **-32.5%** — larger than the -18.8% the string
+**API** cells show in the same run. The three ~-10% `read` outliers are all
+`HASH`/`ADAPTIVE` variants, whose lookups spend most of their time in the
+extension's own hash layer rather than in libJudy — the component being
+swapped — so a smaller effect there is the expected direction. It is not the
+whole story (`STRING_TO_MIXED_HASH.read` sits at -32.5% under the same
+reasoning), so the pattern is reported as an observation, not a mechanism.
+
+**What this run does not measure: attribution.** It ran arms B and C only — no
+pristine-static S arm — so there is no S→C share for these 24 cells, and the
+string row in the decomposition table above remains an API-paths-only
+statement. Whether `core.str`'s -32.5% splits toward the patches or toward
+static linkage the way the API cells' 40% does is unmeasured.
+
+The A-vs-C side of the same cells says nothing new but is worth pinning: the
+PHP array wins **all 24** per-element timing cells out-of-cache, from 2.1x
+(`string_to_mixed.write`) to 16.4x (`string_to_mixed_hash.read`), while the
+memory matrix (below, reproduced by this run within rounding) has Judy at
+**3.44x smaller** on `string_to_int` at the same n. That is the standing
+trade-off of the string types stated at full working set: per-element loops
+lose, footprint and the batch/API paths win.
 
 #### Memory at the same working set
 
@@ -2097,7 +2155,7 @@ There are now four tiers on this page and they are not interchangeable.
 | **macOS arm64**, GitHub runner | Apple clang 21.0.0, PHP 8.4.24 | measured | measured | measured | **ci-relative** |
 | macOS arm64, local workstation | Apple clang 21, PHP 8.5.8, Homebrew | directional | directional | measured | **directional** |
 | **Windows x64**, GitHub runner | MSVC, PHP 8.4.24, Windows Server 2025 | measured | measured | measured | **ci-relative-single-build** |
-| Linux x86-64, **out-of-cache** (n=6M), honeycomb (dedicated) | gcc 14.2.0, PHP 8.4.24, Debian 13 | measured | measured | measured | **claim-grade** (integer/bitset + string API paths; `core.str` not measured — see below) |
+| Linux x86-64, **out-of-cache** (n=6M), honeycomb (dedicated) | gcc 14.2.0, PHP 8.4.24, Debian 13 | measured | measured | measured | **claim-grade** (all groups; `core.str` filled by run7 — see below) |
 
 #### What the gate measured on each platform
 
@@ -2262,8 +2320,10 @@ why it sits below the gating floor and is not in the headline table above.
   [out-of-cache section](#out-of-cache-n6m-what-survives-when-the-working-set-leaves-l3)
   above for the figures. What follows is the record of the memory-safety
   blocker that held the slot empty, kept because it is the reason the cell sat
-  unmeasured for so long. **One hole remains inside the cell**: the `core.str`
-  group did not run at 6M, for a reason that had nothing to do with php-judy.
+  unmeasured for so long. **The one hole that remained inside the cell — the
+  `core.str` group — was filled on 2026-08-19 by run7 (see the out-of-cache
+  section above).** The record of why it was ever empty: the group did not run
+  at 6M, for a reason that had nothing to do with php-judy.
   At the time of this run `judy-bench.php` set `ini_set('memory_limit', '2G')`
   unconditionally, which overrode the `-d memory_limit=-1` the driver passes,
   and the group exhausted that cap. It failed identically under every arm with
@@ -2278,8 +2338,8 @@ why it sits below the gating floor and is not in the headline table above.
   the `2G` a floor a lower caller is raised to rather than an override, so the
   harness no longer refuses the group (methodology above).
 
-  **The group is now confirmed to run at this size, and the cause above is
-  measured rather than inferred.** On honeycomb (Debian 13 container, gcc
+  **The group runs at this size, and the cause above is measured rather than
+  inferred.** On honeycomb (Debian 13 container, gcc
   14.2.0, PHP 8.4.24, bundled arm), `--group core.str --size 6000000
   --iterations 1`:
 
@@ -2292,10 +2352,8 @@ why it sits below the gating floor and is not in the headline table above.
   so this is the same failure, not a lookalike. Budget the group at ~3.7 GB of
   RSS at n=6M rather than at the fixtures' 1.69 GB.
 
-  **That is still not the same as the cell being complete**: the above is a
-  feasibility and memory measurement on a single arm, asserting nothing about
-  timing. The three-arm `core.str` cell has not been re-taken, and the figures
-  linked above remain that run as published. Tracked in
+  The feasibility probe above asserted nothing about timing; the timing
+  measurement itself is run7 in the out-of-cache section, which closed
   [#179](https://github.com/orieg/php-judy/issues/179).
 
   The original blocker, for the record: the intended 6M run aborted when arm B terminated
@@ -2403,20 +2461,18 @@ php scripts/bench-threearm.php \
 
 For the **out-of-cache** cell, raise `--size` past the driver's `--dram-size`
 (default 4M) so the ~1.3% floor is selected. The command below reproduces the
-cell **as published**, which drops `core.str`: that group exhausted the
-unconditional `2G` cap `judy-bench.php` set for itself at the time. That cap is
-now a floor rather than an override (#170), and the group has since been
-confirmed to complete at this size uncapped (see above), so a fresh run can
-include it — but that would be a new measurement, not a reproduction of this
-one:
+cell: run6 dropped `core.str` (the group exhausted the unconditional `2G` cap
+`judy-bench.php` set for itself at the time; the cap became a floor in #170) and
+run7 completed the group, so the full group list below reproduces run7. Budget
+~3.7 GB RSS per timing child for `core.str` at this size:
 
 ```sh
 php scripts/bench-threearm.php \
   --system-so judy-system.so --bundled-so judy-bundled.so \
   --rounds 7 --size 6000000 --assert-same-source \
-  --groups core.int,api.batch,api.setops,adv.iter --mem-sizes 6000000 \
+  --groups core.int,core.str,api.batch,api.setops,adv.iter --mem-sizes 6000000 \
   --system-provenance "$(. /etc/os-release; echo "$PRETTY_NAME") $(dpkg-query -W -f='${Version}' libjudy-dev 2>/dev/null)" \
-  --out research/three-arm-benchmark/results/run6-out-of-cache-6m.json
+  --out research/three-arm-benchmark/results/run7-out-of-cache-6m-str.json
 ```
 
 Pass `--system-so` / `--bundled-so` more than once to rotate independent builds.
