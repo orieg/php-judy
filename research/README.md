@@ -1,20 +1,26 @@
 # research/
 
-Standalone C harnesses backing claims made elsewhere in the repo. **Nothing
-here ships** — these are not part of the PECL package, are not built by
-`make`, and are not loaded by the extension. They exist so that a measured
-claim in a doc or an issue can be re-run instead of taken on trust.
+The evidence record behind measured claims made elsewhere in the repo.
+**Nothing here ships** — this is not part of the PECL package, is not built by
+`make`, and is not loaded by the extension. It exists so that a measured claim
+in a doc or an issue can be checked instead of taken on trust.
 
-Each subdirectory owns one question and names the artifact it supports.
+The harnesses that produce those measurements are **tooling, not record**, and
+live under [`../tools/`](../tools/) — CI compiles and runs them on every PR, so
+they cannot rot the way they did before [#122](https://github.com/orieg/php-judy/issues/122).
+This directory keeps the questions, the methods and the numbers; the table
+below names the harness for each one.
+
+Each entry owns one question and names the artifact it supports.
 
 | Directory | Question | Supports |
 | --------- | -------- | -------- |
 | [`shm-arena/`](shm-arena/) | Can libJudy live in a shared-memory arena, giving an ordered cache shared across FPM workers? | [issue #83](https://github.com/orieg/php-judy/issues/83) — closed, not planned. Five feasibility gates; writer death corrupts the tree 15% of the time (Wilson CI [8.8%, 24.4%]) and macOS has no robust mutexes. `FINDINGS.md` has the per-gate verdicts. |
-| [`iteration-cost/`](iteration-cost/) | Is JudySL's ordered-iteration cost the caller-supplied key buffer, or a stateless re-descend from the root? | [issue #85](https://github.com/orieg/php-judy/issues/85) and [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). The key-reconstruction hypothesis stays refuted, but the evidence originally given for it does not: **`JSLN` is not flat in key length, and not flat in working-set size** — both flat results were artifacts of one degenerate corpus. Re-derived on a fixed generator; see [The `JSLN` flatness claim, re-derived](#the-jsln-flatness-claim-re-derived) below. |
-| [`write-probe-cost/`](write-probe-cost/) | Issue #85 step B3 wants ordered traversal to read the value out of the `key_index` cursor. That means locating the `key_index` slot on every write. What does moving the existence probe from JudyHS to JudySL cost the write path? | [issue #85](https://github.com/orieg/php-judy/issues/85) step B3. The probe swap itself is roughly neutral on a hit (+3% at 16-byte keys, −9% at 40-byte) and a large win on a miss (JudySL fails at the first differing byte; JudyHS digests the whole key first) — but see [Absent keys and divergence depth](#absent-keys-and-divergence-depth): the miss figure was taken at the one divergence depth most favourable to the trie, so for long keys it is granted rather than measured. End-to-end random-order overwrite still regresses, because today's `JHSG`+`JHSI` pair reuses one warm structure and the mirrored write touches two. That regression is why the mirror ships behind the opt-in `optimizeIteration` constructor argument rather than on by default: the unmirrored path keeps the `JHSG` probe and this swap never happens on it. |
-| [`backend-comparison/`](backend-comparison/) | Should the extension keep libJudy, or move to a modern ordered index? | [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). `amdahl.c`/`amdahl.php` bound how much a backend swap could possibly buy through the PHP boundary; `cmp.c` runs ART against JudySL. Verdict: keep Judy. Needs libart cloned alongside — not vendored. |
-| [`differential-fuzz/`](differential-fuzz/) | Does libJudy agree with an exact standard-library oracle under randomized op sequences — and would this harness actually catch the known bug classes? | [issue #142](https://github.com/orieg/php-judy/issues/142) Stage 4, guarding the Stage 2 patch series against [#131](https://github.com/orieg/php-judy/issues/131) / [#127](https://github.com/orieg/php-judy/issues/127). Judy1/JudyL/JudySL/JudyHS vs `std::set`/`map`/`unordered_map`, seeded and reproducible, batch invariants + full ordered walks both directions. **Validated-to-fail** against both historical bug classes (the #131 `gcc -O3` miscompile and the #127 `JudyInsArray` off-by-one under ASan); its README records the observed failures. Wired into CI as the per-PR `differential-fuzz` job (bounded profile, bundled tree at the shipped production flags, planted-#131 negative control every run); the long soaks stay a local / pre-release tool. |
-| [`libjudy-modernization/`](libjudy-modernization/) | Given that we keep Judy, does the incumbent have exploitable headroom — and does realising it mean vendoring libJudy? | [issue #113](https://github.com/orieg/php-judy/issues/113), plus [#131](https://github.com/orieg/php-judy/issues/131) / [#127](https://github.com/orieg/php-judy/issues/127) for the upstream defects it turned up. A first "no headroom" verdict was retracted; round 2 measured popcount-L at 17% cache-resident (JudyL only) and memory-level parallelism at 1.62–1.79x. The decisive finding is correctness, not speed: stock libJudy built with `gcc -O3` silently loses `Judy::BITSET` keys. Verdict: vendor stock 1.0.5 + patches, gated — **executed** via [#142](https://github.com/orieg/php-judy/issues/142) (Stages 0–2 plus optimizations O1/O3 merged). `FINDINGS.md` has the full record — the retraction, the negatives, and the §11 execution record. The investigation-round perf harnesses are not committed (throwaway trees); the differential fuzzer is, under [`differential-fuzz/`](differential-fuzz/). |
+| [`../tools/iteration-cost/`](../tools/iteration-cost/) | Is JudySL's ordered-iteration cost the caller-supplied key buffer, or a stateless re-descend from the root? | [issue #85](https://github.com/orieg/php-judy/issues/85) and [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). The key-reconstruction hypothesis stays refuted, but the evidence originally given for it does not: **`JSLN` is not flat in key length, and not flat in working-set size** — both flat results were artifacts of one degenerate corpus. Re-derived on a fixed generator; see [The `JSLN` flatness claim, re-derived](#the-jsln-flatness-claim-re-derived) below. |
+| [`../tools/write-probe-cost/`](../tools/write-probe-cost/) | Issue #85 step B3 wants ordered traversal to read the value out of the `key_index` cursor. That means locating the `key_index` slot on every write. What does moving the existence probe from JudyHS to JudySL cost the write path? | [issue #85](https://github.com/orieg/php-judy/issues/85) step B3. The probe swap itself is roughly neutral on a hit (+3% at 16-byte keys, −9% at 40-byte) and a large win on a miss (JudySL fails at the first differing byte; JudyHS digests the whole key first) — but see [Absent keys and divergence depth](#absent-keys-and-divergence-depth): the miss figure was taken at the one divergence depth most favourable to the trie, so for long keys it is granted rather than measured. End-to-end random-order overwrite still regresses, because today's `JHSG`+`JHSI` pair reuses one warm structure and the mirrored write touches two. That regression is why the mirror ships behind the opt-in `optimizeIteration` constructor argument rather than on by default: the unmirrored path keeps the `JHSG` probe and this swap never happens on it. |
+| [`../tools/backend-comparison/`](../tools/backend-comparison/) | Should the extension keep libJudy, or move to a modern ordered index? | [BACKEND_EVALUATION.md](../BACKEND_EVALUATION.md). `amdahl.c`/`amdahl.php` bound how much a backend swap could possibly buy through the PHP boundary; `cmp.c` runs ART against JudySL. Verdict: keep Judy. Needs libart cloned alongside — not vendored. |
+| [`../tools/differential-fuzz/`](../tools/differential-fuzz/) | Does libJudy agree with an exact standard-library oracle under randomized op sequences — and would this harness actually catch the known bug classes? | [issue #142](https://github.com/orieg/php-judy/issues/142) Stage 4, guarding the Stage 2 patch series against [#131](https://github.com/orieg/php-judy/issues/131) / [#127](https://github.com/orieg/php-judy/issues/127). Judy1/JudyL/JudySL/JudyHS vs `std::set`/`map`/`unordered_map`, seeded and reproducible, batch invariants + full ordered walks both directions. **Validated-to-fail** against both historical bug classes (the #131 `gcc -O3` miscompile and the #127 `JudyInsArray` off-by-one under ASan); its README records the observed failures. Wired into CI as the per-PR `differential-fuzz` job (bounded profile, bundled tree at the shipped production flags, planted-#131 negative control every run); the long soaks stay a local / pre-release tool. |
+| [`libjudy-modernization/`](libjudy-modernization/) | Given that we keep Judy, does the incumbent have exploitable headroom — and does realising it mean vendoring libJudy? | [issue #113](https://github.com/orieg/php-judy/issues/113), plus [#131](https://github.com/orieg/php-judy/issues/131) / [#127](https://github.com/orieg/php-judy/issues/127) for the upstream defects it turned up. A first "no headroom" verdict was retracted; round 2 measured popcount-L at 17% cache-resident (JudyL only) and memory-level parallelism at 1.62–1.79x. The decisive finding is correctness, not speed: stock libJudy built with `gcc -O3` silently loses `Judy::BITSET` keys. Verdict: vendor stock 1.0.5 + patches, gated — **executed** via [#142](https://github.com/orieg/php-judy/issues/142) (Stages 0–2 plus optimizations O1/O3 merged). `FINDINGS.md` has the full record — the retraction, the negatives, and the §11 execution record. The investigation-round perf harnesses are not committed (throwaway trees); the differential fuzzer is, under [`../tools/differential-fuzz/`](../tools/differential-fuzz/). |
 
 ## The `JSLN` flatness claim, re-derived
 
@@ -53,7 +59,7 @@ saturating a 10^6 key space, so every branch in the tree is a `BRANCH_B` bitmap
 at identical density.
 
 `iterbench.c` now carries the same two-shape generator as
-`write-probe-cost/probebench.c` ([PR #124](https://github.com/orieg/php-judy/pull/124)),
+`../tools/write-probe-cost/probebench.c` ([PR #124](https://github.com/orieg/php-judy/pull/124)),
 plus an unconditional `key_check()` that aborts if an emitted key is not
 exactly the requested length — `assert()` is not used, because a generator that
 silently ignores its length argument is the whole defect. It also takes an
@@ -225,13 +231,13 @@ benchmark suite produced two wrong conclusions before being discarded.
 
 ```sh
 # iteration-cost
-gcc -O2 -Wall -Wextra -o iterbench research/iteration-cost/iterbench.c -lJudy
+gcc -O2 -Wall -Wextra -o iterbench tools/iteration-cost/iterbench.c -lJudy
 ./iterbench 1000000 16 5        # n, key length, reps, corpus (default struct)
 ./iterbench 1000000 16 5 rand   # uniform-random bytes — the non-degenerate one
 ./iterbench 1000000 16 5 varlen # random bytes, length uniform in [4, keylen]
 
 # write-probe-cost
-gcc -O2 -Wall -Wextra -o probebench research/write-probe-cost/probebench.c -lJudy
+gcc -O2 -Wall -Wextra -o probebench tools/write-probe-cost/probebench.c -lJudy
 ./probebench 1000000 16 5       # n, key length, reps, corpus, absent-key
                                 # divergence (defaults: struct, offset);
                                 # keylen < 8 adds the ADAPTIVE short-string
@@ -252,32 +258,35 @@ divergence as a fifth.
 
 ## The CI gate
 
-`research/ci-smoke.sh` builds every harness here with `-Wall -Wextra -Werror`
+`../tools/ci-smoke.sh` builds every harness with `-Wall -Wextra -Werror`
 and runs a small ASan/UBSan pass across the whole parameter grid — every
 corpus, key lengths bracketing 8 and 16, and every absent-key divergence.
-`.github/workflows/ci.yml`'s `build-research` job runs it on every PR, ending
+`.github/workflows/ci.yml`'s `build-harnesses` job runs it on every PR, ending
 with a negative control that reinstates the [#122](https://github.com/orieg/php-judy/issues/122)
 generator bug and requires the grid to reject the tree.
 
-It exists because this directory had no CI at all, and that is how both of the
-defects recorded above survived: nothing compiled `research/`, so a generator
+It exists because none of this code had CI at all, and that is how both of the
+defects recorded above survived: nothing compiled the harnesses, so a generator
 could ignore its own length argument for years and a documented probe path
-could ship without ever having executed. Run it before committing anything
-here:
+could ship without ever having executed. Run it before committing a harness
+change:
 
 ```sh
-./research/ci-smoke.sh          # n = 1000; seconds, not minutes
+./tools/ci-smoke.sh             # n = 1000; seconds, not minutes
 ```
 
 Two things it does not cover, both deliberately:
 
-- **`backend-comparison/cmp.c`** is not built. It includes `art.h` from
+- **`../tools/backend-comparison/cmp.c`** is not built. It includes `art.h` from
   libart, which is cloned alongside rather than vendored, and vendoring a
   dependency into a tree whose whole point is that nothing in it ships is the
   wrong trade.
-- **`shm-arena/`** is compiled but not run. Its gates fork, kill writers
-  mid-write and probe robust mutexes; that is a feasibility study, not a smoke
-  test, and issue #83 is already closed on its results.
+- **`shm-arena/`** is compiled but not run — and it is the one thing here the
+  gate reaches into `research/` for. Its gates fork, kill writers mid-write and
+  probe robust mutexes; that is a feasibility study, not a smoke test, and
+  issue #83 is already closed on its results, so it stayed a record rather than
+  moving to `tools/`. The warning gate still covers it, because unbuilt C rots
+  whichever directory it sits in.
 
 ## The structured corpus's key shapes
 

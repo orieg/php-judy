@@ -19,7 +19,7 @@ set -u
 REPO=${REPO:-/repo}
 WORK=${WORK:-/tmp/diffuzz-validate}
 SRC="$REPO/libjudy/src"
-HDIR="$REPO/research/differential-fuzz"
+HDIR="$REPO/tools/differential-fuzz"
 
 fail=0
 note() { printf '\n==== %s\n' "$*"; }

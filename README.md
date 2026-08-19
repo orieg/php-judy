@@ -82,8 +82,11 @@ THIRD-PARTY.md       License notices for bundled third-party code
 libjudy/             Bundled libJudy sources, compiled by default (LGPL-2.1-or-later)
 tests/               Unit and regression tests (.phpt)
 examples/            Runnable demos (see examples/README.md) + benchmark suite
-research/            Standalone C harnesses backing measured claims (not shipped)
-scripts/             API-doc generation helpers
+tools/               Developer tooling: C benchmark harnesses, the differential
+                     fuzzer, CI helper scripts (not shipped)
+research/            Evidence records for closed investigations (not shipped)
+scripts/             PHP/Python helper scripts: API docs, benchmarks, debugger
+                     pretty-printers
 *.c, *.h             C source and header files
 Judy.stub.php        PHP stub for IDE autocompletion
 package.xml          PECL package definition

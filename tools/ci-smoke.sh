@@ -1,17 +1,21 @@
 #!/bin/sh
-# Build every harness under research/ warning-free, then run a sanitized smoke
-# pass across the parameter grid.
+# Build every standalone C harness in the repo warning-free, then run a
+# sanitized smoke pass across the parameter grid.
 #
-# Why this exists: research/ is not part of the extension build. Nothing
+# Why this exists: none of this code is part of the extension build. Nothing
 # compiled it and nothing ran it, and that is how a generator came to ignore
 # its own length argument for years, and how a documented probe path
 # (issue #118) shipped without ever having executed. See issue #122.
+#
+# Coverage is by compilability, not by directory: the benchmark harnesses
+# under tools/ are built and run, and the research/shm-arena spike is
+# compiled (not run) so its C does not rot silently either.
 #
 # The grid matters more than the size. Every historical defect here was
 # reachable at n = 1000; none of them were reachable at the single
 # (corpus, keylen, absent-key) point the harnesses were usually run at.
 #
-#   research/ci-smoke.sh [n]        n defaults to 1000
+#   tools/ci-smoke.sh [n]           n defaults to 1000
 #
 # Honours CC and JUDY_PREFIX. ASAN_OPTIONS/UBSAN_OPTIONS are set only if the
 # caller has not already set them.
@@ -53,38 +57,41 @@ smoke() {
 
 # ---------------------------------------------------------------- build gate
 say "warning gate: -Wall -Wextra -Werror"
-for src in research/iteration-cost/iterbench.c \
-           research/write-probe-cost/probebench.c \
-           research/backend-comparison/amdahl.c; do
+for src in tools/iteration-cost/iterbench.c \
+           tools/write-probe-cost/probebench.c \
+           tools/backend-comparison/amdahl.c; do
     printf '  %s\n' "$src"
     # shellcheck disable=SC2086
     $CC -O2 $WARN $CPPF -o "$BUILD/$(basename "$src" .c)" "$ROOT/$src" $LDF
 done
 
-# research/shm-arena has its own Makefile (static-archive link, -lrt/-lpthread,
-# platform feature macros), so it is built through that rather than reproduced
-# here. Built in a copy so the checkout stays clean. Compile only: the gates
-# fork, kill writers mid-write and probe robust mutexes, which is a feasibility
-# study rather than a smoke test.
+# research/shm-arena stays a research record (issue #83, closed not planned),
+# so it is not tooling and did not move under tools/ -- but it is C in this
+# repo, and unbuilt C rots, so the warning gate still reaches it. It has its
+# own Makefile (static-archive link, -lrt/-lpthread, platform feature macros),
+# so it is built through that rather than reproduced here. Built in a copy so
+# the checkout stays clean. Compile only: the gates fork, kill writers
+# mid-write and probe robust mutexes, which is a feasibility study rather than
+# a smoke test.
 printf '  research/shm-arena (via its Makefile, compile only)\n'
 cp -R "$ROOT/research/shm-arena" "$BUILD/shm-arena"
 make -C "$BUILD/shm-arena" \
      CFLAGS="-std=c11 -O2 -g $WARN -Wno-unused-result" >/dev/null
 
-# research/backend-comparison/cmp.c is deliberately not built: it includes
-# "art.h" from libart, which README.md says must be cloned alongside and is not
-# vendored. Building it here would mean vendoring a dependency into a tree
-# whose whole point is that nothing in it ships.
-printf '  research/backend-comparison/cmp.c SKIPPED (needs libart, not vendored)\n'
+# tools/backend-comparison/cmp.c is deliberately not built: it includes
+# "art.h" from libart, which research/README.md says must be cloned alongside
+# and is not vendored. Building it here would mean vendoring a dependency for
+# code whose whole point is that nothing in it ships.
+printf '  tools/backend-comparison/cmp.c SKIPPED (needs libart, not vendored)\n'
 
 # ------------------------------------------------------------- sanitized run
 say "sanitized build (ASan + UBSan)"
 # shellcheck disable=SC2086
 $CC -O1 -g $SAN $WARN $CPPF -o "$BUILD/iterbench-san" \
-    "$ROOT/research/iteration-cost/iterbench.c" $LDF
+    "$ROOT/tools/iteration-cost/iterbench.c" $LDF
 # shellcheck disable=SC2086
 $CC -O1 -g $SAN $WARN $CPPF -o "$BUILD/probebench-san" \
-    "$ROOT/research/write-probe-cost/probebench.c" $LDF
+    "$ROOT/tools/write-probe-cost/probebench.c" $LDF
 
 # Key lengths bracket every boundary the generators switch on: below 8 (the
 # ADAPTIVE/SSO packed path, and the machine-word step PR #139 found), around
@@ -136,7 +143,7 @@ say "self-check: the grid is actually running the harnesses"
     || { printf '  FAIL: iterbench did not report the corpus it was given\n'; fail=1; }
 
 if [ "$fail" -ne 0 ]; then
-    printf '\n== research/ smoke pass FAILED\n'
+    printf '\n== harness smoke pass FAILED\n'
     exit 1
 fi
-printf '\n== research/ smoke pass OK\n'
+printf '\n== harness smoke pass OK\n'

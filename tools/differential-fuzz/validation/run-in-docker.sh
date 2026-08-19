@@ -19,4 +19,4 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 }
 
 exec docker run --rm -v "$ROOT":/repo:ro "$IMG" \
-    bash /repo/research/differential-fuzz/validation/validate.sh
+    bash /repo/tools/differential-fuzz/validation/validate.sh

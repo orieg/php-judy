@@ -35,7 +35,7 @@
  *
  * ./probebench <n> <keylen> <reps> [corpus] [absent]
  *
- * corpus is one of, matching research/iteration-cost/iterbench.c exactly so
+ * corpus is one of, matching tools/iteration-cost/iterbench.c exactly so
  * the two harnesses emit comparable corpora:
  *   struct   (default) the original two-shape corpus: "user:00001234:f5"
  *            padded with 'x' at keylen >= 16, a fixed-width mixed base-36
@@ -80,7 +80,7 @@ static double med(double *v, int k) { qsort(v, k, sizeof(double), cmpd); return 
 #define MAXK 128
 #define MAXREPS 64
 
-/* Corpus selection, identical to research/iteration-cost/iterbench.c. A single
+/* Corpus selection, identical to tools/iteration-cost/iterbench.c. A single
  * corpus hides real effects: issue #122 / PR #139 found "JSLN is flat in key
  * length" to be a property of the structured corpus rather than of JudySL. */
 #define CORPUS_STRUCT 0
@@ -131,7 +131,7 @@ static void key_check(const char *buf, int want) {
 #define ABSENT_OFFSET_LONG 500000000UL
 
 /* keylen >= LONGKEY_MIN keeps the exact shape of
- * research/iteration-cost/iterbench.c, so those numbers still sit next to the
+ * tools/iteration-cost/iterbench.c, so those numbers still sit next to the
  * ones in issue #85: "user:00001234:f5" padded with 'x'. 10 keys share each
  * user: prefix.
  *

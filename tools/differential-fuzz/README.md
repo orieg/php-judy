@@ -49,7 +49,7 @@ lesson): the `(rnd()&0xFF)|((i/64)<<8)` clustered shape that reproduces #131's
 IMMED_1_15 cascade, 0xFF-biased bytes (the ASan corpus), keys crossing the
 8-byte SSO/word boundary (lengths 4..9 exactly), embedded NUL and empty keys
 for JudyHS, the empty string for JudySL, the struct/rand/varlen
-generators ported from `research/iteration-cost/iterbench.c` post-#139 —
+generators ported from `tools/iteration-cost/iterbench.c` post-#139 —
 including the #122 truncation fix and the unconditional exact-length check —
 and engineered 32-bit hash collisions for JudyHS (`collide`: 2-byte blocks
 `Aa`/`BB`/`C#` each contribute the same `c*31+b` increment, so same-length
@@ -175,9 +175,10 @@ The negative control re-creates #131's silent-key-loss behavior at the
 source level (truncating the `jp_1Index` immediate copy in `JudyCascade.c`
 to 8 bytes) so the gate is watched-to-fail on every run, on any compiler.
 
-`research/ci-smoke.sh` (the `build-research` job) additionally runs the
+`tools/ci-smoke.sh` (the `build-research` job) additionally runs the
 iterbench/probebench ASan+UBSan grid against the same bundled-tree build via
 `JUDY_PREFIX`, alongside its system-library pass.
 
-Nothing in this directory ships: `research/` is excluded from `package.xml`
-by design.
+Nothing in this directory ships: `tools/` is excluded from `package.xml`
+by design, and `validate-pecl` asserts the built tarball carries no `tools/`
+or `research/` entry.
