@@ -16,11 +16,11 @@
       <email>nicolas@brousse.info</email>
       <active>yes</active>
    </lead>
-   <date>2026-08-19</date>
+   <date>2026-08-22</date>
    <time>00:00:00</time>
    <version>
-      <release>2.6.0</release>
-      <api>2.6.0</api>
+      <release>2.7.0</release>
+      <api>2.7.0</api>
    </version>
    <stability>
       <release>stable</release>
@@ -28,39 +28,18 @@
    </stability>
    <license uri="http://www.php.net/license">PHP</license>
    <notes>
-- FIX: use-after-free during teardown of the MIXED types (INT_TO_MIXED,
-  STRING_TO_MIXED, STRING_TO_MIXED_HASH, STRING_TO_MIXED_ADAPTIVE), reachable
-  through both Judy::free() and ordinary object destruction (#162). Freeing a
-  slot calls zval_ptr_dtor(); where the value is a shared collectable one that
-  fills the GC root buffer, gc_collect_cycles() then runs synchronously inside
-  the free loop and re-enters judy_object_get_gc() on the half-destroyed
-  object. The usual symptom is a "zend_mm_heap corrupted" abort. This defect
-  PREDATES the bundled libJudy and is present in every previously shipped
-  release: anyone using a MIXED type should upgrade.
-- FIX: libJudy compiled with aggressive loop optimization silently loses
-  Judy::BITSET keys — jp_1Index is 8 bytes where the code writes up to 15
-  (#131). Fixed in the bundled tree (patch P1) and guarded by a differential
-  fuzzer that re-proves itself on every CI run by planting the defect and
-  failing if the fuzzer does not catch it.
-- FIX: further upstream libJudy 1.0.5 defects, fixed in the bundled tree
-  (#127): the SEARCH_LINEAR/COPYINDEX pair, which was a no-op masking silent
-  data loss; an off-by-one in InsArray; an out-of-scope read in Cascade; and
-  hygiene fixes (patches P2-P7). Every patch carries an entry in
-  libjudy/PATCHES.md and a per-file LGPL section 2(b) change notice.
-- BUILD: the bundled, patched libJudy is now the DEFAULT build. ./configure
-  needs no system library and downloads nothing at build time, and the Windows
-  build no longer regex-patches library sources in CI. --with-judy=DIR still
-  links a system libJudy, is CI-tested on every push, and stays supported
-  indefinitely.
-- BUILD: a 32-bit target is now refused with a clear message instead of being
-  mis-built, and the release matrix is constrained to x64 (#159, #160).
-- PERF: integer-keyed paths gain hardware popcount (#149) and a byte-order fix
-  on the JudyL descend (#150); the string layer loses redundant work (#154).
-  Figures are in BENCHMARK.md and are deliberately not restated here. Note
-  that the delivered speedup is NOT one number: with linkage held constant
-  against an unpatched build of the same tree, about 96.5% of the gain on
-  integer paths is attributable to these patches but only about 40% of the
-  gain on string paths, the remainder being static-versus-shared linkage.
+- FEATURE: Native cache and TTL storage engine -- Judy::STRING_TO_ENTRY (type 11).
+  Stores values with TTL timestamps (uint32) and 16-bit metadata flags (uint16_t)
+  directly packed into native C struct entries (judy_cache_entry_t) in the
+  JudySL radix trie without PHP array wrappers or secondary lookup indexes (#188).
+- FEATURE: Native cache entry methods -- set(), get(), pruneExpired(), getEntry(),
+  getExpiry(), and getFlags(). pruneExpired(?int $now = null) performs a single-pass
+  trie sweep directly in C with 0 PHP heap allocations (12.9 ms per 100k items).
+- FEATURE: Full bulk and iteration support on STRING_TO_ENTRY -- ArrayAccess,
+  Iterator, keys(), values(), toArray(), slice(), getAll(), and serialization.
+- BUILD: Pure-Rust Expanse backend integration support (--with-expanse) for
+  modern 64-bit microarchitectures, zero-leak memory management, and cross-platform
+  MSVC Windows support without source patching.
    </notes>
    <contents>
       <dir name="/">
@@ -466,6 +445,52 @@
       <configureoption default="bundled" name="with-judy" prompt="libJudy to build against: &quot;bundled&quot; compiles the bundled copy (default); give the install prefix DIR of a system libJudy to link against it instead" />
    </extsrcrelease>
    <changelog>
+      <release>
+         <date>2026-08-19</date>
+         <version>
+            <release>2.6.0</release>
+            <api>2.6.0</api>
+         </version>
+         <stability>
+            <release>stable</release>
+            <api>stable</api>
+         </stability>
+         <notes>
+- FIX: use-after-free during teardown of the MIXED types (INT_TO_MIXED,
+  STRING_TO_MIXED, STRING_TO_MIXED_HASH, STRING_TO_MIXED_ADAPTIVE), reachable
+  through both Judy::free() and ordinary object destruction (#162). Freeing a
+  slot calls zval_ptr_dtor(); where the value is a shared collectable one that
+  fills the GC root buffer, gc_collect_cycles() then runs synchronously inside
+  the free loop and re-enters judy_object_get_gc() on the half-destroyed
+  object. The usual symptom is a "zend_mm_heap corrupted" abort. This defect
+  PREDATES the bundled libJudy and is present in every previously shipped
+  release: anyone using a MIXED type should upgrade.
+- FIX: libJudy compiled with aggressive loop optimization silently loses
+  Judy::BITSET keys — jp_1Index is 8 bytes where the code writes up to 15
+  (#131). Fixed in the bundled tree (patch P1) and guarded by a differential
+  fuzzer that re-proves itself on every CI run by planting the defect and
+  failing if the fuzzer does not catch it.
+- FIX: further upstream libJudy 1.0.5 defects, fixed in the bundled tree
+  (#127): the SEARCH_LINEAR/COPYINDEX pair, which was a no-op masking silent
+  data loss; an off-by-one in InsArray; an out-of-scope read in Cascade; and
+  hygiene fixes (patches P2-P7). Every patch carries an entry in
+  libjudy/PATCHES.md and a per-file LGPL section 2(b) change notice.
+- BUILD: the bundled, patched libJudy is now the DEFAULT build. ./configure
+  needs no system library and downloads nothing at build time, and the Windows
+  build no longer regex-patches library sources in CI. --with-judy=DIR still
+  links a system libJudy, is CI-tested on every push, and stays supported
+  indefinitely.
+- BUILD: a 32-bit target is now refused with a clear message instead of being
+  mis-built, and the release matrix is constrained to x64 (#159, #160).
+- PERF: integer-keyed paths gain hardware popcount (#149) and a byte-order fix
+  on the JudyL descend (#150); the string layer loses redundant work (#154).
+  Figures are in BENCHMARK.md and are deliberately not restated here. Note
+  that the delivered speedup is NOT one number: with linkage held constant
+  against an unpatched build of the same tree, about 96.5% of the gain on
+  integer paths is attributable to these patches but only about 40% of the
+  gain on string paths, the remainder being static-versus-shared linkage.
+         </notes>
+      </release>
       <release>
          <date>2026-08-18</date>
          <version>
