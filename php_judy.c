@@ -1918,7 +1918,7 @@ void judy_debug_check_mirror(judy_object *intern, const char *where)
 		Word_t count = 0;
 		JLC(count, intern->array, 0, (Word_t)-1);
 		seen = (zend_long)count;
-	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
 		/* Single store: the JudySL trie holds the values itself. */
 		uint8_t *cursor = emalloc(PHP_JUDY_MAX_LENGTH);
 		Pvoid_t *PValue;
