@@ -1,11 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 295" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 315" width="100%" height="100%">
   <defs>
     <style>
       .bg { fill: #0d1117; }
       .border { stroke: #30363d; stroke-width: 1px; fill: none; }
       .grid { stroke: #21262d; stroke-width: 1px; stroke-dasharray: 2,3; }
       .axis { stroke: #484f58; stroke-width: 1.5px; }
+      .divider { stroke: #21262d; stroke-width: 1px; }
       
+      .t-main-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; fill: #8b949e; text-transform: uppercase; }
       .t-chart-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; fill: #8b949e; text-transform: uppercase; }
       .t-chart-sub { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 10px; fill: #6e7681; }
       .t-unit-header { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 600; fill: #8b949e; }
@@ -26,6 +28,8 @@
         .border { stroke: #d0d7de; }
         .grid { stroke: #eaeef2; }
         .axis { stroke: #afb8c1; }
+        .divider { stroke: #d0d7de; }
+        .t-main-title { fill: #57606a; }
         .t-chart-title { fill: #57606a; }
         .t-chart-sub { fill: #8c959f; }
         .t-unit-header { fill: #57606a; }
@@ -37,7 +41,7 @@
         .t-val-muted { fill: #656d76; }
         .b-expanse { fill: #1a7f37; }
         .b-bundled { fill: #0969da; }
-        .b-stock { fill: #afb8c1; }
+        .b-stock { fill: #d0d7de; }
       }
     </style>
   </defs>
@@ -45,19 +49,28 @@
   <rect width="100%" height="100%" class="bg" rx="8"/>
   <rect width="100%" height="100%" class="border" rx="8"/>
 
+  <!-- ================= TOP GLOBAL HEADER & LEGEND ================= -->
+  <g transform="translate(30, 20)">
+    <text x="0" y="9" class="t-main-title">ENGINE COMPARISON BENCHMARKS</text>
+    
+    <!-- Legend Chips -->
+    <rect x="495" y="1" width="8" height="8" rx="2" class="b-stock"/>
+    <text x="508" y="9" class="t-legend-label">Stock libJudy 1.0.5</text>
+    
+    <rect x="645" y="1" width="8" height="8" rx="2" class="b-bundled"/>
+    <text x="658" y="9" class="t-legend-label">Bundled libJudy (C)</text>
+    
+    <rect x="800" y="1" width="8" height="8" rx="2" class="b-expanse"/>
+    <text x="813" y="9" class="t-legend-label">Expanse (Rust)</text>
+  </g>
+  
+  <line x1="30" y1="36" x2="930" y2="36" class="divider"/>
+
   <!-- ================= CHART 1: SEQUENTIAL INSERT ================= -->
-  <g transform="translate(30, 22)">
+  <g transform="translate(30, 48)">
     <text x="0" y="0" class="t-chart-title">Sequential Insert (1M Keys)</text>
     <text x="0" y="14" class="t-chart-sub">Wall-clock latency (lower is better)</text>
     <text x="0" y="32" class="t-unit-header">&#9660; Latency (ns / op)</text>
-
-    <!-- Legend -->
-    <rect x="110" y="24" width="7" height="7" rx="1.5" class="b-stock"/>
-    <text x="120" y="31" class="t-legend-label">Stock</text>
-    <rect x="155" y="24" width="7" height="7" rx="1.5" class="b-bundled"/>
-    <text x="165" y="31" class="t-legend-label">Bundled</text>
-    <rect x="210" y="24" width="7" height="7" rx="1.5" class="b-expanse"/>
-    <text x="220" y="31" class="t-legend-label">Expanse</text>
 
     <!-- Y Axis: 0 to 40 ns -->
     <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
@@ -85,21 +98,13 @@
   </g>
 
   <!-- Divider 1 -->
-  <line x1="310" y1="20" x2="310" y2="272" stroke="#21262d" stroke-width="1"/>
+  <line x1="310" y1="48" x2="310" y2="295" class="divider"/>
 
   <!-- ================= CHART 2: RANDOM LOOKUP ================= -->
-  <g transform="translate(340, 22)">
+  <g transform="translate(340, 48)">
     <text x="0" y="0" class="t-chart-title">Random Lookup (1M Keys)</text>
     <text x="0" y="14" class="t-chart-sub">Wall-clock latency (lower is better)</text>
     <text x="0" y="32" class="t-unit-header">&#9660; Latency (ns / op)</text>
-
-    <!-- Legend -->
-    <rect x="110" y="24" width="7" height="7" rx="1.5" class="b-stock"/>
-    <text x="120" y="31" class="t-legend-label">Stock</text>
-    <rect x="155" y="24" width="7" height="7" rx="1.5" class="b-bundled"/>
-    <text x="165" y="31" class="t-legend-label">Bundled</text>
-    <rect x="210" y="24" width="7" height="7" rx="1.5" class="b-expanse"/>
-    <text x="220" y="31" class="t-legend-label">Expanse</text>
 
     <!-- Y Axis: 0 to 60 ns -->
     <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
@@ -127,21 +132,13 @@
   </g>
 
   <!-- Divider 2 -->
-  <line x1="635" y1="20" x2="635" y2="272" stroke="#21262d" stroke-width="1"/>
+  <line x1="635" y1="48" x2="635" y2="295" class="divider"/>
 
   <!-- ================= CHART 3: CHURN & SET OPERATIONS ================= -->
-  <g transform="translate(665, 22)">
-    <text x="0" y="0" class="t-chart-title">Set Churn (30k Delete + Insert)</text>
+  <g transform="translate(665, 48)">
+    <text x="0" y="0" class="t-chart-title">Set Churn (30k Del + Ins)</text>
     <text x="0" y="14" class="t-chart-sub">Instructions retired (lower is better)</text>
     <text x="0" y="32" class="t-unit-header">&#9660; Instructions (M)</text>
-
-    <!-- Legend -->
-    <rect x="110" y="24" width="7" height="7" rx="1.5" class="b-stock"/>
-    <text x="120" y="31" class="t-legend-label">Stock</text>
-    <rect x="155" y="24" width="7" height="7" rx="1.5" class="b-bundled"/>
-    <text x="165" y="31" class="t-legend-label">Bundled</text>
-    <rect x="210" y="24" width="7" height="7" rx="1.5" class="b-expanse"/>
-    <text x="220" y="31" class="t-legend-label">Expanse</text>
 
     <!-- Y Axis: 0 to 60M -->
     <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
