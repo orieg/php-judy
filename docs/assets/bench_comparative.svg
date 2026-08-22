@@ -13,9 +13,8 @@
       .t-axis-label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; fill: #8b949e; }
       .t-bar-label { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 600; fill: #c9d1d9; }
       
-      .t-val-accent { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 700; fill: #3fb950; text-anchor: middle; }
-      .t-val-muted { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 500; fill: #8b949e; text-anchor: middle; }
-      .t-val-blue { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 600; fill: #58a6ff; text-anchor: middle; }
+      .t-val-accent { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 700; fill: #3fb950; text-anchor: middle; }
+      .t-val-blue { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 600; fill: #58a6ff; text-anchor: middle; }
 
       .b-judy { fill: #2ea043; }
       .b-php { fill: #1f6feb; }
@@ -34,7 +33,6 @@
         .t-bar-label { fill: #1f2328; }
         .t-val-accent { fill: #1a7f37; }
         .t-val-blue { fill: #0969da; }
-        .t-val-muted { fill: #656d76; }
         .b-judy { fill: #1a7f37; }
         .b-php { fill: #0969da; }
         .b-other { fill: #d0d7de; }
@@ -47,8 +45,8 @@
 
   <!-- ================= CHART 1: MEMORY FOOTPRINT ================= -->
   <g transform="translate(30, 22)">
-    <text x="0" y="0" class="t-chart-title">Memory Footprint (1M Elements)</text>
-    <text x="0" y="14" class="t-chart-sub">Peak RSS footprint in MB (lower is better)</text>
+    <text x="0" y="0" class="t-chart-title">Memory Footprint (1M Keys)</text>
+    <text x="0" y="14" class="t-chart-sub">Peak RSS footprint (lower is better)</text>
     <text x="0" y="32" class="t-unit-header">&#9660; Peak RSS (MB)</text>
 
     <!-- Legend for Chart 1 -->
@@ -57,36 +55,36 @@
     <rect x="193" y="24" width="8" height="8" rx="2" class="b-php"/>
     <text x="205" y="32" class="t-legend-label">PHP Array</text>
 
-    <!-- Y Axis: 0 to 40 MB -->
+    <!-- Y Axis: 0 to 90 MB -->
     <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
-    <text x="22" y="53" class="t-axis-label" text-anchor="end">40M</text>
+    <text x="22" y="53" class="t-axis-label" text-anchor="end">80M</text>
     
     <line x1="30" y1="130" x2="250" y2="130" class="grid"/>
-    <text x="22" y="133" class="t-axis-label" text-anchor="end">20M</text>
+    <text x="22" y="133" class="t-axis-label" text-anchor="end">40M</text>
     
     <line x1="30" y1="210" x2="250" y2="210" class="axis"/>
     <text x="22" y="213" class="t-axis-label" text-anchor="end">0</text>
     <line x1="30" y1="45" x2="30" y2="210" class="axis"/>
 
     <!-- Pair 1: BITSET -->
-    <rect x="42" y="206.4" width="22" height="3.6" class="b-judy" rx="1"/>
-    <text x="53" y="198" class="t-val-accent">0.4M</text>
-    <rect x="68" y="171.6" width="22" height="38.4" class="b-php" rx="1"/>
-    <text x="79" y="163" class="t-val-blue">9.6M</text>
+    <rect x="42" y="209" width="22" height="1" class="b-judy" rx="1"/>
+    <text x="53" y="201" class="t-val-accent">0.4M</text>
+    <rect x="68" y="191" width="22" height="19" class="b-php" rx="1"/>
+    <text x="79" y="183" class="t-val-blue">9.6M</text>
     <text x="66" y="230" class="t-bar-label" text-anchor="middle">BITSET</text>
     <text x="66" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">21.9&#215; less</text>
 
     <!-- Pair 2: INT_TO_INT (Sparse) -->
-    <rect x="112" y="175.6" width="22" height="34.4" class="b-judy" rx="1"/>
-    <text x="123" y="167" class="t-val-accent">8.6M</text>
-    <rect x="138" y="77.6" width="22" height="132.4" class="b-php" rx="1"/>
-    <text x="149" y="69" class="t-val-blue">33.1M</text>
+    <rect x="112" y="193" width="22" height="17" class="b-judy" rx="1"/>
+    <text x="123" y="185" class="t-val-accent">8.6M</text>
+    <rect x="138" y="144" width="22" height="66" class="b-php" rx="1"/>
+    <text x="149" y="136" class="t-val-blue">33.1M</text>
     <text x="136" y="230" class="t-bar-label" text-anchor="middle">Int&#8594;Int</text>
     <text x="136" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">3.8&#215; less</text>
 
     <!-- Pair 3: STRING_TO_INT -->
-    <rect x="182" y="113.2" width="22" height="96.8" class="b-judy" rx="1"/>
-    <text x="193" y="105" class="t-val-accent">24.2M</text>
+    <rect x="182" y="162" width="22" height="48" class="b-judy" rx="1"/>
+    <text x="193" y="154" class="t-val-accent">24.2M</text>
     <rect x="208" y="50" width="22" height="160" class="b-php" rx="1"/>
     <text x="219" y="42" class="t-val-blue">84.8M</text>
     <text x="206" y="230" class="t-bar-label" text-anchor="middle">Str&#8594;Int</text>
@@ -96,44 +94,52 @@
   <!-- Divider 1 -->
   <line x1="310" y1="20" x2="310" y2="272" stroke="#21262d" stroke-width="1"/>
 
-  <!-- ================= CHART 2: BULK OPS SPEEDUP ================= -->
+  <!-- ================= CHART 2: BULK OPS LATENCY ================= -->
   <g transform="translate(340, 22)">
-    <text x="0" y="0" class="t-chart-title">Bulk Operations (Native C vs VM)</text>
-    <text x="0" y="14" class="t-chart-sub">100k element bulk operations (higher is better)</text>
-    <text x="0" y="32" class="t-unit-header">&#9650; Speedup vs PHP Loop</text>
+    <text x="0" y="0" class="t-chart-title">Bulk Operations (100k Ops)</text>
+    <text x="0" y="14" class="t-chart-sub">Wall-clock latency (lower is better)</text>
+    <text x="0" y="32" class="t-unit-header">&#9660; Time (ms)</text>
 
     <!-- Legend for Chart 2 -->
-    <rect x="205" y="24" width="8" height="8" rx="2" class="b-judy"/>
-    <text x="217" y="32" class="t-legend-label">Judy</text>
+    <rect x="145" y="24" width="8" height="8" rx="2" class="b-judy"/>
+    <text x="157" y="32" class="t-legend-label">Judy</text>
+    <rect x="193" y="24" width="8" height="8" rx="2" class="b-php"/>
+    <text x="205" y="32" class="t-legend-label">PHP Loop</text>
 
-    <!-- Y Axis: 0 to 4.0x -->
+    <!-- Y Axis: 0 to 45 ms -->
     <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
-    <text x="22" y="53" class="t-axis-label" text-anchor="end">4.0&#215;</text>
+    <text x="22" y="53" class="t-axis-label" text-anchor="end">40ms</text>
     
     <line x1="30" y1="130" x2="250" y2="130" class="grid"/>
-    <text x="22" y="133" class="t-axis-label" text-anchor="end">2.0&#215;</text>
+    <text x="22" y="133" class="t-axis-label" text-anchor="end">20ms</text>
     
     <line x1="30" y1="210" x2="250" y2="210" class="axis"/>
     <text x="22" y="213" class="t-axis-label" text-anchor="end">0</text>
     <line x1="30" y1="45" x2="30" y2="210" class="axis"/>
 
-    <!-- Bar 1: toArray() -->
-    <rect x="45" y="86" width="50" height="124" class="b-judy" rx="2"/>
-    <text x="70" y="78" class="t-val-accent">3.1&#215;</text>
-    <text x="70" y="230" class="t-bar-label" text-anchor="middle">toArray()</text>
-    <text x="70" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">0.9ms vs 2.8ms</text>
+    <!-- Pair 1: toArray (String) -->
+    <rect x="42" y="163" width="22" height="47" class="b-judy" rx="1"/>
+    <text x="53" y="155" class="t-val-accent">13.2ms</text>
+    <rect x="68" y="64" width="22" height="146" class="b-php" rx="1"/>
+    <text x="79" y="56" class="t-val-blue">41.0ms</text>
+    <text x="66" y="230" class="t-bar-label" text-anchor="middle">toArray(Str)</text>
+    <text x="66" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">3.1&#215; faster</text>
 
-    <!-- Bar 2: getAll() -->
-    <rect x="115" y="134" width="50" height="76" class="b-judy" rx="2"/>
-    <text x="140" y="126" class="t-val-accent">1.9&#215;</text>
-    <text x="140" y="230" class="t-bar-label" text-anchor="middle">getAll()</text>
-    <text x="140" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">10k bulk seek</text>
+    <!-- Pair 2: toArray (Int) -->
+    <rect x="112" y="195" width="22" height="15" class="b-judy" rx="1"/>
+    <text x="123" y="187" class="t-val-accent">4.2ms</text>
+    <rect x="138" y="168" width="22" height="42" class="b-php" rx="1"/>
+    <text x="149" y="160" class="t-val-blue">11.8ms</text>
+    <text x="136" y="230" class="t-bar-label" text-anchor="middle">toArray(Int)</text>
+    <text x="136" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">2.8&#215; faster</text>
 
-    <!-- Bar 3: increment() -->
-    <rect x="185" y="146" width="50" height="64" class="b-judy" rx="2"/>
-    <text x="210" y="138" class="t-val-accent">1.6&#215;</text>
-    <text x="210" y="230" class="t-bar-label" text-anchor="middle">increment()</text>
-    <text x="210" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">atomic update</text>
+    <!-- Pair 3: increment -->
+    <rect x="182" y="199" width="22" height="11" class="b-judy" rx="1"/>
+    <text x="193" y="191" class="t-val-accent">3.0ms</text>
+    <rect x="208" y="193" width="22" height="17" class="b-php" rx="1"/>
+    <text x="219" y="185" class="t-val-blue">4.7ms</text>
+    <text x="206" y="230" class="t-bar-label" text-anchor="middle">increment()</text>
+    <text x="206" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">1.6&#215; faster</text>
   </g>
 
   <!-- Divider 2 -->
@@ -141,35 +147,41 @@
 
   <!-- ================= CHART 3: BOUNDED RANGE OPS ================= -->
   <g transform="translate(665, 22)">
-    <text x="0" y="0" class="t-chart-title">Bounded Range Queries</text>
-    <text x="0" y="14" class="t-chart-sub">100,000 keys contiguous range read / count</text>
-    <text x="0" y="32" class="t-unit-header">&#9650; Relative Throughput</text>
+    <text x="0" y="0" class="t-chart-title">Bounded Range Queries (100k Keys)</text>
+    <text x="0" y="14" class="t-chart-sub">Wall-clock latency (lower is better)</text>
+    <text x="0" y="32" class="t-unit-header">&#9660; Time (ms)</text>
 
     <!-- Legend for Chart 3 -->
-    <rect x="205" y="24" width="8" height="8" rx="2" class="b-judy"/>
-    <text x="217" y="32" class="t-legend-label">Judy</text>
+    <rect x="145" y="24" width="8" height="8" rx="2" class="b-judy"/>
+    <text x="157" y="32" class="t-legend-label">Judy</text>
+    <rect x="193" y="24" width="8" height="8" rx="2" class="b-php"/>
+    <text x="205" y="32" class="t-legend-label">PHP Scan</text>
 
-    <!-- Y Axis: 0 to 50x -->
+    <!-- Y Axis: 0 to 10 ms -->
     <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
-    <text x="22" y="53" class="t-axis-label" text-anchor="end">50&#215;</text>
+    <text x="22" y="53" class="t-axis-label" text-anchor="end">8.0ms</text>
     
     <line x1="30" y1="130" x2="250" y2="130" class="grid"/>
-    <text x="22" y="133" class="t-axis-label" text-anchor="end">25&#215;</text>
+    <text x="22" y="133" class="t-axis-label" text-anchor="end">4.0ms</text>
     
     <line x1="30" y1="210" x2="250" y2="210" class="axis"/>
     <text x="22" y="213" class="t-axis-label" text-anchor="end">0</text>
     <line x1="30" y1="45" x2="30" y2="210" class="axis"/>
 
-    <!-- Bar 1: keys($start, $end) -->
-    <rect x="55" y="167.6" width="60" height="42.4" class="b-judy" rx="2"/>
-    <text x="85" y="158" class="t-val-accent">10.6&#215;</text>
-    <text x="85" y="230" class="t-bar-label" text-anchor="middle">keys($lo, $hi)</text>
-    <text x="85" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">0.8ms vs 8.5ms</text>
+    <!-- Pair 1: keys($start, $end) -->
+    <rect x="65" y="194" width="28" height="16" class="b-judy" rx="1"/>
+    <text x="79" y="186" class="t-val-accent">0.8ms</text>
+    <rect x="98" y="50" width="28" height="160" class="b-php" rx="1"/>
+    <text x="112" y="42" class="t-val-blue">8.5ms</text>
+    <text x="95" y="230" class="t-bar-label" text-anchor="middle">keys($lo, $hi)</text>
+    <text x="95" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">10.6&#215; faster</text>
 
-    <!-- Bar 2: size($start, $end) -->
-    <rect x="145" y="75.6" width="60" height="134.4" class="b-judy" rx="2"/>
-    <text x="175" y="66" class="t-val-accent">42&#215;</text>
-    <text x="175" y="230" class="t-bar-label" text-anchor="middle">size($lo, $hi)</text>
-    <text x="175" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">popcount seek</text>
+    <!-- Pair 2: size($start, $end) -->
+    <rect x="165" y="208" width="28" height="2" class="b-judy" rx="1"/>
+    <text x="179" y="200" class="t-val-accent">0.1ms</text>
+    <rect x="198" y="126" width="28" height="84" class="b-php" rx="1"/>
+    <text x="212" y="118" class="t-val-blue">4.2ms</text>
+    <text x="195" y="230" class="t-bar-label" text-anchor="middle">size($lo, $hi)</text>
+    <text x="195" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">42&#215; faster</text>
   </g>
 </svg>
