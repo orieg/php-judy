@@ -15,16 +15,17 @@ Complete API reference for the PHP Judy extension. For installation instructions
 9. [Functional Methods](#functional-methods)
 10. [Aggregation](#aggregation)
 11. [Comparison](#comparison)
-12. [Serialization](#serialization)
-13. [Iterator Interface](#iterator-interface)
-14. [Global Functions](#global-functions)
-15. [Type Compatibility Matrix](#type-compatibility-matrix)
+12. [Cache & TTL Operations](#cache-ttl-operations)
+13. [Serialization](#serialization)
+14. [Iterator Interface](#iterator-interface)
+15. [Global Functions](#global-functions)
+16. [Type Compatibility Matrix](#type-compatibility-matrix)
 
 ---
 
 ## Type Constants
 
-PHP Judy provides 10 array types, each optimized for different key/value combinations and access patterns.
+PHP Judy provides 11 array types, each optimized for different key/value combinations and access patterns.
 
 ### Integer-Keyed Types
 
@@ -59,6 +60,12 @@ Hash types use JudyHS for O(1) average-case lookups with a parallel JudySL index
 | `Judy::STRING_TO_MIXED_ADAPTIVE` | 9     | Adaptive string keys, mixed PHP values | JudyL (SSO) + JudyHS + JudySL key index |
 
 Adaptive types use Short-String Optimization (SSO): keys of 7 bytes or fewer are packed into a 64-bit integer and stored in a JudyL array, avoiding hashing overhead. Longer keys fall back to JudyHS. Both maintain a JudySL key index for sorted iteration.
+
+### Cache & TTL Types
+
+| Constant                | Value | Description                                                                         | Backing Structure           |
+| ----------------------- | ----- | ----------------------------------------------------------------------------------- | --------------------------- |
+| `Judy::STRING_TO_ENTRY` | 11    | String keys (sorted), cache entries with TTL timestamp, flags, and mixed PHP values | JudySL + judy_cache_entry_t |
 
 ---
 
@@ -612,6 +619,68 @@ public function equals(Judy $other): bool
 Returns `true` if both arrays have the same type, the same number of elements, and identical key-value pairs. Returns `false` for type mismatch (no exception).
 
 **Supported types**: All types.
+
+---
+
+## Cache & TTL Operations
+
+Methods for cache and TTL workloads using `Judy::STRING_TO_ENTRY`. These provide native in-C key expiration without userland looping.
+
+### set()
+
+```php
+public function set(string $key, mixed $value, int $ttl = 0, int $flags = 0): void
+```
+
+Store a key-value entry with an optional TTL (in seconds) and optional flags.
+
+Only supported for STRING_TO_ENTRY.
+
+### get()
+
+```php
+public function get(string $key, mixed &$expiresAt = null, mixed &$flags = null): mixed
+```
+
+Retrieve a value for the given key, optionally returning expiration timestamp and flags by reference.
+
+If the entry has expired (expires_at <= current_time), returns null.
+
+### pruneExpired()
+
+```php
+public function pruneExpired(?int $now = null): int
+```
+
+Evict all expired entries directly in C.
+
+Sweeps the trie in a single pass without copying keys back to PHP userland.
+
+### getEntry()
+
+```php
+public function getEntry(string $key): ?array
+```
+
+Retrieve complete entry metadata as an associative array.
+
+Returns null if key does not exist.
+
+### getExpiry()
+
+```php
+public function getExpiry(string $key): ?int
+```
+
+Get the expiration timestamp of an entry, or null if key does not exist.
+
+### getFlags()
+
+```php
+public function getFlags(string $key): ?int
+```
+
+Get the flags of an entry, or null if key does not exist.
 
 ---
 

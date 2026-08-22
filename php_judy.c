@@ -138,6 +138,21 @@ static Word_t judy_free_array_internal(judy_object *intern)
 			JSLN(PValue, arr, kindex);
 		}
 		JSLFA(Rc_word, arr);
+	} else if (intern->type == TYPE_STRING_TO_ENTRY) {
+		uint8_t *kindex = intern->key_scratch;
+		Word_t *PValue;
+
+		kindex[0] = '\0';
+		JSLF(PValue, arr, kindex);
+		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+			judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+			if (entry != NULL) {
+				zval_ptr_dtor(&entry->value);
+				efree(entry);
+			}
+			JSLN(PValue, arr, kindex);
+		}
+		JSLFA(Rc_word, arr);
 	} else if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
 		uint8_t *kindex = intern->key_scratch;
 		Word_t *PValue;
@@ -484,6 +499,8 @@ static const char *judy_nul_key_error(judy_type type)
 			return "Judy STRING_TO_INT_HASH keys must not contain embedded null bytes";
 		case TYPE_STRING_TO_MIXED_HASH:
 			return "Judy STRING_TO_MIXED_HASH keys must not contain embedded null bytes";
+		case TYPE_STRING_TO_ENTRY:
+			return "Judy STRING_TO_ENTRY keys must not contain embedded null bytes";
 		default:
 			return "Judy adaptive keys must not contain embedded null bytes";
 	}
@@ -521,6 +538,7 @@ static zend_always_inline int judy_reject_nul_key_zval(judy_object *intern, zval
 			break;							\
 		case TYPE_STRING_TO_INT:			\
 		case TYPE_STRING_TO_MIXED:			\
+		case TYPE_STRING_TO_ENTRY:			\
 		case TYPE_STRING_TO_MIXED_HASH:		\
 		case TYPE_STRING_TO_INT_HASH:		\
 		case TYPE_STRING_TO_MIXED_ADAPTIVE:	\
@@ -561,7 +579,18 @@ static zend_always_inline int judy_reject_nul_key_zval(judy_object *intern, zval
    arbitrary user code. */
 static zend_always_inline void judy_value_from_slot(judy_object *intern, Pvoid_t *PValue, zval *rv)
 {
-	if (JUDY_IS_MIXED_VALUE(intern)) {
+	if (JUDY_IS_ENTRY_VALUE(intern)) {
+		judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+		if (JUDY_LIKELY(entry != NULL)) {
+			if (entry->expires_at != 0 && entry->expires_at <= (uint32_t)time(NULL)) {
+				ZVAL_NULL(rv);
+			} else {
+				ZVAL_COPY(rv, &entry->value);
+			}
+		} else {
+			ZVAL_NULL(rv);
+		}
+	} else if (JUDY_IS_MIXED_VALUE(intern)) {
 		zval *value = JUDY_MVAL_READ(PValue);
 		if (JUDY_LIKELY(value != NULL)) {
 			ZVAL_COPY(rv, value);
@@ -625,6 +654,7 @@ zval *judy_object_read_dimension_helper(zval *object, zval *offset, zval *rv) /*
 				break;
 			case TYPE_STRING_TO_INT:
 			case TYPE_STRING_TO_MIXED:
+			case TYPE_STRING_TO_ENTRY:
 				JSLG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
 				break;
 			case TYPE_STRING_TO_MIXED_HASH:
@@ -732,11 +762,12 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 		break;
 
 	case TYPE_STRING_TO_MIXED:
+	case TYPE_STRING_TO_ENTRY:
 		JSLI(slot, intern->array, (uint8_t *)key);
 		if (JUDY_UNLIKELY(slot == NULL || slot == PJERR)) {
 			return FAILURE;
 		}
-		/* A MIXED slot holds a zval*, so NULL unambiguously means "new". */
+		/* A MIXED/ENTRY slot holds a pointer, so NULL unambiguously means "new". */
 		if (JUDY_MVAL_READ(slot) == NULL) {
 			intern->counter++;
 			judy_string_bytes_add(intern, klen);
@@ -1109,12 +1140,32 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			return FAILURE;
 		}
 	} else if (JUDY_IS_STRING_KEYED(intern)) {
-		/* All six string-keyed types share one slot-acquisition path; see
+		/* All string-keyed types share one slot-acquisition path; see
 		   judy_string_slot_acquire() for why nothing may bypass it. */
 		Pvoid_t *slot;
 		Pvoid_t *mirror;
 
-		if (JUDY_IS_MIXED_VALUE(intern)) {
+		if (JUDY_IS_ENTRY_VALUE(intern)) {
+			if (JUDY_UNLIKELY(judy_string_slot_acquire(intern,
+					(uint8_t *)Z_STRVAL_P(pstring_key),
+					(Word_t)Z_STRLEN_P(pstring_key), &slot, NULL) == FAILURE)) {
+				return FAILURE;
+			}
+			judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*slot);
+			if (entry != NULL) {
+				zval_ptr_dtor(&entry->value);
+				entry->expires_at = 0;
+				entry->flags = 0;
+				ZVAL_COPY(&entry->value, value);
+			} else {
+				entry = (judy_cache_entry_t *)emalloc(sizeof(judy_cache_entry_t));
+				entry->expires_at = 0;
+				entry->flags = 0;
+				entry->reserved = 0;
+				ZVAL_COPY(&entry->value, value);
+				*slot = (Pvoid_t)(uintptr_t)entry;
+			}
+		} else if (JUDY_IS_MIXED_VALUE(intern)) {
 			if (JUDY_UNLIKELY(judy_string_slot_acquire(intern,
 					(uint8_t *)Z_STRVAL_P(pstring_key),
 					(Word_t)Z_STRLEN_P(pstring_key), &slot, NULL) == FAILURE)) {
@@ -1195,6 +1246,7 @@ int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty
 			switch(intern->type) {
 				case TYPE_STRING_TO_INT:
 				case TYPE_STRING_TO_MIXED:
+				case TYPE_STRING_TO_ENTRY:
 					JSLG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
 					break;
 				case TYPE_STRING_TO_MIXED_HASH:
@@ -1208,6 +1260,19 @@ int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty
 	}
 
 	if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+		if (intern->type == TYPE_STRING_TO_ENTRY) {
+			judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+			if (entry != NULL) {
+				if (entry->expires_at != 0 && entry->expires_at <= (uint32_t)time(NULL)) {
+					return 0;
+				}
+				if (!check_empty) {
+					return 1;
+				}
+				return zend_is_true(&entry->value) ? 1 : 0;
+			}
+			return 0;
+		}
 		if (!check_empty) {
 			return 1;
 		} else if (intern->type == TYPE_INT_TO_INT || intern->type == TYPE_STRING_TO_INT
@@ -1351,9 +1416,21 @@ int judy_object_unset_dimension_helper(zval *object, zval *offset) /* {{{ */
 				}
 			}
 		}
-	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
 		if (intern->type == TYPE_STRING_TO_INT) {
 			JSLD(Rc_int, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
+		} else if (intern->type == TYPE_STRING_TO_ENTRY) {
+			Pvoid_t     *PValue;
+			JSLG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
+			if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+				judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+				/* Delete before free (destructor re-entrancy guard). */
+				JSLD(Rc_int, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
+				if (entry != NULL) {
+					zval_ptr_dtor(&entry->value);
+					efree(entry);
+				}
+			}
 		} else {
 			Pvoid_t     *PValue;
 			JSLG(PValue, intern->array, (uint8_t *)Z_STRVAL_P(pstring_key));
@@ -1488,6 +1565,7 @@ PHP_MINIT_FUNCTION(judy)
 	REGISTER_JUDY_CLASS_CONST_LONG("STRING_TO_INT_HASH", TYPE_STRING_TO_INT_HASH);
 	REGISTER_JUDY_CLASS_CONST_LONG("STRING_TO_MIXED_ADAPTIVE", TYPE_STRING_TO_MIXED_ADAPTIVE);
 	REGISTER_JUDY_CLASS_CONST_LONG("STRING_TO_INT_ADAPTIVE", TYPE_STRING_TO_INT_ADAPTIVE);
+	REGISTER_JUDY_CLASS_CONST_LONG("STRING_TO_ENTRY", TYPE_STRING_TO_ENTRY);
 
 	return SUCCESS;
 }
@@ -1972,7 +2050,7 @@ PHP_METHOD(Judy, first)
 		JLF(PValue, intern->array, index);
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_LONG(index);
-	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
 		char        *str;
 		size_t       str_length = 0;
 
@@ -2079,7 +2157,7 @@ PHP_METHOD(Judy, searchNext)
 		JLN(PValue, intern->array, index);
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_LONG(index);
-	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
 		char        *str;
 		size_t       str_length;
 
@@ -2255,7 +2333,14 @@ PHP_METHOD(Judy, next)
 			Pvoid_t *VValue = JUDY_MIRRORS_PAYLOAD(intern, vklen)
 				? PValue : judy_string_value_slot(intern, key, vklen);
 			if (VValue != NULL) {
-				if (JUDY_IS_MIXED_VALUE(intern)) {
+				if (JUDY_IS_ENTRY_VALUE(intern)) {
+					judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*VValue);
+					if (entry != NULL) {
+						ZVAL_COPY(&intern->iterator_data, &entry->value);
+					} else {
+						ZVAL_NULL(&intern->iterator_data);
+					}
+				} else if (JUDY_IS_MIXED_VALUE(intern)) {
 					ZVAL_COPY(&intern->iterator_data, JUDY_MVAL_READ(VValue));
 				} else {
 					ZVAL_LONG(&intern->iterator_data, JUDY_LVAL_READ(VValue));
@@ -2342,7 +2427,14 @@ PHP_METHOD(Judy, rewind)
 			Pvoid_t *VValue = JUDY_MIRRORS_PAYLOAD(intern, vklen)
 				? PValue : judy_string_value_slot(intern, key, vklen);
 			if (VValue != NULL) {
-				if (JUDY_IS_MIXED_VALUE(intern)) {
+				if (JUDY_IS_ENTRY_VALUE(intern)) {
+					judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*VValue);
+					if (entry != NULL) {
+						ZVAL_COPY(&intern->iterator_data, &entry->value);
+					} else {
+						ZVAL_NULL(&intern->iterator_data);
+					}
+				} else if (JUDY_IS_MIXED_VALUE(intern)) {
 					ZVAL_COPY(&intern->iterator_data, JUDY_MVAL_READ(VValue));
 				} else {
 					ZVAL_LONG(&intern->iterator_data, JUDY_LVAL_READ(VValue));
@@ -2435,7 +2527,7 @@ PHP_METHOD(Judy, last)
 		JLL(PValue, intern->array, index);
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_LONG(index);
-	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
 		char        *str;
 		size_t       str_length = 0;
 
@@ -2538,7 +2630,7 @@ PHP_METHOD(Judy, prev)
 		JLP(PValue, intern->array, index);
 		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR))
 			RETURN_LONG(index);
-	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
 		char        *str;
 		size_t       str_length;
 
@@ -3478,7 +3570,7 @@ PHP_METHOD(Judy, slice)
 			JLN(PValue, intern->array, index);
 		}
 
-	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED) {
+	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
 		char *str_start, *str_end;
 		size_t str_start_len, str_end_len;
 
@@ -3509,7 +3601,17 @@ PHP_METHOD(Judy, slice)
 				JSLI(PNew, result->array, key);
 				if (PNew == PJERR) goto alloc_error;
 
-				if (intern->type == TYPE_STRING_TO_INT) {
+				if (intern->type == TYPE_STRING_TO_ENTRY) {
+					judy_cache_entry_t *old_entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+					if (old_entry) {
+						judy_cache_entry_t *new_entry = emalloc(sizeof(judy_cache_entry_t));
+						new_entry->expires_at = old_entry->expires_at;
+						new_entry->flags = old_entry->flags;
+						new_entry->reserved = 0;
+						ZVAL_COPY(&new_entry->value, &old_entry->value);
+						*PNew = (Pvoid_t)(uintptr_t)new_entry;
+					}
+				} else if (intern->type == TYPE_STRING_TO_INT) {
 					JUDY_LVAL_WRITE(PNew, JUDY_LVAL_READ(PValue));
 				} else {
 					zval *new_value;
@@ -4013,7 +4115,23 @@ static void judy_populate_array_ex(judy_object *intern, zval *data, judy_collect
 				}
 
 				if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
-					if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_INT_HASH) {
+					if (intern->type == TYPE_STRING_TO_ENTRY) {
+						judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*VValue);
+						if (entry != NULL) {
+							Z_TRY_ADDREF_P(&entry->value);
+							if (mode == JUDY_COLLECT_ALL) {
+								add_assoc_zval(data, (const char *)key, &entry->value);
+							} else {
+								add_next_index_zval(data, &entry->value);
+							}
+						} else {
+							if (mode == JUDY_COLLECT_ALL) {
+								add_assoc_null(data, (const char *)key);
+							} else {
+								add_next_index_null(data);
+							}
+						}
+					} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_INT_HASH) {
 						if (mode == JUDY_COLLECT_ALL) {
 							add_assoc_long(data, (const char *)key, JUDY_LVAL_READ(VValue));
 						} else {
@@ -4071,6 +4189,7 @@ static const char *judy_type_name(zend_long type)
 		case TYPE_STRING_TO_MIXED_HASH:     return "STRING_TO_MIXED_HASH";
 		case TYPE_STRING_TO_INT_ADAPTIVE:   return "STRING_TO_INT_ADAPTIVE";
 		case TYPE_STRING_TO_MIXED_ADAPTIVE: return "STRING_TO_MIXED_ADAPTIVE";
+		case TYPE_STRING_TO_ENTRY:          return "STRING_TO_ENTRY";
 		default:                            return "UNINITIALIZED";
 	}
 }
@@ -5807,6 +5926,328 @@ PHP_METHOD(Judy, increment)
 		zend_throw_exception(NULL, "Judy::increment() is only supported for INT_TO_INT, STRING_TO_INT and STRING_TO_INT_HASH types", 0);
 		return;
 	}
+}
+/* }}} */
+
+/* {{{ proto void Judy::set(string $key, mixed $value, int $ttl = 0, int $flags = 0)
+   Store a key-value entry with optional TTL (seconds) and optional flags (STRING_TO_ENTRY only) */
+PHP_METHOD(Judy, set)
+{
+	char *key = NULL;
+	size_t key_len = 0;
+	zval *value = NULL;
+	zend_long ttl = 0;
+	zend_long flags = 0;
+	Pvoid_t *slot = NULL;
+	judy_cache_entry_t *entry = NULL;
+
+	JUDY_METHOD_GET_OBJECT;
+
+	if (intern->type != TYPE_STRING_TO_ENTRY) {
+		zend_throw_error(zend_ce_type_error, "Judy::set() is only supported for STRING_TO_ENTRY arrays");
+		return;
+	}
+
+	ZEND_PARSE_PARAMETERS_START(2, 4)
+		Z_PARAM_STRING(key, key_len)
+		Z_PARAM_ZVAL(value)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG(ttl)
+		Z_PARAM_LONG(flags)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (UNEXPECTED(judy_reject_nul_key(intern->type, key, key_len))) {
+		return;
+	}
+
+	if (UNEXPECTED(judy_string_slot_acquire(intern, (const uint8_t *)key, (Word_t)key_len, &slot, NULL) == FAILURE)) {
+		if (!EG(exception)) {
+			zend_throw_error(zend_ce_error, "Failed to allocate Judy entry slot");
+		}
+		return;
+	}
+
+	uint32_t expires_at = 0;
+	if (ttl > 0) {
+		expires_at = (uint32_t)(time(NULL) + ttl);
+	}
+
+	entry = (judy_cache_entry_t *)(uintptr_t)(*slot);
+	if (entry != NULL) {
+		/* Overwrite existing entry */
+		zval_ptr_dtor(&entry->value);
+		entry->expires_at = expires_at;
+		entry->flags = (uint16_t)flags;
+		ZVAL_COPY(&entry->value, value);
+	} else {
+		/* Allocate new entry */
+		entry = (judy_cache_entry_t *)emalloc(sizeof(judy_cache_entry_t));
+		entry->expires_at = expires_at;
+		entry->flags = (uint16_t)flags;
+		entry->reserved = 0;
+		ZVAL_COPY(&entry->value, value);
+		*slot = (Pvoid_t)(uintptr_t)entry;
+	}
+}
+/* }}} */
+
+/* {{{ proto mixed Judy::get(string $key, mixed &$expiresAt = null, mixed &$flags = null)
+   Retrieve entry value, returning null if expired (STRING_TO_ENTRY only) */
+PHP_METHOD(Judy, get)
+{
+	char *key = NULL;
+	size_t key_len = 0;
+	zval *z_expires_at = NULL;
+	zval *z_flags = NULL;
+	Pvoid_t *slot = NULL;
+	judy_cache_entry_t *entry = NULL;
+
+	JUDY_METHOD_GET_OBJECT;
+
+	if (intern->type != TYPE_STRING_TO_ENTRY) {
+		zend_throw_error(zend_ce_type_error, "Judy::get() is only supported for STRING_TO_ENTRY arrays");
+		return;
+	}
+
+	ZEND_PARSE_PARAMETERS_START(1, 3)
+		Z_PARAM_STRING(key, key_len)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_ZVAL(z_expires_at)
+		Z_PARAM_ZVAL(z_flags)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (UNEXPECTED(judy_reject_nul_key(intern->type, key, key_len))) {
+		RETURN_NULL();
+	}
+
+	if (intern->array == NULL) {
+		RETURN_NULL();
+	}
+
+	JSLG(slot, intern->array, (uint8_t *)key);
+	if (slot == NULL || slot == PJERR) {
+		RETURN_NULL();
+	}
+
+	entry = (judy_cache_entry_t *)(uintptr_t)(*slot);
+	if (entry == NULL) {
+		RETURN_NULL();
+	}
+
+	if (entry->expires_at != 0 && entry->expires_at <= (uint32_t)time(NULL)) {
+		RETURN_NULL();
+	}
+
+	if (z_expires_at != NULL) {
+		ZEND_TRY_ASSIGN_REF_LONG(z_expires_at, (zend_long)entry->expires_at);
+	}
+	if (z_flags != NULL) {
+		ZEND_TRY_ASSIGN_REF_LONG(z_flags, (zend_long)entry->flags);
+	}
+
+	RETURN_ZVAL(&entry->value, 1, 0);
+}
+/* }}} */
+
+/* {{{ proto int Judy::pruneExpired(?int $now = null)
+   Evict all expired entries in C, returning the count of pruned items (STRING_TO_ENTRY only) */
+PHP_METHOD(Judy, pruneExpired)
+{
+	zend_long now_arg = 0;
+	bool now_is_null = true;
+	uint32_t now_ts;
+	zend_long pruned_count = 0;
+
+	JUDY_METHOD_GET_OBJECT;
+
+	if (intern->type != TYPE_STRING_TO_ENTRY) {
+		zend_throw_error(zend_ce_type_error, "Judy::pruneExpired() is only supported for STRING_TO_ENTRY arrays");
+		return;
+	}
+
+	ZEND_PARSE_PARAMETERS_START(0, 1)
+		Z_PARAM_OPTIONAL
+		Z_PARAM_LONG_OR_NULL(now_arg, now_is_null)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (now_is_null) {
+		now_ts = (uint32_t)time(NULL);
+	} else {
+		now_ts = (uint32_t)now_arg;
+	}
+
+	if (intern->array == NULL) {
+		RETURN_LONG(0);
+	}
+
+	uint8_t *kindex = intern->key_scratch;
+	Word_t *PValue;
+	int Rc_int;
+
+	kindex[0] = '\0';
+	JSLF(PValue, intern->array, kindex);
+	while (PValue != NULL && PValue != PJERR) {
+		judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+		if (entry != NULL && entry->expires_at != 0 && entry->expires_at <= now_ts) {
+			uint8_t key_to_del[PHP_JUDY_MAX_LENGTH];
+			size_t klen = strlen((char *)kindex);
+			if (klen >= PHP_JUDY_MAX_LENGTH) {
+				klen = PHP_JUDY_MAX_LENGTH - 1;
+			}
+			memcpy(key_to_del, kindex, klen);
+			key_to_del[klen] = '\0';
+
+			zval_ptr_dtor(&entry->value);
+			efree(entry);
+
+			/* Advance cursor before deleting */
+			JSLN(PValue, intern->array, kindex);
+
+			/* Delete the key from JudySL */
+			JSLD(Rc_int, intern->array, key_to_del);
+			intern->counter--;
+			judy_string_bytes_sub(intern, (Word_t)klen);
+			pruned_count++;
+		} else {
+			JSLN(PValue, intern->array, kindex);
+		}
+	}
+
+	RETURN_LONG(pruned_count);
+}
+/* }}} */
+
+/* {{{ proto ?array Judy::getEntry(string $key)
+   Retrieve full entry metadata array (STRING_TO_ENTRY only) */
+PHP_METHOD(Judy, getEntry)
+{
+	char *key = NULL;
+	size_t key_len = 0;
+	Pvoid_t *slot = NULL;
+	judy_cache_entry_t *entry = NULL;
+
+	JUDY_METHOD_GET_OBJECT;
+
+	if (intern->type != TYPE_STRING_TO_ENTRY) {
+		zend_throw_error(zend_ce_type_error, "Judy::getEntry() is only supported for STRING_TO_ENTRY arrays");
+		return;
+	}
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STRING(key, key_len)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (UNEXPECTED(judy_reject_nul_key(intern->type, key, key_len))) {
+		RETURN_NULL();
+	}
+
+	if (intern->array == NULL) {
+		RETURN_NULL();
+	}
+
+	JSLG(slot, intern->array, (uint8_t *)key);
+	if (slot == NULL || slot == PJERR) {
+		RETURN_NULL();
+	}
+
+	entry = (judy_cache_entry_t *)(uintptr_t)(*slot);
+	if (entry == NULL) {
+		RETURN_NULL();
+	}
+
+	bool is_expired = (entry->expires_at != 0 && entry->expires_at <= (uint32_t)time(NULL));
+
+	array_init(return_value);
+	zval val_copy;
+	ZVAL_COPY(&val_copy, &entry->value);
+	add_assoc_zval(return_value, "value", &val_copy);
+	add_assoc_long(return_value, "expires_at", (zend_long)entry->expires_at);
+	add_assoc_long(return_value, "flags", (zend_long)entry->flags);
+	add_assoc_bool(return_value, "is_expired", is_expired);
+}
+/* }}} */
+
+/* {{{ proto ?int Judy::getExpiry(string $key)
+   Retrieve entry expiration timestamp (STRING_TO_ENTRY only) */
+PHP_METHOD(Judy, getExpiry)
+{
+	char *key = NULL;
+	size_t key_len = 0;
+	Pvoid_t *slot = NULL;
+	judy_cache_entry_t *entry = NULL;
+
+	JUDY_METHOD_GET_OBJECT;
+
+	if (intern->type != TYPE_STRING_TO_ENTRY) {
+		zend_throw_error(zend_ce_type_error, "Judy::getExpiry() is only supported for STRING_TO_ENTRY arrays");
+		return;
+	}
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STRING(key, key_len)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (UNEXPECTED(judy_reject_nul_key(intern->type, key, key_len))) {
+		RETURN_NULL();
+	}
+
+	if (intern->array == NULL) {
+		RETURN_NULL();
+	}
+
+	JSLG(slot, intern->array, (uint8_t *)key);
+	if (slot == NULL || slot == PJERR) {
+		RETURN_NULL();
+	}
+
+	entry = (judy_cache_entry_t *)(uintptr_t)(*slot);
+	if (entry == NULL) {
+		RETURN_NULL();
+	}
+
+	RETURN_LONG((zend_long)entry->expires_at);
+}
+/* }}} */
+
+/* {{{ proto ?int Judy::getFlags(string $key)
+   Retrieve entry flags (STRING_TO_ENTRY only) */
+PHP_METHOD(Judy, getFlags)
+{
+	char *key = NULL;
+	size_t key_len = 0;
+	Pvoid_t *slot = NULL;
+	judy_cache_entry_t *entry = NULL;
+
+	JUDY_METHOD_GET_OBJECT;
+
+	if (intern->type != TYPE_STRING_TO_ENTRY) {
+		zend_throw_error(zend_ce_type_error, "Judy::getFlags() is only supported for STRING_TO_ENTRY arrays");
+		return;
+	}
+
+	ZEND_PARSE_PARAMETERS_START(1, 1)
+		Z_PARAM_STRING(key, key_len)
+	ZEND_PARSE_PARAMETERS_END();
+
+	if (UNEXPECTED(judy_reject_nul_key(intern->type, key, key_len))) {
+		RETURN_NULL();
+	}
+
+	if (intern->array == NULL) {
+		RETURN_NULL();
+	}
+
+	JSLG(slot, intern->array, (uint8_t *)key);
+	if (slot == NULL || slot == PJERR) {
+		RETURN_NULL();
+	}
+
+	entry = (judy_cache_entry_t *)(uintptr_t)(*slot);
+	if (entry == NULL) {
+		RETURN_NULL();
+	}
+
+	RETURN_LONG((zend_long)entry->flags);
 }
 /* }}} */
 

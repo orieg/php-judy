@@ -28,6 +28,7 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
     public const int STRING_TO_INT_HASH = 8;
     public const int STRING_TO_MIXED_ADAPTIVE = 9;
     public const int STRING_TO_INT_ADAPTIVE = 10;
+    public const int STRING_TO_ENTRY = 11;
 
     /* ── Constructor / Destructor ─────────────────────────────── */
 
@@ -379,4 +380,60 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
 
     /** Check if two Judy arrays have identical type, size, and key-value pairs. */
     public function equals(Judy $other): bool {}
+
+    /* ── Cache Entry & TTL methods (STRING_TO_ENTRY) ─────────── */
+
+    /**
+     * Store a key-value entry with an optional TTL (in seconds) and optional flags.
+     *
+     * Only supported for STRING_TO_ENTRY.
+     *
+     * @param string $key String key (must not contain embedded nulls).
+     * @param mixed $value Any PHP value payload.
+     * @param int $ttl TTL in seconds (0 = never expires).
+     * @param int $flags Optional user-defined 16-bit flags.
+     */
+    public function set(string $key, mixed $value, int $ttl = 0, int $flags = 0): void {}
+
+    /**
+     * Retrieve a value for the given key, optionally returning expiration timestamp and flags by reference.
+     *
+     * If the entry has expired (expires_at <= current_time), returns null.
+     *
+     * @param string $key String key.
+     * @param mixed $expiresAt Set to the integer Unix timestamp when expired, or 0 if no expiry.
+     * @param mixed $flags Set to the integer flags associated with the entry.
+     * @return mixed Returns the stored value, or null if key does not exist or has expired.
+     */
+    public function get(string $key, mixed &$expiresAt = null, mixed &$flags = null): mixed {}
+
+    /**
+     * Evict all expired entries directly in C.
+     *
+     * Sweeps the trie in a single pass without copying keys back to PHP userland.
+     *
+     * @param int|null $now Optional reference Unix timestamp (defaults to time()).
+     * @return int Number of expired entries evicted.
+     */
+    public function pruneExpired(?int $now = null): int {}
+
+    /**
+     * Retrieve complete entry metadata as an associative array.
+     *
+     * Returns null if key does not exist.
+     *
+     * @param string $key String key.
+     * @return array{value: mixed, expires_at: int, flags: int, is_expired: bool}|null
+     */
+    public function getEntry(string $key): ?array {}
+
+    /**
+     * Get the expiration timestamp of an entry, or null if key does not exist.
+     */
+    public function getExpiry(string $key): ?int {}
+
+    /**
+     * Get the flags of an entry, or null if key does not exist.
+     */
+    public function getFlags(string $key): ?int {}
 }
