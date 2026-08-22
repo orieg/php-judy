@@ -12,8 +12,9 @@ make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
 php -d extension=$PWD/modules/judy.so -r 'var_dump(judy_version());'
 ```
 
-`--with-judy=DIR` (e.g. `/usr`, `/opt/homebrew`) switches to linking a system
-libJudy and compiles nothing under `libjudy/`; both modes are CI-tested.
+`--with-judy=DIR` (e.g. `/usr`, `/opt/homebrew`, or an [Expanse](https://github.com/orieg/expanse) compat prefix)
+switches to linking a system libJudy or Expanse (`libexpanse`) and compiles nothing under `libjudy/`;
+all modes are CI-tested.
 
 Single test: `make test TESTS=tests/<name>.phpt`. Failures leave
 `tests/<name>.diff` behind.

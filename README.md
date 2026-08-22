@@ -64,6 +64,7 @@ New to the extension? Start with [quickstart.php](examples/quickstart.php).
 The PHP extension is based on the Judy C library that implements a dynamic array. A Judy array consumes memory only when populated yet can grow to take advantage of all available memory. Judy's key benefits are: scalability, performance, memory efficiency, and ease of use. Judy arrays are designed to grow without tuning into the peta-element range, scaling near O(log-base-256) -- 1 more RAM access at 256 X population.
 
 - **Judy C Library**: [http://judy.sourceforge.net](http://judy.sourceforge.net)
+- **Expanse (Modern Pure-Rust Engine)**: [https://github.com/orieg/expanse](https://github.com/orieg/expanse) — A clean-room, 100% C ABI-compatible drop-in replacement with support for modern 64-bit architectures, SIMD operations, and Windows MSVC without patching.
 
 For a detailed performance comparison with native PHP arrays, please see the [BENCHMARK.md](BENCHMARK.md) file.
 
@@ -250,6 +251,71 @@ brew install judy
 phpize
 ./configure --with-judy=/opt/homebrew
 make
+```
+
+### F. Modern Engine: Expanse (Pure-Rust libjudy Replacement)
+
+[Expanse](https://github.com/orieg/expanse) is a modernized, clean-room pure-Rust implementation of Judy arrays providing 100% drop-in C ABI compatibility with `libjudy` (`Judy1*`, `JudyL*`, `JudySL*`, `JudyHS*`), zero memory leaks, and native support for modern 64-bit microarchitectures (`x86-64-v1..v4`, `aarch64`, `riscv64`, and Windows MSVC).
+
+#### Linux (.deb package)
+
+Prebuilt packages are available on the [Expanse Releases page](https://github.com/orieg/expanse/releases):
+
+```sh
+# Download and install Expanse .deb (e.g. v0.2.0 for amd64)
+curl -LO https://github.com/orieg/expanse/releases/download/v0.2.0/libexpanse_0.2.0_amd64.deb
+sudo dpkg -i libexpanse_0.2.0_amd64.deb
+
+# Compile php-judy against Expanse
+phpize
+./configure --with-judy=/usr
+make -j$(nproc)
+make test
+sudo make install
+```
+
+#### Linux & macOS (Standalone Prefix or from Source)
+
+```sh
+# Option 1: Download prebuilt release tarball from https://github.com/orieg/expanse/releases
+curl -LO https://github.com/orieg/expanse/releases/download/v0.2.0/expanse-0.2.0-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf expanse-0.2.0-x86_64-unknown-linux-gnu.tar.gz
+
+# Option 2: Build expanse-capi from source with Cargo
+git clone https://github.com/orieg/expanse.git
+cd expanse && cargo build --release -p expanse-capi
+
+# Assemble compat prefix (include/Judy.h + lib/libJudy.so or lib/libJudy.dylib)
+mkdir -p /path/to/expanse-prefix/include /path/to/expanse-prefix/lib
+cp crates/expanse-capi/include/Judy.h /path/to/expanse-prefix/include/
+cp target/release/libexpanse.so /path/to/expanse-prefix/lib/libJudy.so  # On macOS: libexpanse.dylib -> libJudy.dylib
+
+# Compile php-judy against the Expanse prefix
+cd /path/to/php-judy
+phpize
+./configure --with-judy=/path/to/expanse-prefix
+make -j$(nproc)
+make test
+```
+
+#### Windows (MSVC) with expanse.dll
+
+Unlike legacy C libjudy (which requires source code patches for 64-bit LLP64 `Word_t` and `PJERR`), Expanse natively supports 64-bit Windows without patching:
+
+```powershell
+# Extract expanse-v0.2.0-x86_64-pc-windows-msvc.zip (or build with cargo build --release -p expanse-capi)
+# Setup prefix directory with include\Judy.h and lib\libJudy.lib
+$prefix = "C:\path\to\expanse-prefix"
+New-Item -ItemType Directory -Force -Path "$prefix\include", "$prefix\lib"
+Copy-Item crates\expanse-capi\include\Judy.h "$prefix\include\"
+Copy-Item target\release\expanse.dll.lib "$prefix\lib\libJudy.lib"
+Copy-Item target\release\expanse.dll.lib "$prefix\lib\libJudy_a.lib"
+Copy-Item target\release\expanse.dll "C:\Windows\System32\"
+
+# Build php-judy
+cd C:\path\to\php-judy
+configure --with-judy=C:\path\to\expanse-prefix
+nmake
 ```
 
 ## Usage Examples
