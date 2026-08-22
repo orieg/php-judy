@@ -144,6 +144,7 @@
          <file name="tests/serialize_roundtrip_int_to_mixed_001.phpt" role="test" />
          <file name="tests/serialize_roundtrip_string_to_int_001.phpt" role="test" />
          <file name="tests/serialize_roundtrip_string_to_mixed_001.phpt" role="test" />
+         <file name="tests/serialize_roundtrip_string_to_entry_001.phpt" role="test" />
          <file name="tests/serialize_error_001.phpt" role="test" />
          <file name="tests/to_array_bitset_001.phpt" role="test" />
          <file name="tests/to_array_int_to_int_001.phpt" role="test" />
@@ -230,6 +231,11 @@
          <file md5sum="9ec43571440b4e3d6bba2480a33c33ab" name="tests/judy_foreach_string_to_int.phpt" role="test" />
          <file md5sum="a0fc4eee63d8a8fccb775da2cb31a87b" name="tests/judy_foreach_string_to_mixed.phpt" role="test" />
          <file md5sum="c7f673fc62aa161b9c057dff9f9a7183" name="tests/judy_type.phpt" role="test" />
+         <file name="tests/string_to_entry_001.phpt" role="test" />
+         <file name="tests/string_to_entry_002.phpt" role="test" />
+         <file name="tests/string_to_entry_003.phpt" role="test" />
+         <file name="tests/string_to_entry_004.phpt" role="test" />
+         <file name="tests/string_to_entry_005.phpt" role="test" />
          <file md5sum="70072c5b8bce28ef95d72c1c7bd49f0d" name="tests/string_to_int_001.phpt" role="test" />
          <file md5sum="1aec6300f3bfbda719e00aa9d36869e2" name="tests/string_to_int_002.phpt" role="test" />
          <file md5sum="842928b9f75b54649ccdf30226ce98bb" name="tests/string_to_int_003.phpt" role="test" />

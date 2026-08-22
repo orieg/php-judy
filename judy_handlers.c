@@ -91,7 +91,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			}
 			JLN(PValue, old_obj->array, kindex)
 		}
-	} else if (old_obj->type == TYPE_STRING_TO_INT || old_obj->type == TYPE_STRING_TO_MIXED) {
+	} else if (old_obj->type == TYPE_STRING_TO_INT || old_obj->type == TYPE_STRING_TO_MIXED || old_obj->type == TYPE_STRING_TO_ENTRY) {
 		/* Cloning JudySL Array */
 
 		/* Key/index */
@@ -111,7 +111,17 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 		{
 			JSLI(newPValue, newJArray, kindex);
 			if (JUDY_LIKELY(newPValue != NULL && newPValue != PJERR)) {
-				if (old_obj->type == TYPE_STRING_TO_MIXED) {
+				if (old_obj->type == TYPE_STRING_TO_ENTRY) {
+					judy_cache_entry_t *old_entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+					if (old_entry != NULL) {
+						judy_cache_entry_t *new_entry = emalloc(sizeof(judy_cache_entry_t));
+						new_entry->expires_at = old_entry->expires_at;
+						new_entry->flags = old_entry->flags;
+						new_entry->reserved = 0;
+						ZVAL_COPY(&new_entry->value, &old_entry->value);
+						*newPValue = (Pvoid_t)(uintptr_t)new_entry;
+					}
+				} else if (old_obj->type == TYPE_STRING_TO_MIXED) {
 					zval *value = emalloc(sizeof(zval));
 					ZVAL_COPY(value, JUDY_MVAL_READ(PValue));
 					JUDY_MVAL_WRITE(newPValue, value);

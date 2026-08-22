@@ -192,7 +192,7 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 			judy_iterator_data_dtor(it);
 		}
 
-	} else if (object->type == TYPE_STRING_TO_INT || object->type == TYPE_STRING_TO_MIXED) {
+	} else if (object->type == TYPE_STRING_TO_INT || object->type == TYPE_STRING_TO_MIXED || object->type == TYPE_STRING_TO_ENTRY) {
 
 		uint8_t     *key = it->key_scratch;
 		Pvoid_t      *PValue;
@@ -220,7 +220,14 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 				ZVAL_STRINGL(&it->key, (char *)key, new_len);
 			}
 
-			if (object->type == TYPE_STRING_TO_INT) {
+			if (object->type == TYPE_STRING_TO_ENTRY) {
+				judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+				if (entry != NULL) {
+					ZVAL_COPY(&it->data, &entry->value);
+				} else {
+					ZVAL_NULL(&it->data);
+				}
+			} else if (object->type == TYPE_STRING_TO_INT) {
 				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
 			} else {
 				zval *value = JUDY_MVAL_READ(PValue);
@@ -351,7 +358,7 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			it->valid = 1;
 		}
 
-	} else if (object->type == TYPE_STRING_TO_INT || object->type == TYPE_STRING_TO_MIXED) {
+	} else if (object->type == TYPE_STRING_TO_INT || object->type == TYPE_STRING_TO_MIXED || object->type == TYPE_STRING_TO_ENTRY) {
 
 		uint8_t     *key = it->key_scratch;
 		Pvoid_t      *PValue;
@@ -364,7 +371,14 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 			size_t new_len = strlen((char *)key);
 			zval_ptr_dtor(&it->key);
 			ZVAL_STRINGL(&it->key, (const char *) key, new_len);
-			if (object->type == TYPE_STRING_TO_INT) {
+			if (object->type == TYPE_STRING_TO_ENTRY) {
+				judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+				if (entry != NULL) {
+					ZVAL_COPY(&it->data, &entry->value);
+				} else {
+					ZVAL_NULL(&it->data);
+				}
+			} else if (object->type == TYPE_STRING_TO_INT) {
 				ZVAL_LONG(&it->data, JUDY_LVAL_READ(PValue));
 			} else {
 				zval *value = JUDY_MVAL_READ(PValue);

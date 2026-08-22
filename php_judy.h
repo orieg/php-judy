@@ -155,9 +155,18 @@ typedef enum _judy_type {
     TYPE_STRING_TO_MIXED_HASH, /* JudyHS: O(1) avg hash lookup, parallel JudySL key index for iteration */
     TYPE_STRING_TO_INT_HASH,   /* JudyHS: O(1) avg hash lookup for string→int, parallel JudySL key index */
     TYPE_STRING_TO_MIXED_ADAPTIVE, /* SSO: JudyL for <8 bytes, JudyHS for longer + parallel JudySL */
-    TYPE_STRING_TO_INT_ADAPTIVE    /* SSO for string→int */
+    TYPE_STRING_TO_INT_ADAPTIVE,   /* SSO for string→int */
+    TYPE_STRING_TO_ENTRY           /* Cache entry with TTL timestamp, flags, and zval payload */
 } judy_type;
 /* }}} */
+
+/* Cache Entry structure stored in Judy value slots for TYPE_STRING_TO_ENTRY */
+typedef struct _judy_cache_entry {
+    uint32_t expires_at;  /* Unix timestamp (0 = never expires) */
+    uint16_t flags;       /* user-defined flags */
+    uint16_t reserved;
+    zval     value;       /* PHP zval payload */
+} judy_cache_entry_t;
 
 #define JTYPE(jtype, type) { \
     if (type != TYPE_BITSET && type != TYPE_INT_TO_INT \
@@ -168,7 +177,8 @@ typedef enum _judy_type {
                            && type != TYPE_STRING_TO_MIXED_HASH \
                            && type != TYPE_STRING_TO_INT_HASH \
                            && type != TYPE_STRING_TO_MIXED_ADAPTIVE \
-                           && type != TYPE_STRING_TO_INT_ADAPTIVE) { \
+                           && type != TYPE_STRING_TO_INT_ADAPTIVE \
+                           && type != TYPE_STRING_TO_ENTRY) { \
         php_error_docref(NULL, E_WARNING, "Not a valid Judy type. Please check the documentation for valid Judy type constant."); \
         jtype = 0; \
     } else { \
@@ -190,6 +200,7 @@ typedef enum _judy_type {
 #define JUDY_IS_MIXED_VALUE(intern) ((intern)->is_mixed_value)
 #define JUDY_IS_PACKED_VALUE(intern) ((intern)->is_packed_value)
 #define JUDY_IS_ADAPTIVE(intern) ((intern)->is_adaptive)
+#define JUDY_IS_ENTRY_VALUE(intern) ((intern)->is_entry_value)
 
 typedef struct _judy_object {
 	Pvoid_t         array;               /* 8 — hottest field */
@@ -241,6 +252,7 @@ typedef struct _judy_object {
 	unsigned int    is_packed_value  : 1;
 	unsigned int    is_hash_keyed    : 1;
 	unsigned int    is_adaptive      : 1;
+	unsigned int    is_entry_value   : 1;
 	/* Set iff optimizeIteration was requested AND this type can honour it.
 	   Fixed for the object's lifetime — see judy_set_optimize_iteration(). */
 	unsigned int    mirror_payload   : 1;
@@ -335,11 +347,12 @@ static inline void judy_init_type_flags(judy_object *intern, zend_long jtype)
 	   safe, unmirrored behaviour rather than to a stale mirror. */
 	intern->mirror_payload = 0;
 	intern->is_integer_keyed = (jtype == TYPE_BITSET || jtype == TYPE_INT_TO_INT || jtype == TYPE_INT_TO_MIXED || jtype == TYPE_INT_TO_PACKED);
-	intern->is_string_keyed = (jtype == TYPE_STRING_TO_INT || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_INT_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
+	intern->is_string_keyed = (jtype == TYPE_STRING_TO_INT || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_ENTRY || jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_INT_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
 	intern->is_mixed_value = (jtype == TYPE_INT_TO_MIXED || jtype == TYPE_STRING_TO_MIXED || jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE);
 	intern->is_packed_value = (jtype == TYPE_INT_TO_PACKED);
 	intern->is_hash_keyed = (jtype == TYPE_STRING_TO_MIXED_HASH || jtype == TYPE_STRING_TO_INT_HASH || jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
 	intern->is_adaptive = (jtype == TYPE_STRING_TO_MIXED_ADAPTIVE || jtype == TYPE_STRING_TO_INT_ADAPTIVE);
+	intern->is_entry_value = (jtype == TYPE_STRING_TO_ENTRY);
 }
 
 /* {{{ Approximate payload accounting for the string-keyed types.
@@ -376,6 +389,7 @@ static inline zend_long judy_string_entry_bytes(const judy_object *intern, Word_
 	switch (intern->type) {
 	case TYPE_STRING_TO_INT:
 	case TYPE_STRING_TO_MIXED:
+	case TYPE_STRING_TO_ENTRY:
 		/* Plain JudySL: one NUL-terminated key copy, value in the same trie. */
 		bytes = (zend_long)klen + 1 + (zend_long)sizeof(Word_t);
 		break;
@@ -397,7 +411,9 @@ static inline zend_long judy_string_entry_bytes(const judy_object *intern, Word_
 		return 0;
 	}
 
-	if (intern->is_mixed_value) {
+	if (intern->is_entry_value) {
+		bytes += (zend_long)sizeof(judy_cache_entry_t);
+	} else if (intern->is_mixed_value) {
 		bytes += (zend_long)sizeof(zval);
 	}
 	return bytes;

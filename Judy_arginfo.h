@@ -1,5 +1,5 @@
 /* This is a generated file, edit the .stub.php file instead.
- * Stub hash: 955ab76c22ec9add9a817b2bcde3660aa2e00ab1 */
+ * Stub hash: e76d289cea9450f9270eaf8f08eb528c8cb89419 */
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_judy_version, 0, 0, IS_STRING, 0)
 ZEND_END_ARG_INFO()
@@ -173,6 +173,33 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_equals, 0, 1, _IS_BOO
 	ZEND_ARG_OBJ_INFO(0, other, Judy, 0)
 ZEND_END_ARG_INFO()
 
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_set, 0, 2, IS_VOID, 0)
+	ZEND_ARG_TYPE_INFO(0, key, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO(0, value, IS_MIXED, 0)
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, ttl, IS_LONG, 0, "0")
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, flags, IS_LONG, 0, "0")
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_get, 0, 1, IS_MIXED, 0)
+	ZEND_ARG_TYPE_INFO(0, key, IS_STRING, 0)
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(1, expiresAt, IS_MIXED, 0, "null")
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(1, flags, IS_MIXED, 0, "null")
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_pruneExpired, 0, 0, IS_LONG, 0)
+	ZEND_ARG_TYPE_INFO_WITH_DEFAULT_VALUE(0, now, IS_LONG, 1, "null")
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_getEntry, 0, 1, IS_ARRAY, 1)
+	ZEND_ARG_TYPE_INFO(0, key, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_class_Judy_getExpiry, 0, 1, IS_LONG, 1)
+	ZEND_ARG_TYPE_INFO(0, key, IS_STRING, 0)
+ZEND_END_ARG_INFO()
+
+#define arginfo_class_Judy_getFlags arginfo_class_Judy_getExpiry
+
 ZEND_FUNCTION(judy_version);
 ZEND_FUNCTION(judy_type);
 ZEND_METHOD(Judy, __construct);
@@ -225,6 +252,12 @@ ZEND_METHOD(Judy, averageValues);
 ZEND_METHOD(Judy, populationCount);
 ZEND_METHOD(Judy, deleteRange);
 ZEND_METHOD(Judy, equals);
+ZEND_METHOD(Judy, set);
+ZEND_METHOD(Judy, get);
+ZEND_METHOD(Judy, pruneExpired);
+ZEND_METHOD(Judy, getEntry);
+ZEND_METHOD(Judy, getExpiry);
+ZEND_METHOD(Judy, getFlags);
 
 static const zend_function_entry ext_functions[] = {
 	ZEND_FE(judy_version, arginfo_judy_version)
@@ -283,5 +316,11 @@ static const zend_function_entry class_Judy_methods[] = {
 	ZEND_ME(Judy, populationCount, arginfo_class_Judy_populationCount, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, deleteRange, arginfo_class_Judy_deleteRange, ZEND_ACC_PUBLIC)
 	ZEND_ME(Judy, equals, arginfo_class_Judy_equals, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, set, arginfo_class_Judy_set, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, get, arginfo_class_Judy_get, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, pruneExpired, arginfo_class_Judy_pruneExpired, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, getEntry, arginfo_class_Judy_getEntry, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, getExpiry, arginfo_class_Judy_getExpiry, ZEND_ACC_PUBLIC)
+	ZEND_ME(Judy, getFlags, arginfo_class_Judy_getFlags, ZEND_ACC_PUBLIC)
 	ZEND_FE_END
 };

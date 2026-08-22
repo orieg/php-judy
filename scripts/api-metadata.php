@@ -42,6 +42,9 @@ return [
             'STRING_TO_INT_ADAPTIVE'   => ['value' => 10, 'description' => 'Adaptive string keys, integer values',   'backing' => 'JudyL (SSO) + JudyHS + JudySL key index'],
             'STRING_TO_MIXED_ADAPTIVE' => ['value' => 9,  'description' => 'Adaptive string keys, mixed PHP values', 'backing' => 'JudyL (SSO) + JudyHS + JudySL key index'],
         ],
+        'Cache & TTL Types' => [
+            'STRING_TO_ENTRY' => ['value' => 11, 'description' => 'String keys (sorted), cache entries with TTL timestamp, flags, and mixed PHP values', 'backing' => 'JudySL + judy_cache_entry_t'],
+        ],
     ],
 
     'type_group_notes' => [
@@ -142,6 +145,10 @@ MD,
         ],
         'Comparison' => [
             'methods' => ['equals'],
+        ],
+        'Cache & TTL Operations' => [
+            'methods' => ['set', 'get', 'pruneExpired', 'getEntry', 'getExpiry', 'getFlags'],
+            'description' => "Methods for cache and TTL workloads using `Judy::STRING_TO_ENTRY`. These provide native in-C key expiration without userland looping.",
         ],
         'Serialization' => [
             'methods' => ['__serialize', '__unserialize', 'jsonSerialize'],

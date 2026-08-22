@@ -23,6 +23,7 @@ the fast path to using or modifying it correctly. Canonical references:
 | `Judy::STRING_TO_MIXED_HASH` | string | any | yes (lexicographic) | as above, but cannot take `optimizeIteration` |
 | `Judy::STRING_TO_INT_ADAPTIVE` | string | int | yes (lexicographic) | auto-switches storage; same walk caveat, takes `optimizeIteration` for keys ≥ 8 bytes |
 | `Judy::STRING_TO_MIXED_ADAPTIVE` | string | any | yes (lexicographic) | as above, but cannot take `optimizeIteration` |
+| `Judy::STRING_TO_ENTRY` | string | any (entry with TTL + flags) | yes (lexicographic) | cache entries with native TTL pruning via `pruneExpired()` |
 
 ### Core usage
 
