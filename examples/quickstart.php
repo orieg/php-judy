@@ -51,3 +51,10 @@ $tags = new Judy(Judy::STRING_TO_MIXED);
 $tags['php']  = ['color' => 'purple'];
 $tags['judy'] = ['color' => 'green'];
 echo "tags: ", json_encode($tags), "\n";     // JsonSerializable
+
+// Cache & TTL workloads? Use STRING_TO_ENTRY for native TTL timestamps and in-C pruning.
+$cache = new Judy(Judy::STRING_TO_ENTRY);
+$cache->set('session:123', ['user_id' => 42], ttl: 3600, flags: 1);
+$entry = $cache->getEntry('session:123');
+echo "cache entry (flags={$entry['flags']}): ", json_encode($entry['value']), "\n";
+echo "pruned expired: ", $cache->pruneExpired(), "\n";
