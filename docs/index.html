@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PHP Judy — High-Performance Sparse Dynamic Arrays for PHP 8.1+</title>
+  <meta name="description" content="Official documentation for PHP Judy extension. Memory-efficient, ordered, sparse dynamic arrays wrapping libJudy and Rust Expanse for PHP 8.1+.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="PHP Judy — High-Performance Sparse Dynamic Arrays for PHP 8.1+">
+  <meta property="og:description" content="Memory-efficient, ordered, sparse dynamic arrays wrapping libJudy and Rust Expanse in C.">
+  <meta property="og:url" content="https://orieg.github.io/php-judy/">
+  <meta property="og:site_name" content="PHP Judy">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="PHP Judy — High-Performance Sparse Dynamic Arrays for PHP 8.1+">
+  <meta name="twitter:description" content="Memory-efficient, ordered, sparse dynamic arrays wrapping libJudy and Rust Expanse in C.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x26a1;</text></svg>">
+
+  <script>
+    (function() {
+      const saved = localStorage.getItem('judy-theme');
+      const attr = document.documentElement.getAttribute('data-theme');
+      if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+      } else if (!attr) {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+          document.documentElement.setAttribute('data-theme', 'light');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      }
+    })();
+  </script>
+
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --card-inner: #0b1120;
+      --border: #1f293d;
+      --border-accent: rgba(56, 189, 248, 0.4);
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --heading: #f8fafc;
+      --accent: #38bdf8;
+      --accent-hover: #7dd3fc;
+      --accent-green: #10b981;
+      --accent-purple: #a855f7;
+      --accent-orange: #f59e0b;
+      --code-bg: #030712;
+      --bench-bg: #0d1117;
+      --navbar-bg: rgba(9, 13, 22, 0.85);
+      --nav-pill-bg: rgba(56, 189, 248, 0.1);
+      --nav-pill-border: rgba(56, 189, 248, 0.25);
+      --btn-secondary-bg: #111827;
+      --btn-secondary-hover: #1e293b;
+      --btn-secondary-border: #1f293d;
+      --btn-secondary-text: #f8fafc;
+      --spotlight-bg: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+      --spotlight-border: rgba(99, 102, 241, 0.4);
+      color-scheme: dark;
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --card-inner: #f1f5f9;
+      --border: #e2e8f0;
+      --border-accent: rgba(2, 132, 199, 0.4);
+      --text: #334155;
+      --text-muted: #64748b;
+      --heading: #0f172a;
+      --accent: #0284c7;
+      --accent-hover: #0369a1;
+      --accent-green: #059669;
+      --accent-purple: #9333ea;
+      --accent-orange: #d97706;
+      --code-bg: #0f172a;
+      --bench-bg: #ffffff;
+      --navbar-bg: rgba(248, 250, 252, 0.88);
+      --nav-pill-bg: rgba(2, 132, 199, 0.08);
+      --nav-pill-border: rgba(2, 132, 199, 0.25);
+      --btn-secondary-bg: #ffffff;
+      --btn-secondary-hover: #f1f5f9;
+      --btn-secondary-border: #cbd5e1;
+      --btn-secondary-text: #0f172a;
+      --spotlight-bg: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 50%, #f0fdf4 100%);
+      --spotlight-border: rgba(99, 102, 241, 0.3);
+      color-scheme: light;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    a { color: var(--accent); text-decoration: none; transition: color 0.15s ease; }
+    a:hover { color: var(--accent-hover); }
+
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* Navbar */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--navbar-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 700;
+      font-size: 1.15rem;
+      color: var(--heading);
+      text-decoration: none;
+    }
+    .nav-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 15px;
+      box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.15s ease;
+    }
+    .nav-links a:hover {
+      color: var(--heading);
+      text-decoration: none;
+    }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .theme-toggle-btn {
+      background: var(--btn-secondary-bg);
+      border: 1px solid var(--btn-secondary-border);
+      color: var(--text);
+      cursor: pointer;
+      padding: 0.4rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .theme-toggle-btn:hover {
+      background: var(--btn-secondary-hover);
+      border-color: var(--border-accent);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #38bdf8, #0284c7);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: var(--btn-secondary-bg);
+      border: 1px solid var(--btn-secondary-border);
+      color: var(--btn-secondary-text);
+    }
+    .btn-secondary:hover {
+      background: var(--btn-secondary-hover);
+      border-color: var(--border-accent);
+      color: var(--heading);
+      text-decoration: none;
+      transform: translateY(-1px);
+    }
+
+    /* Hero */
+    .hero {
+      padding: 4.5rem 0 3rem;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--nav-pill-bg);
+      color: var(--accent);
+      border: 1px solid var(--nav-pill-border);
+      padding: 0.3rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 {
+      font-size: 2.75rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--heading);
+      margin-bottom: 1rem;
+      line-height: 1.15;
+    }
+    .hero-gradient {
+      background: linear-gradient(135deg, #38bdf8 0%, #818cf8 50%, #34d399 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero .subtitle {
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      max-width: 680px;
+      margin: 0 auto 1.75rem;
+    }
+    .install-box {
+      max-width: 480px;
+      margin: 0 auto 2rem;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.6rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+    .install-cmd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.9rem;
+      color: var(--accent);
+    }
+    .copy-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.35rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: all 0.15s ease;
+    }
+    .copy-btn:hover {
+      color: var(--heading);
+      border-color: var(--accent);
+    }
+
+    /* Section styling */
+    .section-block {
+      margin-bottom: 4rem;
+    }
+    .section-title {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .section-title::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .section-desc {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      margin-bottom: 1.75rem;
+    }
+
+    /* Spotlight Card */
+    .spotlight-card {
+      background: var(--spotlight-bg);
+      border: 1px solid var(--spotlight-border);
+      border-radius: 16px;
+      padding: 2.25rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+      margin-bottom: 3.5rem;
+    }
+    .spotlight-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #38bdf8, #818cf8, #10b981);
+    }
+    .spotlight-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 2rem;
+      align-items: center;
+    }
+
+    /* Type Matrix Interactive Component */
+    .type-matrix-wrapper {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+    .type-nav {
+      display: flex;
+      overflow-x: auto;
+      background: var(--card-inner);
+      border-bottom: 1px solid var(--border);
+      padding: 0.5rem 0.5rem 0;
+      gap: 0.35rem;
+    }
+    .type-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      border-bottom: none;
+      color: var(--text-muted);
+      padding: 0.6rem 1rem;
+      border-radius: 8px 8px 0 0;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+    .type-btn:hover {
+      color: var(--heading);
+    }
+    .type-btn.active {
+      background: var(--card-bg);
+      color: var(--accent);
+      border-color: var(--border);
+      border-bottom-color: var(--card-bg);
+    }
+    .type-content {
+      padding: 1.75rem;
+    }
+    .type-pane {
+      display: none;
+    }
+    .type-pane.active {
+      display: block;
+    }
+    .type-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .type-meta-box {
+      background: var(--card-inner);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+    }
+    .type-meta-lbl {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+    .type-meta-val {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--heading);
+      margin-top: 0.2rem;
+    }
+
+    /* Code Blocks */
+    .code-tabs {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+    .code-nav {
+      display: flex;
+      background: var(--card-inner);
+      border-bottom: 1px solid var(--border);
+      padding: 0.4rem 0.5rem;
+      gap: 0.4rem;
+      overflow-x: auto;
+    }
+    .code-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.5rem 0.85rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .code-tab-btn:hover {
+      color: var(--heading);
+    }
+    .code-tab-btn.active {
+      background: var(--nav-pill-bg);
+      color: var(--accent);
+    }
+    .code-pane {
+      display: none;
+      position: relative;
+    }
+    .code-pane.active {
+      display: block;
+    }
+    pre {
+      background: var(--code-bg);
+      color: var(--text);
+      padding: 1.25rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      overflow-x: auto;
+    }
+    .keyword { color: #f472b6; }
+    .class-name { color: #38bdf8; }
+    .method { color: #60a5fa; }
+    .string { color: #34d399; }
+    .number { color: #fbbf24; }
+    .comment { color: #64748b; font-style: italic; }
+
+    /* Benchmark visual cards */
+    .bench-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+    .bench-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .bench-card h3 {
+      font-size: 1.1rem;
+      color: var(--heading);
+      margin-bottom: 0.5rem;
+    }
+    .bench-bar-group {
+      margin-top: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .bench-bar-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .bench-bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .bench-bar-track {
+      height: 10px;
+      background: var(--card-inner);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .bench-bar-fill {
+      height: 100%;
+      border-radius: 5px;
+      transition: width 0.8s ease-in-out;
+    }
+
+    /* Installation cards */
+    .install-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+    .install-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .install-card h4 {
+      font-size: 0.95rem;
+      color: var(--heading);
+      margin-bottom: 0.5rem;
+    }
+    .install-snippet {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+      font-size: 0.78rem;
+      color: var(--accent);
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 3.5rem 0 2rem;
+      background: var(--navbar-bg);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .footer-links a:hover {
+      color: var(--heading);
+    }
+
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2.1rem; }
+      .spotlight-grid { grid-template-columns: 1fr; }
+      .navbar { padding: 0.75rem 1rem; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="https://orieg.github.io/php-judy/" class="nav-brand">
+    <div class="nav-logo">J</div>
+    <span>PHP Judy</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="#whats-new">What's New</a></li>
+    <li><a href="#types">Type Matrix</a></li>
+    <li><a href="#examples">Code Showcase</a></li>
+    <li><a href="#benchmarks">Benchmarks</a></li>
+    <li><a href="#install">Install</a></li>
+  </ul>
+  <div class="nav-actions">
+    <button class="theme-toggle-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle dark/light mode">
+      <span id="themeIcon">🌓</span>
+    </button>
+    <a class="btn btn-secondary" href="https://github.com/orieg/php-judy" target="_blank" rel="noopener">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span>GitHub</span>
+    </a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="container">
+    <div class="hero-badge">
+      <span>Release v2.7.0 Live</span> &bull; <span>PHP 8.1 – 8.6</span>
+    </div>
+    <h1>Sparse Dynamic Arrays <br><span class="hero-gradient">At C Speed for PHP</span></h1>
+    <p class="subtitle">Deterministic memory scaling, lexicographic ordered walks, zero-copy bulk extraction, and native TTL cache storage.</p>
+    
+    <div class="install-box">
+      <span class="install-cmd" id="installText">pie install orieg/judy</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('pie install orieg/judy'); this.textContent='Copied!'; setTimeout(()=>this.textContent='Copy', 2000)">Copy</button>
+    </div>
+
+    <div style="display: flex; justify-content: center; gap: 0.85rem; flex-wrap: wrap;">
+      <a class="btn btn-primary" href="#examples">Interactive Guide &rarr;</a>
+      <a class="btn btn-secondary" href="https://github.com/orieg/php-judy/blob/main/API.md" target="_blank" rel="noopener">Full API Reference</a>
+      <a class="btn btn-secondary" href="https://orieg.github.io/judy-cache/">Judy Cache PSR-16</a>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- Spotlight: What's New in 2.7.0 -->
+  <section class="section-block" id="whats-new">
+    <div class="spotlight-card">
+      <div class="spotlight-grid">
+        <div>
+          <span style="color: var(--accent); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">What's New in v2.7.0</span>
+          <h2 style="font-size: 1.75rem; font-weight: 800; color: var(--heading); margin: 0.5rem 0 0.75rem;">Native TTL Caching & Rust Expanse Engine</h2>
+          <p style="color: var(--text); font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.25rem;">PHP Judy 2.7.0 introduces <code style="color: var(--accent);">Judy::STRING_TO_ENTRY</code> — packing values with uint32 expiry timestamps and 16-bit metadata flags directly into native C struct entries with zero secondary indexes, plus pure-Rust Expanse backend integration.</p>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <span style="background: var(--card-inner); border: 1px solid var(--border); padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem;">Judy::STRING_TO_ENTRY</span>
+            <span style="background: var(--card-inner); border: 1px solid var(--border); padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem;">In-C pruneExpired()</span>
+            <span style="background: var(--card-inner); border: 1px solid var(--border); padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem;">--with-expanse</span>
+          </div>
+        </div>
+        <div style="background: var(--card-inner); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">TTL Pruning (100k)</span>
+            <strong style="color: var(--accent-green);">12.9 ms (0 B heap)</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">Dual-Trie Savings</span>
+            <strong style="color: var(--accent);">-50% Key Index RAM</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">Backend Option</span>
+            <strong style="color: var(--accent-purple);">libJudy + Expanse</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Type Matrix -->
+  <section class="section-block" id="types">
+    <div class="section-title">Type Matrix</div>
+    <p class="section-desc">Pick the optimal Judy array layout for your key/value shape and performance requirements.</p>
+
+    <div class="type-matrix-wrapper">
+      <div class="type-nav" id="typeNav">
+        <button class="type-btn active" data-target="type-bitset">Judy::BITSET</button>
+        <button class="type-btn" data-target="type-int-to-int">Judy::INT_TO_INT</button>
+        <button class="type-btn" data-target="type-string-to-mixed">Judy::STRING_TO_MIXED</button>
+        <button class="type-btn" data-target="type-string-to-hash">Judy::STRING_TO_INT_HASH</button>
+        <button class="type-btn" data-target="type-string-to-entry">Judy::STRING_TO_ENTRY</button>
+      </div>
+
+      <div class="type-content">
+        <!-- BITSET -->
+        <div class="type-pane active" id="type-bitset">
+          <div class="type-meta-grid">
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Keys / Values</div>
+              <div class="type-meta-val">int &rarr; bool</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Memory Footprint</div>
+              <div class="type-meta-val" style="color: var(--accent-green);">1 bit / entry</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Key Ordering</div>
+              <div class="type-meta-val">Unsigned integer word</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Best For</div>
+              <div class="type-meta-val">Seen-sets, Bloom filters, IDs</div>
+            </div>
+          </div>
+          <p style="color: var(--text); font-size: 0.9rem;">Presence-only set. The cheapest possible data structure in PHP. Millions of integer IDs stored in single megabytes of memory.</p>
+        </div>
+
+        <!-- INT_TO_INT -->
+        <div class="type-pane" id="type-int-to-int">
+          <div class="type-meta-grid">
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Keys / Values</div>
+              <div class="type-meta-val">int &rarr; int</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Memory Footprint</div>
+              <div class="type-meta-val" style="color: var(--accent);">Exact (JudyLMemUsed)</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Key Ordering</div>
+              <div class="type-meta-val">Unsigned integer word</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Best For</div>
+              <div class="type-meta-val">Atomic counters, ID mapping</div>
+            </div>
+          </div>
+          <p style="color: var(--text); font-size: 0.9rem;">Sparse integer map. Supports high-speed in-C <code style="color: var(--accent);">$j->increment($key, $amount)</code> without read-modify-write penalties.</p>
+        </div>
+
+        <!-- STRING_TO_MIXED -->
+        <div class="type-pane" id="type-string-to-mixed">
+          <div class="type-meta-grid">
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Keys / Values</div>
+              <div class="type-meta-val">string &rarr; any (zval)</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Data Structure</div>
+              <div class="type-meta-val">JudySL Radix Trie</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Key Ordering</div>
+              <div class="type-meta-val">Lexicographic (bytes)</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Best For</div>
+              <div class="type-meta-val">Prefix walks, symbol tables</div>
+            </div>
+          </div>
+          <p style="color: var(--text); font-size: 0.9rem;">Trie-ordered string map. Supports $O(\text{range})$ key-space slicing, bounded iteration, and fast prefix matching.</p>
+        </div>
+
+        <!-- STRING_TO_INT_HASH -->
+        <div class="type-pane" id="type-string-to-hash">
+          <div class="type-meta-grid">
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Keys / Values</div>
+              <div class="type-meta-val">string &rarr; int</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Data Structure</div>
+              <div class="type-meta-val">JudyHS Hash Index</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Lookups</div>
+              <div class="type-meta-val" style="color: var(--accent-green);">Fastest Point Read</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Best For</div>
+              <div class="type-meta-val">High-throughput dictionaries</div>
+            </div>
+          </div>
+          <p style="color: var(--text); font-size: 0.9rem;">JudyHS length-prefixed hash table. Delivers the absolute fastest random point-lookups for string keys.</p>
+        </div>
+
+        <!-- STRING_TO_ENTRY -->
+        <div class="type-pane" id="type-string-to-entry">
+          <div class="type-meta-grid">
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Keys / Values</div>
+              <div class="type-meta-val">string &rarr; entry (TTL + flags)</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Storage Model</div>
+              <div class="type-meta-val" style="color: var(--accent-purple);">Single-Trie Packed C Struct</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Eviction</div>
+              <div class="type-meta-val" style="color: var(--accent-green);">Single-Pass In-C (12.9 ms)</div>
+            </div>
+            <div class="type-meta-box">
+              <div class="type-meta-lbl">Best For</div>
+              <div class="type-meta-val">PSR-16 caches, worker stores</div>
+            </div>
+          </div>
+          <p style="color: var(--text); font-size: 0.9rem;">Unified cache entry type. Eliminates secondary expiries tries by storing expiry timestamps and metadata flags in the C struct node.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Code Showcase -->
+  <section class="section-block" id="examples">
+    <div class="section-title">Code Showcase</div>
+    <p class="section-desc">Clean, idiomatic PHP examples demonstrating core Judy capabilities.</p>
+
+    <div class="code-tabs">
+      <div class="code-nav" id="codeNav">
+        <button class="code-tab-btn active" data-target="code-basics">ArrayAccess & Basics</button>
+        <button class="code-tab-btn" data-target="code-range">Range Seeks & Bounded Walks</button>
+        <button class="code-tab-btn" data-target="code-bulk">High-Speed C Bulk Ops</button>
+        <button class="code-tab-btn" data-target="code-counters">Atomic Counters</button>
+        <button class="code-tab-btn" data-target="code-cache">Native TTL Caching (2.7.0)</button>
+      </div>
+
+      <!-- Tab 1: Basics -->
+      <div class="code-pane active" id="code-basics">
+<pre><code><span class="keyword">&lt;?php</span>
+<span class="comment">// Create an integer-to-mixed sparse array</span>
+<span class="variable">$judy</span> = <span class="keyword">new</span> <span class="class-name">Judy</span>(<span class="class-name">Judy</span>::<span class="keyword">INT_TO_MIXED</span>);
+
+<span class="comment">// ArrayAccess CRUD operations</span>
+<span class="variable">$judy</span>[<span class="number">42</span>] = [<span class="string">'user'</span> =&gt; <span class="string">'nicolas'</span>, <span class="string">'role'</span> =&gt; <span class="string">'admin'</span>];
+<span class="variable">$judy</span>[<span class="number">10_000_000</span>] = <span class="string">'sparse high index'</span>;
+
+<span class="keyword">isset</span>(<span class="variable">$judy</span>[<span class="number">42</span>]);         <span class="comment">// true</span>
+<span class="keyword">count</span>(<span class="variable">$judy</span>);             <span class="comment">// 2 (O(1) population count)</span>
+<span class="keyword">unset</span>(<span class="variable">$judy</span>[<span class="number">10_000_000</span>]);
+
+<span class="comment">// Foreach iterates in strict key order</span>
+<span class="keyword">foreach</span> (<span class="variable">$judy</span> <span class="keyword">as</span> <span class="variable">$id</span> =&gt; <span class="variable">$data</span>) {
+    <span class="method">var_dump</span>(<span class="variable">$id</span>, <span class="variable">$data</span>);
+}</code></pre>
+      </div>
+
+      <!-- Tab 2: Range -->
+      <div class="code-pane" id="code-range">
+<pre><code><span class="keyword">&lt;?php</span>
+<span class="variable">$j</span> = <span class="keyword">new</span> <span class="class-name">Judy</span>(<span class="class-name">Judy</span>::<span class="keyword">STRING_TO_MIXED</span>);
+<span class="variable">$j</span>[<span class="string">'app.cache.user.1'</span>] = <span class="string">'alpha'</span>;
+<span class="variable">$j</span>[<span class="string">'app.cache.user.2'</span>] = <span class="string">'beta'</span>;
+<span class="variable">$j</span>[<span class="string">'app.session.42'</span>]    = <span class="string">'active'</span>;
+
+<span class="comment">// Seek operations (key-space bounds)</span>
+<span class="variable">$firstKey</span> = <span class="variable">$j</span>-&gt;<span class="method">first</span>();                   <span class="comment">// "app.cache.user.1"</span>
+<span class="variable">$nextKey</span>  = <span class="variable">$j</span>-&gt;<span class="method">searchNext</span>(<span class="variable">$firstKey</span>);    <span class="comment">// "app.cache.user.2"</span>
+
+<span class="comment">// High-speed bounded key extraction in single C traversal</span>
+<span class="variable">$userKeys</span> = <span class="variable">$j</span>-&gt;<span class="method">keys</span>(<span class="string">'app.cache.'</span>, <span class="string">'app.cache.z'</span>);
+
+<span class="comment">// Count items in key range without allocating PHP arrays</span>
+<span class="variable">$count</span> = <span class="variable">$j</span>-&gt;<span class="method">size</span>(<span class="string">'app.cache.'</span>, <span class="string">'app.cache.z'</span>); <span class="comment">// 2</span></code></pre>
+      </div>
+
+      <!-- Tab 3: Bulk -->
+      <div class="code-pane" id="code-bulk">
+<pre><code><span class="keyword">&lt;?php</span>
+<span class="comment">// Construct directly from PHP array in a single C pass</span>
+<span class="variable">$data</span> = [<span class="string">'a'</span> =&gt; <span class="number">10</span>, <span class="string">'b'</span> =&gt; <span class="number">20</span>, <span class="string">'c'</span> =&gt; <span class="number">30</span>];
+<span class="variable">$j</span> = <span class="class-name">Judy</span>::<span class="method">fromArray</span>(<span class="class-name">Judy</span>::<span class="keyword">STRING_TO_INT</span>, <span class="variable">$data</span>);
+
+<span class="comment">// Bulk insert / replace</span>
+<span class="variable">$j</span>-&gt;<span class="method">putAll</span>([<span class="string">'d'</span> =&gt; <span class="number">40</span>, <span class="string">'e'</span> =&gt; <span class="number">50</span>]);
+
+<span class="comment">// Bulk point-lookup (1.9x faster than individual lookups)</span>
+<span class="variable">$values</span> = <span class="variable">$j</span>-&gt;<span class="method">getAll</span>([<span class="string">'a'</span>, <span class="string">'c'</span>, <span class="string">'e'</span>]); <span class="comment">// ['a' =&gt; 10, 'c' =&gt; 30, 'e' =&gt; 50]</span>
+
+<span class="comment">// Export back to native array (3.1x faster than foreach)</span>
+<span class="variable">$array</span> = <span class="variable">$j</span>-&gt;<span class="method">toArray</span>();</code></pre>
+      </div>
+
+      <!-- Tab 4: Counters -->
+      <div class="code-pane" id="code-counters">
+<pre><code><span class="keyword">&lt;?php</span>
+<span class="variable">$counters</span> = <span class="keyword">new</span> <span class="class-name">Judy</span>(<span class="class-name">Judy</span>::<span class="keyword">STRING_TO_INT</span>);
+
+<span class="comment">// Atomic in-place increment (creates key at 0 if absent, then adds delta)</span>
+<span class="variable">$counters</span>-&gt;<span class="method">increment</span>(<span class="string">'hits:page:index'</span>, <span class="number">1</span>);
+<span class="variable">$counters</span>-&gt;<span class="method">increment</span>(<span class="string">'hits:page:index'</span>, <span class="number">5</span>);
+
+<span class="comment">// Aggregation runs directly across libJudy C memory</span>
+<span class="variable">$totalHits</span> = <span class="variable">$counters</span>-&gt;<span class="method">sumValues</span>();
+<span class="variable">$avgHits</span>   = <span class="variable">$counters</span>-&gt;<span class="method">averageValues</span>();</code></pre>
+      </div>
+
+      <!-- Tab 5: Cache & TTL -->
+      <div class="code-pane" id="code-cache">
+<pre><code><span class="keyword">&lt;?php</span>
+<span class="comment">// Native compound cache entry type (v2.7.0)</span>
+<span class="variable">$cache</span> = <span class="keyword">new</span> <span class="class-name">Judy</span>(<span class="class-name">Judy</span>::<span class="keyword">STRING_TO_ENTRY</span>);
+
+<span class="comment">// Store payload with 60s TTL and 16-bit metadata flags</span>
+<span class="variable">$cache</span>-&gt;<span class="method">set</span>(<span class="string">'session:abc'</span>, [<span class="string">'auth'</span> =&gt; <span class="keyword">true</span>], <span class="variable">$ttl</span> = <span class="number">60</span>, <span class="variable">$flags</span> = <span class="number">0x0001</span>);
+
+<span class="comment">// Fetch value with output references for metadata</span>
+<span class="variable">$val</span> = <span class="variable">$cache</span>-&gt;<span class="method">get</span>(<span class="string">'session:abc'</span>, <span class="variable">$expiresAt</span>, <span class="variable">$flags</span>);
+
+<span class="comment">// Single-pass in-C TTL eviction (0 PHP heap allocations)</span>
+<span class="variable">$evicted</span> = <span class="variable">$cache</span>-&gt;<span class="method">pruneExpired</span>();</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Benchmarks & Visual Charts -->
+  <section class="section-block" id="benchmarks">
+    <div class="section-title">Performance & Footprint</div>
+    <p class="section-desc">Empirically measured memory consumption and execution latency against standard PHP data structures.</p>
+
+    <div class="bench-grid">
+      <div class="bench-card">
+        <h3>Memory: 1,000,000 Integer Entries</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Measured VmRSS in separate process.</p>
+        <div class="bench-bar-group">
+          <div class="bench-bar-row">
+            <div class="bench-bar-label"><span>Judy::BITSET</span><span style="color: var(--accent-green);">0.15 MB (-99.7%)</span></div>
+            <div class="bench-bar-track"><div class="bench-bar-fill" style="width: 1%; background: var(--accent-green);"></div></div>
+          </div>
+          <div class="bench-bar-row">
+            <div class="bench-bar-label"><span>Judy::INT_TO_INT</span><span style="color: var(--accent);">8.2 MB (-79%)</span></div>
+            <div class="bench-bar-track"><div class="bench-bar-fill" style="width: 21%; background: var(--accent);"></div></div>
+          </div>
+          <div class="bench-bar-row">
+            <div class="bench-bar-label"><span>SplFixedArray</span><span style="color: var(--text-muted);">16.0 MB (-59%)</span></div>
+            <div class="bench-bar-track"><div class="bench-bar-fill" style="width: 41%; background: #64748b;"></div></div>
+          </div>
+          <div class="bench-bar-row">
+            <div class="bench-bar-label"><span>Native PHP Array</span><span style="color: var(--accent-orange);">39.1 MB (Baseline)</span></div>
+            <div class="bench-bar-track"><div class="bench-bar-fill" style="width: 100%; background: var(--accent-orange);"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bench-card">
+        <h3>Namespace Invalidation (1M Keys)</h3>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Time to delete a 1,000-key slice from 1M elements.</p>
+        <div class="bench-bar-group">
+          <div class="bench-bar-row">
+            <div class="bench-bar-label"><span>PHP Judy (deleteRange)</span><span style="color: var(--accent-green);">53 &micro;s (17,000x faster)</span></div>
+            <div class="bench-bar-track"><div class="bench-bar-fill" style="width: 1%; background: var(--accent-green);"></div></div>
+          </div>
+          <div class="bench-bar-row">
+            <div class="bench-bar-label"><span>APCu (Regex Key Sweep)</span><span style="color: var(--accent-purple);">81,000 &micro;s (81 ms)</span></div>
+            <div class="bench-bar-track"><div class="bench-bar-fill" style="width: 15%; background: var(--accent-purple);"></div></div>
+          </div>
+          <div class="bench-bar-row">
+            <div class="bench-bar-label"><span>Symfony ArrayAdapter</span><span style="color: var(--accent-orange);">900,000 &micro;s (900 ms)</span></div>
+            <div class="bench-bar-track"><div class="bench-bar-fill" style="width: 100%; background: var(--accent-orange);"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Installation Matrix -->
+  <section class="section-block" id="install">
+    <div class="section-title">Installation & Setup</div>
+    <p class="section-desc">Multiple installation methods supported across all modern PHP environments.</p>
+
+    <div class="install-grid">
+      <div class="install-card">
+        <h4>PIE (Recommended)</h4>
+        <div class="install-snippet">pie install orieg/judy</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">The official PHP Installer for Extensions.</p>
+      </div>
+      <div class="install-card">
+        <h4>PECL</h4>
+        <div class="install-snippet">pecl install judy</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Standard PECL distribution package.</p>
+      </div>
+      <div class="install-card">
+        <h4>Docker</h4>
+        <div class="install-snippet">RUN pecl install judy && docker-php-ext-enable judy</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Bundled libJudy requires no external packages.</p>
+      </div>
+      <div class="install-card">
+        <h4>With Rust Expanse Engine</h4>
+        <div class="install-snippet">./configure --with-expanse=/usr</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Link with pure-Rust Judy engine.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="container">
+    <div class="footer-links">
+      <a href="https://github.com/orieg/php-judy" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/orieg/php-judy/blob/main/API.md" target="_blank" rel="noopener">API Docs</a>
+      <a href="https://github.com/orieg/php-judy/blob/main/BENCHMARK.md" target="_blank" rel="noopener">Benchmarks</a>
+      <a href="https://orieg.github.io/judy-cache/">Judy Cache</a>
+      <a href="https://orieg.github.io/judy-polyfill/">Judy Polyfill</a>
+      <a href="https://orieg.github.io/expanse/">Expanse Engine</a>
+      <a href="https://orieg.github.io/">Nicolas Brousse</a>
+    </div>
+    <p>&copy; 2026 Nicolas Brousse. PHP Judy is released under the PHP License v3.01.</p>
+  </div>
+</footer>
+
+<script>
+  // Theme toggle
+  const themeToggle = document.getElementById('themeToggle');
+  const themeIcon = document.getElementById('themeIcon');
+
+  function updateThemeIcon(theme) {
+    themeIcon.textContent = theme === 'light' ? '☀️' : '🌙';
+  }
+
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+  updateThemeIcon(currentTheme);
+
+  themeToggle.addEventListener('click', () => {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const nextTheme = isDark ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', nextTheme);
+    localStorage.setItem('judy-theme', nextTheme);
+    updateThemeIcon(nextTheme);
+  });
+
+  // Type matrix tabs
+  const typeButtons = document.querySelectorAll('#typeNav .type-btn');
+  typeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      typeButtons.forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.type-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const targetId = btn.getAttribute('data-target');
+      document.getElementById(targetId).classList.add('active');
+    });
+  });
+
+  // Code showcase tabs
+  const codeButtons = document.querySelectorAll('#codeNav .code-tab-btn');
+  codeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      codeButtons.forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.code-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const targetId = btn.getAttribute('data-target');
+      document.getElementById(targetId).classList.add('active');
+    });
+  });
+</script>
+
+</body>
+</html>
