@@ -38,6 +38,7 @@ Each pattern below is a runnable script in [examples/](examples/README.md):
 | "Have I seen this ID?" over millions of items — crawler frontiers, queue dedup, processed-ID sets | `BITSET` uses 18.5-22.7x less memory than a PHP array (21.9x at 1M elements) | [dedup-large-stream.php](examples/dedup-large-stream.php) |
 | Which CIDR/tariff/shard does this value fall in? | `last()` resolves the greatest key ≤ N in one call; hash tables must scan | [ip-range-lookup.php](examples/ip-range-lookup.php) |
 | Rate limiting and rolling metrics over a time window | `deleteRange()` expires aged-out buckets without touching the retained set | [sliding-window-rate-limit.php](examples/sliding-window-rate-limit.php) |
+| High-throughput cache with native TTL eviction | `pruneExpired()` purges expired entries in-C in a single pass without userland loops | [cache-ttl-pruning.php](examples/cache-ttl-pruning.php) |
 | Invalidate every cache key under `user:123:*` | Ordered keys make a namespace one contiguous slice — cost follows the slice, not the cache size | [prefix-invalidation.php](examples/prefix-invalidation.php) |
 | List every class under `App\Domain\` — LSP completion, namespace-scoped analysis rules, PHPUnit `--filter` | A namespace prefix is one contiguous key range; `keys($lo, $hi)` reads exactly that slice in a single traversal | [symbol-table-prefix.php](examples/symbol-table-prefix.php) |
 | Autocomplete / typeahead over a string keyset | `first()` + `searchNext()` walk a prefix in sorted order and stop once the dropdown is full | [autocomplete-trie.php](examples/autocomplete-trie.php) |
@@ -278,7 +279,7 @@ nmake
 
 Judy arrays can be used like usual PHP arrays. The difference will be in the type of key/values that you can use. Judy arrays are optimized for memory usage but it forces some limitations in the PHP API.
 
-There are 10 types of PHP Judy Arrays, organized into three families:
+There are 11 types of PHP Judy Arrays, organized into four families:
 
 ### Integer-Keyed Types
 
@@ -378,13 +379,34 @@ $judy["scores"] = [85, 92, 78];
 echo $judy["name"]; // Outputs: John Doe
 ```
 
+#### 7. Judy::STRING_TO_ENTRY
+
+A specialized cache-entry Judy array mapping string keys to values with native expiration timestamps (TTL) and user-defined 16-bit flags. Features native in-C single-pass batch eviction via `pruneExpired()`.
+
+```php
+$cache = new Judy(Judy::STRING_TO_ENTRY);
+
+// Set with TTL (seconds) and optional flags
+$cache->set("session_123", ["user" => "Alice"], ttl: 3600, flags: 1);
+
+// Read value (returns null if key does not exist or has expired)
+$val = $cache->get("session_123", $expiresAt, $flags);
+
+// Batch prune expired items directly in C (2.6x faster than userland foreach+unset)
+$evictedCount = $cache->pruneExpired();
+
+// Inspect full metadata
+$entry = $cache->getEntry("session_123");
+// ['value' => ..., 'expires_at' => ..., 'flags' => ..., 'is_expired' => bool]
+```
+
 ### String-Keyed Types (Hash-Based)
 
 Hash-based types use JudyHS for O(1) average-case lookups, with a parallel JudySL key index that maintains sorted iteration order. Best for workloads dominated by random key access where you still need ordered iteration.
 
 By default an ordered walk over these types costs a second lookup per element to fetch the value. `optimizeIteration` removes it — see [Trading write speed for iteration speed](#trading-write-speed-for-iteration-speed).
 
-#### 7. Judy::STRING_TO_INT_HASH
+#### 8. Judy::STRING_TO_INT_HASH
 
 A hash-backed Judy array with string keys and integer values.
 
@@ -453,7 +475,7 @@ $j = new Judy($typeFromConfig, optimizeIteration: true);
 var_dump($j->isIterationOptimized()); // false unless the type can honour it
 ```
 
-#### 8. Judy::STRING_TO_MIXED_HASH
+#### 9. Judy::STRING_TO_MIXED_HASH
 
 A hash-backed Judy array with string keys and mixed values.
 
@@ -467,7 +489,7 @@ $judy["config_b"] = 42;
 
 Adaptive types use Short-String Optimization (SSO): keys of 7 bytes or fewer are packed into a 64-bit integer and stored in a JudyL array, avoiding hashing overhead entirely. Longer keys fall back to JudyHS. A JudySL key index maintains sorted iteration. Best for mixed-length key workloads with many short keys.
 
-#### 9. Judy::STRING_TO_INT_ADAPTIVE
+#### 10. Judy::STRING_TO_INT_ADAPTIVE
 
 An adaptive Judy array with string keys and integer values.
 
@@ -479,7 +501,7 @@ $judy["a_very_long_country_name"] = 3;  // Falls back to JudyHS
 echo $judy["us"]; // Outputs: 1
 ```
 
-#### 10. Judy::STRING_TO_MIXED_ADAPTIVE
+#### 11. Judy::STRING_TO_MIXED_ADAPTIVE
 
 An adaptive Judy array with string keys and mixed values.
 

@@ -71,6 +71,7 @@
          <file name="examples/worker-counters.php" role="doc" />
          <file name="examples/ip-range-lookup.php" role="doc" />
          <file name="examples/sliding-window-rate-limit.php" role="doc" />
+         <file name="examples/cache-ttl-pruning.php" role="doc" />
          <file name="examples/prefix-invalidation.php" role="doc" />
          <file name="examples/symbol-table-prefix.php" role="doc" />
         <file name="examples/coverage-index.php" role="doc" />

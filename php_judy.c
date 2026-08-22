@@ -1738,6 +1738,7 @@ PHP_METHOD(Judy, memoryUsage)
 			case TYPE_STRING_TO_MIXED_HASH:
 			case TYPE_STRING_TO_INT_ADAPTIVE:
 			case TYPE_STRING_TO_MIXED_ADAPTIVE:
+			case TYPE_STRING_TO_ENTRY:
 				RETURN_LONG(intern->approx_payload_bytes);
 				break;
 			default:
