@@ -9,6 +9,7 @@
       .t-chart-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; fill: #8b949e; text-transform: uppercase; }
       .t-chart-sub { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 10px; fill: #6e7681; }
       .t-unit-header { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 600; fill: #8b949e; }
+      .t-legend-label { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 10px; font-weight: 600; fill: #8b949e; }
       .t-axis-label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; fill: #8b949e; }
       .t-bar-label { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 600; fill: #c9d1d9; }
       
@@ -28,6 +29,7 @@
         .t-chart-title { fill: #57606a; }
         .t-chart-sub { fill: #8c959f; }
         .t-unit-header { fill: #57606a; }
+        .t-legend-label { fill: #57606a; }
         .t-axis-label { fill: #57606a; }
         .t-bar-label { fill: #1f2328; }
         .t-val-accent { fill: #1a7f37; }
@@ -49,6 +51,12 @@
     <text x="0" y="14" class="t-chart-sub">Peak RSS footprint in MB (lower is better)</text>
     <text x="0" y="32" class="t-unit-header">&#9660; Peak RSS (MB)</text>
 
+    <!-- Legend for Chart 1 -->
+    <rect x="145" y="24" width="8" height="8" rx="2" class="b-judy"/>
+    <text x="157" y="32" class="t-legend-label">Judy</text>
+    <rect x="193" y="24" width="8" height="8" rx="2" class="b-php"/>
+    <text x="205" y="32" class="t-legend-label">PHP Array</text>
+
     <!-- Y Axis: 0 to 40 MB -->
     <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
     <text x="22" y="53" class="t-axis-label" text-anchor="end">40M</text>
@@ -64,7 +72,7 @@
     <rect x="42" y="206.4" width="22" height="3.6" class="b-judy" rx="1"/>
     <text x="53" y="198" class="t-val-accent">0.4M</text>
     <rect x="68" y="171.6" width="22" height="38.4" class="b-php" rx="1"/>
-    <text x="79" y="163" class="t-val-muted">9.6M</text>
+    <text x="79" y="163" class="t-val-blue">9.6M</text>
     <text x="66" y="230" class="t-bar-label" text-anchor="middle">BITSET</text>
     <text x="66" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">21.9&#215; less</text>
 
@@ -72,7 +80,7 @@
     <rect x="112" y="175.6" width="22" height="34.4" class="b-judy" rx="1"/>
     <text x="123" y="167" class="t-val-accent">8.6M</text>
     <rect x="138" y="77.6" width="22" height="132.4" class="b-php" rx="1"/>
-    <text x="149" y="69" class="t-val-muted">33.1M</text>
+    <text x="149" y="69" class="t-val-blue">33.1M</text>
     <text x="136" y="230" class="t-bar-label" text-anchor="middle">Int&#8594;Int</text>
     <text x="136" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">3.8&#215; less</text>
 
@@ -80,7 +88,7 @@
     <rect x="182" y="113.2" width="22" height="96.8" class="b-judy" rx="1"/>
     <text x="193" y="105" class="t-val-accent">24.2M</text>
     <rect x="208" y="50" width="22" height="160" class="b-php" rx="1"/>
-    <text x="219" y="42" class="t-val-muted">84.8M</text>
+    <text x="219" y="42" class="t-val-blue">84.8M</text>
     <text x="206" y="230" class="t-bar-label" text-anchor="middle">Str&#8594;Int</text>
     <text x="206" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">3.5&#215; less</text>
   </g>
@@ -93,6 +101,10 @@
     <text x="0" y="0" class="t-chart-title">Bulk Operations (Native C vs VM)</text>
     <text x="0" y="14" class="t-chart-sub">100k element bulk operations (higher is better)</text>
     <text x="0" y="32" class="t-unit-header">&#9650; Speedup vs PHP Loop</text>
+
+    <!-- Legend for Chart 2 -->
+    <rect x="205" y="24" width="8" height="8" rx="2" class="b-judy"/>
+    <text x="217" y="32" class="t-legend-label">Judy</text>
 
     <!-- Y Axis: 0 to 4.0x -->
     <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
@@ -132,6 +144,10 @@
     <text x="0" y="0" class="t-chart-title">Bounded Range Queries</text>
     <text x="0" y="14" class="t-chart-sub">100,000 keys contiguous range read / count</text>
     <text x="0" y="32" class="t-unit-header">&#9650; Relative Throughput</text>
+
+    <!-- Legend for Chart 3 -->
+    <rect x="205" y="24" width="8" height="8" rx="2" class="b-judy"/>
+    <text x="217" y="32" class="t-legend-label">Judy</text>
 
     <!-- Y Axis: 0 to 50x -->
     <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
