@@ -211,6 +211,8 @@ make
 
 [Expanse](https://github.com/orieg/expanse) is a modernized, clean-room pure-Rust implementation of Judy arrays providing 100% drop-in C ABI compatibility with `libjudy` (`Judy1*`, `JudyL*`, `JudySL*`, `JudyHS*`), zero memory leaks, and native support for modern 64-bit microarchitectures (`x86-64-v1..v4`, `aarch64`, `riscv64`, and Windows MSVC).
 
+![Engine Performance Comparison](docs/assets/bench_engines.svg)
+
 #### Linux (.deb package)
 
 Prebuilt packages are available on the [Expanse Releases page](https://github.com/orieg/expanse/releases):
