@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 315" width="100%" height="100%">
+  <defs>
+    <style>
+      .bg { fill: #0d1117; }
+      .border { stroke: #30363d; stroke-width: 1px; fill: none; }
+      .grid { stroke: #21262d; stroke-width: 1px; stroke-dasharray: 2,3; }
+      .axis { stroke: #484f58; stroke-width: 1.5px; }
+      .divider { stroke: #21262d; stroke-width: 1px; }
+      
+      .t-main-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; fill: #8b949e; text-transform: uppercase; }
+      .t-chart-title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; fill: #8b949e; text-transform: uppercase; }
+      .t-chart-sub { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 10px; fill: #6e7681; }
+      .t-unit-header { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 600; fill: #8b949e; }
+      .t-legend-label { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 10px; font-weight: 600; fill: #8b949e; }
+      .t-axis-label { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; fill: #8b949e; }
+      .t-bar-label { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 11px; font-weight: 600; fill: #c9d1d9; }
+      
+      .t-val-accent { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 700; fill: #3fb950; text-anchor: middle; }
+      .t-val-blue { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; font-weight: 600; fill: #58a6ff; text-anchor: middle; }
+
+      .b-judy { fill: #2ea043; }
+      .b-php { fill: #1f6feb; }
+      .b-other { fill: #30363d; }
+
+      @media (prefers-color-scheme: light) {
+        .bg { fill: #ffffff; }
+        .border { stroke: #d0d7de; }
+        .grid { stroke: #eaeef2; }
+        .axis { stroke: #afb8c1; }
+        .divider { stroke: #d0d7de; }
+        .t-main-title { fill: #57606a; }
+        .t-chart-title { fill: #57606a; }
+        .t-chart-sub { fill: #8c959f; }
+        .t-unit-header { fill: #57606a; }
+        .t-legend-label { fill: #57606a; }
+        .t-axis-label { fill: #57606a; }
+        .t-bar-label { fill: #1f2328; }
+        .t-val-accent { fill: #1a7f37; }
+        .t-val-blue { fill: #0969da; }
+        .b-judy { fill: #1a7f37; }
+        .b-php { fill: #0969da; }
+        .b-other { fill: #d0d7de; }
+      }
+    </style>
+  </defs>
+
+  <rect width="100%" height="100%" class="bg" rx="8"/>
+  <rect width="100%" height="100%" class="border" rx="8"/>
+
+  <!-- ================= TOP GLOBAL HEADER & LEGEND ================= -->
+  <g transform="translate(30, 20)">
+    <text x="0" y="9" class="t-main-title">PERFORMANCE &amp; MEMORY COMPARISON</text>
+    
+    <!-- Legend Chips -->
+    <rect x="685" y="1" width="8" height="8" rx="2" class="b-judy"/>
+    <text x="698" y="9" class="t-legend-label">Judy</text>
+    
+    <rect x="760" y="1" width="8" height="8" rx="2" class="b-php"/>
+    <text x="773" y="9" class="t-legend-label">PHP Array / Loop</text>
+  </g>
+  
+  <line x1="30" y1="36" x2="930" y2="36" class="divider"/>
+
+  <!-- ================= CHART 1: MEMORY FOOTPRINT ================= -->
+  <g transform="translate(30, 48)">
+    <text x="0" y="0" class="t-chart-title">Memory Footprint (1M Keys)</text>
+    <text x="0" y="14" class="t-chart-sub">Peak RSS footprint (lower is better)</text>
+    <text x="0" y="32" class="t-unit-header">&#9660; Peak RSS (MB)</text>
+
+    <!-- Y Axis: 0 to 90 MB -->
+    <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
+    <text x="22" y="53" class="t-axis-label" text-anchor="end">80M</text>
+    
+    <line x1="30" y1="130" x2="250" y2="130" class="grid"/>
+    <text x="22" y="133" class="t-axis-label" text-anchor="end">40M</text>
+    
+    <line x1="30" y1="210" x2="250" y2="210" class="axis"/>
+    <text x="22" y="213" class="t-axis-label" text-anchor="end">0</text>
+    <line x1="30" y1="45" x2="30" y2="210" class="axis"/>
+
+    <!-- Pair 1: BITSET -->
+    <rect x="42" y="209" width="22" height="1" class="b-judy" rx="1"/>
+    <text x="53" y="201" class="t-val-accent">0.4M</text>
+    <rect x="68" y="191" width="22" height="19" class="b-php" rx="1"/>
+    <text x="79" y="183" class="t-val-blue">9.6M</text>
+    <text x="66" y="230" class="t-bar-label" text-anchor="middle">BITSET</text>
+    <text x="66" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">21.9&#215; less</text>
+
+    <!-- Pair 2: INT_TO_INT (Sparse) -->
+    <rect x="112" y="193" width="22" height="17" class="b-judy" rx="1"/>
+    <text x="123" y="185" class="t-val-accent">8.6M</text>
+    <rect x="138" y="144" width="22" height="66" class="b-php" rx="1"/>
+    <text x="149" y="136" class="t-val-blue">33.1M</text>
+    <text x="136" y="230" class="t-bar-label" text-anchor="middle">Int&#8594;Int</text>
+    <text x="136" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">3.8&#215; less</text>
+
+    <!-- Pair 3: STRING_TO_INT -->
+    <rect x="182" y="162" width="22" height="48" class="b-judy" rx="1"/>
+    <text x="193" y="154" class="t-val-accent">24.2M</text>
+    <rect x="208" y="50" width="22" height="160" class="b-php" rx="1"/>
+    <text x="219" y="42" class="t-val-blue">84.8M</text>
+    <text x="206" y="230" class="t-bar-label" text-anchor="middle">Str&#8594;Int</text>
+    <text x="206" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">3.5&#215; less</text>
+  </g>
+
+  <!-- Divider 1 -->
+  <line x1="310" y1="48" x2="310" y2="295" class="divider"/>
+
+  <!-- ================= CHART 2: BULK OPS LATENCY ================= -->
+  <g transform="translate(340, 48)">
+    <text x="0" y="0" class="t-chart-title">Bulk Operations (100k Ops)</text>
+    <text x="0" y="14" class="t-chart-sub">Wall-clock latency (lower is better)</text>
+    <text x="0" y="32" class="t-unit-header">&#9660; Time (ms)</text>
+
+    <!-- Y Axis: 0 to 45 ms -->
+    <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
+    <text x="22" y="53" class="t-axis-label" text-anchor="end">40ms</text>
+    
+    <line x1="30" y1="130" x2="250" y2="130" class="grid"/>
+    <text x="22" y="133" class="t-axis-label" text-anchor="end">20ms</text>
+    
+    <line x1="30" y1="210" x2="250" y2="210" class="axis"/>
+    <text x="22" y="213" class="t-axis-label" text-anchor="end">0</text>
+    <line x1="30" y1="45" x2="30" y2="210" class="axis"/>
+
+    <!-- Pair 1: toArray (String) -->
+    <rect x="42" y="163" width="22" height="47" class="b-judy" rx="1"/>
+    <text x="53" y="155" class="t-val-accent">13.2ms</text>
+    <rect x="68" y="64" width="22" height="146" class="b-php" rx="1"/>
+    <text x="79" y="56" class="t-val-blue">41.0ms</text>
+    <text x="66" y="230" class="t-bar-label" text-anchor="middle">toArray(Str)</text>
+    <text x="66" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">3.1&#215; faster</text>
+
+    <!-- Pair 2: toArray (Int) -->
+    <rect x="112" y="195" width="22" height="15" class="b-judy" rx="1"/>
+    <text x="123" y="187" class="t-val-accent">4.2ms</text>
+    <rect x="138" y="168" width="22" height="42" class="b-php" rx="1"/>
+    <text x="149" y="160" class="t-val-blue">11.8ms</text>
+    <text x="136" y="230" class="t-bar-label" text-anchor="middle">toArray(Int)</text>
+    <text x="136" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">2.8&#215; faster</text>
+
+    <!-- Pair 3: increment -->
+    <rect x="182" y="199" width="22" height="11" class="b-judy" rx="1"/>
+    <text x="193" y="191" class="t-val-accent">3.0ms</text>
+    <rect x="208" y="193" width="22" height="17" class="b-php" rx="1"/>
+    <text x="219" y="185" class="t-val-blue">4.7ms</text>
+    <text x="206" y="230" class="t-bar-label" text-anchor="middle">increment()</text>
+    <text x="206" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">1.6&#215; faster</text>
+  </g>
+
+  <!-- Divider 2 -->
+  <line x1="635" y1="48" x2="635" y2="295" class="divider"/>
+
+  <!-- ================= CHART 3: BOUNDED RANGE OPS ================= -->
+  <g transform="translate(665, 48)">
+    <text x="0" y="0" class="t-chart-title">Bounded Range Queries (100k Keys)</text>
+    <text x="0" y="14" class="t-chart-sub">Wall-clock latency (lower is better)</text>
+    <text x="0" y="32" class="t-unit-header">&#9660; Time (ms)</text>
+
+    <!-- Y Axis: 0 to 10 ms -->
+    <line x1="30" y1="50" x2="250" y2="50" class="grid"/>
+    <text x="22" y="53" class="t-axis-label" text-anchor="end">8.0ms</text>
+    
+    <line x1="30" y1="130" x2="250" y2="130" class="grid"/>
+    <text x="22" y="133" class="t-axis-label" text-anchor="end">4.0ms</text>
+    
+    <line x1="30" y1="210" x2="250" y2="210" class="axis"/>
+    <text x="22" y="213" class="t-axis-label" text-anchor="end">0</text>
+    <line x1="30" y1="45" x2="30" y2="210" class="axis"/>
+
+    <!-- Pair 1: keys($start, $end) -->
+    <rect x="65" y="194" width="28" height="16" class="b-judy" rx="1"/>
+    <text x="79" y="186" class="t-val-accent">0.8ms</text>
+    <rect x="98" y="50" width="28" height="160" class="b-php" rx="1"/>
+    <text x="112" y="42" class="t-val-blue">8.5ms</text>
+    <text x="95" y="230" class="t-bar-label" text-anchor="middle">keys($lo, $hi)</text>
+    <text x="95" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">10.6&#215; faster</text>
+
+    <!-- Pair 2: size($start, $end) -->
+    <rect x="165" y="208" width="28" height="2" class="b-judy" rx="1"/>
+    <text x="179" y="200" class="t-val-accent">0.1ms</text>
+    <rect x="198" y="126" width="28" height="84" class="b-php" rx="1"/>
+    <text x="212" y="118" class="t-val-blue">4.2ms</text>
+    <text x="195" y="230" class="t-bar-label" text-anchor="middle">size($lo, $hi)</text>
+    <text x="195" y="245" class="t-chart-sub" text-anchor="middle" fill="#3fb950">42&#215; faster</text>
+  </g>
+</svg>

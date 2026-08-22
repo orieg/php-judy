@@ -198,6 +198,74 @@ jobs:
             benchmark-output.txt
           if-no-files-found: ignore
 
+  build-linux-expanse:
+    name: build-linux-expanse (PHP ${{ matrix.php-version }})
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental == true }}
+    strategy:
+      matrix:
+        php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+        include:
+          - php-version: "8.6"
+            experimental: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Checkout Expanse
+        uses: actions/checkout@v7
+        with:
+          repository: orieg/expanse
+          path: expanse
+
+      - name: Build libexpanse and assemble compat prefix
+        run: |
+          cd expanse
+          cargo build --release -p expanse-capi
+          PREFIX="$RUNNER_TEMP/expanse-prefix"
+          mkdir -p "$PREFIX/include" "$PREFIX/lib"
+          cp crates/expanse-capi/include/Judy.h "$PREFIX/include/"
+          cp target/release/libexpanse.so "$PREFIX/lib/libJudy.so"
+          echo "JUDY_PREFIX=$PREFIX" >> "$GITHUB_ENV"
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+
+      - name: Build the extension
+        run: |
+          phpize
+          ./configure --with-judy="$JUDY_PREFIX"
+          set -o pipefail
+          make 2>&1 | tee /tmp/build.log
+
+      - name: Fail on compiler warnings
+        run: |
+          if grep -E '(php_judy|judy_handlers|judy_arrayaccess|judy_iterator)\.[ch]:[0-9]+:[0-9]+: warning:' /tmp/build.log; then
+            echo "::error::Compiler warnings detected in extension sources — see log above"
+            exit 1
+          fi
+          echo "No compiler warnings in extension sources."
+
+      - name: Run tests
+        run: |
+          export LD_LIBRARY_PATH="$JUDY_PREFIX/lib:$LD_LIBRARY_PATH"
+          make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1 TEST_PHP_JUNIT=junit.xml
+
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-linux-expanse-${{ matrix.php-version }}
+          path: junit.xml
+          if-no-files-found: ignore
+
   build-alpine:
     # Most containerized PHP runs on Alpine. musl differs from glibc enough
     # (allocator, default stack size, locale handling) that a clean Debian
@@ -1000,6 +1068,86 @@ jobs:
           Get-ChildItem -Path ".\build" -Recurse -Filter "build*.log" -ErrorAction SilentlyContinue |
             Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Tail 30 }
 
+  build-windows-expanse:
+    name: build-windows-expanse (PHP ${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }})
+    runs-on: windows-latest
+    continue-on-error: ${{ matrix.experimental == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
+        arch: ["x64"]
+        ts: ["nts"]
+        include:
+          - php-version: "8.6"
+            arch: "x64"
+            ts: "nts"
+            experimental: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Checkout Expanse
+        uses: actions/checkout@v7
+        with:
+          repository: orieg/expanse
+          path: expanse
+
+      - name: Build expanse.dll and assemble prefix
+        shell: pwsh
+        run: |
+          cd expanse
+          cargo build --release -p expanse-capi
+          $prefix = Join-Path $env:RUNNER_TEMP "expanse-prefix"
+          New-Item -ItemType Directory -Force -Path "$prefix\include", "$prefix\lib" | Out-Null
+          Copy-Item crates\expanse-capi\include\Judy.h "$prefix\include\"
+          Copy-Item target\release\expanse.dll.lib "$prefix\lib\libJudy.lib"
+          Copy-Item target\release\expanse.dll.lib "$prefix\lib\libJudy_a.lib"
+          Copy-Item target\release\expanse.dll "$prefix\"
+          Copy-Item target\release\expanse.dll "C:\Windows\System32\"
+          Add-Content $env:GITHUB_ENV "JUDY_PREFIX=$prefix"
+
+      - name: Disable Windows Error Reporting
+        shell: pwsh
+        run: |
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting" /v Disabled /t REG_DWORD /d 1 /f
+          reg add "HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps" /v DumpType /t REG_DWORD /d 0 /f
+
+      - name: Exclude workspace from Windows Defender
+        shell: pwsh
+        run: |
+          Add-MpPreference -ExclusionPath "${{ github.workspace }}"
+          Add-MpPreference -ExclusionPath "${{ runner.temp }}"
+
+      - name: Build the extension
+        uses: php/php-windows-builder/extension@v1
+        with:
+          php-version: ${{ matrix.php-version }}
+          arch: ${{ matrix.arch }}
+          ts: ${{ matrix.ts }}
+          args: --with-judy=${{ env.JUDY_PREFIX }}
+          test-workers: "1"
+          test-runner-args: "--set-timeout 30"
+        env:
+          TEST_PHP_JUNIT: ${{ runner.temp }}\junit.xml
+
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-windows-expanse-${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
+          path: ${{ runner.temp }}\junit.xml
+          if-no-files-found: ignore
+
   # Negative control for the 32-bit bundled-build guards (#159). Inverted, in
   # the same spirit as the differential-fuzz negative control (#142 Stage 4):
   # this job is GREEN when the guards correctly REFUSE a 32-bit bundled build,
@@ -1123,7 +1271,7 @@ jobs:
           exit $rc
 
   report-results:
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, build-linux-expanse, build-windows-expanse]
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
@@ -1178,13 +1326,16 @@ jobs:
               dir_name = os.path.basename(os.path.dirname(xml_file))
               parts = dir_name.replace("junit-", "").split("-")
 
-              if parts[0] == "linux":
-                  platform, php, arch, ts = "Linux", parts[1], "x64", "-"
+              engine = " (Expanse)" if "expanse" in parts else ""
+              clean_parts = [p for p in parts if p != "expanse"]
+
+              if clean_parts[0] == "linux":
+                  platform, php, arch, ts = f"Linux{engine}", clean_parts[1], "x64", "-"
               else:
-                  platform = "Windows"
-                  php = parts[1]
-                  arch = parts[2] if len(parts) > 2 else "x64"
-                  ts = parts[3] if len(parts) > 3 else "nts"
+                  platform = f"Windows{engine}"
+                  php = clean_parts[1]
+                  arch = clean_parts[2] if len(clean_parts) > 2 else "x64"
+                  ts = clean_parts[3] if len(clean_parts) > 3 else "nts"
 
               try:
                   tree = ET.parse(xml_file)

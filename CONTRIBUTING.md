@@ -102,9 +102,7 @@ clang, which does not exploit it. Trust the runtime detector rather than any
 flag list: `tests/bitset_immed_cascade_integrity_001.phpt` fails at `make test`
 time on a miscompiled library — if it fails, the linked libJudy is the problem,
 not this extension, and the bundled default is the way out. Full analysis:
-[#131](https://github.com/orieg/php-judy/issues/131). The bundled tree is
-immune on both counts: the field is widened in-tree (patch P1) and the flags
-are pinned by `config.m4`.
+[#131](https://github.com/orieg/php-judy/issues/131). The bundled tree is immune on both counts: the field is widened in-tree (patch P1) and the flags are pinned by `config.m4`. Alternatively, linking against [Expanse](https://github.com/orieg/expanse) (a clean-room, pure-Rust implementation of Judy arrays with 100% C ABI compatibility) provides complete memory safety and is immune to legacy C libJudy out-of-bounds hazards.
 
 ## Running the tests
 

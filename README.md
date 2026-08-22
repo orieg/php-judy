@@ -1,51 +1,35 @@
 # PHP Judy
 
-**PHP Judy** - Extension for creating and accessing dynamic arrays
-
 [![CI](https://github.com/orieg/php-judy/actions/workflows/ci.yml/badge.svg)](https://github.com/orieg/php-judy/actions/workflows/ci.yml)
 [![Packagist Version](https://img.shields.io/packagist/v/orieg/judy)](https://packagist.org/packages/orieg/judy)
 [![Packagist Downloads](https://img.shields.io/packagist/dt/orieg/judy)](https://packagist.org/packages/orieg/judy/stats)
-[![PHP Version](https://img.shields.io/packagist/dependency-v/orieg/judy/php?label=php)](https://packagist.org/packages/orieg/judy)
+[![PHP Version](https://img.shields.io/packagist/dependency-v/orieg/judy?label=php)](https://packagist.org/packages/orieg/judy)
 [![License](https://img.shields.io/packagist/l/orieg/judy)](LICENSE)
 [![PECL](https://img.shields.io/badge/PECL-Judy-blue.svg)](https://pecl.php.net/package/Judy)
 
-## Table of Contents
+**php-judy** provides high-performance, memory-efficient, ordered sparse dynamic arrays for PHP 8.1+ implementing 256-ary Judy digital tries.
 
-1. [Introduction](#introduction)
-2. [Directory Contents](#directory-contents)
-3. [Installation](#installation)
-4. [Usage Examples](#usage-examples)
-5. [Debugging and Profiling](#debugging-and-profiling)
-6. [Ecosystem](#ecosystem)
-7. [Reporting Bugs](#reporting-bugs)
-8. [Roadmap](#roadmap)
-9. [Releasing](#releasing)
-10. [License](#license)
-11. [Contributing](#contributing)
-12. [Support](#support)
+A Judy array consumes memory only when populated and scales near $O(\log_{256} N)$ into the billion-element range. It shines in long-running PHP processes (CLI pipelines, queue workers, Swoole/RoadRunner/FrankenPHP/Octane) that hold large sparse keysets in memory.
 
-## Introduction
+---
 
-**php-judy** is an extension by Nicolas Brousse for the Judy C library. It is compatible with PHP 8.1 and newer, tested in CI against PHP 8.1–8.5 (and, experimentally, PHP 8.6).
+## Visual Performance Comparison
 
-- **PECL Package**: [http://pecl.php.net/package/Judy](http://pecl.php.net/package/Judy)
-- **Packagist Package**: [https://packagist.org/packages/orieg/judy](https://packagist.org/packages/orieg/judy)
-- **GitHub Repository**: [http://github.com/orieg/php-judy](http://github.com/orieg/php-judy)
+![PHP Judy Comparative Performance](docs/assets/bench_comparative.svg)
 
-A Judy array is a complex but very fast associative array data structure for storing and looking up values using integer or string keys. Unlike normal arrays, Judy arrays may be sparse; that is, they may have large ranges of unassigned indices.
+---
 
-- **Wikipedia**: [http://en.wikipedia.org/wiki/Judy_array](http://en.wikipedia.org/wiki/Judy_array)
+## Why PHP Judy?
 
-### Why PHP Judy?
+- **Dramatic Memory Savings**: Up to **21.9x less memory** than native PHP arrays for presence sets (`BITSET`), and **3.5–3.8x less memory** for sparse integer and string keys (measured as peak RSS).
+- **Native C Bulk Operations**: `toArray()`, `getAll()`, `keys()`, `values()`, and `fromArray()` run in native C up to **3.1x faster** than element-by-element PHP loops.
+- **Ordered Keys & Fast Slicing for Free**: Range queries, prefix invalidation (`keys($lo, $hi)`), and atomic updates (`increment()`) without hash-table sorting or full scans.
+- **Dual-Engine Backing**: Bundles modernized **libJudy** (C, compiled by default) and fully supports **[Expanse](https://github.com/orieg/expanse)** (clean-room pure-Rust drop-in C ABI engine).
+- **Honest Trade-offs**: For random lookups on small dense datasets, native PHP arrays are faster. See [BENCHMARK.md](BENCHMARK.md) for full metrics and a decision guide.
 
-- **Less memory than native PHP arrays**: 2-5x for integer and string keys, and **18.5-22.7x** for presence tracking with `BITSET`. Measured as peak RSS — `INT_TO_MIXED` is the one exception and costs slightly *more* than a PHP array ([per-type figures](BENCHMARK.md#memory--the-headline-and-the-least-equivocal-result))
-- **Faster bulk operations**: `getAll()`, `toArray()`, and `fromArray()` run in native C, 1.3-3x faster than element-by-element loops; atomic `increment()` avoids the read-modify-write round trip
-- **Ordered keys for free**: range queries, `first()`/`next()` navigation, and neighbor lookups that hash tables can't do
-- **Honest trade-off**: for random access on small dense datasets, native PHP arrays are faster. See [BENCHMARK.md](BENCHMARK.md) for full numbers and a decision guide on when (not) to use Judy.
+---
 
-Judy shines in long-running PHP processes (CLI tools, queue workers, Swoole/RoadRunner/FrankenPHP/Octane workers) that hold large sparse keysets in memory.
-
-### What people use it for
+## What People Use It For
 
 Each pattern below is a runnable script in [examples/](examples/README.md):
 
@@ -61,36 +45,7 @@ Each pattern below is a runnable script in [examples/](examples/README.md):
 
 New to the extension? Start with [quickstart.php](examples/quickstart.php).
 
-The PHP extension is based on the Judy C library that implements a dynamic array. A Judy array consumes memory only when populated yet can grow to take advantage of all available memory. Judy's key benefits are: scalability, performance, memory efficiency, and ease of use. Judy arrays are designed to grow without tuning into the peta-element range, scaling near O(log-base-256) -- 1 more RAM access at 256 X population.
-
-- **Judy C Library**: [http://judy.sourceforge.net](http://judy.sourceforge.net)
-
-For a detailed performance comparison with native PHP arrays, please see the [BENCHMARK.md](BENCHMARK.md) file.
-
-## Directory Contents
-
-```
-README.md            This file
-API.md               Complete API reference
-BENCHMARK.md         Performance benchmarks and analysis
-BACKEND_EVALUATION.md  Judy vs ART/Masstree/HOT/Wormhole as the C backend
-MIGRATION_2.2.0.md   Migration guide for version 2.2.0
-MIGRATION_2.5.0.md   Migration guide for the 2.5.x line
-LICENSE              The PHP License used by this project
-THIRD-PARTY.md       License notices for bundled third-party code
-
-libjudy/             Bundled libJudy sources, compiled by default (LGPL-2.1-or-later)
-tests/               Unit and regression tests (.phpt)
-examples/            Runnable demos (see examples/README.md) + benchmark suite
-tools/               Developer tooling: C benchmark harnesses, the differential
-                     fuzzer, CI helper scripts (not shipped)
-research/            Evidence records for closed investigations (not shipped)
-scripts/             PHP/Python helper scripts: API docs, benchmarks, debugger
-                     pretty-printers
-*.c, *.h             C source and header files
-Judy.stub.php        PHP stub for IDE autocompletion
-package.xml          PECL package definition
-```
+---
 
 ## Installation
 
@@ -250,6 +205,73 @@ brew install judy
 phpize
 ./configure --with-judy=/opt/homebrew
 make
+```
+
+### F. Modern Engine: Expanse (Pure-Rust libjudy Replacement)
+
+[Expanse](https://github.com/orieg/expanse) is a modernized, clean-room pure-Rust implementation of Judy arrays providing 100% drop-in C ABI compatibility with `libjudy` (`Judy1*`, `JudyL*`, `JudySL*`, `JudyHS*`), zero memory leaks, and native support for modern 64-bit microarchitectures (`x86-64-v1..v4`, `aarch64`, `riscv64`, and Windows MSVC).
+
+![Engine Performance Comparison](docs/assets/bench_engines.svg)
+
+#### Linux (.deb package)
+
+Prebuilt packages are available on the [Expanse Releases page](https://github.com/orieg/expanse/releases):
+
+```sh
+# Download and install Expanse .deb (e.g. v0.2.0 for amd64)
+curl -LO https://github.com/orieg/expanse/releases/download/v0.2.0/libexpanse_0.2.0_amd64.deb
+sudo dpkg -i libexpanse_0.2.0_amd64.deb
+
+# Compile php-judy against Expanse
+phpize
+./configure --with-judy=/usr
+make -j$(nproc)
+make test
+sudo make install
+```
+
+#### Linux & macOS (Standalone Prefix or from Source)
+
+```sh
+# Option 1: Download prebuilt release tarball from https://github.com/orieg/expanse/releases
+curl -LO https://github.com/orieg/expanse/releases/download/v0.2.0/expanse-0.2.0-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf expanse-0.2.0-x86_64-unknown-linux-gnu.tar.gz
+
+# Option 2: Build expanse-capi from source with Cargo
+git clone https://github.com/orieg/expanse.git
+cd expanse && cargo build --release -p expanse-capi
+
+# Assemble compat prefix (include/Judy.h + lib/libJudy.so or lib/libJudy.dylib)
+mkdir -p /path/to/expanse-prefix/include /path/to/expanse-prefix/lib
+cp crates/expanse-capi/include/Judy.h /path/to/expanse-prefix/include/
+cp target/release/libexpanse.so /path/to/expanse-prefix/lib/libJudy.so  # On macOS: libexpanse.dylib -> libJudy.dylib
+
+# Compile php-judy against the Expanse prefix
+cd /path/to/php-judy
+phpize
+./configure --with-judy=/path/to/expanse-prefix
+make -j$(nproc)
+make test
+```
+
+#### Windows (MSVC) with expanse.dll
+
+Unlike legacy C libjudy (which requires source code patches for 64-bit LLP64 `Word_t` and `PJERR`), Expanse natively supports 64-bit Windows without patching:
+
+```powershell
+# Extract expanse-v0.2.0-x86_64-pc-windows-msvc.zip (or build with cargo build --release -p expanse-capi)
+# Setup prefix directory with include\Judy.h and lib\libJudy.lib
+$prefix = "C:\path\to\expanse-prefix"
+New-Item -ItemType Directory -Force -Path "$prefix\include", "$prefix\lib"
+Copy-Item crates\expanse-capi\include\Judy.h "$prefix\include\"
+Copy-Item target\release\expanse.dll.lib "$prefix\lib\libJudy.lib"
+Copy-Item target\release\expanse.dll.lib "$prefix\lib\libJudy_a.lib"
+Copy-Item target\release\expanse.dll "C:\Windows\System32\"
+
+# Build php-judy
+cd C:\path\to\php-judy
+configure --with-judy=C:\path\to\expanse-prefix
+nmake
 ```
 
 ## Usage Examples

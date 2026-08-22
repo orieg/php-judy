@@ -105,6 +105,8 @@
          <file name="examples/benchmarks/run_comprehensive_benchmarks.php" role="doc" />
          <file name="baselines/arm-ratios.json" role="doc" />
          <file name="baselines/latest.json" role="doc" />
+         <file name="docs/assets/bench_comparative.svg" role="doc" />
+         <file name="docs/assets/bench_engines.svg" role="doc" />
          <file md5sum="abc7eb31bb88857463ec941514e5f019" name="tests/001.phpt" role="test" />
          <file name="tests/arrayaccess_void_return_001.phpt" role="test" />
          <file name="tests/bench_compare_drift_001.phpt" role="test" />
