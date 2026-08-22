@@ -5836,6 +5836,15 @@ PHP_METHOD(Judy, getAll)
 				(uint8_t *)ZSTR_VAL(skey), (Word_t)ZSTR_LEN(skey));
 			if (VValue == NULL) {
 				add_assoc_null(return_value, ZSTR_VAL(skey));
+			} else if (intern->type == TYPE_STRING_TO_ENTRY) {
+				judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*VValue);
+				if (entry != NULL && (entry->expires_at == 0 || entry->expires_at > (uint32_t)time(NULL))) {
+					zval tmp;
+					ZVAL_COPY(&tmp, &entry->value);
+					add_assoc_zval(return_value, ZSTR_VAL(skey), &tmp);
+				} else {
+					add_assoc_null(return_value, ZSTR_VAL(skey));
+				}
 			} else if (!JUDY_IS_MIXED_VALUE(intern)) {
 				add_assoc_long(return_value, ZSTR_VAL(skey), JUDY_LVAL_READ(VValue));
 			} else if (JUDY_LIKELY(JUDY_MVAL_READ(VValue) != NULL)) {
@@ -5969,8 +5978,8 @@ PHP_METHOD(Judy, set)
 	}
 
 	uint32_t expires_at = 0;
-	if (ttl > 0) {
-		expires_at = (uint32_t)(time(NULL) + ttl);
+	if (ttl != 0) {
+		expires_at = (uint32_t)(time(NULL) + (int64_t)ttl);
 	}
 
 	entry = (judy_cache_entry_t *)(uintptr_t)(*slot);
@@ -6101,14 +6110,22 @@ PHP_METHOD(Judy, pruneExpired)
 			zval_ptr_dtor(&entry->value);
 			efree(entry);
 
-			/* Advance cursor before deleting */
-			JSLN(PValue, intern->array, kindex);
-
 			/* Delete the key from JudySL */
 			JSLD(Rc_int, intern->array, key_to_del);
 			intern->counter--;
 			judy_string_bytes_sub(intern, (Word_t)klen);
 			pruned_count++;
+
+			/* Find the next key strictly greater than key_to_del */
+			JSLN(PValue, intern->array, key_to_del);
+			if (PValue != NULL && PValue != PJERR) {
+				size_t next_len = strlen((char *)key_to_del);
+				if (next_len >= PHP_JUDY_MAX_LENGTH) {
+					next_len = PHP_JUDY_MAX_LENGTH - 1;
+				}
+				memcpy(kindex, key_to_del, next_len);
+				kindex[next_len] = '\0';
+			}
 		} else {
 			JSLN(PValue, intern->array, kindex);
 		}

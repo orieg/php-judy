@@ -25,6 +25,7 @@ var_dump($j->prev("charlie"));
 var_dump($j->toArray());
 var_dump($j->keys());
 var_dump($j->values());
+var_dump($j->getAll(["alice", "missing", "bob"]));
 ?>
 --EXPECT--
 alice => 100
@@ -57,4 +58,12 @@ array(3) {
   int(200)
   [2]=>
   int(300)
+}
+array(3) {
+  ["alice"]=>
+  int(100)
+  ["missing"]=>
+  NULL
+  ["bob"]=>
+  int(200)
 }
