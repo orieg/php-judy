@@ -38,11 +38,84 @@ permissions:
   pull-requests: write
 
 jobs:
-  build-linux:
+  detect-changes:
+    name: Subsystems / Change Detection
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      php: ${{ steps.filter.outputs.php }}
+      c: ${{ steps.filter.outputs.c }}
+      code: ${{ steps.filter.outputs.code }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'php_judy.*'
+              - 'judy_*.*'
+              - 'Judy.stub.php'
+              - 'Judy_arginfo.h'
+              - 'config.*'
+              - 'configure*'
+              - 'Makefile*'
+              - 'Dockerfile*'
+              - 'libjudy/**'
+              - 'tests/**'
+              - 'examples/**'
+              - 'scripts/**'
+              - 'tools/**'
+              - 'research/**'
+              - 'baselines/**'
+              - 'package.xml'
+              - 'composer.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/bench-gate.yml'
+              - '.github/workflows/nightly.yml'
+            php:
+              - 'php_judy.*'
+              - 'judy_*.*'
+              - 'Judy.stub.php'
+              - 'Judy_arginfo.h'
+              - 'config.*'
+              - 'configure*'
+              - 'tests/**'
+              - 'examples/**'
+              - 'scripts/**'
+              - 'package.xml'
+              - 'composer.json'
+              - '.github/workflows/ci.yml'
+            c:
+              - 'php_judy.*'
+              - 'judy_*.*'
+              - 'Judy_arginfo.h'
+              - 'libjudy/**'
+              - 'config.*'
+              - 'configure*'
+              - 'tools/**'
+              - 'research/**'
+              - '.github/workflows/ci.yml'
+            docs:
+              - 'docs/**'
+              - '*.md'
+              - 'LICENSE'
+              - 'CREDITS'
+              - 'llms.txt'
+              - 'THIRD-PARTY.md'
+
+  build-linux:
+    name: Core / Linux Matrix (PHP ${{ matrix.php-version }})
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     # Experimental (pre-release) PHP versions may fail without blocking CI.
     continue-on-error: ${{ matrix.experimental == true }}
     strategy:
+      fail-fast: false
+      max-parallel: 6
       matrix:
         php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
         include:
@@ -52,8 +125,11 @@ jobs:
             experimental: true
 
     steps:
+      - name: Stagger matrix runner startup jitter
+        run: sleep $(( (RANDOM % 5) + 1 ))
+
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -97,7 +173,7 @@ jobs:
 
       - name: Upload JUnit results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: junit-linux-${{ matrix.php-version }}
           path: junit.xml
@@ -109,37 +185,33 @@ jobs:
 
       - name: Install PIE
         if: matrix.php-version == '8.4'
-        run: |
-          curl -fsSL https://github.com/php/pie/releases/latest/download/pie.phar \
-            -o /usr/local/bin/pie
-          chmod +x /usr/local/bin/pie
-          pie --version
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 3
+          command: |
+            curl --retry 5 --retry-delay 2 --retry-max-time 60 --retry-all-errors --retry-connrefused -fsSL https://github.com/php/pie/releases/latest/download/pie.phar \
+              -o /usr/local/bin/pie
+            chmod +x /usr/local/bin/pie
+            pie --version
 
       - name: Install previous-release baseline via PIE
         if: matrix.php-version == '8.4'
-        run: |
-          # Compare against the most recent stable release (release-over-
-          # release regression detection). Bump this to the just-published
-          # release on each release — see the "Releasing" section in README.
-          #
-          # Build the baseline THE SAME WAY as the arm under test, i.e.
-          # bundled. Until 2.6.0 the baseline had to be `--with-judy=/usr`
-          # because releases predating the vendored tree had no bundled mode
-          # — but leaving that flag on once the pin reached 2.6.0 made the
-          # two arms differ by LIBRARY rather than by release: system libJudy
-          # (shared, unpatched) against the bundled patched tree. The row it
-          # produced was the vendoring delta wearing a release comparison's
-          # label — "2.6.0 -> 2.6.0, 44 faster" — which is a real measurement
-          # of the wrong thing. Dropping the flag makes the source version
-          # the only difference again, which is what this job exists to
-          # measure. The bundled-vs-system comparison has its own instrument:
-          # the S->C axis in bench-gate.yml, decomposed per key type.
-          # `debug-mirror-assertions` remains the permanent system-lib guard.
-          sudo pie install --skip-enable-extension orieg/judy:2.6.0
-          BASELINE_SO="$(php-config --extension-dir)/judy.so"
-          echo "BASELINE_SO=$BASELINE_SO" >> "$GITHUB_ENV"
-          php -d "extension=$BASELINE_SO" -r \
-            'echo "Baseline loaded: judy " . judy_version() . "\n";'
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 5
+          command: |
+            # Compare against the most recent stable release (release-over-
+            # release regression detection). Bump this to the just-published
+            # release on each release — see the "Releasing" section in README.
+            sudo pie install --skip-enable-extension orieg/judy:2.6.0
+            BASELINE_SO="$(php-config --extension-dir)/judy.so"
+            echo "BASELINE_SO=$BASELINE_SO" >> "$GITHUB_ENV"
+            php -d "extension=$BASELINE_SO" -r \
+              'echo "Baseline loaded: judy " . judy_version() . "\n";'
 
       - name: Run interleaved release comparison
         if: matrix.php-version == '8.4'
@@ -166,7 +238,7 @@ jobs:
 
       - name: Upload release comparison results
         if: always() && matrix.php-version == '8.4'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-baseline-linux-php${{ matrix.php-version }}
           path: |
@@ -190,7 +262,7 @@ jobs:
 
       - name: Upload benchmark results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-linux-php${{ matrix.php-version }}
           path: |
@@ -199,10 +271,15 @@ jobs:
           if-no-files-found: ignore
 
   build-linux-expanse:
-    name: build-linux-expanse (PHP ${{ matrix.php-version }})
+    name: Compat / Linux with Expanse Drop-in (PHP ${{ matrix.php-version }})
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     continue-on-error: ${{ matrix.experimental == true }}
     strategy:
+      fail-fast: false
+      max-parallel: 6
       matrix:
         php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
         include:
@@ -210,14 +287,17 @@ jobs:
             experimental: true
 
     steps:
+      - name: Stagger matrix runner startup jitter
+        run: sleep $(( (RANDOM % 5) + 1 ))
+
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
       - name: Checkout Expanse
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           repository: orieg/expanse
           path: expanse
@@ -260,7 +340,7 @@ jobs:
 
       - name: Upload JUnit results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: junit-linux-expanse-${{ matrix.php-version }}
           path: junit.xml
@@ -274,10 +354,14 @@ jobs:
     # Built through Docker on a glibc runner rather than as a `container:`
     # job: GitHub's node runtime for JS actions (actions/checkout) is
     # glibc-linked and does not execute inside an Alpine container.
+    name: Compat / Alpine musl Matrix (PHP 8.4)
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Build the extension on Alpine/musl
         run: docker build -f Dockerfile.alpine -t php-judy-alpine .
@@ -304,13 +388,22 @@ jobs:
     # is not known to work, and a harness that silently stops checking is
     # worse than none — so CI deletes one line the checker depends on and
     # requires the abort to happen.
+    name: Safety / Mirror Consistency Assertions (PHP 8.4)
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Install Judy library
-        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 5
+          command: sudo apt-get update && sudo apt-get install -y libjudy-dev
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -353,6 +446,7 @@ jobs:
           make
 
           set +e
+          # shellcheck disable=SC2016
           php -d extension="$(pwd)/modules/judy.so" \
             -r '$j = new Judy(Judy::STRING_TO_INT_HASH); $j["a"] = 1;' \
             > /tmp/negative-control.log 2>&1
@@ -386,6 +480,7 @@ jobs:
           make
 
           set +e
+          # shellcheck disable=SC2016
           php -d extension="$(pwd)/modules/judy.so" \
             -r '$j = new Judy(Judy::STRING_TO_INT_HASH, true); $j["a"] = 1;' \
             > /tmp/negative-control-payload.log 2>&1
@@ -405,6 +500,7 @@ jobs:
           # was gated off, so nothing should fire. If this aborts, the gate is
           # not a gate and "optimizeIteration defaults to off" is not true.
           set +e
+          # shellcheck disable=SC2016
           php -d extension="$(pwd)/modules/judy.so" \
             -r '$j = new Judy(Judy::STRING_TO_INT_HASH); $j["a"] = 1; echo $j["a"];' \
             > /tmp/negative-control-default.log 2>&1
@@ -433,6 +529,7 @@ jobs:
           make
 
           set +e
+          # shellcheck disable=SC2016
           php -d extension="$(pwd)/modules/judy.so" \
             -r '$j = new Judy(Judy::STRING_TO_INT_HASH); $j["a"] = 1;' \
             > /tmp/negative-control-leak.log 2>&1
@@ -469,10 +566,14 @@ jobs:
     #
     # setup-php ships no --enable-debug builds, so the PHP is compiled from
     # source here and cached on its version.
+    name: Safety / Debug PHP Arginfo & Invariants (PHP 8.4)
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Resolve the PHP 8.4 release to build
         run: |
@@ -481,7 +582,7 @@ jobs:
           # shape: the patch level is not what this job is testing, so a feed
           # hiccup should not turn the job red.
           FALLBACK=8.4.24
-          VERSION=$(curl -fsSL --max-time 30 \
+          VERSION=$(curl --retry 5 --retry-delay 2 --retry-max-time 60 --retry-all-errors --retry-connrefused -fsSL \
                       'https://www.php.net/releases/?json&version=8.4' \
                     | grep -oE '"version":"8\.4\.[0-9]+"' \
                     | grep -oE '8\.4\.[0-9]+' | head -1 || true)
@@ -494,7 +595,7 @@ jobs:
 
       - name: Restore the cached debug PHP
         id: php-debug-cache
-        uses: actions/cache@v6
+        uses: actions/cache@v4
         with:
           path: ~/php-debug
           # The configure line is part of the key: a build made with different
@@ -503,20 +604,25 @@ jobs:
 
       - name: Build PHP ${{ env.PHP_DEBUG_VERSION }} with --enable-debug
         if: steps.php-debug-cache.outputs.cache-hit != 'true'
-        run: |
-          # --disable-all keeps the build to what the suite actually needs:
-          # json and pcre cannot be disabled and are the only extensions the
-          # .phpt files use, and the whole suite runs under it with zero
-          # skipped tests. Add an extension back here if a test starts
-          # needing one, rather than enabling everything.
-          curl -fsSL --retry 3 -o /tmp/php.tar.xz \
-            "https://www.php.net/distributions/php-${PHP_DEBUG_VERSION}.tar.xz"
-          tar -xf /tmp/php.tar.xz -C /tmp
-          cd "/tmp/php-${PHP_DEBUG_VERSION}"
-          ./configure --enable-debug --disable-all --enable-cli --without-pear \
-            --prefix="$HOME/php-debug"
-          make -j"$(nproc)"
-          make install
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_wait_seconds: 5
+          command: |
+            # --disable-all keeps the build to what the suite actually needs:
+            # json and pcre cannot be disabled and are the only extensions the
+            # .phpt files use, and the whole suite runs under it with zero
+            # skipped tests. Add an extension back here if a test starts
+            # needing one, rather than enabling everything.
+            curl --retry 5 --retry-delay 2 --retry-max-time 60 --retry-all-errors --retry-connrefused -fsSL -o /tmp/php.tar.xz \
+              "https://www.php.net/distributions/php-${PHP_DEBUG_VERSION}.tar.xz"
+            tar -xf /tmp/php.tar.xz -C /tmp
+            cd "/tmp/php-${PHP_DEBUG_VERSION}"
+            ./configure --enable-debug --disable-all --enable-cli --without-pear \
+              --prefix="$HOME/php-debug"
+            make -j"$(nproc)"
+            make install
 
       - name: Confirm the PHP really is a debug build
         run: |
@@ -628,13 +734,22 @@ jobs:
     # them are reachable at the single (corpus, keylen, absent-key) point the
     # harnesses were habitually run at. The last step is the negative control:
     # an unfired gate is not a known-working gate.
+    name: Safety / C Harnesses & ASan/UBSan Smoke Grid
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Install Judy library
-        run: sudo apt-get update && sudo apt-get install -y libjudy-dev
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 5
+          command: sudo apt-get update && sudo apt-get install -y libjudy-dev
 
       - name: Build every harness and run the sanitized smoke grid
         run: ./tools/ci-smoke.sh 1000
@@ -697,10 +812,14 @@ jobs:
     # only -- the fixed-seed 48-cell smoke grid plus a short random-seed soak
     # on the production build, and the sanitized smoke grid. The 300s+ soaks
     # stay a local / pre-release tool.
+    name: Safety / Differential Fuzz vs C++ stdlib Oracle
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Build the bundled tree at the shipped production flags
         # The same isolated flag set config.m4 hands the vendored units
@@ -794,7 +913,7 @@ jobs:
 
           sh tools/differential-fuzz/validation/build-stock.sh \
             /tmp/judy-broken-src /tmp/judy-broken \
-            -O2 -fno-lto -fno-unroll-loops $JUDY_POPCNT
+            -O2 -fno-lto -fno-unroll-loops "$JUDY_POPCNT"
           make -C tools/differential-fuzz clean >/dev/null
           make -C tools/differential-fuzz JUDY_PREFIX=/tmp/judy-broken
 
@@ -815,10 +934,14 @@ jobs:
           grep -m1 -A1 'DIVERGENCE' /tmp/diffuzz-negctl.log
 
   validate-pecl:
+    name: Core / PECL Packaging & Version Parity
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Verify PHP_JUDY_VERSION matches package.xml
         run: |
@@ -928,11 +1051,16 @@ jobs:
             tests/*.phpt
 
   build-windows:
+    name: Core / Windows MSVC Matrix (PHP ${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }})
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
     runs-on: windows-latest
+    timeout-minutes: 25
     # Experimental (pre-release) PHP versions may fail without blocking CI.
     continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
+      max-parallel: 6
       matrix:
         php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
         arch: ["x64"]
@@ -946,8 +1074,13 @@ jobs:
             experimental: true
 
     steps:
+      - name: Stagger matrix runner startup jitter
+        shell: pwsh
+        run: |
+          Start-Sleep -Seconds (Get-Random -Minimum 1 -Maximum 6)
+
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -987,7 +1120,7 @@ jobs:
 
       - name: Upload JUnit results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: junit-windows-${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
           path: ${{ runner.temp }}\junit.xml
@@ -1046,7 +1179,7 @@ jobs:
 
       - name: Upload benchmark results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-windows-php${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
           path: |
@@ -1069,11 +1202,15 @@ jobs:
             Select-Object -First 1 | ForEach-Object { Get-Content $_.FullName -Tail 30 }
 
   build-windows-expanse:
-    name: build-windows-expanse (PHP ${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }})
+    name: Compat / Windows with Expanse Drop-in (PHP ${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }})
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
     runs-on: windows-latest
+    timeout-minutes: 25
     continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
+      max-parallel: 6
       matrix:
         php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
         arch: ["x64"]
@@ -1085,8 +1222,13 @@ jobs:
             experimental: true
 
     steps:
+      - name: Stagger matrix runner startup jitter
+        shell: pwsh
+        run: |
+          Start-Sleep -Seconds (Get-Random -Minimum 1 -Maximum 6)
+
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
@@ -1097,7 +1239,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Checkout Expanse
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           repository: orieg/expanse
           path: expanse
@@ -1142,7 +1284,7 @@ jobs:
 
       - name: Upload JUnit results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: junit-windows-expanse-${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }}
           path: ${{ runner.temp }}\junit.xml
@@ -1164,11 +1306,14 @@ jobs:
   # Each assertion matches the guard's MESSAGE, not merely a nonzero exit, so an
   # unrelated breakage cannot masquerade as the guard working.
   guard-32bit:
-    name: 32-bit bundled build is refused (negative control)
+    name: Safety / 32-bit Refusal Guard (Negative Control)
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       # config.w32 is JScript. Drive it through the php-src Windows build API,
       # stubbed, with X64 set the way php-src sets it (win32/build/config.w32:
@@ -1251,6 +1396,7 @@ jobs:
           rc=0
           for f in libjudy/src/Judy1/Judy1Tables.c libjudy/src/JudyL/JudyLTables.c; do
             echo "--- $f: 32-bit word must be rejected ---"
+            # shellcheck disable=SC2086
             if cc -fsyntax-only -include /tmp/word32.h $INC "$f" 2>/tmp/err.txt; then
               echo "FAIL: $f compiled with a 4-byte Word_t and no JU_64BIT"; rc=1; continue
             fi
@@ -1262,6 +1408,7 @@ jobs:
             echo "OK: rejected by the JU_64BIT #error guard"
 
             echo "--- $f: 64-bit build must still be clean ---"
+            # shellcheck disable=SC2086
             if ! cc -c -Wall -Werror -O2 -DJU_64BIT $INC "$f" -o /tmp/ok.o 2>/tmp/err64.txt; then
               echo "FAIL: $f no longer compiles for a normal 64-bit build"
               head -20 /tmp/err64.txt; rc=1; continue
@@ -1271,27 +1418,29 @@ jobs:
           exit $rc
 
   report-results:
-    needs: [build-linux, build-windows, build-linux-expanse, build-windows-expanse]
-    if: ${{ !cancelled() }}
+    name: Core / Consolidated Test & Benchmark Report
+    needs: [detect-changes, build-linux, build-windows, build-linux-expanse, build-windows-expanse]
+    if: (needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request') && !cancelled()
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       checks: write
       pull-requests: write
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           sparse-checkout: baselines
 
       - name: Download all test artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           pattern: junit-*
           path: artifacts
 
       - name: Download benchmark artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           pattern: benchmark-*
           path: benchmarks
@@ -2436,7 +2585,7 @@ jobs:
         # report-posting issues never fail the run after tests pass.
         if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         continue-on-error: true
-        uses: actions/github-script@v9
+        uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
@@ -2466,3 +2615,55 @@ jobs:
                 body: fullBody,
               });
             }
+
+  ci-gate:
+    name: CI Gate / All Checks Passed
+    if: always()
+    needs:
+      - detect-changes
+      - build-linux
+      - build-linux-expanse
+      - build-alpine
+      - debug-mirror-assertions
+      - debug-php-assertions
+      - build-harnesses
+      - differential-fuzz
+      - validate-pecl
+      - build-windows
+      - build-windows-expanse
+      - guard-32bit
+      - report-results
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate Dependency Statuses
+        shell: bash
+        run: |
+          echo "Evaluating CI matrix health..."
+          STATUSES='${{ toJson(needs) }}'
+          FAILED=()
+          SKIPPED=()
+          PASSED=()
+
+          for job in $(echo "$STATUSES" | jq -r 'keys[]'); do
+            result=$(echo "$STATUSES" | jq -r --arg j "$job" '.[$j].result')
+            echo "  Job [$job]: $result"
+            if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+              FAILED+=("$job")
+            elif [ "$result" = "skipped" ]; then
+              SKIPPED+=("$job")
+            else
+              PASSED+=("$job")
+            fi
+          done
+
+          echo ""
+          echo "Summary: ${#PASSED[@]} passed, ${#SKIPPED[@]} cleanly skipped, ${#FAILED[@]} failed"
+
+          if [ ${#FAILED[@]} -gt 0 ]; then
+            echo "::error::The following required checks failed: ${FAILED[*]}"
+            exit 1
+          fi
+
+          echo "::notice::All applicable CI checks passed (or were cleanly skipped by path filters)."
+          exit 0
