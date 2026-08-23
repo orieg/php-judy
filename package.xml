@@ -16,11 +16,11 @@
       <email>nicolas@brousse.info</email>
       <active>yes</active>
    </lead>
-   <date>2026-08-22</date>
+   <date>2026-08-23</date>
    <time>00:00:00</time>
    <version>
-      <release>2.7.0</release>
-      <api>2.7.0</api>
+      <release>2.7.1</release>
+      <api>2.7.1</api>
    </version>
    <stability>
       <release>stable</release>
@@ -28,18 +28,10 @@
    </stability>
    <license uri="http://www.php.net/license">PHP</license>
    <notes>
-- FEATURE: Native cache and TTL storage engine -- Judy::STRING_TO_ENTRY (type 11).
-  Stores values with TTL timestamps (uint32) and 16-bit metadata flags (uint16_t)
-  directly packed into native C struct entries (judy_cache_entry_t) in the
-  JudySL radix trie without PHP array wrappers or secondary lookup indexes (#188).
-- FEATURE: Native cache entry methods -- set(), get(), pruneExpired(), getEntry(),
-  getExpiry(), and getFlags(). pruneExpired(?int $now = null) performs a single-pass
-  trie sweep directly in C with 0 PHP heap allocations (12.9 ms per 100k items).
-- FEATURE: Full bulk and iteration support on STRING_TO_ENTRY -- ArrayAccess,
-  Iterator, keys(), values(), toArray(), slice(), getAll(), and serialization.
-- BUILD: Pure-Rust Expanse backend integration support (--with-expanse) for
-  modern 64-bit microarchitectures, zero-leak memory management, and cross-platform
-  MSVC Windows support without source patching.
+- SECURITY FIX: Guard against destructor re-entrancy and heap Use-After-Free (UAF)
+  in Judy::STRING_TO_ENTRY during ArrayAccess overwrites, Judy::set(), and
+  Judy::pruneExpired() sweeps (#198). Commits new slot payload prior to invoking
+  zval_ptr_dtor(), and unlinks keys from the JudySL trie before freeing entry structs.
    </notes>
    <contents>
       <dir name="/">
@@ -446,6 +438,31 @@
       <configureoption default="bundled" name="with-judy" prompt="libJudy to build against: &quot;bundled&quot; compiles the bundled copy (default); give the install prefix DIR of a system libJudy to link against it instead" />
    </extsrcrelease>
    <changelog>
+      <release>
+         <date>2026-08-22</date>
+         <version>
+            <release>2.7.0</release>
+            <api>2.7.0</api>
+         </version>
+         <stability>
+            <release>stable</release>
+            <api>stable</api>
+         </stability>
+         <notes>
+- FEATURE: Native cache and TTL storage engine -- Judy::STRING_TO_ENTRY (type 11).
+  Stores values with TTL timestamps (uint32) and 16-bit metadata flags (uint16_t)
+  directly packed into native C struct entries (judy_cache_entry_t) in the
+  JudySL radix trie without PHP array wrappers or secondary lookup indexes (#188).
+- FEATURE: Native cache entry methods -- set(), get(), pruneExpired(), getEntry(),
+  getExpiry(), and getFlags(). pruneExpired(?int $now = null) performs a single-pass
+  trie sweep directly in C with 0 PHP heap allocations (12.9 ms per 100k items).
+- FEATURE: Full bulk and iteration support on STRING_TO_ENTRY -- ArrayAccess,
+  Iterator, keys(), values(), toArray(), slice(), getAll(), and serialization.
+- BUILD: Pure-Rust Expanse backend integration support (--with-expanse) for
+  modern 64-bit microarchitectures, zero-leak memory management, and cross-platform
+  MSVC Windows support without source patching.
+         </notes>
+      </release>
       <release>
          <date>2026-08-19</date>
          <version>
