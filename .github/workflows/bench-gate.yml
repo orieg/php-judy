@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           # NOT shallow: arm S is reconstructed by `git archive` at a pinned
           # historical commit, which a depth-1 clone does not have.
@@ -119,11 +119,17 @@ jobs:
           ./tools/bench-gate/build-arms.sh "$RUNNER_TEMP/arms" 2
           cc --version | head -1 > "$RUNNER_TEMP/toolchain.txt"
 
+      - name: Install distro libJudy
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 5
+          command: sudo apt-get update -qq && sudo apt-get install -y libjudy-dev
+
       - name: Build arm B against the distro libJudy (reported, never gated)
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y libjudy-dev
           # Same source, same compiler, same PHP; only --with-judy differs.
           src="$RUNNER_TEMP/src-B"
           rm -rf "$src"; mkdir -p "$src"
@@ -138,6 +144,7 @@ jobs:
           GATE_FLAG: ${{ (github.event.inputs.gate == 'false') && ' ' || '--gate' }}
         run: |
           set -euo pipefail
+          # shellcheck disable=SC2086
           ./tools/bench-gate/run-gate.sh \
             --platform linux-glibc-x86_64 \
             --arms "$RUNNER_TEMP/arms" \
@@ -169,7 +176,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -227,7 +234,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -262,6 +269,7 @@ jobs:
           set -euo pipefail
           extra=""
           [ -f "$RUNNER_TEMP/arms/judy-B-1.so" ] && extra="--with-b"
+          # shellcheck disable=SC2086
           ./tools/bench-gate/run-gate.sh \
             --platform macos-arm64 \
             --arms "$RUNNER_TEMP/arms" \
@@ -300,7 +308,7 @@ jobs:
     # are the same ones. Kept off the narrow per-PR trigger.
     if: github.event_name != 'pull_request'
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -423,6 +431,7 @@ jobs:
           cp "$BENCH_TMP/arm-s-manifest.json" "$BENCH_TMP/results/"
           # Driven by the BUILDER's php.exe: it is the one the DLLs load into,
           # and bench-gate.php spawns its children with PHP_BINARY.
+          # shellcheck disable=SC2086
           "$BENCH_TMP/php-runtime/php.exe" scripts/bench-gate.php \
             --arm "C=$BENCH_TMP/arms/judy-C-1.dll" \
             --arm "S=$BENCH_TMP/arms/judy-S-1.dll" \
@@ -452,7 +461,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           pattern: bench-gate-*
@@ -484,7 +493,7 @@ jobs:
         if: >-
           github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/github-script@v9
+        uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');

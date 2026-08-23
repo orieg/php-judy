@@ -1,0 +1,358 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Which jobs to run"
+        required: false
+        default: all
+        type: choice
+        options: [all, valgrind, php-dev, fuzz]
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  valgrind-memory-leak:
+    name: Safety / Valgrind Memory Leak Check (Linux, PHP 8.4)
+    if: inputs.only == null || inputs.only == 'all' || inputs.only == 'valgrind'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Valgrind & Judy)
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 5
+          command: sudo apt-get update && sudo apt-get install -y valgrind libjudy-dev
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          coverage: none
+
+      - name: Build extension with debug symbols
+        run: |
+          phpize
+          ./configure --with-judy=/usr CFLAGS="-g -O0 -Wall"
+          set -o pipefail
+          make 2>&1 | tee /tmp/build.log
+
+      - name: Run Valgrind memory leak test suite
+        run: |
+          # run-tests.php -m invokes Valgrind memcheck with USE_ZEND_ALLOC=0
+          NO_INTERACTION=1 REPORT_EXIT_STATUS=1 php run-tests.php -m -q --show-diff tests/
+
+      - name: Report or Update Nightly Failure Issue
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 [Nightly CI Failure] Valgrind Memory Leak Detected on main';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'nightly-failure'
+            });
+
+            const existing = issues.find(i => i.title.includes('Valgrind Memory Leak'));
+            const body = [
+              '### Nightly Valgrind Leak Check Alert',
+              '',
+              `- **Commit**: [${context.sha}](${context.payload.repository?.html_url}/commit/${context.sha})`,
+              `- **Workflow Run**: [View Failed Run Logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+              '- **Failing Target**: `php run-tests.php -m` (Valgrind memcheck)',
+              '',
+              '#### Local Reproduction Command:',
+              '```bash',
+              'USE_ZEND_ALLOC=0 valgrind --leak-check=full php run-tests.php -m -q --show-diff tests/',
+              '```'
+            ].join('\n');
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `⚠️ Nightly Valgrind memory leak run still failing on commit ${context.sha}. [View Run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['bug', 'nightly-failure', 'automated-triage']
+              });
+            }
+
+      - name: Auto-Close Resolved Nightly Issue on Success
+        if: success() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'nightly-failure'
+            });
+            const existing = issues.find(i => i.title.includes('Valgrind Memory Leak'));
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `🟢 Nightly Valgrind leak verification succeeded on commit ${context.sha}! Auto-closing this issue.`
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                state: 'closed'
+              });
+            }
+
+  php-dev-nightly:
+    name: Compat / PHP Development Branch Nightly (PHP 8.6-dev)
+    if: inputs.only == null || inputs.only == 'all' || inputs.only == 'php-dev'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP Development Build
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.6"
+          coverage: none
+
+      - name: Build the extension
+        run: |
+          phpize
+          ./configure
+          set -o pipefail
+          make 2>&1 | tee /tmp/build.log
+
+      - name: Fail on compiler warnings
+        run: |
+          if grep -E '(php_judy|judy_handlers|judy_arrayaccess|judy_iterator)\.[ch]:[0-9]+:[0-9]+: warning:' /tmp/build.log; then
+            echo "::error::Compiler warnings detected against PHP development branch"
+            exit 1
+          fi
+          echo "No compiler warnings in extension sources."
+
+      - name: Run tests
+        run: make test TESTS=tests/ NO_INTERACTION=1 REPORT_EXIT_STATUS=1
+
+      - name: Report or Update Nightly Failure Issue
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 [Nightly CI Failure] PHP-dev Compatibility Failure on main';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'nightly-failure'
+            });
+
+            const existing = issues.find(i => i.title.includes('PHP-dev Compatibility'));
+            const body = [
+              '### Nightly PHP Development Branch Compatibility Alert',
+              '',
+              `- **Commit**: [${context.sha}](${context.payload.repository?.html_url}/commit/${context.sha})`,
+              `- **Workflow Run**: [View Failed Run Logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+              '- **Failing Target**: PHP 8.6-dev build and test suite',
+              '',
+              '#### Local Reproduction:',
+              'Compile and test php-judy against the latest php-src master / 8.6 branch.',
+            ].join('\n');
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `⚠️ Nightly PHP-dev compatibility run still failing on commit ${context.sha}. [View Run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['bug', 'nightly-failure', 'automated-triage']
+              });
+            }
+
+      - name: Auto-Close Resolved Nightly Issue on Success
+        if: success() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'nightly-failure'
+            });
+            const existing = issues.find(i => i.title.includes('PHP-dev Compatibility'));
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `🟢 Nightly PHP-dev verification succeeded on commit ${context.sha}! Auto-closing this issue.`
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                state: 'closed'
+              });
+            }
+
+  diffuzz-soak:
+    name: Safety / Extended Differential Fuzz Soak
+    if: inputs.only == null || inputs.only == 'all' || inputs.only == 'fuzz'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build bundled tree at production flags
+        run: |
+          POPCNT=""
+          echo 'int main(void){return 0;}' > /tmp/popcnt-probe.c
+          cc -Werror -mpopcnt -c /tmp/popcnt-probe.c -o /dev/null 2>/dev/null && POPCNT="-mpopcnt"
+          sh tools/differential-fuzz/validation/build-stock.sh \
+            "$PWD/libjudy/src" /tmp/judy-prod \
+            -O2 -fno-lto -fno-unroll-loops "$POPCNT"
+
+      - name: Run extended soak (300s)
+        run: |
+          make -C tools/differential-fuzz JUDY_PREFIX=/tmp/judy-prod
+          cd tools/differential-fuzz
+          ./diffuzz soak 300
+
+      - name: Report or Update Nightly Failure Issue
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 [Nightly CI Failure] Differential Fuzz Soak Divergence on main';
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'nightly-failure'
+            });
+
+            const existing = issues.find(i => i.title.includes('Differential Fuzz Soak'));
+            const body = [
+              '### Nightly Differential Fuzz Soak Divergence Alert',
+              '',
+              `- **Commit**: [${context.sha}](${context.payload.repository?.html_url}/commit/${context.sha})`,
+              `- **Workflow Run**: [View Failed Run Logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+              '- **Failing Target**: `tools/differential-fuzz/diffuzz soak 300`',
+              '',
+              '#### Local Reproduction Command:',
+              '```bash',
+              'make -C tools/differential-fuzz && (cd tools/differential-fuzz && ./diffuzz soak 300)',
+              '```'
+            ].join('\n');
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `⚠️ Nightly fuzz soak still failing on commit ${context.sha}. [View Run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['bug', 'nightly-failure', 'automated-triage']
+              });
+            }
+
+      - name: Auto-Close Resolved Nightly Issue on Success
+        if: success() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'nightly-failure'
+            });
+            const existing = issues.find(i => i.title.includes('Differential Fuzz Soak'));
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: `🟢 Nightly fuzz soak succeeded on commit ${context.sha}! Auto-closing this issue.`
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                state: 'closed'
+              });
+            }
+
+  nightly-gate:
+    name: CI Gate / Nightly Rollup Gate
+    if: always()
+    needs:
+      - valgrind-memory-leak
+      - php-dev-nightly
+      - diffuzz-soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate Dependency Statuses
+        shell: bash
+        run: |
+          echo "Evaluating Nightly matrix health..."
+          STATUSES='${{ toJson(needs) }}'
+          FAILED=()
+
+          for job in $(echo "$STATUSES" | jq -r 'keys[]'); do
+            result=$(echo "$STATUSES" | jq -r --arg j "$job" '.[$j].result')
+            echo "  Job [$job]: $result"
+            if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+              FAILED+=("$job")
+            fi
+          done
+
+          if [ ${#FAILED[@]} -gt 0 ]; then
+            echo "::error::The following nightly checks failed: ${FAILED[*]}"
+            exit 1
+          fi
+
+          echo "::notice::All nightly checks passed (or were cleanly skipped)."
+          exit 0
