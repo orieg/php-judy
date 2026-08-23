@@ -1153,10 +1153,12 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 			}
 			judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*slot);
 			if (entry != NULL) {
-				zval_ptr_dtor(&entry->value);
+				zval old_val;
+				ZVAL_COPY_VALUE(&old_val, &entry->value);
 				entry->expires_at = 0;
 				entry->flags = 0;
 				ZVAL_COPY(&entry->value, value);
+				zval_ptr_dtor(&old_val);
 			} else {
 				entry = (judy_cache_entry_t *)emalloc(sizeof(judy_cache_entry_t));
 				entry->expires_at = 0;
@@ -5984,11 +5986,13 @@ PHP_METHOD(Judy, set)
 
 	entry = (judy_cache_entry_t *)(uintptr_t)(*slot);
 	if (entry != NULL) {
-		/* Overwrite existing entry */
-		zval_ptr_dtor(&entry->value);
+		/* Overwrite existing entry: update new state before destroying old value */
+		zval old_val;
+		ZVAL_COPY_VALUE(&old_val, &entry->value);
 		entry->expires_at = expires_at;
 		entry->flags = (uint16_t)flags;
 		ZVAL_COPY(&entry->value, value);
+		zval_ptr_dtor(&old_val);
 	} else {
 		/* Allocate new entry */
 		entry = (judy_cache_entry_t *)emalloc(sizeof(judy_cache_entry_t));
@@ -6107,14 +6111,14 @@ PHP_METHOD(Judy, pruneExpired)
 			memcpy(key_to_del, kindex, klen);
 			key_to_del[klen] = '\0';
 
-			zval_ptr_dtor(&entry->value);
-			efree(entry);
-
-			/* Delete the key from JudySL */
+			/* Delete the key from JudySL before running destructor */
 			JSLD(Rc_int, intern->array, key_to_del);
 			intern->counter--;
 			judy_string_bytes_sub(intern, (Word_t)klen);
 			pruned_count++;
+
+			zval_ptr_dtor(&entry->value);
+			efree(entry);
 
 			/* Find the next key strictly greater than key_to_del */
 			JSLN(PValue, intern->array, key_to_del);
