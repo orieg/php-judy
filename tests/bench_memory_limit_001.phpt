@@ -3,6 +3,10 @@ judy-bench: memory_limit is a floor a caller can raise, not a cap that overrides
 --SKIPIF--
 <?php
 if (substr(PHP_OS, 0, 3) === 'WIN') die('skip POSIX shell required');
+// run-tests -m exports USE_ZEND_ALLOC=0 and traces children: memory_limit
+// fatals in child PHP processes leave everything unfreed by design, which
+// memcheck then reports as leaks of this test (issue #202).
+if (getenv('USE_ZEND_ALLOC') === '0') die('skip spawns child PHP processes; not meaningful under Valgrind');
 $root = dirname(__DIR__);
 if (!is_file("$root/examples/benchmarks/judy-bench.php")) die('skip judy-bench.php not present');
 if (!is_file("$root/modules/judy.so")) die('skip requires in-tree build (modules/judy.so)');

@@ -53,8 +53,15 @@ jobs:
 
       - name: Run Valgrind memory leak test suite
         run: |
-          # run-tests.php -m invokes Valgrind memcheck with USE_ZEND_ALLOC=0
-          NO_INTERACTION=1 REPORT_EXIT_STATUS=1 php run-tests.php -m -q --show-diff tests/
+          # make test loads the freshly built modules/judy.so via -d extension=…;
+          # invoking run-tests.php directly does not, which silently reduces the
+          # suite to SKIPs (issue #202). Flags ride in TESTS, which the generated
+          # Makefile appends to the run-tests.php invocation. -m wraps each test
+          # in Valgrind memcheck (--trace-children=yes) with USE_ZEND_ALLOC=0.
+          # pcre.jit=0: PCRE2's sljit-generated code trips uninitialised-value
+          # reports inside the php binary itself; without it every preg_*-using
+          # test is flagged LEAK with no judy.so frame in the stack.
+          make test TESTS="-j$(nproc) -m -q --show-diff -d pcre.jit=0 tests/" NO_INTERACTION=1 REPORT_EXIT_STATUS=1
 
       - name: Report or Update Nightly Failure Issue
         if: failure() && github.event_name == 'schedule'
@@ -75,11 +82,12 @@ jobs:
               '',
               `- **Commit**: [${context.sha}](${context.payload.repository?.html_url}/commit/${context.sha})`,
               `- **Workflow Run**: [View Failed Run Logs](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
-              '- **Failing Target**: `php run-tests.php -m` (Valgrind memcheck)',
+              '- **Failing Target**: `make test TESTS="-m …"` (Valgrind memcheck)',
               '',
               '#### Local Reproduction Command:',
               '```bash',
-              'USE_ZEND_ALLOC=0 valgrind --leak-check=full php run-tests.php -m -q --show-diff tests/',
+              'phpize && ./configure --with-judy=/usr CFLAGS="-g -O0 -Wall" && make',
+              'make test TESTS="-m -q --show-diff -d pcre.jit=0 tests/" NO_INTERACTION=1 REPORT_EXIT_STATUS=1',
               '```'
             ].join('\n');
 
