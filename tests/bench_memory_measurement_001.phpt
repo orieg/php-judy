@@ -3,6 +3,10 @@ judy-bench: memory is measured as peak RSS, not the emalloc heap (issue #172)
 --SKIPIF--
 <?php
 if (substr(PHP_OS, 0, 3) === 'WIN') die('skip POSIX shell required');
+// run-tests -m exports USE_ZEND_ALLOC=0 and traces children: memcheck inflates
+// the child processes' RSS by an order of magnitude, breaking every heap-vs-RSS
+// relationship this test asserts (issue #202).
+if (getenv('USE_ZEND_ALLOC') === '0') die('skip spawns child PHP processes; RSS assertions invalid under Valgrind');
 if (!function_exists('getrusage')) die('skip getrusage() not available');
 if (!function_exists('shell_exec')) die('skip shell_exec() disabled');
 $root = dirname(__DIR__);

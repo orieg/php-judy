@@ -3,6 +3,10 @@ bench-compare: PHP control decides contamination; uniform real shifts keep per-c
 --SKIPIF--
 <?php
 if (substr(PHP_OS, 0, 3) === 'WIN') die('skip POSIX shell required');
+// run-tests -m exports USE_ZEND_ALLOC=0 and traces children: every child PHP
+// this test spawns runs under memcheck too, distorting timings and surfacing
+// child-side bailout noise as leaks of this test (issue #202).
+if (getenv('USE_ZEND_ALLOC') === '0') die('skip spawns child PHP processes; not meaningful under Valgrind');
 $root = dirname(__DIR__);
 if (!is_file("$root/scripts/bench-compare.php")) die('skip scripts/bench-compare.php not present');
 if (!is_file("$root/modules/judy.so")) die('skip requires in-tree build (modules/judy.so)');
