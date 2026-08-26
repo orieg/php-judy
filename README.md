@@ -24,7 +24,7 @@ A Judy array consumes memory only when populated and scales near $O(\log_{256} N
 - **Dramatic Memory Savings**: Up to **21.9x less memory** than native PHP arrays for presence sets (`BITSET`), and **3.5–3.8x less memory** for sparse integer and string keys (measured as peak RSS).
 - **Native C Bulk Operations**: `toArray()`, `getAll()`, `keys()`, `values()`, and `fromArray()` run in native C up to **3.1x faster** than element-by-element PHP loops.
 - **Ordered Keys & Fast Slicing for Free**: Range queries, prefix invalidation (`keys($lo, $hi)`), and atomic updates (`increment()`) without hash-table sorting or full scans.
-- **Dual-Engine Backing**: Bundles modernized **libJudy** (C, compiled by default) and fully supports **[Expanse](https://github.com/orieg/expanse)** (clean-room pure-Rust drop-in C ABI engine).
+- **Dual-Engine Backing**: Bundles modernized **libJudy** (C, compiled by default) and fully supports **[Expanse](https://github.com/orieg/expanse)** (clean-room pure-Rust drop-in C ABI engine). Expanse also ships its own drop-in-compatible PHP packages — see [§G](#g-expanses-native-php-packages-drop-in-successor).
 - **Honest Trade-offs**: For random lookups on small dense datasets, native PHP arrays are faster. See [BENCHMARK.md](BENCHMARK.md) for full metrics and a decision guide.
 
 ---
@@ -214,14 +214,18 @@ make
 
 ![Engine Performance Comparison](docs/assets/bench_engines.svg)
 
-#### Linux (.deb package)
+#### Linux (apt / dnf repositories)
 
-Prebuilt packages are available on the [Expanse Releases page](https://github.com/orieg/expanse/releases):
+Expanse publishes official apt and rpm repositories. The `libjudy-compat` package installs the system-wide `libJudy.so.1` symlinks and `libexpanse-dev` / `libexpanse-devel` ships `Judy.h`, so php-judy configures against `/usr` with no manual prefix:
 
 ```sh
-# Download and install Expanse .deb (e.g. v0.2.0 for amd64)
-curl -LO https://github.com/orieg/expanse/releases/download/v0.2.0/libexpanse_0.2.0_amd64.deb
-sudo dpkg -i libexpanse_0.2.0_amd64.deb
+# Debian / Ubuntu / Raspberry Pi OS (amd64, arm64, riscv64)
+echo "deb [trusted=yes] https://orieg.github.io/expanse/apt/ stable main" | sudo tee /etc/apt/sources.list.d/expanse.list
+sudo apt-get update && sudo apt-get install -y libexpanse1 libexpanse-dev libjudy-compat
+
+# RHEL / Fedora / Rocky / Amazon Linux (x86_64, aarch64, riscv64)
+sudo dnf config-manager --add-repo https://orieg.github.io/expanse/rpm/expanse.repo
+sudo dnf install -y libexpanse libexpanse-devel libjudy-compat
 
 # Compile php-judy against Expanse
 phpize
@@ -231,12 +235,15 @@ make test
 sudo make install
 ```
 
+Individual `.deb` / `.rpm` files for each release are also attached to the [Expanse Releases page](https://github.com/orieg/expanse/releases).
+
 #### Linux & macOS (Standalone Prefix or from Source)
 
 ```sh
-# Option 1: Download prebuilt release tarball from https://github.com/orieg/expanse/releases
-curl -LO https://github.com/orieg/expanse/releases/download/v0.2.0/expanse-0.2.0-x86_64-unknown-linux-gnu.tar.gz
-tar -xzf expanse-0.2.0-x86_64-unknown-linux-gnu.tar.gz
+# Option 1: Download a prebuilt release tarball from https://github.com/orieg/expanse/releases
+#           (substitute the current version, e.g. 0.4.1, and your target triple)
+curl -LO https://github.com/orieg/expanse/releases/download/v<VERSION>/expanse-<VERSION>-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf expanse-<VERSION>-x86_64-unknown-linux-gnu.tar.gz
 
 # Option 2: Build expanse-capi from source with Cargo
 git clone https://github.com/orieg/expanse.git
@@ -260,7 +267,7 @@ make test
 Unlike legacy C libjudy (which requires source code patches for 64-bit LLP64 `Word_t` and `PJERR`), Expanse natively supports 64-bit Windows without patching:
 
 ```powershell
-# Extract expanse-v0.2.0-x86_64-pc-windows-msvc.zip (or build with cargo build --release -p expanse-capi)
+# Extract expanse-v<VERSION>-x86_64-pc-windows-msvc.zip from the Releases page (or build with cargo build --release -p expanse-capi)
 # Setup prefix directory with include\Judy.h and lib\libJudy.lib
 $prefix = "C:\path\to\expanse-prefix"
 New-Item -ItemType Directory -Force -Path "$prefix\include", "$prefix\lib"
@@ -274,6 +281,24 @@ cd C:\path\to\php-judy
 configure --with-judy=C:\path\to\expanse-prefix
 nmake
 ```
+
+### G. Expanse's Native PHP Packages (Drop-in Successor)
+
+Beyond serving as php-judy's C engine (§F), Expanse ships its **own PHP packages**, designed for 1:1 `php-judy` class and constant compatibility (`Judy`, `Judy::BITSET`, `Judy::INT_TO_INT`, `Judy::STRING_TO_INT`, `ArrayAccess`, `byCount`) so existing call sites migrate unchanged:
+
+```sh
+# Pure-PHP library (PSR-4): uses the native extension below when loaded,
+# otherwise falls back to \FFI over libexpanse (no compiler required)
+composer require orieg/expanse
+
+# Native Zend extension written in Rust, compiled locally by PIE (requires the Rust toolchain)
+pie install orieg/expanse-extension
+```
+
+- **Stay on php-judy** for the mature C extension (`pie install orieg/judy` / PECL), optionally backed by the Expanse engine via §F.
+- **Move to `orieg/expanse`** for the Rust-native extension, the zero-compile FFI fallback, and the additional `Expanse\Set` / `Expanse\Map` APIs.
+
+Packages: [`orieg/expanse`](https://packagist.org/packages/orieg/expanse) · [`orieg/expanse-extension`](https://packagist.org/packages/orieg/expanse-extension) · Guide: [Expanse PHP bindings](https://github.com/orieg/expanse/blob/main/docs/bindings/php.md)
 
 ## Usage Examples
 
