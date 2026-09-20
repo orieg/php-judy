@@ -2,8 +2,7 @@
 
 Developer tooling. **Nothing here ships** — none of it is in the PECL package,
 none of it is built by `make`, and none of it is loaded by the extension.
-`validate-pecl` asserts that with
-[`check-package-contents.sh`](check-package-contents.sh).
+`validate-pecl` asserts that via Discipline's `archive-contents` gate.
 
 What separates this directory from [`../research/`](../research/) is
 permanence, not subject: `tools/` holds the things CI runs and a contributor
@@ -18,7 +17,6 @@ here.
 | ---- | ---------- | ------ |
 | [`ci-smoke.sh`](ci-smoke.sh) | Builds every standalone C harness in the repo at `-Wall -Wextra -Werror`, then runs an ASan/UBSan pass over the whole corpus × key-length × absent-key grid | `build-harnesses` (per PR), plus a second pass against the bundled `libjudy/` tree |
 | [`differential-fuzz/`](differential-fuzz/) | libJudy against exact `std::set`/`std::map`/string-map oracles, seeded and reproducible. Validated-to-fail against [#131](https://github.com/orieg/php-judy/issues/131) and [#127](https://github.com/orieg/php-judy/issues/127); see its README | `differential-fuzz` (per PR, bounded profile + planted-#131 negative control) |
-| [`check-package-contents.sh`](check-package-contents.sh) | Rejects a built PECL tarball that carries a `tools/` or `research/` path | `validate-pecl` (per PR, with its own negative control) |
 | [`iteration-cost/iterbench.c`](iteration-cost/) | Ordered `JSLN` traversal cost vs. `JSLG` point lookups, across three corpora | built and smoke-run by `ci-smoke.sh`; run by hand for figures |
 | [`write-probe-cost/probebench.c`](write-probe-cost/) | Cost of moving the write-path existence probe from JudyHS to JudySL, including the ADAPTIVE/SSO packed path and absent-key divergence depth | built and smoke-run by `ci-smoke.sh`; run by hand for figures |
 | [`bench-lock.sh`](bench-lock.sh) | `/var/tmp/BENCH_LOCK` mutual exclusion for a shared benchmark host. **Source it before any timing run on a shared box** — two memory-bound campaigns corrupt each other through LLC and memory bandwidth even when both individually satisfy the `loadavg < N/2` rule, which is how a whole gate matrix was invalidated on 2026-08-19 | by hand, from any campaign's driver |

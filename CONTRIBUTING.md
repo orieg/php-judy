@@ -49,10 +49,9 @@ Two rules keep the split from eroding:
 - **Anything not shipped stays not shipped.** `package.xml` lists every file
   in the tarball, and the `validate-pecl` job asserts both directions:
   everything tracked under `tests/` and `libjudy/` must be listed, and
-  [`tools/check-package-contents.sh`](tools/check-package-contents.sh) rejects
-  a tarball that carries any `tools/` or `research/` path. Adding a shipped
-  file means adding its `<file>` entry; adding an unshipped one means adding
-  nothing. Note the split inside the two script directories: `scripts/` ships
+  Discipline's `archive-contents` gate rejects a tarball that carries any
+  `tools/` or `research/` path. Adding a shipped file means adding its `<file>`
+  entry; adding an unshipped one means adding nothing. Note the split inside the two script directories: `scripts/` ships
   because its contents are useful to someone who installed the package
   (`generate-api-docs.php`, the debugger pretty-printers); `tools/` does not,
   because a differential fuzzer and a packaging assertion are only useful in a
