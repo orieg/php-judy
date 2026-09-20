@@ -1001,7 +1001,7 @@ jobs:
           pecl package package.xml
 
           set +e
-          "$DISCIPLINE_BIN" check --enable archive-contents > /tmp/pkg-negctl.log 2>&1
+          "${DISCIPLINE_BIN:-discipline}" check --enable archive-contents > /tmp/pkg-negctl.log 2>&1
           rc=$?
           set -e
           cat /tmp/pkg-negctl.log
