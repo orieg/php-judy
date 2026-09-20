@@ -323,7 +323,11 @@ jobs:
           cargo build --release -p expanse-capi
           PREFIX="$RUNNER_TEMP/expanse-prefix"
           mkdir -p "$PREFIX/include" "$PREFIX/lib"
-          cp crates/expanse-capi/include/Judy.h "$PREFIX/include/"
+          if [ -f include/Judy.h ]; then
+            cp include/Judy.h "$PREFIX/include/"
+          else
+            cp crates/expanse-capi/include/Judy.h "$PREFIX/include/"
+          fi
           cp target/release/libexpanse.so "$PREFIX/lib/libJudy.so"
           echo "JUDY_PREFIX=$PREFIX" >> "$GITHUB_ENV"
 
@@ -1234,7 +1238,11 @@ jobs:
           cargo build --release -p expanse-capi
           $prefix = Join-Path $env:RUNNER_TEMP "expanse-prefix"
           New-Item -ItemType Directory -Force -Path "$prefix\include", "$prefix\lib" | Out-Null
-          Copy-Item crates\expanse-capi\include\Judy.h "$prefix\include\"
+          if (Test-Path include\Judy.h) {
+            Copy-Item include\Judy.h "$prefix\include\"
+          } else {
+            Copy-Item crates\expanse-capi\include\Judy.h "$prefix\include\"
+          }
           Copy-Item target\release\expanse.dll.lib "$prefix\lib\libJudy.lib"
           Copy-Item target\release\expanse.dll.lib "$prefix\lib\libJudy_a.lib"
           Copy-Item target\release\expanse.dll "$prefix\"
