@@ -1,0 +1,83 @@
+[meta]
+version = 1
+name = "php-judy"
+description = "PHP extension wrapping libJudy"
+
+[directives]
+sources = ["pr-body", "commits"]
+
+# ── Agent & AST Test Protection ──────────────────────────────────────────
+[gates.agents-md]
+enabled = false # CLAUDE.md is a 59-line quick reference; AGENTS.md is the 400-line full guide
+
+[gates.assertion-reduction]
+enabled = true
+
+[gates.vacuous-tests]
+enabled = true
+
+[gates.ignored-tests]
+enabled = true
+
+[gates.test-floor]
+enabled = true
+
+[gates.deletion-rationale]
+enabled = true
+
+# ── Repository Hygiene ───────────────────────────────────────────────────
+[gates.pii]
+enabled = true
+exempt_paths = [
+    "examples/ip-range-lookup.php", # Legitimate CIDR fixture with RFC 1918 example IP
+]
+
+[gates.time-estimates]
+enabled = true
+diff_only = true
+
+[gates.agent-scratch]
+enabled = true
+
+# ── CI & Packaging Integrity ─────────────────────────────────────────────
+[gates.ci-integrity]
+enabled = true
+pin_actions = false # php-judy CI pins official actions by tag (@v4, @v2)
+rollup_job = "ci-gate"
+
+[gates.version-lockstep]
+enabled = true
+[[gates.version-lockstep.groups]]
+name = "pecl-release"
+sources = [
+    { path = "php_judy.h", regex = '#define\s+PHP_JUDY_VERSION\s+"([^"]+)"' },
+    { path = "package.xml", regex = '<release>([^<]+)</release>' },
+]
+
+[gates.manifest-sync]
+enabled = true
+[[gates.manifest-sync.rules]]
+manifest = "package.xml"
+extract_regex = '<file\s+[^>]*name="([^"]+)"'
+watched_paths = [
+    "tests/**",
+    "libjudy/**",
+]
+exclude_paths = [
+    "libjudy/.gitattributes",
+]
+
+[gates.archive-contents]
+enabled = false # Enabled dynamically in packaging job via --enable archive-contents
+archive_path = "Judy-*.tgz"
+strip_components = 1
+required_paths = [
+    "config.m4",
+    "php_judy.h",
+]
+forbidden_patterns = [
+    "^tools/",
+    "^research/",
+    "\\.git",
+    "\\.DS_Store",
+]
