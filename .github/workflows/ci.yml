@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    # `edited`: changing the PR description (adding or removing a discipline
+    # directive) re-runs the gate without an empty commit. The concurrency group
+    # below cancels the run an edit supersedes.
+    types: [opened, synchronize, reopened, edited]
 
 # Only the newest commit of a pull request gets CI. Pushing a new commit (or a
 # force-push during a rebase) cancels the run for the commit it replaces: that
@@ -33,9 +37,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Read-only by default. The one job that writes (report-results: check runs and
+# the PR comment) declares its own `checks: write` and `pull-requests: write`.
 permissions:
-  checks: write
-  pull-requests: write
+  contents: read
 
 jobs:
   detect-changes:

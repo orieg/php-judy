@@ -1,0 +1,4 @@
+# Changes that can weaken the gates need the owner's review.
+/discipline.toml      @orieg
+/.github/workflows/   @orieg
+/.github/CODEOWNERS   @orieg
