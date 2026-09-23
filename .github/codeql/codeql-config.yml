@@ -1,0 +1,11 @@
+name: "php-judy CodeQL Configuration"
+
+# Exclude vendored C code (pristine libJudy upstream from 2002) and non-production fixtures.
+# This prevents legacy macro/pointer-punning warnings from masking genuine extension findings.
+paths-ignore:
+  - 'libjudy/**'
+  - 'examples/**'
+  - 'tests/**'
+
+queries:
+  - uses: security-extended
