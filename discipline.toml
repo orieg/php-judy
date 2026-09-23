@@ -81,3 +81,33 @@ forbidden_patterns = [
     "\\.git",
     "\\.DS_Store",
 ]
+
+# ── Benchmark & Performance Integrity ─────────────────────────────────────
+[gates.golden-output]
+enabled = true
+paths = [
+    "**/golden/**",
+    "**/snapshots/**",
+    "**/__snapshots__/**",
+    "**/*.snap",
+    "**/*.ambr",
+    "**/*.golden",
+    "**/*.approved.*",
+    "tests/fixtures/**/output*",
+    "baselines/**",
+]
+
+[gates.bench-regression]
+enabled = true
+tolerance_pct = 0.5
+paths = [
+    "target/iai/**",
+    "**/callgrind.*",
+    "target/criterion/**",
+    "**/*bench*.json",
+    "**/*bench*.log",
+    "**/*bench*.txt",
+    "baselines/latest.json",
+]
+
+
