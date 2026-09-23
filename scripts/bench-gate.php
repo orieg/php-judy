@@ -241,6 +241,36 @@ const GATE_CELL_FLOOR_CEILING_MEM = 15.0;
 const GATE_MIN_RUNS_FOR_PER_CELL_FLOORS  = 8;
 const GATE_MIN_HOSTS_FOR_PER_CELL_FLOORS = 4;
 
+/**
+ * Structurally and microarchitecturally identical operation families.
+ *
+ * When calibrating per-cell floors with few runner instances (< GATE_MIN_HOSTS_FOR_PER_CELL_FLOORS),
+ * individual operations (e.g. diff vs union) can sample different subsets of runner
+ * variance purely by chance. Because operations within a family share the exact same
+ * C implementation structure and microarchitectural sensitivities (e.g. POPCNT / bswap
+ * in bitset setops), they share the family's maximum observed drift during floor
+ * derivation to prevent false positives when running on heterogeneous host CPUs (#205).
+ */
+const GATE_OPERATION_FAMILIES = [
+    'api.setop.bitset' => [
+        'api.setop.union.bitset',
+        'api.setop.intersect.bitset',
+        'api.setop.diff.bitset',
+        'api.setop.xor.bitset',
+    ],
+    'api.setop.int_to_int' => [
+        'api.setop.union.int_to_int',
+        'api.setop.intersect.int_to_int',
+        'api.setop.diff.int_to_int',
+        'api.setop.xor.int_to_int',
+    ],
+    'api.setop.string_to_int' => [
+        'api.setop.union.string_to_int',
+        'api.setop.intersect.string_to_int',
+        'api.setop.diff.string_to_int',
+    ],
+];
+
 // ── Statistics local to the gate ────────────────────────────────────────────
 
 /**
@@ -442,21 +472,43 @@ if (isset($opts['derive'])) {
             ? (($section === 'memory') ? 1.0 : 2.0)
             : $axis_floor;
 
+        $pooled_worst = $per_cell;
+        if (!$per_cell_trustworthy) {
+            foreach (GATE_OPERATION_FAMILIES as $family => $members) {
+                $max_family = 0.0;
+                foreach ($members as $m) {
+                    if (isset($per_cell[$m])) {
+                        $max_family = max($max_family, $per_cell[$m]);
+                    }
+                }
+                foreach ($members as $m) {
+                    if (isset($pooled_worst[$m])) {
+                        $pooled_worst[$m] = max($pooled_worst[$m], $max_family);
+                    }
+                }
+            }
+        }
+
         $cell_floors = [];
         foreach ($per_cell as $id => $worst) {
             // x1.5 rather than x1.25: with a handful of samples the observed
             // worst is routinely exceeded by the next run, which is exactly how
             // the first gated run failed.
-            $f = max($floor_min, ceil($worst * 1.5 * 2) / 2);
-            $cell_floors[$id] = [
-                'floor_pct'    => round($f, 2),
+            $effective_worst = $pooled_worst[$id] ?? $worst;
+            $f = max($floor_min, ceil($effective_worst * 1.5 * 2) / 2);
+            $entry = [
+                'floor_pct'       => round($f, 2),
                 'worst_drift_pct' => round($worst, 3),
                 // Above the ceiling the cell is not gated at all. Carrying a
                 // 190% "threshold" in the baseline would suggest a gate exists
                 // there when nothing that large is a regression anyone needs a
                 // tool to notice.
-                'gateable'     => $f <= $ceiling,
+                'gateable'        => $f <= $ceiling,
             ];
+            if ($effective_worst > $worst) {
+                $entry['pooled_worst_drift_pct'] = round($effective_worst, 3);
+            }
+            $cell_floors[$id] = $entry;
         }
         $gateable_n = count(array_filter($cell_floors, fn($c) => $c['gateable']));
 
@@ -466,9 +518,11 @@ if (isset($opts['derive'])) {
             'ungateable_cells'  => count($cell_floors) - $gateable_n,
             'cell_floor_ceiling_pct' => $ceiling,
             'cell_floor_rule'   => sprintf(
-                'each cell: max(%.2f, its own worst cross-run drift x 1.5, rounded up to 0.5pp); '
+                'each cell: max(%.2f, its own %sworst cross-run drift x 1.5, rounded up to 0.5pp); '
                 . 'above %.1f%% the cell is reported but not gated',
-                $floor_min, $ceiling),
+                $floor_min,
+                !$per_cell_trustworthy ? '(or operation-family) ' : '',
+                $ceiling),
             'per_cell_below_axis_allowed' => $per_cell_trustworthy,
             'axis_floor_is_lower_bound'   => !$per_cell_trustworthy,
             'why' => $per_cell_trustworthy
@@ -476,7 +530,8 @@ if (isset($opts['derive'])) {
                     count($runs), $derived['distinct_hosts'])
                 : sprintf('only %d runs across %d distinct runners — too few for a per-cell '
                     . 'estimate of a SYSTEMATIC per-runner offset, so the axis floor (%.2f%%, '
-                    . 'pooled over %d cells) is the lower bound for every cell',
+                    . 'pooled over %d cells) is the lower bound for every cell, and operation '
+                    . 'families share their family maximum observed drift',
                     count($runs), $derived['distinct_hosts'], $axis_floor, count($per_cell)),
             'cells'            => count($per_cell),
             'pairwise_samples' => count($drifts),
@@ -1093,7 +1148,9 @@ if ($baseline_platform !== null) {
                     'threshold_pct'  => round($cell_threshold, 3),
                     'threshold_source' => $cf === null
                         ? 'axis fallback — the baseline has no per-cell floor for this cell yet'
-                        : sprintf('this cell\'s own cross-run drift (worst %.2f%%)', $cf['worst_drift_pct']),
+                        : (isset($cf['pooled_worst_drift_pct'])
+                            ? sprintf('operation family cross-run drift (family worst %.2f%%, cell worst %.2f%%)', $cf['pooled_worst_drift_pct'], $cf['worst_drift_pct'])
+                            : sprintf('this cell\'s own cross-run drift (worst %.2f%%)', $cf['worst_drift_pct'])),
                 ];
             }
         }
@@ -1131,6 +1188,7 @@ $result = [
         'date'        => date('c'),
         'php_version' => PHP_VERSION,
         'uname'       => php_uname(),
+        'cpu'         => tam_cpu_info(),
         'toolchain'   => $opts['toolchain'] ?? null,
         'provenance'  => $opts['provenance'] ?? null,
         'arms'        => array_map(fn($h) => [
@@ -1251,6 +1309,11 @@ if (!$quiet) {
     $line = str_repeat('-', 92);
     echo "\n$line\nphp-judy regression gate — $platform\n$line\n";
     printf("  PHP %s, %s\n", PHP_VERSION, php_uname('s') . ' ' . php_uname('m'));
+    $cpu = tam_cpu_info();
+    if ($cpu['model'] !== 'unknown') {
+        $flag_str = !empty($cpu['key_flags']) ? ' [' . implode(' ', $cpu['key_flags']) . ']' : '';
+        printf("  CPU: %s%s\n", $cpu['model'], $flag_str);
+    }
     printf("  %d rounds x %d groups, size %d, %d children, %.0fs wall\n",
         $rounds, count($groups), $size, $children, $wall);
     printf("  confidence tier: %s\n", $result['metadata']['tier']);

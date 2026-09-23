@@ -83,6 +83,8 @@
          <file name="tests/arrayaccess_void_return_001.phpt" role="test" />
          <file name="tests/bench_compare_drift_001.phpt" role="test" />
          <file name="tests/bench_compare_fake_bench.inc" role="test" />
+         <file name="tests/bench_gate_cpu_info.phpt" role="test" />
+         <file name="tests/bench_gate_family_pooling.phpt" role="test" />
          <file name="tests/bench_memory_limit_001.phpt" role="test" />
          <file name="tests/bench_memory_measurement_001.phpt" role="test" />
          <file md5sum="43e01c2e189ff2523a83016559b80391" name="tests/bitset_001.phpt" role="test" />

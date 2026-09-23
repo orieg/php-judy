@@ -368,6 +368,100 @@ function tam_cpu_count(): int
     return $n = 0;
 }
 
+/**
+ * Host CPU microarchitecture metadata.
+ *
+ * Cloud runner pools (Azure / GitHub Actions, AWS) deploy heterogeneous CPU
+ * microarchitectures across identical VM sizes (e.g. AMD Zen 3 vs Intel Cascade
+ * Lake / Sapphire Rapids). Different microarchitectures have divergent relative
+ * speeds between patched instruction paths (POPCNT, bswap64) and portable loops
+ * (SWAR popcount, byte-at-a-time). Recording CPU model, family, stepping, and
+ * key instruction flags enables identifying runner heterogeneity when analyzing
+ * cross-run ratio drift (issue #205).
+ */
+function tam_cpu_info(): array
+{
+    static $info = null;
+    if ($info !== null) { return $info; }
+
+    $arch     = php_uname('m');
+    $model    = 'unknown';
+    $vendor   = 'unknown';
+    $family   = null;
+    $model_id = null;
+    $stepping = null;
+    $flags    = [];
+
+    if (PHP_OS_FAMILY === 'Linux' && is_readable('/proc/cpuinfo')) {
+        $content = file_get_contents('/proc/cpuinfo');
+        if ($content !== false) {
+            foreach (explode("\n", $content) as $line) {
+                if (str_starts_with($line, 'model name') && $model === 'unknown') {
+                    $parts = explode(':', $line, 2);
+                    $model = trim($parts[1] ?? 'unknown');
+                } elseif (str_starts_with($line, 'vendor_id') && $vendor === 'unknown') {
+                    $parts = explode(':', $line, 2);
+                    $vendor = trim($parts[1] ?? 'unknown');
+                } elseif (str_starts_with($line, 'cpu family') && $family === null) {
+                    $parts = explode(':', $line, 2);
+                    $family = (int) trim($parts[1] ?? '0');
+                } elseif (str_starts_with($line, 'model') && !str_starts_with($line, 'model name') && $model_id === null) {
+                    $parts = explode(':', $line, 2);
+                    $model_id = (int) trim($parts[1] ?? '0');
+                } elseif (str_starts_with($line, 'stepping') && $stepping === null) {
+                    $parts = explode(':', $line, 2);
+                    $stepping = (int) trim($parts[1] ?? '0');
+                } elseif ((str_starts_with($line, 'flags') || str_starts_with($line, 'Features')) && empty($flags)) {
+                    $parts = explode(':', $line, 2);
+                    $all_flags = preg_split('/\s+/', trim($parts[1] ?? ''));
+                    $key_set = ['popcnt', 'bmi1', 'bmi2', 'avx', 'avx2', 'avx512f', 'sse4_2', 'asimd', 'crc32', 'atomics'];
+                    $flags = array_values(array_intersect($all_flags, $key_set));
+                }
+            }
+        }
+    } elseif (PHP_OS_FAMILY === 'Darwin' && function_exists('shell_exec')) {
+        $brand = shell_exec('sysctl -n machdep.cpu.brand_string 2>/dev/null');
+        if ($brand && trim($brand) !== '') {
+            $model = trim($brand);
+        }
+        $vend = shell_exec('sysctl -n machdep.cpu.vendor 2>/dev/null');
+        if ($vend && trim($vend) !== '') {
+            $vendor = trim($vend);
+        } elseif (str_starts_with($model, 'Apple')) {
+            $vendor = 'Apple';
+        }
+        $feat = shell_exec('sysctl -n machdep.cpu.features machdep.cpu.leaf7_features 2>/dev/null');
+        if ($feat && trim($feat) !== '') {
+            $all_flags = array_map('strtolower', preg_split('/\s+/', trim($feat)));
+            $key_set = ['popcnt', 'bmi1', 'bmi2', 'avx', 'avx2', 'avx512f', 'sse4_2'];
+            $flags = array_values(array_intersect($all_flags, $key_set));
+        } else {
+            // Apple Silicon arm64 exposes features under hw.optional
+            $hw_opt = shell_exec('sysctl hw.optional 2>/dev/null');
+            if ($hw_opt) {
+                if (preg_match('/hw\.optional\.neon:\s*1/', $hw_opt)) { $flags[] = 'neon'; }
+                if (preg_match('/hw\.optional\.arm\.FEAT_CRC32:\s*1/', $hw_opt)) { $flags[] = 'crc32'; }
+                if (preg_match('/hw\.optional\.arm\.FEAT_LSE:\s*1/', $hw_opt)) { $flags[] = 'atomics'; }
+            }
+        }
+    } elseif (PHP_OS_FAMILY === 'Windows') {
+        $model_win = getenv('PROCESSOR_IDENTIFIER');
+        if ($model_win && trim($model_win) !== '') { $model = trim($model_win); }
+        $arch_win = getenv('PROCESSOR_ARCHITECTURE');
+        if ($arch_win && trim($arch_win) !== '') { $arch = trim($arch_win); }
+    }
+
+    return $info = [
+        'arch'      => $arch,
+        'model'     => $model,
+        'vendor'    => $vendor,
+        'family'    => $family,
+        'model_id'  => $model_id,
+        'stepping'  => $stepping,
+        'key_flags' => $flags,
+    ];
+}
+
 function tam_load_snapshot(string $phase): array
 {
     $load1 = null;

@@ -103,6 +103,12 @@ if [ -f "$REPO/baselines/arm-ratios.json" ]; then
     set -- "$@" --baseline "$REPO/baselines/arm-ratios.json"
 fi
 
+# Host CPU identification. Azure/AWS runner pools deploy heterogeneous CPU
+# models (e.g. Zen 3 vs Cascade Lake / Sapphire Rapids). Logging hardware model
+# and instruction flags surfaces microarchitectural differences between runs (issue #205).
+echo "=== host hardware & CPU ==="
+php -r "require '$REPO/scripts/bench-lib.php'; \$c = tam_cpu_info(); echo 'CPU: ' . \$c['model'] . (!empty(\$c['key_flags']) ? ' [' . implode(' ', \$c['key_flags']) . ']' : '') . PHP_EOL;" || true
+
 RUNS=""
 STATUS=0
 i=1

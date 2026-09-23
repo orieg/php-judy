@@ -102,6 +102,18 @@ foreach ($runs as $plat => $r) {
         $r['gate']['status']);
 }
 
+$cpu_notes = [];
+foreach ($runs as $plat => $r) {
+    $cpu = $r['metadata']['cpu'] ?? null;
+    if ($cpu && ($cpu['model'] ?? 'unknown') !== 'unknown') {
+        $flag_str = !empty($cpu['key_flags']) ? ' [' . implode(', ', $cpu['key_flags']) . ']' : '';
+        $cpu_notes[] = sprintf('`%s`: %s%s', $plat, $cpu['model'], $flag_str);
+    }
+}
+if ($cpu_notes) {
+    echo "\n*Runner hardware*: " . implode('; ', $cpu_notes) . "\n";
+}
+
 // ── Controls ────────────────────────────────────────────────────────────────
 echo "\n### Controls\n\n";
 echo "The PHP-array control sees runner drift. The C-vs-C rebuild control — two independently "
