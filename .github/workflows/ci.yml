@@ -54,7 +54,7 @@ jobs:
       docs: ${{ steps.filter.outputs.docs }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
         with:
           filters: |
@@ -154,7 +154,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: ${{ matrix.php-version }}
           coverage: none
@@ -207,7 +207,7 @@ jobs:
 
       - name: Install PIE
         if: matrix.php-version == '8.4'
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -220,7 +220,7 @@ jobs:
 
       - name: Install previous-release baseline via PIE
         if: matrix.php-version == '8.4'
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -316,7 +316,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
 
       - name: Checkout Expanse
         uses: actions/checkout@v4
@@ -339,7 +339,7 @@ jobs:
           echo "JUDY_PREFIX=$PREFIX" >> "$GITHUB_ENV"
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: ${{ matrix.php-version }}
           coverage: none
@@ -424,7 +424,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Judy library
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -432,7 +432,7 @@ jobs:
           command: sudo apt-get update && sudo apt-get install -y libjudy-dev
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: "8.4"
           coverage: none
@@ -630,7 +630,7 @@ jobs:
 
       - name: Build PHP ${{ env.PHP_DEBUG_VERSION }} with --enable-debug
         if: steps.php-debug-cache.outputs.cache-hit != 'true'
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 20
           max_attempts: 3
@@ -770,7 +770,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Judy library
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -979,7 +979,7 @@ jobs:
           fail_on_warnings: true
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: "8.4"
           coverage: none
@@ -1077,7 +1077,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
         with:
           arch: ${{ matrix.arch }}
 
@@ -1102,7 +1102,7 @@ jobs:
           Add-MpPreference -ExclusionPath "${{ runner.temp }}"
 
       - name: Build the extension
-        uses: php/php-windows-builder/extension@v1
+        uses: php/php-windows-builder/extension@29352c0ef9e8ce65264ea9e287881a6f7758a953 # v1
         with:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
@@ -1225,12 +1225,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
         with:
           arch: ${{ matrix.arch }}
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
 
       - name: Checkout Expanse
         uses: actions/checkout@v4
@@ -1269,7 +1269,7 @@ jobs:
           Add-MpPreference -ExclusionPath "${{ runner.temp }}"
 
       - name: Build the extension
-        uses: php/php-windows-builder/extension@v1
+        uses: php/php-windows-builder/extension@29352c0ef9e8ce65264ea9e287881a6f7758a953 # v1
         with:
           php-version: ${{ matrix.php-version }}
           arch: ${{ matrix.arch }}
@@ -1447,7 +1447,7 @@ jobs:
       - name: Publish test check
         # Fork PRs run with a read-only GITHUB_TOKEN; skip API writes there.
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
-        uses: EnricoMi/publish-unit-test-result-action@v2
+        uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2
         with:
           # Exclude experimental (pre-release) PHP versions from the
           # pass/fail check; they still appear in the consolidated report.
