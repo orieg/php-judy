@@ -6,6 +6,10 @@ description = "PHP extension wrapping libJudy"
 [directives]
 sources = ["pr-body", "commits", "merged-pr-body"]
 
+[languages.c]
+# Project macros written without a semicolon; the Zend ones are built in.
+macros = ["JUDY_METHOD_GET_OBJECT", "JUDY_ITERATOR_GET_OBJECT", "CHECK_ARRAY_AND_ARG_TYPE", "PHP_JUDY_API", "JSLN", "JLN"]
+
 # ── Agent & AST Test Protection ──────────────────────────────────────────
 [gates.agents-md]
 enabled = false # CLAUDE.md is a 59-line quick reference; AGENTS.md is the 400-line full guide
@@ -24,6 +28,10 @@ enabled = true
 
 [gates.deletion-rationale]
 enabled = true
+
+[gates.error-swallowing]
+# Debugger printers probe optional symbols; benchmark scripts clean up best-effort.
+exempt_paths = ["scripts/judy_gdb.py", "scripts/judy_lldb.py", "scripts/bench-*.php"]
 
 # ── Repository Hygiene ───────────────────────────────────────────────────
 [gates.pii]
