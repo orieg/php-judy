@@ -107,7 +107,7 @@ jobs:
           # historical commit, which a depth-1 clone does not have.
           fetch-depth: 0
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: "8.4"
           extensions: json
@@ -120,7 +120,7 @@ jobs:
           cc --version | head -1 > "$RUNNER_TEMP/toolchain.txt"
 
       - name: Install distro libJudy
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
         with:
           timeout_minutes: 5
           max_attempts: 3
@@ -238,7 +238,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: "8.4"
           extensions: json
@@ -312,7 +312,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
         with:
           arch: x64
 
@@ -320,7 +320,7 @@ jobs:
       # the gate driver itself; the DLLs are LOADED by the builder's own PHP
       # (captured below), because only that one is guaranteed ABI-compatible
       # with what php-windows-builder produced.
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: "8.4"
           extensions: json
@@ -342,7 +342,7 @@ jobs:
             --manifest "$BENCH_TMP/arm-s-manifest.json"
 
       - name: Build arm C (the shipped bundled tree)
-        uses: php/php-windows-builder/extension@v1
+        uses: php/php-windows-builder/extension@29352c0ef9e8ce65264ea9e287881a6f7758a953 # v1
         with:
           php-version: "8.4"
           arch: x64
@@ -395,7 +395,7 @@ jobs:
       # leaves none, the tree having just been wiped) still fails the job.
       - name: Build arm S (pristine-static)
         continue-on-error: true
-        uses: php/php-windows-builder/extension@v1
+        uses: php/php-windows-builder/extension@29352c0ef9e8ce65264ea9e287881a6f7758a953 # v1
         with:
           php-version: "8.4"
           arch: x64
