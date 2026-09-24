@@ -80,6 +80,8 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/workflows/bench-gate.yml'
               - '.github/workflows/nightly.yml'
+              - '.github/workflows/codeql.yml'
+              - '.github/codeql/**'
             php:
               - 'php_judy.*'
               - 'judy_*.*'
