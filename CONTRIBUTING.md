@@ -433,4 +433,12 @@ update `baselines/arm-ratios.json` in a feature PR either — see
 3. Ensure `make test` passes and the build is warning-free.
 4. Open a PR with a clear description of what changed and why.
 
+CI on a pull request runs only the jobs your change can affect: a
+`tests/`-only change, for example, builds Windows at the oldest and newest
+PHP only, and a `discipline.toml` or docs change builds nothing. Extension or
+`libjudy/` source changes, and every push to `main`, run the full matrix. The
+mapping is the comment above the `detect-changes` job in
+`.github/workflows/ci.yml`. To force the full matrix on a PR, add the
+`ci:full` label and re-run the workflow.
+
 For larger changes, please open an issue first to discuss the approach.

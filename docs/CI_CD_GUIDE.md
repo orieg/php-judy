@@ -27,6 +27,7 @@ flowchart TD
 - Never spin up dozens of heavy compilation runners on PRs touching only documentation (`docs/**`), markdown files (`*.md`), or unrelated scripts.
 - Use a single, lightweight ($\le 2\text{s}$) initial job (`detect-changes`) powered by `dorny/paths-filter`.
 - Downstream verification jobs declare `needs: [detect-changes]` and `if: needs.detect-changes.outputs.<subsystem> == 'true'`.
+- Map each path class to the jobs it can actually affect, one named output per job, rather than OR-ing coarse filters that collapse to "any code changed". In `php-judy` (#214), `detect-changes` emits one output per job plus the PR matrices; the path-class table is the comment above that job in `.github/workflows/ci.yml`. Only extension/libJudy source, `ci.yml` outside `jobs:`, a push to `main`, or the `ci:full` label (read live, so add it and re-run) runs the full matrix; an edited `ci.yml` job runs just that job.
 
 ### 2. Organization-Wide Concurrency Hygiene (Cancel Superseded Runs)
 - GitHub Actions runner minutes and queue concurrency are pooled **across the entire organization**.
@@ -42,6 +43,7 @@ flowchart TD
 - **The Problem**: Requiring individual matrix jobs in branch protection causes PRs to deadlock in "Pending" when path filters skip non-applicable jobs.
 - **The Solution**: Branch protection requires **only one check**: `CI Gate / All Checks Passed` (`ci-gate`).
 - The `ci-gate` job runs `if: always()`, inspects `${{ toJson(needs) }}`, and treats cleanly skipped jobs as successful.
+- Counting `skipped` as passing cannot tell an irrelevant job from a broken filter that emitted all-false. Pass the same `toJson(needs)` as `ci_context` to the discipline action in `ci-gate` so the `ci-skip-set` gate checks every skip against the job's own `if:` under the observed outputs. Keep those `if:` expressions inside the subset it models (`needs.<job>.outputs/result`, `github.event_name`, `==`, `!=`, `!`, `&&`, `||`, status functions); anything else is reported as unverifiable.
 
 ### 4. PR Smoke vs. Release Matrix Separation
 - **Pull Request Stage**: Fast, low-latency smoke testing (compilation, linter, core unit tests, fast unsafe invariants).
@@ -292,7 +294,7 @@ Use this checklist when creating a new project or updating an existing sister re
 | Repository | Primary Technology | Key Quality Gates | Path Filter Configuration |
 | :--- | :--- | :--- | :--- |
 | **`expanse`** | Rust 2024 / C ABI | 1. Callgrind instruction gate<br/>2. Tier 1 Fast Miri smoke ($\le 50\text{s}$)<br/>3. Loom atomic race model tests<br/>4. 32-Bit Bare-Metal Cross-Compiles (`RV32IMAC` & `Cortex-M4`)<br/>5. Memory density assertions ($\le 0.40\text{ B/key}$)<br/>6. Differential stock-oracle verification | `crates/**`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain*`, `.github/workflows/ci.yml` |
-| **`php-judy`** | C / PHP Extension | 1. Interleaved dual-arm benchmark gate (`bench-gate.php`)<br/>2. Valgrind zero-leak check (`--leak-check=full --error-exitcode=1 php run-tests.php -P`)<br/>3. PHP 8.1..8.5 matrix + ZTS<br/>4. Compiler warning zero-tolerance (`set -o pipefail` + first-party filter)<br/>5. Memory ceiling ($\le 25\text{ B/key}$) | `php_judy.*`, `judy_*.*`, `config.m4`, `tests/**`, `.github/workflows/**`, `libjudy/**`, `tools/**` |
+| **`php-judy`** | C / PHP Extension | 1. Interleaved dual-arm benchmark gate (`bench-gate.php`)<br/>2. Valgrind zero-leak check (`--leak-check=full --error-exitcode=1 php run-tests.php -P`)<br/>3. PHP 8.1..8.5 matrix + ZTS<br/>4. Compiler warning zero-tolerance (`set -o pipefail` + first-party filter)<br/>5. Memory ceiling ($\le 25\text{ B/key}$) | Per-job mapping in `detect-changes` (`.github/workflows/ci.yml`): source → full matrix; `tests/**` → Linux matrix + Windows min/max; `tools/**` → harnesses + fuzz; `package.xml` → PECL; edited `ci.yml` job → that job |
 | **`judy-cache`** | C / PHP Extension | 1. Runtime dependency version floor check (`judy_version() >= 2.6.0`)<br/>2. APCu & Redis YCSB comparison gate<br/>3. Multithreaded churn thrash gate (0 deadlocks)<br/>4. GC compaction pause ceiling ($\le 1.0\text{ ms}$) | `src/**`, `include/**`, `tests/**` |
 | **`judy-polyfill`** | Pure PHP | 1. PHPUnit across PHP 8.1..8.5<br/>2. PHPStan Level 9 + Psalm<br/>3. Infection Mutation Testing (MSI $\ge 90\%$) | `src/**`, `tests/**`, `composer.json` |
 | **`yaml-workflows`** | Python / GitHub Actions | 1. `actionlint` schema validation<br/>2. ShellCheck on inline action scripts<br/>3. Smart matrix pruning (full versions on Linux, LTS only on Windows/macOS) | `*.yml`, `actions/**`, `scripts/**` |
@@ -302,7 +304,7 @@ Use this checklist when creating a new project or updating an existing sister re
 - [ ] 1. Define `concurrency` with `cancel-in-progress: ${{ github.event_name == 'pull_request' }}`.
 - [ ] 2. Create `detect-changes` job with `dorny/paths-filter@v3`.
 - [ ] 3. Gate downstream test jobs on `needs: [detect-changes]` and `if: needs.detect-changes.outputs.<subsystem> == 'true'`.
-- [ ] 4. Create `ci-gate` rollup job evaluating `${{ toJson(needs) }}`.
+- [ ] 4. Create `ci-gate` rollup job evaluating `${{ toJson(needs) }}`, and pass it as `ci_context` to the discipline action (`ci-skip-set`).
 - [ ] 5. Set up deterministic regression gating (Callgrind instructions or interleaved dual-arm ratios).
 - [ ] 6. Enforce explicit `timeout-minutes: 10..20` on every job.
 - [ ] 7. Configure branch protection to require **only** `ci-gate`.
