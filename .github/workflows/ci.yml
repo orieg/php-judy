@@ -123,9 +123,12 @@ jobs:
         with:
           fetch-depth: 0
       - name: Run Discipline Diff Sentinel
-        uses: orieg/discipline@495a00e2e134e4a166603fb8cd3c0802cd3741ba # v0.12.0
+        uses: orieg/discipline@712239d775a189ce87a90ec9dd0395315146d5eb # v0.14.1
         with:
           fail_on_warnings: true
+          # Judge the change with main's discipline.toml, so a PR cannot loosen
+          # the policy that judges it (config-integrity still reports the edit).
+          policy_from: base
 
   build-linux:
     name: Core / Linux Matrix (PHP ${{ matrix.php-version }})
@@ -972,7 +975,7 @@ jobs:
           fetch-depth: 0
 
       - name: Verify package manifest and version lockstep
-        uses: orieg/discipline@495a00e2e134e4a166603fb8cd3c0802cd3741ba # v0.12.0
+        uses: orieg/discipline@712239d775a189ce87a90ec9dd0395315146d5eb # v0.14.1
         id: discipline-manifest
         with:
           enable: manifest-sync,version-lockstep
@@ -992,7 +995,7 @@ jobs:
         # libjudy/ ships. This asserts the other direction: tools/ and
         # research/ must not. Both were absent from package.xml only by
         # happenstance until this gate existed.
-        uses: orieg/discipline@495a00e2e134e4a166603fb8cd3c0802cd3741ba # v0.12.0
+        uses: orieg/discipline@712239d775a189ce87a90ec9dd0395315146d5eb # v0.14.1
         with:
           enable: archive-contents
           fail_on_warnings: true

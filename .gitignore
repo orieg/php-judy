@@ -50,5 +50,9 @@ temp_update/
 __pycache__/
 *.pyc
 
-# Claude Code session files
-.claude/
+# Claude Code session files. The discipline hook configuration is shared and
+# tracked; everything else under .claude/ (worktrees, local settings, scratch)
+# stays local.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/

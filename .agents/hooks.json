@@ -1,0 +1,18 @@
+{
+  "discipline": {
+    "SessionStart": [
+      {
+        "command": "command -v discipline >/dev/null 2>&1 && { echo '{}'; exit 0; }; echo '{\"injectSteps\":[{\"ephemeralMessage\":\"discipline is not installed or not on PATH, so the discipline hook in this repository cannot check your changes. Tell the user before you finish, so they can install it (https://orieg.github.io/discipline/).\"}]}'",
+        "timeout": 10,
+        "type": "command"
+      }
+    ],
+    "Stop": [
+      {
+        "command": "discipline hook run --agent agy --observe",
+        "timeout": 120,
+        "type": "command"
+      }
+    ]
+  }
+}
