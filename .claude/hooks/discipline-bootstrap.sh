@@ -7,7 +7,7 @@ set -u
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
 command -v discipline >/dev/null 2>&1 && exit 0
 
-version="v0.14.1"
+version="v0.14.2"
 say() { echo "discipline bootstrap: $*" >&2; }
 case "$(uname -m)" in
   x86_64|amd64) arch="x86_64" ;;
@@ -32,6 +32,17 @@ mkdir -p "${dir}/x" "${HOME}/.local/bin"
 if tar -xzf "${dir}/${asset}" -C "${dir}/x" \
   && install -m 0755 "${dir}/x/discipline" "${HOME}/.local/bin/discipline"; then
   say "installed $("${HOME}/.local/bin/discipline" --version)"
+  # The hooks call `discipline` by name: put its directory on PATH for the session.
+  case ":${PATH}:" in
+    *":${HOME}/.local/bin:"*) ;;
+    *)
+      if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+        echo "export PATH=\"${HOME}/.local/bin:\${PATH}\"" >> "${CLAUDE_ENV_FILE}"
+      else
+        say "${HOME}/.local/bin is not on PATH; the hooks cannot find discipline"
+      fi
+      ;;
+  esac
 else
   say "could not unpack ${asset}; the hooks cannot check this session"
 fi

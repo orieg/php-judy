@@ -117,13 +117,18 @@ jobs:
     name: Discipline Sentinel
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Read-only access to pull requests: on push, the `merged-pr-body`
+    # directive source reads the body of the PR the commit merged through.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Run Discipline Diff Sentinel
-        uses: orieg/discipline@712239d775a189ce87a90ec9dd0395315146d5eb # v0.14.1
+        uses: orieg/discipline@f251807952d0fb75e6b3a0a269edc96bf9a0d7b4 # v0.14.2
         with:
           fail_on_warnings: true
           # Judge the change with main's discipline.toml, so a PR cannot loosen
@@ -968,6 +973,11 @@ jobs:
     if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Read-only access to pull requests: on push, the `merged-pr-body`
+    # directive source reads the body of the PR the commit merged through.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -975,7 +985,7 @@ jobs:
           fetch-depth: 0
 
       - name: Verify package manifest and version lockstep
-        uses: orieg/discipline@712239d775a189ce87a90ec9dd0395315146d5eb # v0.14.1
+        uses: orieg/discipline@f251807952d0fb75e6b3a0a269edc96bf9a0d7b4 # v0.14.2
         id: discipline-manifest
         with:
           enable: manifest-sync,version-lockstep
@@ -995,7 +1005,7 @@ jobs:
         # libjudy/ ships. This asserts the other direction: tools/ and
         # research/ must not. Both were absent from package.xml only by
         # happenstance until this gate existed.
-        uses: orieg/discipline@712239d775a189ce87a90ec9dd0395315146d5eb # v0.14.1
+        uses: orieg/discipline@f251807952d0fb75e6b3a0a269edc96bf9a0d7b4 # v0.14.2
         with:
           enable: archive-contents
           fail_on_warnings: true
