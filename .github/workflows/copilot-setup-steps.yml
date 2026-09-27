@@ -1,0 +1,29 @@
+# Written by `discipline hook install --agent copilot --cloud-agent`.
+# Copilot cloud agent runs this job before it starts working: it reads the
+# repository's .github/hooks/ too, and a hook whose command is missing is skipped.
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+permissions:
+  contents: read
+
+jobs:
+  # The job must be called `copilot-setup-steps`, or Copilot does not run it.
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Install discipline for Copilot's hooks
+        uses: orieg/discipline@f251807952d0fb75e6b3a0a269edc96bf9a0d7b4 # v0.14.2
+        with:
+          install_only: 'true'
