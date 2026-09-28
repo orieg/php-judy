@@ -276,7 +276,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Run Discipline Diff Sentinel
-        uses: orieg/discipline@f251807952d0fb75e6b3a0a269edc96bf9a0d7b4 # v0.14.2
+        uses: orieg/discipline@410daf24d6bedc10b5ef8137de6ccb2dace767b4 # v0.14.4
         with:
           fail_on_warnings: true
           # Judge the change with main's discipline.toml, so a PR cannot loosen
@@ -1127,7 +1127,7 @@ jobs:
           fetch-depth: 0
 
       - name: Verify package manifest and version lockstep
-        uses: orieg/discipline@f251807952d0fb75e6b3a0a269edc96bf9a0d7b4 # v0.14.2
+        uses: orieg/discipline@410daf24d6bedc10b5ef8137de6ccb2dace767b4 # v0.14.4
         id: discipline-manifest
         with:
           enable: manifest-sync,version-lockstep
@@ -1147,7 +1147,7 @@ jobs:
         # libjudy/ ships. This asserts the other direction: tools/ and
         # research/ must not. Both were absent from package.xml only by
         # happenstance until this gate existed.
-        uses: orieg/discipline@f251807952d0fb75e6b3a0a269edc96bf9a0d7b4 # v0.14.2
+        uses: orieg/discipline@410daf24d6bedc10b5ef8137de6ccb2dace767b4 # v0.14.4
         with:
           enable: archive-contents
           fail_on_warnings: true
@@ -2826,7 +2826,7 @@ jobs:
           fetch-depth: 0
       - name: Skip set matches each job's if (ci-skip-set)
         if: ${{ !cancelled() }}
-        uses: orieg/discipline@f251807952d0fb75e6b3a0a269edc96bf9a0d7b4 # v0.14.2
+        uses: orieg/discipline@410daf24d6bedc10b5ef8137de6ccb2dace767b4 # v0.14.4
         with:
           suite: integrity
           fail_on_warnings: true
