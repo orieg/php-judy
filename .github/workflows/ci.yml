@@ -43,22 +43,78 @@ permissions:
   contents: read
 
 jobs:
+  # Maps what a change touches to the jobs that change can affect, so a pull
+  # request runs only those (#214). Actions concurrency is an account-wide
+  # pool shared with this owner's other repositories; a full run here is ~35
+  # jobs, and before this mapping 23 of 40 merged PRs ran all of them without
+  # touching a single extension or libJudy source file.
+  #
+  # Every job below reads one named output, `needs.detect-changes.outputs.<job>`,
+  # and nothing else, so its `if:` states exactly what it depends on and the
+  # ci-skip-set check in ci-gate can verify each skip against these outputs.
+  #
+  # The full matrix runs, on every platform, when any of these holds:
+  #   - the event is not a pull request (push to main; nightly.yml is separate);
+  #   - the pull request carries the `ci:full` label (read live from the API,
+  #     so add the label and re-run the workflow -- no push needed);
+  #   - an extension or libJudy source, config.*, configure* or Makefile* changed;
+  #   - ci.yml changed outside `jobs:`, or the detect-changes job itself changed.
+  #
+  # Otherwise each path class adds the jobs it can affect:
+  #   tests/**                  Linux matrix; Expanse, Windows, Windows Expanse at
+  #                             min + max PHP; Alpine; both assertion builds; PECL
+  #   examples/**, scripts/**   Linux PHP 8.4 (API.md check, release comparison,
+  #                             benchmarks); Windows min + max, because tests/
+  #                             run both directories; PECL, which ships them
+  #   baselines/**              Linux PHP 8.4 and the report; PECL
+  #   package.xml, composer.json  PECL packaging; also any deleted or renamed
+  #                             file package.xml ships (docs included)
+  #   tools/**, research/**     C harnesses, differential fuzz
+  #   Dockerfile.alpine         Alpine
+  #   .github/workflows/ci.yml  each job whose definition changed (comments are
+  #                             not part of a definition), at its full matrix
+  #   anything else             nothing: Discipline Sentinel and ci-gate only
+  #                             (discipline.toml, other workflows, docs)
+  #
+  # The PHP versions of every matrix are defined once, below (PHP_REQUIRED,
+  # PHP_PRERELEASE); the matrix jobs take their `strategy.matrix` from here.
   detect-changes:
     name: Subsystems / Change Detection
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # pull-requests: read -- the live label list of the pull request (ci:full).
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
-      php: ${{ steps.filter.outputs.php }}
-      c: ${{ steps.filter.outputs.c }}
-      code: ${{ steps.filter.outputs.code }}
-      docs: ${{ steps.filter.outputs.docs }}
+      full: ${{ steps.plan.outputs.full }}
+      build-linux: ${{ steps.plan.outputs.build-linux }}
+      build-linux-expanse: ${{ steps.plan.outputs.build-linux-expanse }}
+      build-alpine: ${{ steps.plan.outputs.build-alpine }}
+      debug-mirror-assertions: ${{ steps.plan.outputs.debug-mirror-assertions }}
+      debug-php-assertions: ${{ steps.plan.outputs.debug-php-assertions }}
+      build-harnesses: ${{ steps.plan.outputs.build-harnesses }}
+      differential-fuzz: ${{ steps.plan.outputs.differential-fuzz }}
+      validate-pecl: ${{ steps.plan.outputs.validate-pecl }}
+      build-windows: ${{ steps.plan.outputs.build-windows }}
+      build-windows-expanse: ${{ steps.plan.outputs.build-windows-expanse }}
+      guard-32bit: ${{ steps.plan.outputs.guard-32bit }}
+      report-results: ${{ steps.plan.outputs.report-results }}
+      linux-matrix: ${{ steps.plan.outputs.linux-matrix }}
+      linux-expanse-matrix: ${{ steps.plan.outputs.linux-expanse-matrix }}
+      windows-matrix: ${{ steps.plan.outputs.windows-matrix }}
+      windows-expanse-matrix: ${{ steps.plan.outputs.windows-expanse-matrix }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # On a pull request HEAD is the merge commit and HEAD^1 the base it
+          # merges into, so HEAD^1 holds the ci.yml the change is measured against.
+          fetch-depth: 2
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
         with:
           filters: |
-            code:
+            src:
               - 'php_judy.*'
               - 'judy_*.*'
               - 'Judy.stub.php'
@@ -66,52 +122,144 @@ jobs:
               - 'config.*'
               - 'configure*'
               - 'Makefile*'
-              - 'Dockerfile*'
               - 'libjudy/**'
+            tests:
               - 'tests/**'
+            examples_scripts:
               - 'examples/**'
               - 'scripts/**'
-              - 'tools/**'
-              - 'research/**'
+            baselines:
               - 'baselines/**'
+            pecl:
               - 'package.xml'
               - 'composer.json'
-              - 'discipline.toml'
-              - '.github/workflows/ci.yml'
-              - '.github/workflows/bench-gate.yml'
-              - '.github/workflows/nightly.yml'
-              - '.github/workflows/codeql.yml'
-              - '.github/codeql/**'
-            php:
-              - 'php_judy.*'
-              - 'judy_*.*'
-              - 'Judy.stub.php'
-              - 'Judy_arginfo.h'
-              - 'config.*'
-              - 'configure*'
-              - 'tests/**'
-              - 'examples/**'
-              - 'scripts/**'
-              - 'package.xml'
-              - 'composer.json'
-              - '.github/workflows/ci.yml'
-            c:
-              - 'php_judy.*'
-              - 'judy_*.*'
-              - 'Judy_arginfo.h'
-              - 'libjudy/**'
-              - 'config.*'
-              - 'configure*'
+            harness:
               - 'tools/**'
               - 'research/**'
+            alpine:
+              - 'Dockerfile.alpine'
+            ci_workflow:
               - '.github/workflows/ci.yml'
-            docs:
-              - 'docs/**'
-              - '*.md'
-              - 'LICENSE'
-              - 'CREDITS'
-              - 'llms.txt'
-              - 'THIRD-PARTY.md'
+
+      - name: Map the change to the jobs it can affect
+        id: plan
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+          SRC: ${{ steps.filter.outputs.src }}
+          TESTS: ${{ steps.filter.outputs.tests }}
+          EXAMPLES_SCRIPTS: ${{ steps.filter.outputs.examples_scripts }}
+          BASELINES: ${{ steps.filter.outputs.baselines }}
+          PECL: ${{ steps.filter.outputs.pecl }}
+          HARNESS: ${{ steps.filter.outputs.harness }}
+          ALPINE: ${{ steps.filter.outputs.alpine }}
+          CI_WORKFLOW: ${{ steps.filter.outputs.ci_workflow }}
+          # Required PHP versions, oldest to newest, and the pre-release one:
+          # continue-on-error, built from setup-php's nightly on Linux and a
+          # php-windows-builder QA build on Windows. Make it required once it
+          # reaches RC/GA, and update EXPERIMENTAL in report-results with it.
+          PHP_REQUIRED: '["8.1", "8.2", "8.3", "8.4", "8.5"]'
+          PHP_PRERELEASE: '8.6'
+        run: |
+          set -euo pipefail
+          WF=.github/workflows/ci.yml
+
+          full=false
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            full=true; echo "full: event is $EVENT_NAME"
+          else
+            # Captured before matching: grep -q exiting early would SIGPIPE gh
+            # and, under pipefail, read as "label absent".
+            labels="$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.labels[].name')"
+            if printf '%s\n' "$labels" | grep -qxF 'ci:full'; then
+              full=true; echo "full: ci:full label"
+            elif [ "$SRC" = "true" ]; then
+              full=true; echo "full: extension or libJudy source changed"
+            fi
+          fi
+
+          # Jobs whose definition in ci.yml differs from the base (compared as
+          # parsed YAML, so comment and formatting edits do not count).
+          changed=" "
+          if [ "$full" = "false" ] && [ "$CI_WORKFLOW" = "true" ]; then
+            git show HEAD^1:"$WF" > "$RUNNER_TEMP/ci.base.yml"
+            def() { yq -o=json -I=0 "$1" "$2"; }
+            if [ "$(def 'del(.jobs)' "$RUNNER_TEMP/ci.base.yml")" != "$(def 'del(.jobs)' "$WF")" ]; then
+              full=true; echo "full: ci.yml changed outside jobs:"
+            else
+              for job in $(yq '.jobs | keys | .[]' "$WF"); do
+                if [ "$(def ".jobs[\"$job\"]" "$RUNNER_TEMP/ci.base.yml")" != "$(def ".jobs[\"$job\"]" "$WF")" ]; then
+                  changed+="$job "
+                fi
+              done
+              echo "ci.yml jobs changed:${changed% }"
+              case "$changed" in *" detect-changes "*) full=true; echo "full: detect-changes changed";; esac
+            fi
+          fi
+          edited() { case "$changed" in *" $1 "*) return 0;; esac; return 1; }
+
+          # `pecl package` fails on a file package.xml names but the tree no
+          # longer has, whatever directory it is in (docs included).
+          shipped_gone=false
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            gone="$(git diff --name-only --no-renames --diff-filter=D HEAD^1 HEAD)"
+            shipped="$(grep -oE '<file [^>]*name="[^"]+"' package.xml | sed -E 's/.*name="([^"]+)"/\1/')"
+            if [ -n "$gone" ] && grep -qxF -f <(printf '%s\n' "$gone") <<<"$shipped"; then
+              shipped_gone=true; echo "validate-pecl: a file package.xml ships was deleted or renamed"
+            fi
+          fi
+
+          any() { for v in "$@"; do [ "$v" = "true" ] && { echo true; return; }; done; echo false; }
+          ed() { edited "$1" && echo true || echo false; }
+
+          linux=$(any "$full" "$TESTS" "$EXAMPLES_SCRIPTS" "$BASELINES" "$(ed build-linux)" "$(ed report-results)")
+          linux_all=$(any "$full" "$TESTS" "$(ed build-linux)")
+          linux_expanse=$(any "$full" "$TESTS" "$(ed build-linux-expanse)")
+          linux_expanse_all=$(any "$full" "$(ed build-linux-expanse)")
+          windows=$(any "$full" "$TESTS" "$EXAMPLES_SCRIPTS" "$(ed build-windows)")
+          windows_all=$(any "$full" "$(ed build-windows)")
+          windows_expanse=$(any "$full" "$TESTS" "$(ed build-windows-expanse)")
+          windows_expanse_all=$(any "$full" "$(ed build-windows-expanse)")
+
+          # Matrices. "all" = every required version plus the pre-release one
+          # (experimental); otherwise min + max required only, or PHP 8.4 alone
+          # for build-linux, the version its API.md check, release comparison
+          # and headline benchmark run on.
+          all=$(jq -c --arg pre "$PHP_PRERELEASE" '. + [$pre]' <<<"$PHP_REQUIRED")
+          ends=$(jq -c '[first, last]' <<<"$PHP_REQUIRED")
+          matrix() { # <all|ends|8.4> <windows?>
+            local versions
+            case "$1" in all) versions=$all;; ends) versions=$ends;; *) versions="[\"$1\"]";; esac
+            jq -nc --argjson v "$versions" --arg pre "$PHP_PRERELEASE" --arg all "$1" --arg win "$2" '
+              ({"php-version": $pre, "experimental": true}
+                + (if $win == "true" then {"arch": "x64", "ts": "nts"} else {} end)) as $x
+              | {"php-version": $v}
+              + (if $win == "true" then {"arch": ["x64"], "ts": ["nts"]} else {} end)
+              + (if $all == "all" then {"include": [$x]} else {} end)'
+          }
+
+          {
+            echo "full=$full"
+            echo "build-linux=$linux"
+            echo "build-linux-expanse=$linux_expanse"
+            echo "build-alpine=$(any "$full" "$TESTS" "$ALPINE" "$(ed build-alpine)")"
+            echo "debug-mirror-assertions=$(any "$full" "$TESTS" "$(ed debug-mirror-assertions)")"
+            echo "debug-php-assertions=$(any "$full" "$TESTS" "$(ed debug-php-assertions)")"
+            echo "build-harnesses=$(any "$full" "$HARNESS" "$(ed build-harnesses)")"
+            echo "differential-fuzz=$(any "$full" "$HARNESS" "$(ed differential-fuzz)")"
+            echo "validate-pecl=$(any "$full" "$TESTS" "$EXAMPLES_SCRIPTS" "$BASELINES" "$PECL" "$shipped_gone" "$(ed validate-pecl)")"
+            echo "build-windows=$windows"
+            echo "build-windows-expanse=$windows_expanse"
+            echo "guard-32bit=$(any "$full" "$(ed guard-32bit)")"
+            echo "report-results=$(any "$linux" "$linux_expanse" "$windows" "$windows_expanse" "$(ed report-results)")"
+            echo "linux-matrix=$(matrix "$([ "$linux_all" = true ] && echo all || echo 8.4)" false)"
+            echo "linux-expanse-matrix=$(matrix "$([ "$linux_expanse_all" = true ] && echo all || echo ends)" false)"
+            echo "windows-matrix=$(matrix "$([ "$windows_all" = true ] && echo all || echo ends)" true)"
+            echo "windows-expanse-matrix=$(matrix "$([ "$windows_expanse_all" = true ] && echo all || echo ends)" true)"
+          } | tee -a "$GITHUB_OUTPUT"
 
   discipline:
     name: Discipline Sentinel
@@ -138,7 +286,7 @@ jobs:
   build-linux:
     name: Core / Linux Matrix (PHP ${{ matrix.php-version }})
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    if: needs.detect-changes.outputs.build-linux == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     # Experimental (pre-release) PHP versions may fail without blocking CI.
@@ -146,13 +294,9 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 6
-      matrix:
-        php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
-        include:
-          # PHP 8.6 is pre-release (nightly build via setup-php); make it
-          # required once 8.6 reaches RC/GA.
-          - php-version: "8.6"
-            experimental: true
+      # PHP versions and PR narrowing come from detect-changes (PHP_REQUIRED,
+      # PHP_PRERELEASE); the pre-release entry carries experimental: true.
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.linux-matrix) }}
 
     steps:
       - name: Stagger matrix runner startup jitter
@@ -303,18 +447,16 @@ jobs:
   build-linux-expanse:
     name: Compat / Linux with Expanse Drop-in (PHP ${{ matrix.php-version }})
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    if: needs.detect-changes.outputs.build-linux-expanse == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
       max-parallel: 6
-      matrix:
-        php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
-        include:
-          - php-version: "8.6"
-            experimental: true
+      # PHP versions and PR narrowing come from detect-changes (PHP_REQUIRED,
+      # PHP_PRERELEASE); the pre-release entry carries experimental: true.
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.linux-expanse-matrix) }}
 
     steps:
       - name: Stagger matrix runner startup jitter
@@ -390,7 +532,7 @@ jobs:
     # glibc-linked and does not execute inside an Alpine container.
     name: Compat / Alpine musl Matrix (PHP 8.4)
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    if: needs.detect-changes.outputs.build-alpine == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -424,7 +566,7 @@ jobs:
     # requires the abort to happen.
     name: Safety / Mirror Consistency Assertions (PHP 8.4)
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    if: needs.detect-changes.outputs.debug-mirror-assertions == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -602,7 +744,7 @@ jobs:
     # source here and cached on its version.
     name: Safety / Debug PHP Arginfo & Invariants (PHP 8.4)
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    if: needs.detect-changes.outputs.debug-php-assertions == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -770,7 +912,7 @@ jobs:
     # an unfired gate is not a known-working gate.
     name: Safety / C Harnesses & ASan/UBSan Smoke Grid
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    if: needs.detect-changes.outputs.build-harnesses == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -848,7 +990,7 @@ jobs:
     # stay a local / pre-release tool.
     name: Safety / Differential Fuzz vs C++ stdlib Oracle
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    if: needs.detect-changes.outputs.differential-fuzz == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -970,7 +1112,7 @@ jobs:
   validate-pecl:
     name: Core / PECL Packaging & Version Parity
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    if: needs.detect-changes.outputs.validate-pecl == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # Read-only access to pull requests: on push, the `merged-pr-body`
@@ -1060,7 +1202,7 @@ jobs:
   build-windows:
     name: Core / Windows MSVC Matrix (PHP ${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }})
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    if: needs.detect-changes.outputs.build-windows == 'true'
     runs-on: windows-latest
     timeout-minutes: 25
     # Experimental (pre-release) PHP versions may fail without blocking CI.
@@ -1068,17 +1210,9 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 6
-      matrix:
-        php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
-        arch: ["x64"]
-        ts: ["nts"]
-        include:
-          # PHP 8.6 is pre-release (QA build via php-windows-builder); make
-          # it required once 8.6 reaches RC/GA.
-          - php-version: "8.6"
-            arch: "x64"
-            ts: "nts"
-            experimental: true
+      # PHP versions and PR narrowing come from detect-changes (PHP_REQUIRED,
+      # PHP_PRERELEASE); the pre-release entry carries experimental: true.
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.windows-matrix) }}
 
     steps:
       - name: Stagger matrix runner startup jitter
@@ -1211,22 +1345,16 @@ jobs:
   build-windows-expanse:
     name: Compat / Windows with Expanse Drop-in (PHP ${{ matrix.php-version }}-${{ matrix.arch }}-${{ matrix.ts }})
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    if: needs.detect-changes.outputs.build-windows-expanse == 'true'
     runs-on: windows-latest
     timeout-minutes: 25
     continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
       max-parallel: 6
-      matrix:
-        php-version: ["8.1", "8.2", "8.3", "8.4", "8.5"]
-        arch: ["x64"]
-        ts: ["nts"]
-        include:
-          - php-version: "8.6"
-            arch: "x64"
-            ts: "nts"
-            experimental: true
+      # PHP versions and PR narrowing come from detect-changes (PHP_REQUIRED,
+      # PHP_PRERELEASE); the pre-release entry carries experimental: true.
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.windows-expanse-matrix) }}
 
     steps:
       - name: Stagger matrix runner startup jitter
@@ -1319,7 +1447,7 @@ jobs:
   guard-32bit:
     name: Safety / 32-bit Refusal Guard (Negative Control)
     needs: [detect-changes]
-    if: needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request'
+    if: needs.detect-changes.outputs.guard-32bit == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -1431,7 +1559,7 @@ jobs:
   report-results:
     name: Core / Consolidated Test & Benchmark Report
     needs: [detect-changes, build-linux, build-windows, build-linux-expanse, build-windows-expanse]
-    if: (needs.detect-changes.outputs.code == 'true' || needs.detect-changes.outputs.php == 'true' || needs.detect-changes.outputs.c == 'true' || github.event_name != 'pull_request') && !cancelled()
+    if: needs.detect-changes.outputs.report-results == 'true' && !cancelled()
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -2646,13 +2774,19 @@ jobs:
       - guard-32bit
       - report-results
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    # Read-only access to pull requests: on push, the `merged-pr-body`
+    # directive source reads the body of the PR the commit merged through.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Evaluate Dependency Statuses
         shell: bash
+        env:
+          STATUSES: ${{ toJson(needs) }}
         run: |
           echo "Evaluating CI matrix health..."
-          STATUSES='${{ toJson(needs) }}'
           FAILED=()
           SKIPPED=()
           PASSED=()
@@ -2679,3 +2813,22 @@ jobs:
 
           echo "::notice::All applicable CI checks passed (or were cleanly skipped by path filters)."
           exit 0
+
+      # The step above has to count `skipped` as passing. This one checks each
+      # skip was earned: every job in `needs` was skipped exactly when its `if:`
+      # is false under the detect-changes outputs observed in this run, so a
+      # broken filter that emits all-false cannot render a green gate over a
+      # run that verified nothing.
+      - name: Checkout code
+        if: ${{ !cancelled() }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Skip set matches each job's if (ci-skip-set)
+        if: ${{ !cancelled() }}
+        uses: orieg/discipline@f251807952d0fb75e6b3a0a269edc96bf9a0d7b4 # v0.14.2
+        with:
+          suite: integrity
+          fail_on_warnings: true
+          policy_from: base
+          ci_context: ${{ toJson(needs) }}

@@ -53,6 +53,14 @@ enabled = true
 pin_actions = false # php-judy CI pins official actions by tag (@v4, @v2)
 rollup_job = "ci-gate"
 
+[gates.ci-skip-set]
+# ci-gate passes `toJson(needs)`: every PR-narrowed job must be skipped exactly
+# when its `if:` reads false from the detect-changes outputs (#214).
+enabled = true
+workflow = ".github/workflows/ci.yml"
+change_job = "detect-changes"
+unconditional_jobs = ["detect-changes", "discipline"]
+
 [gates.version-lockstep]
 enabled = true
 [[gates.version-lockstep.groups]]
@@ -117,5 +125,3 @@ paths = [
     "**/*bench*.txt",
     "baselines/latest.json",
 ]
-
-
