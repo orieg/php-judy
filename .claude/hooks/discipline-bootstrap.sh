@@ -7,7 +7,7 @@ set -u
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
 command -v discipline >/dev/null 2>&1 && exit 0
 
-version="v0.14.2"
+version="v0.14.4"
 say() { echo "discipline bootstrap: $*" >&2; }
 case "$(uname -m)" in
   x86_64|amd64) arch="x86_64" ;;
