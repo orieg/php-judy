@@ -471,13 +471,14 @@ PHP_INI_END()
 
 /* {{{ Embedded-NUL key precondition.
 
-   Every string-keyed type orders its keys through a JudySL trie: the two plain
-   trie types store the value in it directly, and the four *_HASH / *_ADAPTIVE
-   types keep a JudySL `key_index` alongside their length-prefixed value store.
+   Every string-keyed type orders its keys through a JudySL trie: the three
+   plain trie types (STRING_TO_INT, STRING_TO_MIXED, STRING_TO_ENTRY) store
+   the value in it directly, and the four *_HASH / *_ADAPTIVE types keep a
+   JudySL `key_index` alongside their length-prefixed value store.
    A JudySL index is a NUL-terminated C string by construction, so a key
    containing 0x00 is truncated at the first one. That is silent data loss on a
    write ("ab\0cd" and "ab" become one key), a wrong answer on a plain-trie
-   read, and a wrong bound on every ordered/range operation of all six types.
+   read, and a wrong bound on every ordered/range operation of all seven types.
 
    Only 0x00 is affected. Every other byte value, 0x01 through 0xFF, is stored,
    compared and ordered as an unsigned byte — high-byte keys are binary-safe and
@@ -486,7 +487,7 @@ PHP_INI_END()
    There is no representation to fall back on: JudyHS accepts a NUL because it
    is length-prefixed, JudySL cannot be made to. So a NUL byte is rejected at
    every entry point that takes a caller-supplied string key, uniformly across
-   the six types, rather than accepted by some and truncated by others.
+   the seven types, rather than accepted by some and truncated by others.
    See GitHub issue #117. */
 static const char *judy_nul_key_error(judy_type type)
 {
@@ -737,7 +738,8 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 		*mirror_out = NULL;
 	}
 
-	/* One check for all six types rather than one per case: every one of them
+	/* One check for all seven string-keyed types rather than one per case:
+	   every one of them
 	   indexes through a JudySL (the trie itself, or the key_index), which
 	   cannot hold a key past its first NUL. See judy_nul_key_error(). */
 	if (JUDY_UNLIKELY(judy_reject_nul_key(intern->type, (const char *)key, (size_t)klen))) {
@@ -1038,8 +1040,9 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 	} else {
 		if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED
 				|| intern->type == TYPE_STRING_TO_MIXED_HASH || intern->type == TYPE_STRING_TO_INT_HASH
-				|| intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE || intern->type == TYPE_STRING_TO_INT_ADAPTIVE) {
-			zend_throw_exception(NULL, "Judy STRING_TO_INT, STRING_TO_MIXED, STRING_TO_MIXED_HASH, STRING_TO_INT_HASH, STRING_TO_MIXED_ADAPTIVE and STRING_TO_INT_ADAPTIVE values cannot be set without specifying a key", 0);
+				|| intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE || intern->type == TYPE_STRING_TO_INT_ADAPTIVE
+				|| intern->type == TYPE_STRING_TO_ENTRY) {
+			zend_throw_exception(NULL, "Judy STRING_TO_INT, STRING_TO_MIXED, STRING_TO_MIXED_HASH, STRING_TO_INT_HASH, STRING_TO_MIXED_ADAPTIVE, STRING_TO_INT_ADAPTIVE and STRING_TO_ENTRY values cannot be set without specifying a key", 0);
 			return FAILURE;
 		}
 	}
@@ -5088,6 +5091,19 @@ PHP_METHOD(Judy, equals)
 				if (!PVal2) RETURN_FALSE;
 				if (intern->type == TYPE_STRING_TO_INT) {
 					if (JUDY_LVAL_READ(PVal1) != JUDY_LVAL_READ(PVal2)) RETURN_FALSE;
+				} else if (JUDY_IS_ENTRY_VALUE(intern)) {
+					/* ENTRY slots hold judy_cache_entry_t*, not zval*: materialise
+					   both sides via judy_value_from_slot() (get()-consistent:
+					   expired reads as NULL on both sides) and compare the
+					   values, never the raw slots. */
+					zval ev1, ev2;
+					int identical;
+					judy_value_from_slot(intern, PVal1, &ev1);
+					judy_value_from_slot(intern, PVal2, &ev2);
+					identical = zend_is_identical(&ev1, &ev2);
+					zval_ptr_dtor(&ev1);
+					zval_ptr_dtor(&ev2);
+					if (!identical) RETURN_FALSE;
 				} else {
 					if (!zend_is_identical(JUDY_MVAL_READ(PVal1), JUDY_MVAL_READ(PVal2))) RETURN_FALSE;
 				}
@@ -5244,11 +5260,16 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 			}
 
 			if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
-				if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_INT_HASH) {
-					ZVAL_LONG(&args[0], JUDY_LVAL_READ(VValue));
-				} else {
-					ZVAL_COPY(&args[0], JUDY_MVAL_READ(VValue));
-				}
+				/* Materialisation on this path goes through
+				   judy_value_from_slot(), which owns the per-type branches
+				   (ENTRY cache entries, MIXED zvals, INT longs) — so a type
+				   added on this path cannot drift into reading a slot as
+				   the wrong pointer type, which is how STRING_TO_ENTRY
+				   SIGSEGV'd. The adaptive and integer-keyed branches above
+				   still hand-roll, but both are type-excluded from ENTRY
+				   (judy_init_type_flags); routing them too is recorded in
+				   the Batch-4 duplication inventory. */
+				judy_value_from_slot(intern, VValue, &args[0]);
 
 				fci->param_count = 2;
 				fci->params = args;
@@ -5894,8 +5915,15 @@ PHP_METHOD(Judy, increment)
 		}
 		if (PExisting == NULL) intern->counter++;
 		zend_long old_val = JUDY_LVAL_READ(PValue);
-		JUDY_LVAL_WRITE(PValue, old_val + amount);
-		RETURN_LONG(old_val + amount);
+		/* Boundary arithmetic wraps: compute in zend_ulong and reinterpret the
+		   two's-complement bit pattern. Plain `old_val + amount` is signed
+		   overflow, which is undefined behaviour — the compiler may assume it
+		   never happens and fold the edge case arbitrarily at -O3/-flto.
+		   (A throw was the alternative contract; see increment_overflow_001.phpt
+		   for the ruling recorded at Gate 1.) */
+		zend_long new_val = (zend_long)((zend_ulong)old_val + (zend_ulong)amount);
+		JUDY_LVAL_WRITE(PValue, new_val);
+		RETURN_LONG(new_val);
 
 	} else if (intern->type == TYPE_STRING_TO_INT
 			|| intern->type == TYPE_STRING_TO_INT_HASH) {
@@ -5904,11 +5932,16 @@ PHP_METHOD(Judy, increment)
 		Pvoid_t *mirror;
 		zend_long new_val;
 
-		if (ZSTR_LEN(skey) >= PHP_JUDY_MAX_LENGTH) {
+		/* Capture the length BEFORE zend_string_release(): the message below
+		   must not read ZSTR_LEN(skey) after the string may have been freed
+		   (use-after-free). */
+		size_t key_len = ZSTR_LEN(skey);
+
+		if (key_len >= PHP_JUDY_MAX_LENGTH) {
 			zend_string_release(skey);
 			zend_throw_exception_ex(NULL, 0,
 				"Judy string key length (%zu) exceeds maximum of %d bytes",
-				ZSTR_LEN(skey), PHP_JUDY_MAX_LENGTH - 1);
+				key_len, PHP_JUDY_MAX_LENGTH - 1);
 			return;
 		}
 
@@ -5926,7 +5959,9 @@ PHP_METHOD(Judy, increment)
 			return;
 		}
 
-		new_val = JUDY_LVAL_READ(slot) + amount;
+		/* Same wrap discipline as the INT_TO_INT branch: unsigned add, then
+		   reinterpret — no signed-overflow UB at the boundaries. */
+		new_val = (zend_long)((zend_ulong)JUDY_LVAL_READ(slot) + (zend_ulong)amount);
 		if (mirror != NULL) {
 			JUDY_LVAL_WRITE(mirror, new_val);
 		}
@@ -5969,6 +6004,17 @@ PHP_METHOD(Judy, set)
 	ZEND_PARSE_PARAMETERS_END();
 
 	if (UNEXPECTED(judy_reject_nul_key(intern->type, key, key_len))) {
+		return;
+	}
+
+	/* Same cap as the write helper (offsetSet) and increment(): a longer key
+	   would be stored here and then copied back unbounded into the fixed
+	   64 KB key_scratch by the next ordered traversal (JSLF writes the found
+	   key, overflowing the buffer). Reject before anything is acquired. */
+	if (UNEXPECTED(key_len >= PHP_JUDY_MAX_LENGTH)) {
+		zend_throw_exception_ex(NULL, 0,
+			"Judy string key length (%zu) exceeds maximum of %d bytes",
+			key_len, PHP_JUDY_MAX_LENGTH - 1);
 		return;
 	}
 
