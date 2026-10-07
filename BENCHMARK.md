@@ -42,11 +42,11 @@ Modern data structures like Swiss tables (used in abseil and Folly) and Robin Ho
 
 - **Hardware**: Tests run on modern x86_64 systems with sufficient RAM to avoid memory pressure
 - **Operating System**: Linux (Docker containers for consistency)
-- **PHP Version**: 8.x with Judy extension 2.4.2 — the release these figures were
-  measured on. They still describe **2.5.2**, carried forward by two
-  release-over-release comparisons, each interleaved (5 groups x 5 rounds x 2
-  arms, PHP 8.4.24, Linux x86_64) with a PHP-array control to catch runner
-  contention:
+- **PHP Version**: 8.x with the Judy extension. The headline figures were
+  measured on 2.4.2 and re-verified unchanged through **2.5.2**, the release
+  this document describes, by two interleaved release-over-release
+  comparisons (5 groups x 5 rounds x 2 arms, PHP 8.4.24, Linux x86_64) with a
+  PHP-array control to catch runner contention:
 
   | Comparison | Run-wide median | Control | Regressions | Improvement |
   | --- | --- | --- | --- | --- |
@@ -2632,7 +2632,9 @@ php examples/benchmarks/run-benchmarks-robust.php
 
 Our methodology and insights are informed by the [Rusty Russell benchmark comparison](https://rusty.ozlabs.org/2010/11/08/hashtables-vs-judy-arrays-round-1.html) between hashtables and Judy arrays, which demonstrates Judy's strengths in ordered access patterns and memory efficiency.
 
-**Describes**: php-judy 2.6.0
-**Figures measured on**: 2.4.2, verified unchanged on 2.5.0 (0 regressions, run-wide
-median -0.04%; see Benchmarking Environment)
-**Last Updated**: August 2026
+**Describes**: php-judy 2.5.2 — the top-of-file Benchmarking Environment
+section carries the measured-on/re-verified history; the vendoring section
+reports its own arms measured separately on 2.6.0.
+**Figures measured on**: 2.4.2, re-verified unchanged through 2.5.2 (0
+regressions run-wide; see Benchmarking Environment)
+**Last Updated**: October 2026

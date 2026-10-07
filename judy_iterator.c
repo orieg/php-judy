@@ -209,6 +209,18 @@ void judy_iterator_move_forward(zend_object_iterator *iterator)
 			JSLF(PValue, object->array, key);
 		}
 
+		/* Skip expired STRING_TO_ENTRY entries (canonical ruling b): traversals
+		 * must agree with get()/isset(), which already hide them. The skip runs
+		 * even when the seek landed on the very first key — an expired head
+		 * entry must not stop the walk, and an all-expired array iterates as
+		 * empty. NULL slots fall through (judy_entry_is_expired(NULL) is
+		 * false) to the existing NULL-data handling below. */
+		while (PValue != NULL && PValue != PJERR
+				&& object->type == TYPE_STRING_TO_ENTRY
+				&& judy_entry_is_expired((judy_cache_entry_t *)(uintptr_t)(*PValue))) {
+			JSLN(PValue, object->array, key);
+		}
+
 		if ((PValue != NULL && PValue != PJERR)) {
 			size_t new_len = strlen((char *)key);
 			if (Z_TYPE(it->key) == IS_STRING && !ZSTR_IS_INTERNED(Z_STR(it->key))
@@ -366,6 +378,13 @@ void judy_iterator_rewind(zend_object_iterator *iterator)
 		/* JudySL require null terminated strings */
 		key[0] = '\0';
 		JSLF(PValue, object->array, key);
+
+		/* Skip expired STRING_TO_ENTRY entries — see move_forward(). */
+		while (PValue != NULL && PValue != PJERR
+				&& object->type == TYPE_STRING_TO_ENTRY
+				&& judy_entry_is_expired((judy_cache_entry_t *)(uintptr_t)(*PValue))) {
+			JSLN(PValue, object->array, key);
+		}
 
 		if (PValue != NULL && PValue != PJERR) {
 			size_t new_len = strlen((char *)key);

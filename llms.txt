@@ -9,9 +9,11 @@
 Key facts: no system libJudy is required — the C library is bundled under
 `libjudy/` and compiled into the extension by default (`./configure`);
 `--with-judy=DIR` links a system libJudy instead. Class `Judy` implements
-ArrayAccess, Countable, Iterator, JsonSerializable. Ten type constants across
-integer-keyed, sorted string-keyed (trie), and unsorted string-keyed (hash)
-families. The ordered search method is
+ArrayAccess, Countable, Iterator, JsonSerializable. Eleven type constants across
+integer-keyed, sorted string-keyed (trie), and sorted string-keyed (hash)
+families — the hash and adaptive types keep a sorted key index, so every
+family iterates in key order (the hash walk pays a second lookup per element).
+The ordered search method is
 `searchNext()` — `next()` is the Iterator method (old v1.x docs on php.net
 show a removed API; trust the docs below instead).
 
@@ -48,6 +50,9 @@ Runnable, self-contained scripts — one per pattern Judy is chosen for.
 - [sliding-window-rate-limit.php](https://github.com/orieg/php-judy/blob/main/examples/sliding-window-rate-limit.php):
   sliding-window rate limiting and rolling metrics; `deleteRange()` expires
   aged-out time buckets without scanning the retained set
+- [cache-ttl-pruning.php](https://github.com/orieg/php-judy/blob/main/examples/cache-ttl-pruning.php):
+  high-throughput cache with native TTL timestamps and in-C batch eviction via
+  `pruneExpired()` — `STRING_TO_ENTRY`
 - [prefix-invalidation.php](https://github.com/orieg/php-judy/blob/main/examples/prefix-invalidation.php):
   namespace invalidation (`user:123:*`) walking only the matching key slice,
   with a keys-visited comparison against a hash table
@@ -62,6 +67,11 @@ Runnable, self-contained scripts — one per pattern Judy is chosen for.
   still beats a bounded bulk read
 - [worker-counters.php](https://github.com/orieg/php-judy/blob/main/examples/worker-counters.php):
   metrics accumulators in long-running workers with atomic `increment()`
+- [coverage-index.php](https://github.com/orieg/php-judy/blob/main/examples/coverage-index.php):
+  line-coverage index (`file -> line -> tests`) flattened into one `BITSET`
+  over packed keys, merged with `union()`/`mergeWith()`, and queried for
+  test-impact selection — with an honest peak-RSS and selection wall-time
+  comparison against the nested-array shape
 
 ## Contributing
 

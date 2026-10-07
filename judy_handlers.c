@@ -31,6 +31,12 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 	/* new Judy array to populate */
 	Pvoid_t newJArray = (Pvoid_t) NULL;
 
+	/* Roots the copy writes into, then the fail path detaches before freeing
+	 * the partial clone. Hoisted out of the per-type branches so the shared
+	 * `fail:` label can see them; plain-trie types leave both NULL. */
+	Pvoid_t newKeyIndex = (Pvoid_t) NULL;
+	Pvoid_t newHsArray = (Pvoid_t) NULL;
+
 	zend_objects_clone_members(&new_obj->std, &old_obj->std);
 
 	if (old_obj->type == TYPE_BITSET) {
@@ -48,9 +54,10 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			int Rc_ins;
 			J1S(Rc_ins, newJArray, kindex);
 			/* Check the insert before J1N clobbers Rc_int: on allocation
-			 * failure (JERR) stop rather than silently dropping the bit and
-			 * producing a partial clone. */
-			if (Rc_ins == JERR) break;
+			 * failure (JERR) abort the whole clone rather than silently
+			 * dropping the bit and producing a partial clone under the
+			 * source's full counter. */
+			if (Rc_ins == JERR) goto fail;
 			J1N(Rc_int, old_obj->array, kindex);
 		}
 	} else if (old_obj->type == TYPE_INT_TO_INT || old_obj->type == TYPE_INT_TO_MIXED
@@ -70,27 +77,30 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 		while(PValue != NULL && PValue != PJERR)
 		{
 			JLI(newPValue, newJArray, kindex);
-			if (newPValue != NULL && newPValue != PJERR) {
-				if (old_obj->type == TYPE_INT_TO_MIXED) {
-					zval *value = emalloc(sizeof(zval));
-					ZVAL_COPY(value, JUDY_MVAL_READ(PValue));
-					JUDY_MVAL_WRITE(newPValue, value);
-				} else if (old_obj->type == TYPE_INT_TO_PACKED) {
-					judy_packed_value *src = JUDY_PVAL_READ(PValue);
-					if (src) {
-						size_t sz = judy_packed_value_size(src);
-						judy_packed_value *dst = emalloc(sz);
-						memcpy(dst, src, sz);
-						JUDY_PVAL_WRITE(newPValue, dst);
-					} else {
-						JUDY_PVAL_WRITE(newPValue, NULL);
-					}
+			if (JUDY_UNLIKELY(newPValue == NULL || newPValue == PJERR)) goto fail;
+			if (old_obj->type == TYPE_INT_TO_MIXED) {
+				zval *value = emalloc(sizeof(zval));
+				ZVAL_COPY(value, JUDY_MVAL_READ(PValue));
+				JUDY_MVAL_WRITE(newPValue, value);
+			} else if (old_obj->type == TYPE_INT_TO_PACKED) {
+				judy_packed_value *src = JUDY_PVAL_READ(PValue);
+				if (src) {
+					size_t sz = judy_packed_value_size(src);
+					judy_packed_value *dst = emalloc(sz);
+					memcpy(dst, src, sz);
+					JUDY_PVAL_WRITE(newPValue, dst);
 				} else {
-					JUDY_LVAL_WRITE(newPValue, JUDY_LVAL_READ(PValue));
+					JUDY_PVAL_WRITE(newPValue, NULL);
 				}
+			} else {
+				JUDY_LVAL_WRITE(newPValue, JUDY_LVAL_READ(PValue));
 			}
 			JLN(PValue, old_obj->array, kindex)
 		}
+		/* A walk that ends with PValue == PJERR died mid-enumeration on an
+		 * allocation failure: the copy above is partial, so abort rather
+		 * than ship it under the source's full counter. */
+		if (PValue == PJERR) goto fail;
 	} else if (old_obj->type == TYPE_STRING_TO_INT || old_obj->type == TYPE_STRING_TO_MIXED || old_obj->type == TYPE_STRING_TO_ENTRY) {
 		/* Cloning JudySL Array */
 
@@ -128,15 +138,17 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 				} else {
 					JUDY_LVAL_WRITE(newPValue, JUDY_LVAL_READ(PValue));
 				}
+			} else {
+				goto fail;
 			}
 			JSLN(PValue, old_obj->array, kindex)
 		}
+		if (PValue == PJERR) goto fail;
 	} else if (old_obj->type == TYPE_STRING_TO_MIXED_HASH) {
 		/* Cloning JudyHS Array + parallel JudySL key_index */
 
 		uint8_t *kindex = old_obj->key_scratch;
 		Pvoid_t *KValue;
-		Pvoid_t newKeyIndex = (Pvoid_t) NULL;
 
 		kindex[0] = '\0';
 		JSLF(KValue, old_obj->key_index, kindex);
@@ -144,7 +156,8 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			Word_t klen = (Word_t)strlen((char *)kindex);
 			Pvoid_t *HValue;
 			JHSG(HValue, old_obj->array, kindex, klen);
-			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
+			if (JUDY_UNLIKELY(HValue == PJERR)) goto fail;
+			if (JUDY_LIKELY(HValue != NULL)) {
 				Pvoid_t *newHValue;
 				JHSI(newHValue, newJArray, kindex, klen);
 				if (JUDY_LIKELY(newHValue != NULL && newHValue != PJERR)) {
@@ -161,19 +174,21 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 						zval_ptr_dtor(value);
 						efree(value);
 						JHSD(rc, newJArray, kindex, klen);
-						break;
+						goto fail;
 					}
+				} else {
+					goto fail;
 				}
 			}
 			JSLN(KValue, old_obj->key_index, kindex)
 		}
+		if (KValue == PJERR) goto fail;
 		new_obj->key_index = newKeyIndex;
 	} else if (old_obj->type == TYPE_STRING_TO_INT_HASH) {
 		/* Cloning JudyHS Array (Word_t values) + parallel JudySL key_index */
 
 		uint8_t *kindex = old_obj->key_scratch;
 		Pvoid_t *KValue;
-		Pvoid_t newKeyIndex = (Pvoid_t) NULL;
 
 		kindex[0] = '\0';
 		JSLF(KValue, old_obj->key_index, kindex);
@@ -181,7 +196,8 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 			Word_t klen = (Word_t)strlen((char *)kindex);
 			Pvoid_t *HValue;
 			JHSG(HValue, old_obj->array, kindex, klen);
-			if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
+			if (JUDY_UNLIKELY(HValue == PJERR)) goto fail;
+			if (JUDY_LIKELY(HValue != NULL)) {
 				Pvoid_t *newHValue;
 				JHSI(newHValue, newJArray, kindex, klen);
 				if (JUDY_LIKELY(newHValue != NULL && newHValue != PJERR)) {
@@ -192,7 +208,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 					if (JUDY_UNLIKELY(newKValue == PJERR)) {
 						int rc;
 						JHSD(rc, newJArray, kindex, klen);
-						break;
+						goto fail;
 					}
 					/* Mirror the payload into the key_index slot the clone's
 					   traversal will read it from — only if the source was
@@ -201,10 +217,13 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 					if (JUDY_MIRRORS_PAYLOAD(old_obj, klen)) {
 						JUDY_LVAL_WRITE(newKValue, JUDY_LVAL_READ(HValue));
 					}
+				} else {
+					goto fail;
 				}
 			}
 			JSLN(KValue, old_obj->key_index, kindex)
 		}
+		if (KValue == PJERR) goto fail;
 		new_obj->key_index = newKeyIndex;
 	} else if (old_obj->type == TYPE_STRING_TO_MIXED_ADAPTIVE
 			|| old_obj->type == TYPE_STRING_TO_INT_ADAPTIVE) {
@@ -212,8 +231,6 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 
 		uint8_t *kindex = old_obj->key_scratch;
 		Pvoid_t *KValue;
-		Pvoid_t newKeyIndex = (Pvoid_t) NULL;
-		Pvoid_t newHsArray = (Pvoid_t) NULL;
 
 		kindex[0] = '\0';
 		JSLF(KValue, old_obj->key_index, kindex);
@@ -230,7 +247,8 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 				is_sso = 1;
 				Pvoid_t *PValue;
 				JLG(PValue, old_obj->array, sso_idx);
-				if (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+				if (JUDY_UNLIKELY(PValue == PJERR)) goto fail;
+				if (JUDY_LIKELY(PValue != NULL)) {
 					Pvoid_t *newPValue;
 					JLI(newPValue, newJArray, sso_idx);
 					if (JUDY_LIKELY(newPValue != NULL && newPValue != PJERR)) {
@@ -242,13 +260,16 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 							JUDY_LVAL_WRITE(newPValue, JUDY_LVAL_READ(PValue));
 						}
 						value_ok = 1;
+					} else {
+						goto fail;
 					}
 				}
 			} else {
 				/* Long key — stored in JudyHS (intern->hs_array) */
 				Pvoid_t *HValue;
 				JHSG(HValue, old_obj->hs_array, kindex, klen);
-				if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
+				if (JUDY_UNLIKELY(HValue == PJERR)) goto fail;
+				if (JUDY_LIKELY(HValue != NULL)) {
 					Pvoid_t *newHValue;
 					JHSI(newHValue, newHsArray, kindex, klen);
 					if (JUDY_LIKELY(newHValue != NULL && newHValue != PJERR)) {
@@ -263,6 +284,8 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 							mirrored = (Word_t)JUDY_LVAL_READ(HValue);
 						}
 						value_ok = 1;
+					} else {
+						goto fail;
 					}
 				}
 			}
@@ -283,7 +306,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 					} else {
 						JHSD(rc, newHsArray, kindex, klen);
 					}
-					break;
+					goto fail;
 				}
 				if (JUDY_MIRRORS_PAYLOAD(old_obj, klen)) {
 					JUDY_LVAL_WRITE(newKValue, mirrored);
@@ -292,6 +315,7 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 
 			JSLN(KValue, old_obj->key_index, kindex)
 		}
+		if (KValue == PJERR) goto fail;
 		new_obj->key_index = newKeyIndex;
 		new_obj->hs_array = newHsArray;
 	}
@@ -322,6 +346,28 @@ zend_object *judy_object_clone(zend_object *this_ptr)
 	JUDY_ASSERT_MIRROR(old_obj, "clone (source)");
 	JUDY_ASSERT_MIRROR(new_obj, "clone (result)");
 
+	return &new_obj->std;
+
+fail:
+	/* [REV-B] Never ship a partial clone under the source's full counter: a
+	 * break here means an allocation failure (JERR / PJERR) stopped the copy
+	 * with newJArray / newKeyIndex / newHsArray half-populated. Detach and
+	 * free those roots through the object's own teardown — per-type value
+	 * zvals, PACKED payloads and STRING_TO_ENTRY structs included — zero the
+	 * counter, then throw. The clone opcode stores the returned object into
+	 * its result slot before checking EG(exception), so returning the (now
+	 * empty) object rather than NULL lets the engine's unwind release it
+	 * normally; the second teardown from free_obj is a no-op because the
+	 * roots are already detached. */
+	judy_init_type_flags(new_obj, old_obj->type);
+	new_obj->array = newJArray;
+	new_obj->key_index = newKeyIndex;
+	new_obj->hs_array = newHsArray;
+	if (new_obj->is_string_keyed && !new_obj->key_scratch) {
+		new_obj->key_scratch = emalloc(PHP_JUDY_MAX_LENGTH);
+	}
+	judy_free_array_internal(new_obj);
+	zend_throw_exception(NULL, "Judy: memory allocation failed during clone", 0);
 	return &new_obj->std;
 }
 /* }}} */

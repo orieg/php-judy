@@ -40,7 +40,8 @@ json_encode($j);               // JsonSerializable
 Navigation (ordered types): `first($idx)` / `last($idx)` are **inclusive**
 searches (>= / <=); `searchNext($idx)` / `prev($idx)` are **exclusive**.
 Empty-slot variants: `firstEmpty` / `nextEmpty` / `lastEmpty` / `prevEmpty`
-(integer-keyed types only).
+exist on every type; the integer-keyed types search libJudy's absent slots,
+the string-keyed types accept the calls and return `null`.
 
 Bulk (run in C, prefer over PHP loops): `toArray()`, `Judy::fromArray($type,
 $arr)`, `putAll($arr)`, `getAll($keys)`, `keys()`, `values()`, `forEach($cb)`,

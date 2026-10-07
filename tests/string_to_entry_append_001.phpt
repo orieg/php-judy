@@ -1,10 +1,13 @@
 --TEST--
-Check for Judy STRING_TO_INT works with $a[] = $b (expect error)
+Judy STRING_TO_ENTRY rejects $j[] = (append without key) — segfault guard
 --SKIPIF--
 <?php if (!extension_loaded("judy")) print "skip"; ?>
 --FILE--
 <?php
-$judy = new Judy(Judy::STRING_TO_INT);
+/* Pre-fix: this fell through to Z_STRVAL_P(NULL) and crashed with SIGSEGV
+ * (exit 139) — the append guard enumerated 6 of the 7 string-keyed types
+ * and omitted TYPE_STRING_TO_ENTRY. */
+$judy = new Judy(Judy::STRING_TO_ENTRY);
 try {
     $judy[] = 1;
 } catch (\Exception $e) {

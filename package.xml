@@ -81,6 +81,7 @@
          <file name="docs/assets/bench_engines.svg" role="doc" />
          <file md5sum="abc7eb31bb88857463ec941514e5f019" name="tests/001.phpt" role="test" />
          <file name="tests/arrayaccess_void_return_001.phpt" role="test" />
+         <file name="tests/average_values_contract_001.phpt" role="test" />
          <file name="tests/bench_compare_drift_001.phpt" role="test" />
          <file name="tests/bench_compare_fake_bench.inc" role="test" />
          <file name="tests/bench_gate_cpu_info.phpt" role="test" />
@@ -101,6 +102,23 @@
          <file name="tests/bitset_setops_type_error_001.phpt" role="test" />
          <file name="tests/bitset_union_001.phpt" role="test" />
          <file name="tests/bitset_xor_001.phpt" role="test" />
+         <file name="tests/bounds_coercion_error_001.phpt" role="test" />
+         <file name="tests/bounds_type_error_001.phpt" role="test" />
+         <file name="tests/bycount_empty_slot_matrix_001.phpt" role="test" />
+         <file name="tests/callback_arg_order_001.phpt" role="test" />
+         <file name="tests/callback_exception_001.phpt" role="test" />
+         <file name="tests/clone_populate_counter_agreement_001.phpt" role="test" />
+         <file name="tests/entry_expiry_consistency_001.phpt" role="test" />
+         <file name="tests/equals_string_to_entry_001.phpt" role="test" />
+         <file name="tests/increment_overflow_001.phpt" role="test" />
+         <file name="tests/increment_oversized_tostring_001.phpt" role="test" />
+         <file name="tests/ini_string_maxlength_001.phpt" role="test" />
+         <file name="tests/judy_type_negative_001.phpt" role="test" />
+         <file name="tests/merge_with_entry_ttl_001.phpt" role="test" />
+         <file name="tests/nav_boundary_001.phpt" role="test" />
+         <file name="tests/prune_expired_reentrancy_001.phpt" role="test" />
+         <file name="tests/set_ops_mixed_type_throw_001.phpt" role="test" />
+         <file name="tests/set_oversized_key_001.phpt" role="test" />
          <file name="tests/slice_bitset_001.phpt" role="test" />
          <file name="tests/slice_int_to_int_001.phpt" role="test" />
          <file name="tests/slice_int_to_mixed_001.phpt" role="test" />
@@ -120,6 +138,11 @@
          <file name="tests/serialize_roundtrip_string_to_mixed_001.phpt" role="test" />
          <file name="tests/serialize_roundtrip_string_to_entry_001.phpt" role="test" />
          <file name="tests/serialize_error_001.phpt" role="test" />
+         <file name="tests/string_to_entry_append_001.phpt" role="test" />
+         <file name="tests/string_to_entry_callback_iterator_001.phpt" role="test" />
+         <file name="tests/string_to_entry_delete_range_001.phpt" role="test" />
+         <file name="tests/string_to_entry_error_matrix_001.phpt" role="test" />
+         <file name="tests/string_to_entry_gc_cycle_001.phpt" role="test" />
          <file name="tests/to_array_bitset_001.phpt" role="test" />
          <file name="tests/to_array_int_to_int_001.phpt" role="test" />
          <file name="tests/to_array_int_to_mixed_001.phpt" role="test" />
@@ -297,6 +320,7 @@
          <file name="tests/population_count_001.phpt" role="test" />
          <file name="tests/sum_values_001.phpt" role="test" />
          <file name="tests/unserialize_counter_001.phpt" role="test" />
+         <file name="tests/unserialize_malformed_data_001.phpt" role="test" />
          <file name="tests/regression_adaptive_counter_zero_value_001.phpt" role="test" />
          <file name="tests/regression_adaptive_iteration_001.phpt" role="test" />
          <file name="tests/regression_adaptive_navigation_001.phpt" role="test" />
@@ -404,6 +428,7 @@
          <file name="THIRD-PARTY.md" role="doc" />
          <file md5sum="cb564efdf78cce8ea6e4b5a4f7c05d97" name="LICENSE" role="doc" />
          <file md5sum="8e2dc32935b46ca0e2d1ef8941c83d84" name="README.md" role="doc" />
+         <file name="SECURITY.md" role="doc" />
          <file md5sum="730470b2aca686ddbea82a2b2af03a1a" name="CREDITS" role="doc" />
          <file md5sum="af4d88a4da7b16aaf4f92d7fe619e6be" name="BENCHMARK.md" role="doc" />
          <file name="BACKEND_EVALUATION.md" role="doc" />
@@ -460,9 +485,9 @@
   trie sweep directly in C with 0 PHP heap allocations (12.9 ms per 100k items).
 - FEATURE: Full bulk and iteration support on STRING_TO_ENTRY -- ArrayAccess,
   Iterator, keys(), values(), toArray(), slice(), getAll(), and serialization.
-- BUILD: Pure-Rust Expanse backend integration support (--with-expanse) for
-  modern 64-bit microarchitectures, zero-leak memory management, and cross-platform
-  MSVC Windows support without source patching.
+- BUILD: Optional pure-Rust Expanse engine support (link it or any system libJudy
+  via --with-judy=DIR) for modern 64-bit microarchitectures, zero-leak memory
+  management, and cross-platform MSVC Windows support without source patching.
          </notes>
       </release>
       <release>

@@ -60,7 +60,7 @@ static void php_judy_init_globals(zend_judy_globals *judy_globals)
 
 /* {{{ judy_free_storage
    close all resources and the memory allocated for the object */
-static Word_t judy_free_array_internal(judy_object *intern)
+Word_t judy_free_array_internal(judy_object *intern)
 {
 	Word_t Rc_word = 0;
 	Pvoid_t arr, hs, kidx;
@@ -412,6 +412,30 @@ static HashTable *judy_object_get_gc(zend_object *object, zval **table, int *n)
 			JSLN(PValue, index_array, cursor);
 		}
 		efree(cursor);
+	} else if (intern->type == TYPE_STRING_TO_ENTRY) {
+		/* STRING_TO_ENTRY: the trie itself holds judy_cache_entry_t* and the
+		 * payload zval lives inside the entry. Expose EVERY entry, including
+		 * expired ones — they still hold a refcount that only pruneExpired(),
+		 * unset() or the dtor will drop, so a GC that filtered on expiry would
+		 * leak exactly the entries nobody has pruned yet. A private cursor
+		 * keeps GC re-entrancy off the shared key_scratch (same reason as the
+		 * MIXED branch above). Without this branch a cycle
+		 * {Judy -> entry value -> object -> object->j -> Judy} was invisible
+		 * and leaked: gc_collect_cycles() collected 0 for ENTRY vs 1 for the
+		 * STRING_TO_MIXED control. */
+		uint8_t *cursor = emalloc(PHP_JUDY_MAX_LENGTH);
+		Word_t *PValue;
+
+		cursor[0] = '\0';
+		JSLF(PValue, intern->array, cursor);
+		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)) {
+			judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+			if (entry != NULL) {
+				zend_get_gc_buffer_add_zval(gc_buffer, &entry->value);
+			}
+			JSLN(PValue, intern->array, cursor);
+		}
+		efree(cursor);
 	}
 
 	zend_get_gc_buffer_use(gc_buffer, table, n);
@@ -471,13 +495,14 @@ PHP_INI_END()
 
 /* {{{ Embedded-NUL key precondition.
 
-   Every string-keyed type orders its keys through a JudySL trie: the two plain
-   trie types store the value in it directly, and the four *_HASH / *_ADAPTIVE
-   types keep a JudySL `key_index` alongside their length-prefixed value store.
+   Every string-keyed type orders its keys through a JudySL trie: the three
+   plain trie types (STRING_TO_INT, STRING_TO_MIXED, STRING_TO_ENTRY) store
+   the value in it directly, and the four *_HASH / *_ADAPTIVE types keep a
+   JudySL `key_index` alongside their length-prefixed value store.
    A JudySL index is a NUL-terminated C string by construction, so a key
    containing 0x00 is truncated at the first one. That is silent data loss on a
    write ("ab\0cd" and "ab" become one key), a wrong answer on a plain-trie
-   read, and a wrong bound on every ordered/range operation of all six types.
+   read, and a wrong bound on every ordered/range operation of all seven types.
 
    Only 0x00 is affected. Every other byte value, 0x01 through 0xFF, is stored,
    compared and ordered as an unsigned byte — high-byte keys are binary-safe and
@@ -486,7 +511,7 @@ PHP_INI_END()
    There is no representation to fall back on: JudyHS accepts a NUL because it
    is length-prefixed, JudySL cannot be made to. So a NUL byte is rejected at
    every entry point that takes a caller-supplied string key, uniformly across
-   the six types, rather than accepted by some and truncated by others.
+   the seven types, rather than accepted by some and truncated by others.
    See GitHub issue #117. */
 static const char *judy_nul_key_error(judy_type type)
 {
@@ -510,6 +535,13 @@ static const char *judy_nul_key_error(judy_type type)
    Callers that already know the array is string-keyed use this directly. */
 static zend_always_inline int judy_reject_nul_key(judy_type type, const char *key, size_t klen)
 {
+	/* A zero-length key or bound can hold no NUL, so there is never anything
+	   to reject — and the pointer may be NULL (first()/last() called with no
+	   bound), which memchr() must not be asked to inspect even at length 0
+	   (C11 7.24.1p2). */
+	if (klen == 0) {
+		return 0;
+	}
 	if (JUDY_UNLIKELY(memchr(key, '\0', klen) != NULL)) {
 		zend_throw_exception(NULL, judy_nul_key_error(type), 0);
 		return 1;
@@ -525,6 +557,47 @@ static zend_always_inline int judy_reject_nul_key_zval(judy_object *intern, zval
 		return 0;
 	}
 	return judy_reject_nul_key(intern->type, Z_STRVAL_P(z), Z_STRLEN_P(z));
+}
+
+/* Effective string-key reject boundary. The compile-time buffer
+   (PHP_JUDY_MAX_LENGTH) is the hard ceiling; judy.string.maxlength may only
+   TIGHTEN it (a security control that silently lies is worse than none), and
+   clamps at 1 so 0/negative values become a full lockdown while the empty key
+   (which is legal) still survives. Boundary semantics match the existing
+   checks: a key of length >= the cap is rejected, cap - 1 is the longest
+   accepted key. */
+static zend_always_inline size_t judy_string_key_cap(void)
+{
+	zend_long ini = (zend_long) JUDY_G(max_length);
+
+	if (ini <= 0) {
+		return 1;    /* lockdown: only the empty key survives */
+	}
+	if ((unsigned long)ini < PHP_JUDY_MAX_LENGTH) {
+		return (size_t)ini;
+	}
+	return PHP_JUDY_MAX_LENGTH;
+}
+/* }}} */
+
+/* Can this zval name an integer key? Integers directly; strings only when
+   they are numeric in either form — the exact set zend_parse_arg_long accepts
+   in weak mode (the deleteRange() integer contract: "10" and "10.5" name
+   keys, "0x10" and "a" do not). Anything else used to coerce silently:
+   zval_get_long("a") is 0, so keys("a", "b") read the range 0..0 instead of
+   throwing, and zval_get_long(5.9) truncates. */
+static zend_always_inline zend_bool judy_zval_can_name_int_key(zval *z)
+{
+	zend_long lval;
+	double dval;
+
+	if (Z_TYPE_P(z) == IS_LONG) {
+		return 1;
+	}
+	if (Z_TYPE_P(z) == IS_STRING) {
+		return is_numeric_string(Z_STRVAL_P(z), Z_STRLEN_P(z), &lval, &dval, 0) != 0;
+	}
+	return 0;
 }
 /* }}} */
 
@@ -582,7 +655,7 @@ static zend_always_inline void judy_value_from_slot(judy_object *intern, Pvoid_t
 	if (JUDY_IS_ENTRY_VALUE(intern)) {
 		judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
 		if (JUDY_LIKELY(entry != NULL)) {
-			if (entry->expires_at != 0 && entry->expires_at <= (uint32_t)time(NULL)) {
+			if (judy_entry_is_expired(entry)) {
 				ZVAL_NULL(rv);
 			} else {
 				ZVAL_COPY(rv, &entry->value);
@@ -737,7 +810,8 @@ static zend_always_inline int judy_string_slot_acquire(judy_object *intern, cons
 		*mirror_out = NULL;
 	}
 
-	/* One check for all six types rather than one per case: every one of them
+	/* One check for all seven string-keyed types rather than one per case:
+	   every one of them
 	   indexes through a JudySL (the trie itself, or the key_index), which
 	   cannot hold a key past its first NUL. See judy_nul_key_error(). */
 	if (JUDY_UNLIKELY(judy_reject_nul_key(intern->type, (const char *)key, (size_t)klen))) {
@@ -1029,17 +1103,18 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		if (error_flag) {
 			return FAILURE;
 		}
-		if (pstring_key && Z_STRLEN_P(pstring_key) >= PHP_JUDY_MAX_LENGTH) {
+		if (pstring_key && Z_STRLEN_P(pstring_key) >= judy_string_key_cap()) {
 			zend_throw_exception_ex(NULL, 0,
 				"Judy string key length (%zu) exceeds maximum of %d bytes",
-				(size_t)Z_STRLEN_P(pstring_key), PHP_JUDY_MAX_LENGTH - 1);
+				(size_t)Z_STRLEN_P(pstring_key), (int)judy_string_key_cap() - 1);
 			return FAILURE;
 		}
 	} else {
 		if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED
 				|| intern->type == TYPE_STRING_TO_MIXED_HASH || intern->type == TYPE_STRING_TO_INT_HASH
-				|| intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE || intern->type == TYPE_STRING_TO_INT_ADAPTIVE) {
-			zend_throw_exception(NULL, "Judy STRING_TO_INT, STRING_TO_MIXED, STRING_TO_MIXED_HASH, STRING_TO_INT_HASH, STRING_TO_MIXED_ADAPTIVE and STRING_TO_INT_ADAPTIVE values cannot be set without specifying a key", 0);
+				|| intern->type == TYPE_STRING_TO_MIXED_ADAPTIVE || intern->type == TYPE_STRING_TO_INT_ADAPTIVE
+				|| intern->type == TYPE_STRING_TO_ENTRY) {
+			zend_throw_exception(NULL, "Judy STRING_TO_INT, STRING_TO_MIXED, STRING_TO_MIXED_HASH, STRING_TO_INT_HASH, STRING_TO_MIXED_ADAPTIVE, STRING_TO_INT_ADAPTIVE and STRING_TO_ENTRY values cannot be set without specifying a key", 0);
 			return FAILURE;
 		}
 	}
@@ -1265,7 +1340,7 @@ int judy_object_has_dimension_helper(zval *object, zval *offset, int check_empty
 		if (intern->type == TYPE_STRING_TO_ENTRY) {
 			judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
 			if (entry != NULL) {
-				if (entry->expires_at != 0 && entry->expires_at <= (uint32_t)time(NULL)) {
+				if (judy_entry_is_expired(entry)) {
 					return 0;
 				}
 				if (!check_empty) {
@@ -2054,7 +2129,7 @@ PHP_METHOD(Judy, first)
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_LONG(index);
 	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length = 0;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2086,7 +2161,7 @@ PHP_METHOD(Judy, first)
 	} else if (intern->is_hash_keyed) {
 		/* HASH and ADAPTIVE types both keep every key in the JudySL
 		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length = 0;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2161,7 +2236,7 @@ PHP_METHOD(Judy, searchNext)
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_LONG(index);
 	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2192,7 +2267,7 @@ PHP_METHOD(Judy, searchNext)
 	} else if (intern->is_hash_keyed) {
 		/* HASH and ADAPTIVE types both keep every key in the JudySL
 		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2326,6 +2401,15 @@ PHP_METHOD(Judy, next)
 			return;
 		}
 
+		/* Skip expired STRING_TO_ENTRY entries so this manual Iterator path
+		 * agrees with foreach / get() / isset() (canonical ruling b). ENTRY
+		 * is a plain-trie type, so the skip walks intern->array. */
+		while (PValue != NULL && PValue != PJERR
+				&& intern->type == TYPE_STRING_TO_ENTRY
+				&& judy_entry_is_expired((judy_cache_entry_t *)(uintptr_t)(*PValue))) {
+			JSLN(PValue, intern->array, key);
+		}
+
 		if (PValue != NULL && PValue != PJERR) {
 			zval_ptr_dtor(&intern->iterator_key);
 			ZVAL_STRING(&intern->iterator_key, (char *)key);
@@ -2420,6 +2504,13 @@ PHP_METHOD(Judy, rewind)
 			JSLF(PValue, intern->key_index, key);
 		} else {
 			JSLF(PValue, intern->array, key);
+		}
+
+		/* Skip expired STRING_TO_ENTRY entries — see next() above. */
+		while (PValue != NULL && PValue != PJERR
+				&& intern->type == TYPE_STRING_TO_ENTRY
+				&& judy_entry_is_expired((judy_cache_entry_t *)(uintptr_t)(*PValue))) {
+			JSLN(PValue, intern->array, key);
 		}
 
 		if (PValue != NULL && PValue != PJERR) {
@@ -2531,7 +2622,7 @@ PHP_METHOD(Judy, last)
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_LONG(index);
 	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length = 0;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2564,7 +2655,7 @@ PHP_METHOD(Judy, last)
 	} else if (intern->is_hash_keyed) {
 		/* HASH and ADAPTIVE types both keep every key in the JudySL
 		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length = 0;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2634,7 +2725,7 @@ PHP_METHOD(Judy, prev)
 		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR))
 			RETURN_LONG(index);
 	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2665,7 +2756,7 @@ PHP_METHOD(Judy, prev)
 	} else if (intern->is_hash_keyed) {
 		/* HASH and ADAPTIVE types both keep every key in the JudySL
 		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length;
 
 		uint8_t     *key = intern->key_scratch;
@@ -3485,6 +3576,17 @@ PHP_METHOD(Judy, slice)
 		RETURN_THROWS();
 	}
 
+	/* String bounds on an int-keyed array silently coerced to 0 and read the
+	   wrong range (slice("a", "b") returned key 0); mirror the string-keyed
+	   branch's TypeError instead. Numeric strings still name integer keys
+	   (matching deleteRange()'s Z_PARAM_LONG contract). */
+	if (intern->is_integer_keyed
+			&& (!judy_zval_can_name_int_key(zstart) || !judy_zval_can_name_int_key(zend_val))) {
+		zend_throw_error(zend_ce_type_error,
+			"Judy::slice() expects integer arguments for integer-keyed arrays");
+		return;
+	}
+
 	result = judy_create_result(return_value, intern->type, intern->mirror_payload);
 
 	if (intern->type == TYPE_BITSET) {
@@ -3896,6 +3998,12 @@ static int judy_parse_collect_range(judy_object *intern, zval *zstart, zval *zen
 	}
 
 	if (intern->is_integer_keyed) {
+		if ((zstart != NULL && !judy_zval_can_name_int_key(zstart))
+				|| (zend_val != NULL && !judy_zval_can_name_int_key(zend_val))) {
+			zend_throw_error(zend_ce_type_error,
+				"Judy::%s() expects integer arguments for integer-keyed arrays", method);
+			return FAILURE;
+		}
 		range->start = zstart != NULL ? (Word_t) zval_get_long(zstart) : (Word_t) 0;
 		range->end = zend_val != NULL ? (Word_t) zval_get_long(zend_val) : (Word_t) -1;
 		if (EG(exception)) {
@@ -4101,6 +4209,22 @@ static void judy_populate_array_ex(judy_object *intern, zval *data, judy_collect
 
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR)
 				&& judy_range_key_in_bounds(key, range_str_end)) {
+			/* Skip expired STRING_TO_ENTRY entries before the limit/emit
+			 * accounting, so a bounded read neither emits nor counts them
+			 * (canonical ruling b: toArray/keys/values agree with
+			 * get()/isset()). ENTRY is a plain-trie type: the slot PValue
+			 * stands on holds the entry pointer directly. */
+			if (intern->type == TYPE_STRING_TO_ENTRY) {
+				judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+				if (judy_entry_is_expired(entry)) {
+					if (intern->is_hash_keyed) {
+						JSLN(PValue, intern->key_index, key);
+					} else {
+						JSLN(PValue, intern->array, key);
+					}
+					continue;
+				}
+			}
 			if (limit >= 0 && emitted++ >= limit) {
 				break;
 			}
@@ -4725,7 +4849,10 @@ PHP_METHOD(Judy, deleteRange)
 			while (Rc_int && index <= index_end) {
 				int Rc_del;
 				J1U(Rc_del, intern->array, index);
-				if (Rc_del) {
+				/* Rc == 1 gate (pruneExpired() discipline): JERR is truthy
+				 * but means no deletion happened, so it must not move the
+				 * counter. */
+				if (Rc_del == 1) {
 					deleted++;
 					intern->counter--;
 				}
@@ -4751,14 +4878,18 @@ PHP_METHOD(Judy, deleteRange)
 				 * The counter must also be settled before the destructor
 				 * runs, since it can observe count(). */
 				JLD(Rc_del, intern->array, index);
-				if (Rc_del) {
+				/* Rc == 1 confirms the slot is gone. On JERR the key is
+				 * still present and still owns value/packed — freeing would
+				 * be a use-after-free, so the frees are gated alongside the
+				 * count. */
+				if (Rc_del == 1) {
 					deleted++;
 					intern->counter--;
 				}
-				if (value != NULL) {
+				if (value != NULL && Rc_del == 1) {
 					zval_ptr_dtor(value);
 					efree(value);
-				} else if (packed != NULL) {
+				} else if (packed != NULL && Rc_del == 1) {
 					efree(packed);
 				}
 				/* Re-seek strictly past `index`: the destructor may have
@@ -4768,15 +4899,30 @@ PHP_METHOD(Judy, deleteRange)
 			}
 		}
 	} else if (intern->is_adaptive) {
+		zval *zstart, *zend_val;
 		char *str_start, *str_end;
 		size_t str_start_len, str_end_len;
 		uint8_t *key;
 		Pvoid_t *PValue;
 
 		ZEND_PARSE_PARAMETERS_START(2, 2)
-			Z_PARAM_STRING(str_start, str_start_len)
-			Z_PARAM_STRING(str_end, str_end_len)
+			Z_PARAM_ZVAL(zstart)
+			Z_PARAM_ZVAL(zend_val)
 		ZEND_PARSE_PARAMETERS_END();
+
+		/* Integer bounds were silently coerced to their string form and
+		   deleted the wrong range; mirror slice()'s string-keyed TypeError.
+		   Z_PARAM_ZVAL (not _STRING) so the category is checked here rather
+		   than coerced by the arg parser. */
+		if (Z_TYPE_P(zstart) != IS_STRING || Z_TYPE_P(zend_val) != IS_STRING) {
+			zend_throw_error(zend_ce_type_error,
+				"Judy::deleteRange() expects string arguments for string-keyed arrays");
+			RETURN_THROWS();
+		}
+		str_start = Z_STRVAL_P(zstart);
+		str_start_len = Z_STRLEN_P(zstart);
+		str_end = Z_STRVAL_P(zend_val);
+		str_end_len = Z_STRLEN_P(zend_val);
 
 		if (judy_reject_nul_key(intern->type, str_start, str_start_len)
 				|| judy_reject_nul_key(intern->type, str_end, str_end_len)) {
@@ -4830,13 +4976,16 @@ PHP_METHOD(Judy, deleteRange)
 
 			/* Delete from key_index */
 			JSLD(Rc_idx_del, intern->key_index, key);
-			if (Rc_idx_del) {
+			/* Accounting tracks only confirmed key_index removals; the value
+			 * free below is gated on the store delete (Rc_del) confirming
+			 * the slot is gone — on JERR it still owns value. */
+			if (Rc_idx_del == 1) {
 				deleted++;
 				intern->counter--;
 				judy_string_bytes_sub(intern, klen);
 			}
 
-			if (value != NULL) {
+			if (value != NULL && Rc_del == 1) {
 				zval_ptr_dtor(value);
 				efree(value);
 			}
@@ -4848,15 +4997,28 @@ PHP_METHOD(Judy, deleteRange)
 
 		efree(key);
 	} else { /* string keyed */
+		zval *zstart, *zend_val;
 		char *str_start, *str_end;
 		size_t str_start_len, str_end_len;
 		uint8_t *key;
 		Pvoid_t *PValue;
 
 		ZEND_PARSE_PARAMETERS_START(2, 2)
-			Z_PARAM_STRING(str_start, str_start_len)
-			Z_PARAM_STRING(str_end, str_end_len)
+			Z_PARAM_ZVAL(zstart)
+			Z_PARAM_ZVAL(zend_val)
 		ZEND_PARSE_PARAMETERS_END();
+
+		/* Integer bounds were silently coerced to their string form and
+		   deleted the wrong range; mirror slice()'s string-keyed TypeError. */
+		if (Z_TYPE_P(zstart) != IS_STRING || Z_TYPE_P(zend_val) != IS_STRING) {
+			zend_throw_error(zend_ce_type_error,
+				"Judy::deleteRange() expects string arguments for string-keyed arrays");
+			RETURN_THROWS();
+		}
+		str_start = Z_STRVAL_P(zstart);
+		str_start_len = Z_STRLEN_P(zstart);
+		str_end = Z_STRVAL_P(zend_val);
+		str_end_len = Z_STRLEN_P(zend_val);
 
 		if (judy_reject_nul_key(intern->type, str_start, str_start_len)
 				|| judy_reject_nul_key(intern->type, str_end, str_end_len)) {
@@ -4887,24 +5049,26 @@ PHP_METHOD(Judy, deleteRange)
 				Word_t klen = (Word_t)strlen((char *)key);
 				Pvoid_t *HValue;
 				int Rc_idx_del;
+				int Rc_del = 0;
 
 				JHSG(HValue, intern->array, key, klen);
 				if (JUDY_LIKELY(HValue != NULL && HValue != PJERR)) {
-					int Rc_del;
 					if (intern->type == TYPE_STRING_TO_MIXED_HASH) {
 						value = JUDY_MVAL_READ(HValue);
 					}
 					JHSD(Rc_del, intern->array, key, klen);
-					(void)Rc_del; /* JUDYERROR_NOTEST: delete cannot partially fail */
+					/* JERR is possible here (not silently discarded): the
+					 * value slot then still owns `value`, so its free is
+					 * gated on Rc_del == 1 below. */
 				}
 				/* Delete from key_index too */
 				JSLD(Rc_idx_del, intern->key_index, key);
-				if (Rc_idx_del) {
+				if (Rc_idx_del == 1) {
 					deleted++;
 					intern->counter--;
 					judy_string_bytes_sub(intern, klen);
 				}
-				if (value != NULL) {
+				if (value != NULL && Rc_del == 1) {
 					zval_ptr_dtor(value);
 					efree(value);
 				}
@@ -4913,17 +5077,34 @@ PHP_METHOD(Judy, deleteRange)
 				JSLN(PValue, intern->key_index, key);
 			} else {
 				int Rc_str_del;
+				judy_cache_entry_t *entry = NULL;
 
 				if (intern->type == TYPE_STRING_TO_MIXED) {
 					value = JUDY_MVAL_READ(PValue);
+				} else if (intern->type == TYPE_STRING_TO_ENTRY) {
+					/* Capture the entry (the zval lives inside the struct,
+					 * so it cannot be handled by the value branch below)
+					 * before JSLD removes the slot. */
+					entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
 				}
 				JSLD(Rc_str_del, intern->array, key);
-				if (Rc_str_del) {
+				/* Rc == 1 gate (pruneExpired() discipline): on JERR the trie
+				 * still owns entry/value — freeing would be a UAF. */
+				if (Rc_str_del == 1) {
 					deleted++;
 					intern->counter--;
 					judy_string_bytes_sub(intern, (Word_t)strlen((char *)key));
 				}
-				if (value != NULL) {
+				if (intern->type == TYPE_STRING_TO_ENTRY) {
+					/* Delete before free (destructor re-entrancy guard),
+					 * matching unset()/pruneExpired(). Pre-fix this branch
+					 * freed nothing at all: the entry struct and its value
+					 * refcount leaked and __destruct never fired. */
+					if (entry != NULL && Rc_str_del == 1) {
+						zval_ptr_dtor(&entry->value);
+						efree(entry);
+					}
+				} else if (value != NULL && Rc_str_del == 1) {
 					zval_ptr_dtor(value);
 					efree(value);
 				}
@@ -5088,6 +5269,19 @@ PHP_METHOD(Judy, equals)
 				if (!PVal2) RETURN_FALSE;
 				if (intern->type == TYPE_STRING_TO_INT) {
 					if (JUDY_LVAL_READ(PVal1) != JUDY_LVAL_READ(PVal2)) RETURN_FALSE;
+				} else if (JUDY_IS_ENTRY_VALUE(intern)) {
+					/* ENTRY slots hold judy_cache_entry_t*, not zval*: materialise
+					   both sides via judy_value_from_slot() (get()-consistent:
+					   expired reads as NULL on both sides) and compare the
+					   values, never the raw slots. */
+					zval ev1, ev2;
+					int identical;
+					judy_value_from_slot(intern, PVal1, &ev1);
+					judy_value_from_slot(intern, PVal2, &ev2);
+					identical = zend_is_identical(&ev1, &ev2);
+					zval_ptr_dtor(&ev1);
+					zval_ptr_dtor(&ev2);
+					if (!identical) RETURN_FALSE;
 				} else {
 					if (!zend_is_identical(JUDY_MVAL_READ(PVal1), JUDY_MVAL_READ(PVal2))) RETURN_FALSE;
 				}
@@ -5235,6 +5429,20 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 		}
 
 		while (JUDY_LIKELY(PValue != NULL && PValue != PJERR) && action_rc == SUCCESS) {
+			/* Skip expired STRING_TO_ENTRY entries — the callbacks must not
+			 * see them, matching foreach/toArray/keys/values (canonical
+			 * ruling b). */
+			if (intern->type == TYPE_STRING_TO_ENTRY) {
+				judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
+				if (judy_entry_is_expired(entry)) {
+					if (intern->is_hash_keyed) {
+						JSLN(PValue, intern->key_index, key);
+					} else {
+						JSLN(PValue, intern->array, key);
+					}
+					continue;
+				}
+			}
 			ZVAL_STRING(&args[1], (const char *)key);
 			Pvoid_t *VValue = PValue;
 			/* Mirrored types read the payload from the key_index cursor; see
@@ -5244,11 +5452,16 @@ static void judy_callback_iterator(judy_object *intern, zend_fcall_info *fci, ze
 			}
 
 			if (JUDY_LIKELY(VValue != NULL && VValue != PJERR)) {
-				if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_INT_HASH) {
-					ZVAL_LONG(&args[0], JUDY_LVAL_READ(VValue));
-				} else {
-					ZVAL_COPY(&args[0], JUDY_MVAL_READ(VValue));
-				}
+				/* Materialisation on this path goes through
+				   judy_value_from_slot(), which owns the per-type branches
+				   (ENTRY cache entries, MIXED zvals, INT longs) — so a type
+				   added on this path cannot drift into reading a slot as
+				   the wrong pointer type, which is how STRING_TO_ENTRY
+				   SIGSEGV'd. The adaptive and integer-keyed branches above
+				   still hand-roll, but both are type-excluded from ENTRY
+				   (judy_init_type_flags); routing them too is recorded in
+				   the Batch-4 duplication inventory. */
+				judy_value_from_slot(intern, VValue, &args[0]);
 
 				fci->param_count = 2;
 				fci->params = args;
@@ -5355,6 +5568,50 @@ PHP_METHOD(Judy, map)
 }
 /* }}} */
 
+/* {{{ Copy one STRING_TO_ENTRY entry into `intern` verbatim (value + metadata)
+   STRING_TO_ENTRY -> STRING_TO_ENTRY copies only. The source's expires_at and
+   flags are preserved untouched; the value zval is addref'd BEFORE any user
+   code can run (the dtor of an overwritten target value may re-enter and
+   mutate either array). This is the same faithful copy slice() makes for
+   ENTRY, and what the Gate-1 ruling requires of mergeWith(); the generic
+   write helper is NOT usable here because it zeroes expires_at/flags on
+   every ENTRY write. */
+static int judy_write_entry_verbatim(judy_object *intern, zval *key,
+		judy_cache_entry_t *src)
+{
+	Pvoid_t *slot;
+
+	if (JUDY_UNLIKELY(judy_string_slot_acquire(intern,
+			(uint8_t *)Z_STRVAL_P(key), (Word_t)Z_STRLEN_P(key),
+			&slot, NULL) == FAILURE)) {
+		return FAILURE;
+	}
+
+	judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*slot);
+	if (entry != NULL) {
+		/* Publish the new value/metadata into the existing struct BEFORE
+		 * destroying the old value: the destructor can run arbitrary PHP
+		 * that re-enters and restructures this array, and the slot must
+		 * stay consistent no matter what it does. */
+		zval old_val;
+		ZVAL_COPY_VALUE(&old_val, &entry->value);
+		entry->expires_at = src->expires_at;
+		entry->flags = src->flags;
+		entry->reserved = 0;
+		ZVAL_COPY(&entry->value, &src->value);
+		zval_ptr_dtor(&old_val);
+	} else {
+		entry = (judy_cache_entry_t *)emalloc(sizeof(judy_cache_entry_t));
+		entry->expires_at = src->expires_at;
+		entry->flags = src->flags;
+		entry->reserved = 0;
+		ZVAL_COPY(&entry->value, &src->value);
+		*slot = (Pvoid_t)(uintptr_t)entry;
+	}
+	return SUCCESS;
+}
+/* }}} */
+
 static void judy_object_merge_with_helper(judy_object *intern, judy_object *other)
 {
 	Word_t index = 0;
@@ -5439,7 +5696,32 @@ static void judy_object_merge_with_helper(judy_object *intern, judy_object *othe
 				judy_value_from_slot(other, VValue, &zval_val);
 			}
 
-			judy_object_write_dimension_helper_zv(intern, &zkey, &zval_val);
+			if (JUDY_UNLIKELY(JUDY_IS_ENTRY_VALUE(intern) && JUDY_IS_ENTRY_VALUE(other))) {
+				/* ENTRY -> ENTRY: copy the struct verbatim (Gate-1 ruling d).
+				 * The generic write helper zeroes expires_at/flags on every
+				 * ENTRY write; this path preserves the source metadata
+				 * exactly as slice() does, and keeps expired source entries
+				 * hidden in the target on read, just as they are in the
+				 * source (no value materialisation means no expiry filter).
+				 * zval_val stays UNDEF here — the value is copied from the
+				 * struct directly, addref'd before any user code can run. */
+				judy_cache_entry_t *src = (judy_cache_entry_t *)(uintptr_t)(*VValue);
+				if (JUDY_LIKELY(src != NULL)) {
+					/* JSLI inside can fail with JERR and no exception: a
+					 * silent skip would drop the entry from the merge, so
+					 * surface it like the other allocation-error paths. */
+					if (JUDY_UNLIKELY(judy_write_entry_verbatim(intern, &zkey, src) == FAILURE
+							&& !EG(exception))) {
+						zend_throw_exception(NULL,
+							"Failed to merge entry into STRING_TO_ENTRY array", 0);
+					}
+				} else {
+					/* Defensive: a live slot always holds an entry. */
+					judy_object_write_dimension_helper_zv(intern, &zkey, &zval_val);
+				}
+			} else {
+				judy_object_write_dimension_helper_zv(intern, &zkey, &zval_val);
+			}
 			zval_ptr_dtor(&zval_val);
 			zval_ptr_dtor(&zkey);
 			if (UNEXPECTED(EG(exception))) break;
@@ -5611,6 +5893,10 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 		ZEND_HASH_FOREACH_VAL(Z_ARRVAL_P(arr), entry) {
 			Word_t index = (Word_t)zval_get_long(entry);
 			J1S(Rc_int, intern->array, index);
+			/* JERR (-1) is itself a truthy value, so `Rc_int == 1` alone
+			 * would silently swallow an allocation failure; abort instead
+			 * of dropping the bit and shipping a partial bulk insert. */
+			if (JUDY_UNLIKELY(Rc_int == JERR)) goto alloc_error;
 			if (Rc_int == 1) intern->counter++;
 		} ZEND_HASH_FOREACH_END();
 		break;
@@ -5630,10 +5916,9 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 			Pvoid_t *PExisting;
 			JLG(PExisting, intern->array, index);
 			JLI(PValue, intern->array, index);
-			if (PValue != NULL && PValue != PJERR) {
-				JUDY_LVAL_WRITE(PValue, lval);
-				if (PExisting == NULL) intern->counter++;
-			}
+			if (JUDY_UNLIKELY(PValue == NULL || PValue == PJERR)) goto alloc_error;
+			JUDY_LVAL_WRITE(PValue, lval);
+			if (PExisting == NULL) intern->counter++;
 		} ZEND_HASH_FOREACH_END();
 		break;
 	}
@@ -5649,7 +5934,8 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 			}
 			Word_t index = (Word_t)num_key;
 			JLI(PValue, intern->array, index);
-			if (PValue != NULL && PValue != PJERR) {
+			if (JUDY_UNLIKELY(PValue == NULL || PValue == PJERR)) goto alloc_error;
+			{
 				zval *old_value = JUDY_MVAL_READ(PValue);
 				zval *new_value = emalloc(sizeof(zval));
 				ZVAL_COPY(new_value, entry);
@@ -5681,17 +5967,17 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 			judy_packed_value *packed = judy_pack_value(entry);
 			if (!packed) continue;
 			JLI(PValue, intern->array, index);
-			if (PValue != NULL && PValue != PJERR) {
-				if (*(Pvoid_t *)PValue != NULL) {
-					judy_packed_value *old = JUDY_PVAL_READ(PValue);
-					if (old) efree(old);
-				} else {
-					intern->counter++;
-				}
-				JUDY_PVAL_WRITE(PValue, packed);
-			} else {
+			if (JUDY_UNLIKELY(PValue == NULL || PValue == PJERR)) {
 				efree(packed);
+				goto alloc_error;
 			}
+			if (*(Pvoid_t *)PValue != NULL) {
+				judy_packed_value *old = JUDY_PVAL_READ(PValue);
+				if (old) efree(old);
+			} else {
+				intern->counter++;
+			}
+			JUDY_PVAL_WRITE(PValue, packed);
 		} ZEND_HASH_FOREACH_END();
 		break;
 	}
@@ -5705,8 +5991,17 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 			} else {
 				ZVAL_STR(&offset, zend_long_to_str((zend_long)num_key));
 			}
-			judy_object_write_dimension_helper(judy_obj, &offset, entry);
+			int rc = judy_object_write_dimension_helper(judy_obj, &offset, entry);
 			zval_ptr_dtor(&offset);
+			/* The helper signals an insert allocation failure (JERR) by
+			 * returning FAILURE without throwing — surface it as an
+			 * exception rather than silently dropping the entry. */
+			if (JUDY_UNLIKELY(rc == FAILURE)) {
+				if (!EG(exception)) {
+					goto alloc_error;
+				}
+				break;
+			}
 			/* Stop on the first thrown key (embedded NUL / oversize): keep the
 			 * partial result up to the error rather than plowing on with an
 			 * exception pending. */
@@ -5717,6 +6012,16 @@ static void judy_populate_from_array(zval *judy_obj, zval *arr) {
 		break;
 	}
 	}
+
+	return;
+
+alloc_error:
+	/* Stop at the first allocation failure, keep the insert up to that point
+	 * (same partial-then-throw semantics as a rejected embedded-NUL key) —
+	 * the caller's unwind releases any partially-built object, so the counter
+	 * stays an honest count of what was actually inserted. Mirrors the set-op
+	 * JERR precedent. */
+	zend_throw_exception(NULL, "Judy: memory allocation failed during bulk insert", 0);
 }
 /* }}} */
 
@@ -5894,8 +6199,15 @@ PHP_METHOD(Judy, increment)
 		}
 		if (PExisting == NULL) intern->counter++;
 		zend_long old_val = JUDY_LVAL_READ(PValue);
-		JUDY_LVAL_WRITE(PValue, old_val + amount);
-		RETURN_LONG(old_val + amount);
+		/* Boundary arithmetic wraps: compute in zend_ulong and reinterpret the
+		   two's-complement bit pattern. Plain `old_val + amount` is signed
+		   overflow, which is undefined behaviour — the compiler may assume it
+		   never happens and fold the edge case arbitrarily at -O3/-flto.
+		   (A throw was the alternative contract; see increment_overflow_001.phpt
+		   for the ruling recorded at Gate 1.) */
+		zend_long new_val = (zend_long)((zend_ulong)old_val + (zend_ulong)amount);
+		JUDY_LVAL_WRITE(PValue, new_val);
+		RETURN_LONG(new_val);
 
 	} else if (intern->type == TYPE_STRING_TO_INT
 			|| intern->type == TYPE_STRING_TO_INT_HASH) {
@@ -5904,11 +6216,16 @@ PHP_METHOD(Judy, increment)
 		Pvoid_t *mirror;
 		zend_long new_val;
 
-		if (ZSTR_LEN(skey) >= PHP_JUDY_MAX_LENGTH) {
+		/* Capture the length BEFORE zend_string_release(): the message below
+		   must not read ZSTR_LEN(skey) after the string may have been freed
+		   (use-after-free). */
+		size_t key_len = ZSTR_LEN(skey);
+
+		if (key_len >= judy_string_key_cap()) {
 			zend_string_release(skey);
 			zend_throw_exception_ex(NULL, 0,
 				"Judy string key length (%zu) exceeds maximum of %d bytes",
-				ZSTR_LEN(skey), PHP_JUDY_MAX_LENGTH - 1);
+				key_len, (int)judy_string_key_cap() - 1);
 			return;
 		}
 
@@ -5926,7 +6243,9 @@ PHP_METHOD(Judy, increment)
 			return;
 		}
 
-		new_val = JUDY_LVAL_READ(slot) + amount;
+		/* Same wrap discipline as the INT_TO_INT branch: unsigned add, then
+		   reinterpret — no signed-overflow UB at the boundaries. */
+		new_val = (zend_long)((zend_ulong)JUDY_LVAL_READ(slot) + (zend_ulong)amount);
 		if (mirror != NULL) {
 			JUDY_LVAL_WRITE(mirror, new_val);
 		}
@@ -5969,6 +6288,20 @@ PHP_METHOD(Judy, set)
 	ZEND_PARSE_PARAMETERS_END();
 
 	if (UNEXPECTED(judy_reject_nul_key(intern->type, key, key_len))) {
+		return;
+	}
+
+	/* Same cap as the write helper (offsetSet) and increment(): a longer key
+	   would be stored here and then copied back unbounded into the fixed
+	   64 KB key_scratch by the next ordered traversal (JSLF writes the found
+	   key, overflowing the buffer). Reject before anything is acquired.
+	   judy.string.maxlength may tighten the compile-time boundary (clamped
+	   at 1 to keep the legal empty key working while locking everything
+	   else out). */
+	if (UNEXPECTED(key_len >= judy_string_key_cap())) {
+		zend_throw_exception_ex(NULL, 0,
+			"Judy string key length (%zu) exceeds maximum of %d bytes",
+			key_len, (int)judy_string_key_cap() - 1);
 		return;
 	}
 
@@ -6048,7 +6381,7 @@ PHP_METHOD(Judy, get)
 		RETURN_NULL();
 	}
 
-	if (entry->expires_at != 0 && entry->expires_at <= (uint32_t)time(NULL)) {
+	if (judy_entry_is_expired(entry)) {
 		RETURN_NULL();
 	}
 
@@ -6070,7 +6403,6 @@ PHP_METHOD(Judy, pruneExpired)
 	zend_long now_arg = 0;
 	bool now_is_null = true;
 	uint32_t now_ts;
-	zend_long pruned_count = 0;
 
 	JUDY_METHOD_GET_OBJECT;
 
@@ -6094,15 +6426,22 @@ PHP_METHOD(Judy, pruneExpired)
 		RETURN_LONG(0);
 	}
 
-	uint8_t *kindex = intern->key_scratch;
+	/* Private cursor, deliberately not intern->key_scratch: a value destructor
+	 * can re-enter this method (or any other walk over key_scratch) mid-pass.
+	 * No failing pre-fix repro was found — the key is copied to the stack
+	 * buffer before any destructor runs and the cursor is re-seeded from that
+	 * copy, so the walk cannot be clobbered — but a private buffer makes that
+	 * property structural instead of accidental. [Step 3.5 hygiene] */
+	uint8_t *kindex = (uint8_t *)emalloc(PHP_JUDY_MAX_LENGTH);
 	Word_t *PValue;
 	int Rc_int;
+	zend_long removed = 0;
 
 	kindex[0] = '\0';
 	JSLF(PValue, intern->array, kindex);
 	while (PValue != NULL && PValue != PJERR) {
 		judy_cache_entry_t *entry = (judy_cache_entry_t *)(uintptr_t)(*PValue);
-		if (entry != NULL && entry->expires_at != 0 && entry->expires_at <= now_ts) {
+		if (judy_entry_is_expired_at(entry, now_ts)) {
 			uint8_t key_to_del[PHP_JUDY_MAX_LENGTH];
 			size_t klen = strlen((char *)kindex);
 			if (klen >= PHP_JUDY_MAX_LENGTH) {
@@ -6113,12 +6452,29 @@ PHP_METHOD(Judy, pruneExpired)
 
 			/* Delete the key from JudySL before running destructor */
 			JSLD(Rc_int, intern->array, key_to_del);
-			intern->counter--;
-			judy_string_bytes_sub(intern, (Word_t)klen);
-			pruned_count++;
+			if (Rc_int == 1) {
+				/* Confirmed removal only. On JSLD 0/JERR the key is still in
+				 * the trie and the entry must NOT be freed — decrementing the
+				 * counter or freeing the struct here would desynchronise the
+				 * counter from the tree (and free a slot the tree still
+				 * dereferences). */
+				intern->counter--;
+				judy_string_bytes_sub(intern, (Word_t)klen);
+				removed++;
 
-			zval_ptr_dtor(&entry->value);
-			efree(entry);
+				if (entry != NULL) {
+					/* Free the entry struct BEFORE running the value
+					 * destructor: a __destruct that throws must not be able
+					 * to strand the struct (measured: a throwing destructor
+					 * leaked ~6 bytes/entry into Zend MM before this). The
+					 * value zval is stolen out first so its refcount
+					 * bookkeeping is unchanged. */
+					zval value;
+					ZVAL_COPY_VALUE(&value, &entry->value);
+					efree(entry);
+					zval_ptr_dtor(&value);
+				}
+			}
 
 			/* Find the next key strictly greater than key_to_del */
 			JSLN(PValue, intern->array, key_to_del);
@@ -6134,8 +6490,9 @@ PHP_METHOD(Judy, pruneExpired)
 			JSLN(PValue, intern->array, kindex);
 		}
 	}
+	efree(kindex);
 
-	RETURN_LONG(pruned_count);
+	RETURN_LONG(removed);
 }
 /* }}} */
 
@@ -6177,7 +6534,7 @@ PHP_METHOD(Judy, getEntry)
 		RETURN_NULL();
 	}
 
-	bool is_expired = (entry->expires_at != 0 && entry->expires_at <= (uint32_t)time(NULL));
+	bool is_expired = judy_entry_is_expired(entry);
 
 	array_init(return_value);
 	zval val_copy;
