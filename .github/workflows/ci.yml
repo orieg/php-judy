@@ -265,16 +265,23 @@ jobs:
     name: Discipline Sentinel
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Read-only access to pull requests: on push, the `merged-pr-body`
-    # directive source reads the body of the PR the commit merged through.
+    # Write access to pull requests so the sentinel report can be posted as
+    # one always-edited comment on the PR thread. On push, the `merged-pr-body`
+    # directive source still reads the body of the PR the commit merged
+    # through; a fork's read-only token is reported, not failed, so comment
+    # posting can never block a fork pull request.
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # The discipline action reads the forge through DISCIPLINE_FORGE_TOKEN
+          # (env), not git credentials; keep the token out of .git/config now
+          # that this job can write pull-request comments.
+          persist-credentials: false
       - name: Run Discipline Diff Sentinel
         uses: orieg/discipline@1edfbb883459be2364ef932eb5f438dae8b7cafa # v0.18.0
         with:
@@ -282,6 +289,10 @@ jobs:
           # Judge the change with main's discipline.toml, so a PR cannot loosen
           # the policy that judges it (config-integrity still reports the edit).
           policy_from: base
+          # Post the full report as one pull-request comment, edited on every
+          # run, so reviewers see the verdict on the thread instead of the
+          # job log.
+          comment: true
 
   build-linux:
     name: Core / Linux Matrix (PHP ${{ matrix.php-version }})
