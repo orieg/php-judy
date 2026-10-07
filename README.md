@@ -417,7 +417,8 @@ $cache->set("session_123", ["user" => "Alice"], ttl: 3600, flags: 1);
 // Read value (returns null if key does not exist or has expired)
 $val = $cache->get("session_123", $expiresAt, $flags);
 
-// Batch prune expired items directly in C (2.6x faster than userland foreach+unset)
+// Batch prune expired items directly in C — a single pass, no userland
+// foreach+unset loop
 $evictedCount = $cache->pruneExpired();
 
 // Inspect full metadata

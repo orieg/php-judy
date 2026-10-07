@@ -334,7 +334,7 @@ class Judy implements ArrayAccess, Countable, Iterator, JsonSerializable
     /**
      * Call a callback for each element, iterating in C.
      *
-     * The callback receives ($key, $value) for each element.
+     * The callback receives ($value, $key) for each element.
      */
     public function forEach(callable $callback): void {}
 

@@ -392,21 +392,21 @@ $counters->increment("page_views", -3);   // 9
 PHP,
         ],
         'forEach' => [
-            'description' => 'Calls `$callback($key, $value)` for each element. The callback receives the key as the first argument and the value as the second.',
+            'description' => 'Calls `$callback($value, $key)` for each element. The callback receives the value as the first argument and the key as the second.',
             'supported_types' => 'All types.',
             'example' => <<<'PHP'
 $judy = Judy::fromArray(Judy::INT_TO_INT, [1 => 10, 2 => 20, 3 => 30]);
-$judy->forEach(function ($key, $value) {
+$judy->forEach(function ($value, $key) {
     echo "$key => $value\n";
 });
 PHP,
         ],
         'filter' => [
-            'description' => "Returns a new Judy array containing only elements for which `\$predicate(\$key, \$value)` returns `true`.\n\nThe value copied into the result is the one the predicate was handed. A predicate that writes or unsets `\$this[\$key]` does not change what is copied for that element.",
+            'description' => "Returns a new Judy array containing only elements for which `\$predicate(\$value, \$key)` returns `true`.\n\nThe value copied into the result is the one the predicate was handed. A predicate that writes or unsets `\$this[\$key]` does not change what is copied for that element.",
             'supported_types' => 'All types.',
         ],
         'map' => [
-            'description' => 'Returns a new Judy array with the same keys, where each value is replaced by the return value of `$transform($key, $value)`.',
+            'description' => 'Returns a new Judy array with the same keys, where each value is replaced by the return value of `$transform($value, $key)`.',
             'supported_types' => 'All types.',
         ],
         'sumValues' => [
@@ -456,6 +456,7 @@ PHP,
         'STRING_TO_MIXED_HASH'     => ['key' => '`string`', 'value' => '`mixed`', 'notes' => 'O(1) avg lookup'],
         'STRING_TO_INT_ADAPTIVE'   => ['key' => '`string`', 'value' => '`int`',   'notes' => 'SSO for short keys'],
         'STRING_TO_MIXED_ADAPTIVE' => ['key' => '`string`', 'value' => '`mixed`', 'notes' => 'SSO for short keys'],
+        'STRING_TO_ENTRY'          => ['key' => '`string`', 'value' => '`mixed` (entry with TTL + flags)', 'notes' => 'Native cache entries: set()/get()/pruneExpired()'],
     ],
 
     // ── Type compatibility matrix ───────────────────────────────
@@ -463,7 +464,7 @@ PHP,
     'matrix_columns' => [
         'BITSET', 'INT_TO_INT', 'INT_TO_MIXED', 'INT_TO_PACKED',
         'STR_INT', 'STR_MIXED', 'STR_INT_HASH', 'STR_MIX_HASH',
-        'STR_INT_ADAPT', 'STR_MIX_ADAPT',
+        'STR_INT_ADAPT', 'STR_MIX_ADAPT', 'STR_ENTRY',
     ],
 
     // Maps the abbreviated column headers to full constant names
@@ -478,53 +479,54 @@ PHP,
         'STR_MIX_HASH'  => 'STRING_TO_MIXED_HASH',
         'STR_INT_ADAPT' => 'STRING_TO_INT_ADAPTIVE',
         'STR_MIX_ADAPT' => 'STRING_TO_MIXED_ADAPTIVE',
+        'STR_ENTRY'     => 'STRING_TO_ENTRY',
     ],
 
     'compatibility_matrix' => [
         '`memoryUsage()`' => [
             'BITSET' => 'int', 'INT_TO_INT' => 'int', 'INT_TO_MIXED' => 'int', 'INT_TO_PACKED' => 'int',
             'STR_INT' => 'approx', 'STR_MIXED' => 'approx', 'STR_INT_HASH' => 'approx', 'STR_MIX_HASH' => 'approx',
-            'STR_INT_ADAPT' => 'approx', 'STR_MIX_ADAPT' => 'approx',
+            'STR_INT_ADAPT' => 'approx', 'STR_MIX_ADAPT' => 'approx', 'STR_ENTRY' => 'approx',
         ],
         '`union/intersect/diff/xor`' => [
             'BITSET' => 'yes', 'INT_TO_INT' => 'yes', 'INT_TO_MIXED' => '-', 'INT_TO_PACKED' => '-',
             'STR_INT' => 'yes', 'STR_MIXED' => '-', 'STR_INT_HASH' => 'yes', 'STR_MIX_HASH' => '-',
-            'STR_INT_ADAPT' => '-', 'STR_MIX_ADAPT' => '-',
+            'STR_INT_ADAPT' => 'yes', 'STR_MIX_ADAPT' => '-', 'STR_ENTRY' => '-',
         ],
         '`populationCount()`' => [
             'BITSET' => 'yes', 'INT_TO_INT' => 'yes', 'INT_TO_MIXED' => 'yes', 'INT_TO_PACKED' => 'yes',
             'STR_INT' => '-', 'STR_MIXED' => '-', 'STR_INT_HASH' => '-', 'STR_MIX_HASH' => '-',
-            'STR_INT_ADAPT' => '-', 'STR_MIX_ADAPT' => '-',
+            'STR_INT_ADAPT' => '-', 'STR_MIX_ADAPT' => '-', 'STR_ENTRY' => '-',
         ],
         '`sumValues()`' => [
             'BITSET' => 'yes', 'INT_TO_INT' => 'yes', 'INT_TO_MIXED' => '-', 'INT_TO_PACKED' => '-',
             'STR_INT' => 'yes', 'STR_MIXED' => '-', 'STR_INT_HASH' => 'yes', 'STR_MIX_HASH' => '-',
-            'STR_INT_ADAPT' => 'yes', 'STR_MIX_ADAPT' => '-',
+            'STR_INT_ADAPT' => 'yes', 'STR_MIX_ADAPT' => '-', 'STR_ENTRY' => '-',
         ],
         '`averageValues()`' => [
             'BITSET' => 'yes', 'INT_TO_INT' => 'yes', 'INT_TO_MIXED' => '-', 'INT_TO_PACKED' => '-',
             'STR_INT' => 'yes', 'STR_MIXED' => '-', 'STR_INT_HASH' => 'yes', 'STR_MIX_HASH' => '-',
-            'STR_INT_ADAPT' => 'yes', 'STR_MIX_ADAPT' => '-',
+            'STR_INT_ADAPT' => 'yes', 'STR_MIX_ADAPT' => '-', 'STR_ENTRY' => '-',
         ],
         '`increment()`' => [
             'BITSET' => '-', 'INT_TO_INT' => 'yes', 'INT_TO_MIXED' => '-', 'INT_TO_PACKED' => '-',
             'STR_INT' => 'yes', 'STR_MIXED' => '-', 'STR_INT_HASH' => 'yes', 'STR_MIX_HASH' => '-',
-            'STR_INT_ADAPT' => '-', 'STR_MIX_ADAPT' => '-',
+            'STR_INT_ADAPT' => '-', 'STR_MIX_ADAPT' => '-', 'STR_ENTRY' => '-',
         ],
         '`byCount()`' => [
             'BITSET' => 'yes', 'INT_TO_INT' => 'yes', 'INT_TO_MIXED' => 'yes', 'INT_TO_PACKED' => 'yes',
             'STR_INT' => 'null', 'STR_MIXED' => 'null', 'STR_INT_HASH' => 'null', 'STR_MIX_HASH' => 'null',
-            'STR_INT_ADAPT' => 'null', 'STR_MIX_ADAPT' => 'null',
+            'STR_INT_ADAPT' => 'null', 'STR_MIX_ADAPT' => 'null', 'STR_ENTRY' => 'null',
         ],
         '`firstEmpty()` etc.' => [
             'BITSET' => 'yes', 'INT_TO_INT' => 'yes', 'INT_TO_MIXED' => 'yes', 'INT_TO_PACKED' => 'yes',
             'STR_INT' => 'null', 'STR_MIXED' => 'null', 'STR_INT_HASH' => 'null', 'STR_MIX_HASH' => 'null',
-            'STR_INT_ADAPT' => 'null', 'STR_MIX_ADAPT' => 'null',
+            'STR_INT_ADAPT' => 'null', 'STR_MIX_ADAPT' => 'null', 'STR_ENTRY' => 'null',
         ],
     ],
 
     'matrix_legend' => '**Legend**: `yes` = supported, `-` = throws exception, `null` = silently returns null, `int` = returns an exact integer value, `approx` = returns an approximate integer value (see the method entry).',
-    'matrix_footer' => 'All other methods (`size`, `slice`, `deleteRange`, `forEach`, `filter`, `map`, `keys`, `values`, `equals`, `mergeWith`, `toArray`, `fromArray`, `putAll`, `getAll`) work with all 10 types, ranged forms included.',
+    'matrix_footer' => 'All other methods (`size`, `slice`, `deleteRange`, `forEach`, `filter`, `map`, `keys`, `values`, `equals`, `mergeWith`, `toArray`, `fromArray`, `putAll`, `getAll`) work with all 11 types, ranged forms included. On `STRING_TO_ENTRY`, the *unbounded* `count()`/`size()` forms are raw-counter O(1): they count stored entries *including* expired-but-not-yet-pruned and over-count until `pruneExpired()` runs — `count($j) === count($j->keys())` is guaranteed only after pruning (Gate-1 canonical ruling). A *bounded* `size($start, $end)` on a string-keyed type walks the key index instead, and likewise includes expired-but-unpruned entries.',
 
     // ── Global functions ────────────────────────────────────────
     'global_functions' => ['judy_version', 'judy_type'],

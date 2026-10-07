@@ -206,18 +206,19 @@ unset($judy[0]);
 
 ### Key/Value Types per Array Type
 
-| Type                     | Key      | Value   | Notes                                     |
-| ------------------------ | -------- | ------- | ----------------------------------------- |
-| BITSET                   | `int`    | `bool`  | `true` sets the bit, `false` clears it    |
-| INT_TO_INT               | `int`    | `int`   | Values coerced to integer                 |
-| INT_TO_MIXED             | `int`    | `mixed` | Any PHP value                             |
-| INT_TO_PACKED            | `int`    | `mixed` | Serialized on write, deserialized on read |
-| STRING_TO_INT            | `string` | `int`   | Values coerced to integer                 |
-| STRING_TO_MIXED          | `string` | `mixed` | Any PHP value                             |
-| STRING_TO_INT_HASH       | `string` | `int`   | O(1) avg lookup                           |
-| STRING_TO_MIXED_HASH     | `string` | `mixed` | O(1) avg lookup                           |
-| STRING_TO_INT_ADAPTIVE   | `string` | `int`   | SSO for short keys                        |
-| STRING_TO_MIXED_ADAPTIVE | `string` | `mixed` | SSO for short keys                        |
+| Type                     | Key      | Value                            | Notes                                            |
+| ------------------------ | -------- | -------------------------------- | ------------------------------------------------ |
+| BITSET                   | `int`    | `bool`                           | `true` sets the bit, `false` clears it           |
+| INT_TO_INT               | `int`    | `int`                            | Values coerced to integer                        |
+| INT_TO_MIXED             | `int`    | `mixed`                          | Any PHP value                                    |
+| INT_TO_PACKED            | `int`    | `mixed`                          | Serialized on write, deserialized on read        |
+| STRING_TO_INT            | `string` | `int`                            | Values coerced to integer                        |
+| STRING_TO_MIXED          | `string` | `mixed`                          | Any PHP value                                    |
+| STRING_TO_INT_HASH       | `string` | `int`                            | O(1) avg lookup                                  |
+| STRING_TO_MIXED_HASH     | `string` | `mixed`                          | O(1) avg lookup                                  |
+| STRING_TO_INT_ADAPTIVE   | `string` | `int`                            | SSO for short keys                               |
+| STRING_TO_MIXED_ADAPTIVE | `string` | `mixed`                          | SSO for short keys                               |
+| STRING_TO_ENTRY          | `string` | `mixed` (entry with TTL + flags) | Native cache entries: set()/get()/pruneExpired() |
 
 ---
 
@@ -549,13 +550,13 @@ These methods iterate in C, bypassing the PHP Iterator protocol overhead.
 public function forEach(callable $callback): void
 ```
 
-Calls `$callback($key, $value)` for each element. The callback receives the key as the first argument and the value as the second.
+Calls `$callback($value, $key)` for each element. The callback receives the value as the first argument and the key as the second.
 
 **Supported types**: All types.
 
 ```php
 $judy = Judy::fromArray(Judy::INT_TO_INT, [1 => 10, 2 => 20, 3 => 30]);
-$judy->forEach(function ($key, $value) {
+$judy->forEach(function ($value, $key) {
     echo "$key => $value\n";
 });
 ```
@@ -566,7 +567,7 @@ $judy->forEach(function ($key, $value) {
 public function filter(callable $predicate): Judy
 ```
 
-Returns a new Judy array containing only elements for which `$predicate($key, $value)` returns `true`.
+Returns a new Judy array containing only elements for which `$predicate($value, $key)` returns `true`.
 
 The value copied into the result is the one the predicate was handed. A predicate that writes or unsets `$this[$key]` does not change what is copied for that element.
 
@@ -578,7 +579,7 @@ The value copied into the result is the one the predicate was handed. A predicat
 public function map(callable $transform): Judy
 ```
 
-Returns a new Judy array with the same keys, where each value is replaced by the return value of `$transform($key, $value)`.
+Returns a new Judy array with the same keys, where each value is replaced by the return value of `$transform($value, $key)`.
 
 **Supported types**: All types.
 
@@ -756,19 +757,19 @@ Returns the Judy type constant of the given Judy array.
 
 ## Type Compatibility Matrix
 
-Summary of which methods are available for each type. Methods not listed here work with all 10 types.
+Summary of which methods are available for each type. Methods not listed here work with all 11 types.
 
-| Method                     | BITSET | INT_TO_INT | INT_TO_MIXED | INT_TO_PACKED | STR_INT | STR_MIXED | STR_INT_HASH | STR_MIX_HASH | STR_INT_ADAPT | STR_MIX_ADAPT |
-| -------------------------- | ------ | ---------- | ------------ | ------------- | ------- | --------- | ------------ | ------------ | ------------- | ------------- |
-| `memoryUsage()`            | int    | int        | int          | int           | approx  | approx    | approx       | approx       | approx        | approx        |
-| `union/intersect/diff/xor` | yes    | yes        | -            | -             | yes     | -         | yes          | -            | -             | -             |
-| `populationCount()`        | yes    | yes        | yes          | yes           | -       | -         | -            | -            | -             | -             |
-| `sumValues()`              | yes    | yes        | -            | -             | yes     | -         | yes          | -            | yes           | -             |
-| `averageValues()`          | yes    | yes        | -            | -             | yes     | -         | yes          | -            | yes           | -             |
-| `increment()`              | -      | yes        | -            | -             | yes     | -         | yes          | -            | -             | -             |
-| `byCount()`                | yes    | yes        | yes          | yes           | null    | null      | null         | null         | null          | null          |
-| `firstEmpty()` etc.        | yes    | yes        | yes          | yes           | null    | null      | null         | null         | null          | null          |
+| Method                     | BITSET | INT_TO_INT | INT_TO_MIXED | INT_TO_PACKED | STR_INT | STR_MIXED | STR_INT_HASH | STR_MIX_HASH | STR_INT_ADAPT | STR_MIX_ADAPT | STR_ENTRY |
+| -------------------------- | ------ | ---------- | ------------ | ------------- | ------- | --------- | ------------ | ------------ | ------------- | ------------- | --------- |
+| `memoryUsage()`            | int    | int        | int          | int           | approx  | approx    | approx       | approx       | approx        | approx        | approx    |
+| `union/intersect/diff/xor` | yes    | yes        | -            | -             | yes     | -         | yes          | -            | yes           | -             | -         |
+| `populationCount()`        | yes    | yes        | yes          | yes           | -       | -         | -            | -            | -             | -             | -         |
+| `sumValues()`              | yes    | yes        | -            | -             | yes     | -         | yes          | -            | yes           | -             | -         |
+| `averageValues()`          | yes    | yes        | -            | -             | yes     | -         | yes          | -            | yes           | -             | -         |
+| `increment()`              | -      | yes        | -            | -             | yes     | -         | yes          | -            | -             | -             | -         |
+| `byCount()`                | yes    | yes        | yes          | yes           | null    | null      | null         | null         | null          | null          | null      |
+| `firstEmpty()` etc.        | yes    | yes        | yes          | yes           | null    | null      | null         | null         | null          | null          | null      |
 
 **Legend**: `yes` = supported, `-` = throws exception, `null` = silently returns null, `int` = returns an exact integer value, `approx` = returns an approximate integer value (see the method entry).
 
-All other methods (`size`, `slice`, `deleteRange`, `forEach`, `filter`, `map`, `keys`, `values`, `equals`, `mergeWith`, `toArray`, `fromArray`, `putAll`, `getAll`) work with all 10 types, ranged forms included.
+All other methods (`size`, `slice`, `deleteRange`, `forEach`, `filter`, `map`, `keys`, `values`, `equals`, `mergeWith`, `toArray`, `fromArray`, `putAll`, `getAll`) work with all 11 types, ranged forms included. On `STRING_TO_ENTRY`, the *unbounded* `count()`/`size()` forms are raw-counter O(1): they count stored entries *including* expired-but-not-yet-pruned and over-count until `pruneExpired()` runs — `count($j) === count($j->keys())` is guaranteed only after pruning (Gate-1 canonical ruling). A *bounded* `size($start, $end)` on a string-keyed type walks the key index instead, and likewise includes expired-but-unpruned entries.

@@ -278,6 +278,39 @@ foreach ($metaConstants as $name => $value) {
     }
 }
 
+// Every stub type constant must resolve to a *rendered* matrix column (via
+// matrix_column_map). Without this, a new type would silently ship an API.md
+// matrix that omits it: --check can only diff what the generator already
+// emits, so it can never notice a column the generator never knew about.
+foreach ($constants as $name => $value) {
+    $abbrev = array_search($name, $meta['matrix_column_map'], true);
+    if ($abbrev === false) {
+        $errors[] = "Constant '$name' has no entry in matrix_column_map in api-metadata.php";
+    } elseif (!in_array($abbrev, $meta['matrix_columns'], true)) {
+        $errors[] = "Constant '$name' maps to column '$abbrev', which is not rendered (missing from matrix_columns in api-metadata.php)";
+    }
+}
+
+// Every compatibility_matrix row must carry exactly the matrix_columns, and
+// only cells from the matrix_legend vocabulary. A missing cell would otherwise
+// render as a silent '?' (and a wrong cell as a silently wrong doc) that
+// --check is blind to, because it only diffs what this generator emits.
+$matrixCells = ['yes', '-', 'null', 'int', 'approx'];
+foreach ($meta['compatibility_matrix'] as $methodLabel => $colValues) {
+    foreach ($meta['matrix_columns'] as $col) {
+        if (!array_key_exists($col, $colValues)) {
+            $errors[] = "Compatibility row '$methodLabel' is missing column '$col' in api-metadata.php";
+        } elseif (!in_array($colValues[$col], $matrixCells, true)) {
+            $errors[] = "Compatibility row '$methodLabel' column '$col' has unknown cell '{$colValues[$col]}' (expected one of: " . implode(', ', $matrixCells) . ")";
+        }
+    }
+    foreach (array_keys($colValues) as $col) {
+        if (!in_array($col, $meta['matrix_columns'], true)) {
+            $errors[] = "Compatibility row '$methodLabel' references unknown column '$col' in api-metadata.php";
+        }
+    }
+}
+
 if (!empty($errors)) {
     fwrite(STDERR, "Drift detected between Judy.stub.php and api-metadata.php:\n");
     foreach ($errors as $e) {
@@ -533,7 +566,7 @@ $out .= "---\n\n";
 // ── Type Compatibility Matrix ──
 
 $out .= "## Type Compatibility Matrix\n\n";
-$out .= "Summary of which methods are available for each type. Methods not listed here work with all 10 types.\n\n";
+$out .= "Summary of which methods are available for each type. Methods not listed here work with all 11 types.\n\n";
 
 $matrixCols = $meta['matrix_columns'];
 $headers = array_merge(['Method'], $matrixCols);

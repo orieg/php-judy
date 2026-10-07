@@ -17,7 +17,7 @@ key distribution, or integer-keyed workloads (see
 **Verdict as measured: keep Judy.** ART ties on point lookup, costs 27% more
 memory, and wins only a constant factor on prefix operations. The evaluation
 did surface one actionable finding that needs no backend change — see
-[The useful finding](#the-useful-finding-iteration-cost-is-an-api-shape-problem).
+[The useful finding](#the-iteration-number-first-explanation-was-wrong).
 
 ---
 

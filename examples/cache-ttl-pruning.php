@@ -55,18 +55,31 @@ echo "   isset('session:usr_1002'): " . (isset($cache["session:usr_1002"]) ? 'tr
 echo "   Count before pruning: " . count($cache) . "\n\n";
 
 // 4. Expiration and native in-C pruneExpired()
-echo "4. Simulating time passage and running native in-C pruneExpired()...\n";
+echo "4. Expiring an entry for real, then running native in-C pruneExpired()...\n";
 
-// Simulate 5 seconds later
-$futureTime = time() + 5;
-echo "   Current simulated timestamp: $futureTime\n";
+// Give the rate-limit token a fresh 1-second TTL. get() consults the real
+// clock, so we let it genuinely lapse rather than simulate. Gate-1 canonical
+// ruling: reads *and traversals* hide an expired entry (get() => null,
+// keys()/foreach skip it), while count()/size() are raw counters that still
+// include it until pruneExpired() runs.
+$cache->set("ratelimit:ip_192.168.1.50", 5, ttl: 1, flags: 0x02);
+sleep(2);
 
-// The rate-limit entry had TTL=2, so at +5s it has expired:
+// Reads hide the expired entry (Gate-1 canonical ruling):
 $rl = $cache->get("ratelimit:ip_192.168.1.50");
 echo "   get('ratelimit:ip_192.168.1.50') => " . ($rl === null ? "NULL (expired)" : "Value: $rl") . "\n";
 
-// Native prune in C (evicts all items where expires_at <= $futureTime)
-$evicted = $cache->pruneExpired($futureTime);
+// Traversals hide it too: keys() no longer lists the expired key...
+echo "   keys() before pruneExpired(): " . json_encode($cache->keys()) . " (expired key hidden)\n";
+
+// ...but count()/size() are raw counters: they still count the expired entry
+// until pruning — count($j) === count($j->keys()) holds only after
+// pruneExpired() (also the Gate-1 ruling):
+echo "   count() before pruneExpired(): " . count($cache) . " (expired entry still counted)\n";
+
+// Native prune in C (evicts all items where expires_at <= now; a $now argument
+// is accepted for testing)
+$evicted = $cache->pruneExpired();
 echo "   pruneExpired() evicted $evicted expired item(s) in a single trie pass.\n";
 echo "   Count after pruning: " . count($cache) . "\n\n";
 

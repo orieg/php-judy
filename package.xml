@@ -428,6 +428,7 @@
          <file name="THIRD-PARTY.md" role="doc" />
          <file md5sum="cb564efdf78cce8ea6e4b5a4f7c05d97" name="LICENSE" role="doc" />
          <file md5sum="8e2dc32935b46ca0e2d1ef8941c83d84" name="README.md" role="doc" />
+         <file name="SECURITY.md" role="doc" />
          <file md5sum="730470b2aca686ddbea82a2b2af03a1a" name="CREDITS" role="doc" />
          <file md5sum="af4d88a4da7b16aaf4f92d7fe619e6be" name="BENCHMARK.md" role="doc" />
          <file name="BACKEND_EVALUATION.md" role="doc" />
@@ -484,9 +485,9 @@
   trie sweep directly in C with 0 PHP heap allocations (12.9 ms per 100k items).
 - FEATURE: Full bulk and iteration support on STRING_TO_ENTRY -- ArrayAccess,
   Iterator, keys(), values(), toArray(), slice(), getAll(), and serialization.
-- BUILD: Pure-Rust Expanse backend integration support (--with-expanse) for
-  modern 64-bit microarchitectures, zero-leak memory management, and cross-platform
-  MSVC Windows support without source patching.
+- BUILD: Optional pure-Rust Expanse engine support (link it or any system libJudy
+  via --with-judy=DIR) for modern 64-bit microarchitectures, zero-leak memory
+  management, and cross-platform MSVC Windows support without source patching.
          </notes>
       </release>
       <release>

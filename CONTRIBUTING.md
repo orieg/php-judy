@@ -31,7 +31,8 @@ that a new "somewhere to put this" is almost never needed.
 | Vendored third-party C | `libjudy/` — pristine upstream plus the ledgered patch series in [libjudy/PATCHES.md](libjudy/PATCHES.md) | **yes** |
 | Behaviour tests | `tests/` — one `.phpt` per behaviour change, plus any `.inc` fixtures they drive | **yes** |
 | Runnable user-facing demos | `examples/` (and `examples/benchmarks/` for the PHP benchmark suite) | **yes** |
-| User and maintainer docs | repo-root `*.md` (`README.md`, `API.md`, `AGENTS.md`, `BENCHMARK.md`, …) | **yes** |
+| User and maintainer docs | repo-root `*.md` that ships: `README.md`, `API.md`, `BENCHMARK.md`, `BACKEND_EVALUATION.md`, `THIRD-PARTY.md`, `SECURITY.md`, `MIGRATION_*.md` | **yes** |
+| Agent and contributor references — kept repo-only, not shipped in the package | `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `llms.txt` | no |
 | PHP and Python helpers a *user of the package* may want — API-doc generation, the benchmark drivers, the lldb/gdb pretty-printers | `scripts/` | **yes** (`role="doc"`) |
 | Benchmark baselines the CI gates compare against — `latest.json` (absolute ms, release-over-release) and `arm-ratios.json` (per-platform within-run arm ratios, cross-platform gate). Both move only in dedicated PRs | `baselines/` | **yes** (`role="doc"`) |
 | Developer tooling: C harnesses, the differential fuzzer, the shared bench lock and stability guard, the benchmark-gate build/run drivers (`tools/bench-gate/`), packaging and CI helper scripts | `tools/` | no |

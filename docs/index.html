@@ -4,15 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PHP Judy — High-Performance Sparse Dynamic Arrays for PHP 8.1+</title>
-  <meta name="description" content="Official documentation for PHP Judy extension. Memory-efficient, ordered, sparse dynamic arrays wrapping libJudy and Rust Expanse for PHP 8.1+.">
+  <meta name="description" content="Official documentation for PHP Judy extension. Memory-efficient, ordered, sparse dynamic arrays for PHP 8.1+, wrapping the Judy C library (libJudy) — optionally backed by the pure-Rust Expanse engine.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="PHP Judy — High-Performance Sparse Dynamic Arrays for PHP 8.1+">
-  <meta property="og:description" content="Memory-efficient, ordered, sparse dynamic arrays wrapping libJudy and Rust Expanse in C.">
+  <meta property="og:description" content="Memory-efficient, ordered, sparse dynamic arrays wrapping the Judy C library (libJudy) in C — optionally backed by the pure-Rust Expanse engine.">
   <meta property="og:url" content="https://orieg.github.io/php-judy/">
   <meta property="og:site_name" content="PHP Judy">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="PHP Judy — High-Performance Sparse Dynamic Arrays for PHP 8.1+">
-  <meta name="twitter:description" content="Memory-efficient, ordered, sparse dynamic arrays wrapping libJudy and Rust Expanse in C.">
+  <meta name="twitter:description" content="Memory-efficient, ordered, sparse dynamic arrays wrapping the Judy C library (libJudy) in C — optionally backed by the pure-Rust Expanse engine.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x26a1;</text></svg>">
 
   <script>
@@ -607,7 +607,7 @@
 <header class="hero">
   <div class="container">
     <div class="hero-badge">
-      <span>Release v2.7.0 Live</span> &bull; <span>PHP 8.1 – 8.6</span>
+      <span>Release v2.7.1 Live</span> &bull; <span>PHP 8.1 – 8.5, 8.6 prerelease</span>
     </div>
     <h1>Sparse Dynamic Arrays <br><span class="hero-gradient">At C Speed for PHP</span></h1>
     <p class="subtitle">Deterministic memory scaling, lexicographic ordered walks, zero-copy bulk extraction, and native TTL cache storage.</p>
@@ -633,12 +633,12 @@
       <div class="spotlight-grid">
         <div>
           <span style="color: var(--accent); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">What's New in v2.7.0</span>
-          <h2 style="font-size: 1.75rem; font-weight: 800; color: var(--heading); margin: 0.5rem 0 0.75rem;">Native TTL Caching & Rust Expanse Engine</h2>
-          <p style="color: var(--text); font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.25rem;">PHP Judy 2.7.0 introduces <code style="color: var(--accent);">Judy::STRING_TO_ENTRY</code> — packing values with uint32 expiry timestamps and 16-bit metadata flags directly into native C struct entries with zero secondary indexes, plus pure-Rust Expanse backend integration.</p>
+          <h2 style="font-size: 1.75rem; font-weight: 800; color: var(--heading); margin: 0.5rem 0 0.75rem;">Native TTL Caching &amp; Linkable Backends</h2>
+          <p style="color: var(--text); font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.25rem;">PHP Judy 2.7.0 introduces <code style="color: var(--accent);">Judy::STRING_TO_ENTRY</code> — packing values with uint32 expiry timestamps and 16-bit metadata flags directly into native C struct entries with zero secondary indexes. The modernized C libJudy is bundled and compiled in by default; link a system libJudy or the pure-Rust Expanse engine via <code style="color: var(--accent);">--with-judy=DIR</code>.</p>
           <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
             <span style="background: var(--card-inner); border: 1px solid var(--border); padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem;">Judy::STRING_TO_ENTRY</span>
             <span style="background: var(--card-inner); border: 1px solid var(--border); padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem;">In-C pruneExpired()</span>
-            <span style="background: var(--card-inner); border: 1px solid var(--border); padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem;">--with-expanse</span>
+            <span style="background: var(--card-inner); border: 1px solid var(--border); padding: 0.25rem 0.65rem; border-radius: 6px; font-size: 0.75rem;">--with-judy=/usr</span>
           </div>
         </div>
         <div style="background: var(--card-inner); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem;">
@@ -652,7 +652,7 @@
           </div>
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="font-size: 0.85rem; color: var(--text-muted);">Backend Option</span>
-            <strong style="color: var(--accent-purple);">libJudy + Expanse</strong>
+            <strong style="color: var(--accent-purple);">Bundled libJudy · --with-judy=DIR</strong>
           </div>
         </div>
       </div>
@@ -966,9 +966,9 @@
         <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Bundled libJudy requires no external packages.</p>
       </div>
       <div class="install-card">
-        <h4>With Rust Expanse Engine</h4>
-        <div class="install-snippet">./configure --with-expanse=/usr</div>
-        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Link with pure-Rust Judy engine.</p>
+        <h4>Link a System libJudy</h4>
+        <div class="install-snippet">./configure --with-judy=/usr</div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Bundled libJudy compiles in by default; --with-judy=DIR links a system install.</p>
       </div>
     </div>
   </section>
@@ -983,7 +983,7 @@
       <a href="https://github.com/orieg/php-judy/blob/main/BENCHMARK.md" target="_blank" rel="noopener">Benchmarks</a>
       <a href="https://orieg.github.io/judy-cache/">Judy Cache</a>
       <a href="https://orieg.github.io/judy-polyfill/">Judy Polyfill</a>
-      <a href="https://orieg.github.io/expanse/">Expanse Engine</a>
+      <a href="https://orieg.github.io/expanse/">Expanse (Rust libJudy engine)</a>
       <a href="https://orieg.github.io/">Nicolas Brousse</a>
     </div>
     <p>&copy; 2026 Nicolas Brousse. PHP Judy is released under the PHP License v3.01.</p>
