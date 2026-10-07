@@ -168,6 +168,22 @@ typedef struct _judy_cache_entry {
     zval     value;       /* PHP zval payload */
 } judy_cache_entry_t;
 
+/* One shared expiry predicate (canonical ENTRY/expiry ruling): an entry is
+ * expired iff it has a TTL and that TTL has passed; expires_at==0 means never.
+ * Empty slots (entry == NULL) are never "expired", so callers that used to
+ * special-case NULL first can drop that check. The *_at() variant takes a
+ * captured timestamp so a single pruneExpired() pass uses one consistent
+ * now; the plain version reads the clock. */
+static inline bool judy_entry_is_expired_at(const judy_cache_entry_t *entry, uint32_t now_ts)
+{
+	return entry != NULL && entry->expires_at != 0 && entry->expires_at <= now_ts;
+}
+
+static inline bool judy_entry_is_expired(const judy_cache_entry_t *entry)
+{
+	return judy_entry_is_expired_at(entry, (uint32_t)time(NULL));
+}
+
 #define JTYPE(jtype, type) { \
     if (type != TYPE_BITSET && type != TYPE_INT_TO_INT \
                            && type != TYPE_INT_TO_MIXED \
@@ -454,6 +470,14 @@ static inline void judy_set_optimize_iteration(judy_object *intern, zend_bool re
 
 zend_object *judy_object_new(zend_class_entry *ce);
 zend_object *judy_object_new_ex(zend_class_entry *ce, judy_object **ptr);
+
+/* Per-type teardown for a judy_object: detaches and frees the judy_array /
+ * judy_hs_array / key_index roots and every per-type value allocation (MIXED
+ * zvals, PACKED payloads, STRING_TO_ENTRY structs), zeroes counter and
+ * approx_payload_bytes, and no-ops when all roots are already NULL. Shared by
+ * free_storage, a failed clone's abort path and free() — that is why it is
+ * non-static: judy_object_clone lives in judy_handlers.c. */
+Word_t judy_free_array_internal(judy_object *intern);
 
 /* {{{ JUDY_ASSERT_MIRROR — internal consistency assertions.
 

@@ -20,10 +20,11 @@ $j->forEach(function ($v, $k) use (&$seen) { $seen[$k] = $v; });
 ksort($seen);
 var_dump($seen);
 
-// Expired entry: callbacks must not serve the stored value ("vx" must never
-// appear). Current behavior: the callback IS called with NULL (consistent with
-// get()). NOTE: Step 3.3 (Gate-1 expiry ruling) may change this to "not called
-// at all" — if so, Gate 3 updates this expectation deliberately, not silently.
+// Expired entry: value-serving traversals hide it entirely (Gate-1 ruling b).
+// The callback is NOT called for "gone" — foreach, keys(), filter() and map()
+// agree; count() stays the raw counter (ruling c): 4 keys, 3 live. get() on
+// the key still answers NULL, matching isset(). (Before Step 3.3 the callback
+// WAS called with NULL; the ruling settled on hiding.)
 $expiredValue = "callback-not-called";
 $j->forEach(function ($v, $k) use (&$expiredValue) { if ($k === "gone") $expiredValue = $v; });
 var_dump($expiredValue);
@@ -32,7 +33,7 @@ var_dump($expiredValue);
 $f = $j->filter(fn($v) => $v === "vb");
 var_dump($f->toArray());
 
-// map uppercases strings, leaves the NULL for the expired entry alone
+// map uppercases strings; the expired entry never reaches the callback
 $m = $j->map(fn($v) => is_string($v) ? strtoupper($v) : $v);
 $mta = $m->toArray();
 ksort($mta);
@@ -41,29 +42,25 @@ var_dump($mta);
 echo "Done\n";
 ?>
 --EXPECT--
-array(4) {
+array(3) {
   ["a"]=>
   string(2) "va"
   ["b"]=>
   string(2) "vb"
   ["c"]=>
   string(2) "vc"
-  ["gone"]=>
-  NULL
 }
-NULL
+string(19) "callback-not-called"
 array(1) {
   ["b"]=>
   string(2) "vb"
 }
-array(4) {
+array(3) {
   ["a"]=>
   string(2) "VA"
   ["b"]=>
   string(2) "VB"
   ["c"]=>
   string(2) "VC"
-  ["gone"]=>
-  NULL
 }
 Done
