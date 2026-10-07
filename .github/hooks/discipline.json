@@ -2,16 +2,31 @@
   "hooks": {
     "agentStop": [
       {
-        "bash": "discipline hook run --agent copilot --observe",
+        "bash": "command -v discipline >/dev/null 2>&1 || { echo 'discipline is not on PATH; the discipline hook did not run (https://orieg.github.io/discipline/)' >&2; exit 0; }; discipline hook run --agent copilot --observe",
         "timeoutSec": 120,
         "type": "command"
       }
     ],
     "postToolUse": [
       {
-        "bash": "discipline hook run --agent copilot --observe",
+        "bash": "command -v discipline >/dev/null 2>&1 || { echo 'discipline is not on PATH; the discipline hook did not run (https://orieg.github.io/discipline/)' >&2; exit 0; }; discipline hook run --agent copilot --observe",
         "matcher": "create|edit|str_replace_editor|apply_patch",
         "timeoutSec": 120,
+        "type": "command"
+      }
+    ],
+    "preToolUse": [
+      {
+        "bash": "command -v discipline >/dev/null 2>&1 || { echo 'discipline is not on PATH; the discipline hook did not run (https://orieg.github.io/discipline/)' >&2; exit 0; }; discipline hook run --agent copilot --event pre-tool --observe",
+        "matcher": "create|edit|str_replace_editor|apply_patch|bash",
+        "timeoutSec": 30,
+        "type": "command"
+      }
+    ],
+    "sessionStart": [
+      {
+        "bash": "command -v discipline >/dev/null 2>&1 || { echo 'discipline is not on PATH; the discipline hook did not run (https://orieg.github.io/discipline/)' >&2; exit 0; }; discipline hook run --agent copilot --event session-start",
+        "timeoutSec": 30,
         "type": "command"
       }
     ]
