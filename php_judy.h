@@ -460,12 +460,13 @@ static inline void judy_set_optimize_iteration(judy_object *intern, zend_bool re
 	intern->mirror_payload = (requested && judy_type_can_mirror(intern->type)) ? 1 : 0;
 }
 
-/* Max length, this must be a constant for it to work in
- * declarings as we cannot use runtime decided values at
- * compile time ofcourse
- *
- * TODO:	This needs to be handled better
- */
+/* String-key buffer ceiling (64 KB). This must be a compile-time constant for
+ * exactly one site: pruneExpired()'s in-loop stack buffer
+ * key_to_del[PHP_JUDY_MAX_LENGTH]. Every other use is a heap emalloc() or the
+ * object's heap key_scratch, which could be sized at runtime were the cap ever
+ * given a runtime reference. The string-key write entry points reject keys of
+ * length >= this cap (judy_string_key_cap() in php_judy.c), and the
+ * judy.string.maxlength INI may only tighten that boundary, never loosen it. */
 #define PHP_JUDY_MAX_LENGTH 65536
 
 zend_object *judy_object_new(zend_class_entry *ce);

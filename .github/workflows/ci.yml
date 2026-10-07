@@ -357,6 +357,25 @@ jobs:
         if: matrix.php-version == '8.4'
         run: php scripts/generate-api-docs.php --check
 
+      - name: Verify arginfo (Judy_arginfo.h) matches Judy.stub.php
+        if: matrix.php-version == '8.4'
+        run: |
+          # gen_stub.php is php-src's stock stub generator and is not shipped in
+          # this repository (build/ is gitignored), so fetch the copy matching
+          # this job's PHP version. NOTE: gen_stub.php --verify does NOT check
+          # generation freshness (that flag only validates aliases), so the gate
+          # is regenerate-then-diff: run the generator and fail if Judy_arginfo.h
+          # changed. The script downloads PHP-Parser into build/ on first use
+          # (also gitignored). If php-src later bumps the generator or its
+          # pinned PHP-Parser, the first red run here is that drift surfacing
+          # legitimately, not a broken step — regenerate Judy_arginfo.h.
+          mkdir -p build
+          curl --retry 5 --retry-delay 2 --retry-max-time 60 --retry-all-errors --retry-connrefused -fsSL \
+            https://raw.githubusercontent.com/php/php-src/PHP-8.4/build/gen_stub.php \
+            -o build/gen_stub.php
+          php build/gen_stub.php Judy.stub.php
+          git diff --exit-code -- Judy_arginfo.h
+
       - name: Install PIE
         if: matrix.php-version == '8.4'
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3

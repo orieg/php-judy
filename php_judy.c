@@ -535,6 +535,13 @@ static const char *judy_nul_key_error(judy_type type)
    Callers that already know the array is string-keyed use this directly. */
 static zend_always_inline int judy_reject_nul_key(judy_type type, const char *key, size_t klen)
 {
+	/* A zero-length key or bound can hold no NUL, so there is never anything
+	   to reject — and the pointer may be NULL (first()/last() called with no
+	   bound), which memchr() must not be asked to inspect even at length 0
+	   (C11 7.24.1p2). */
+	if (klen == 0) {
+		return 0;
+	}
 	if (JUDY_UNLIKELY(memchr(key, '\0', klen) != NULL)) {
 		zend_throw_exception(NULL, judy_nul_key_error(type), 0);
 		return 1;
@@ -550,6 +557,26 @@ static zend_always_inline int judy_reject_nul_key_zval(judy_object *intern, zval
 		return 0;
 	}
 	return judy_reject_nul_key(intern->type, Z_STRVAL_P(z), Z_STRLEN_P(z));
+}
+
+/* Effective string-key reject boundary. The compile-time buffer
+   (PHP_JUDY_MAX_LENGTH) is the hard ceiling; judy.string.maxlength may only
+   TIGHTEN it (a security control that silently lies is worse than none), and
+   clamps at 1 so 0/negative values become a full lockdown while the empty key
+   (which is legal) still survives. Boundary semantics match the existing
+   checks: a key of length >= the cap is rejected, cap - 1 is the longest
+   accepted key. */
+static zend_always_inline size_t judy_string_key_cap(void)
+{
+	zend_long ini = (zend_long) JUDY_G(max_length);
+
+	if (ini <= 0) {
+		return 1;    /* lockdown: only the empty key survives */
+	}
+	if ((unsigned long)ini < PHP_JUDY_MAX_LENGTH) {
+		return (size_t)ini;
+	}
+	return PHP_JUDY_MAX_LENGTH;
 }
 /* }}} */
 
@@ -1076,10 +1103,10 @@ int judy_object_write_dimension_helper(zval *object, zval *offset, zval *value) 
 		if (error_flag) {
 			return FAILURE;
 		}
-		if (pstring_key && Z_STRLEN_P(pstring_key) >= PHP_JUDY_MAX_LENGTH) {
+		if (pstring_key && Z_STRLEN_P(pstring_key) >= judy_string_key_cap()) {
 			zend_throw_exception_ex(NULL, 0,
 				"Judy string key length (%zu) exceeds maximum of %d bytes",
-				(size_t)Z_STRLEN_P(pstring_key), PHP_JUDY_MAX_LENGTH - 1);
+				(size_t)Z_STRLEN_P(pstring_key), (int)judy_string_key_cap() - 1);
 			return FAILURE;
 		}
 	} else {
@@ -2102,7 +2129,7 @@ PHP_METHOD(Judy, first)
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_LONG(index);
 	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length = 0;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2134,7 +2161,7 @@ PHP_METHOD(Judy, first)
 	} else if (intern->is_hash_keyed) {
 		/* HASH and ADAPTIVE types both keep every key in the JudySL
 		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length = 0;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2209,7 +2236,7 @@ PHP_METHOD(Judy, searchNext)
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_LONG(index);
 	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2240,7 +2267,7 @@ PHP_METHOD(Judy, searchNext)
 	} else if (intern->is_hash_keyed) {
 		/* HASH and ADAPTIVE types both keep every key in the JudySL
 		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2595,7 +2622,7 @@ PHP_METHOD(Judy, last)
 		if (PValue != NULL && PValue != PJERR)
 			RETURN_LONG(index);
 	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length = 0;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2628,7 +2655,7 @@ PHP_METHOD(Judy, last)
 	} else if (intern->is_hash_keyed) {
 		/* HASH and ADAPTIVE types both keep every key in the JudySL
 		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length = 0;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2698,7 +2725,7 @@ PHP_METHOD(Judy, prev)
 		if (JUDY_LIKELY(PValue != NULL && PValue != PJERR))
 			RETURN_LONG(index);
 	} else if (intern->type == TYPE_STRING_TO_INT || intern->type == TYPE_STRING_TO_MIXED || intern->type == TYPE_STRING_TO_ENTRY) {
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length;
 
 		uint8_t     *key = intern->key_scratch;
@@ -2729,7 +2756,7 @@ PHP_METHOD(Judy, prev)
 	} else if (intern->is_hash_keyed) {
 		/* HASH and ADAPTIVE types both keep every key in the JudySL
 		 * key_index, so first/searchNext/last/prev navigate it uniformly. */
-		char        *str;
+		char        *str = NULL;
 		size_t       str_length;
 
 		uint8_t     *key = intern->key_scratch;
@@ -6194,11 +6221,11 @@ PHP_METHOD(Judy, increment)
 		   (use-after-free). */
 		size_t key_len = ZSTR_LEN(skey);
 
-		if (key_len >= PHP_JUDY_MAX_LENGTH) {
+		if (key_len >= judy_string_key_cap()) {
 			zend_string_release(skey);
 			zend_throw_exception_ex(NULL, 0,
 				"Judy string key length (%zu) exceeds maximum of %d bytes",
-				key_len, PHP_JUDY_MAX_LENGTH - 1);
+				key_len, (int)judy_string_key_cap() - 1);
 			return;
 		}
 
@@ -6267,11 +6294,14 @@ PHP_METHOD(Judy, set)
 	/* Same cap as the write helper (offsetSet) and increment(): a longer key
 	   would be stored here and then copied back unbounded into the fixed
 	   64 KB key_scratch by the next ordered traversal (JSLF writes the found
-	   key, overflowing the buffer). Reject before anything is acquired. */
-	if (UNEXPECTED(key_len >= PHP_JUDY_MAX_LENGTH)) {
+	   key, overflowing the buffer). Reject before anything is acquired.
+	   judy.string.maxlength may tighten the compile-time boundary (clamped
+	   at 1 to keep the legal empty key working while locking everything
+	   else out). */
+	if (UNEXPECTED(key_len >= judy_string_key_cap())) {
 		zend_throw_exception_ex(NULL, 0,
 			"Judy string key length (%zu) exceeds maximum of %d bytes",
-			key_len, PHP_JUDY_MAX_LENGTH - 1);
+			key_len, (int)judy_string_key_cap() - 1);
 		return;
 	}
 

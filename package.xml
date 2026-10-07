@@ -112,6 +112,7 @@
          <file name="tests/equals_string_to_entry_001.phpt" role="test" />
          <file name="tests/increment_overflow_001.phpt" role="test" />
          <file name="tests/increment_oversized_tostring_001.phpt" role="test" />
+          <file name="tests/ini_string_maxlength_001.phpt" role="test" />
          <file name="tests/judy_type_negative_001.phpt" role="test" />
          <file name="tests/merge_with_entry_ttl_001.phpt" role="test" />
          <file name="tests/nav_boundary_001.phpt" role="test" />
