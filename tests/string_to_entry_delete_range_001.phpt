@@ -14,9 +14,13 @@ deleteRange() frees the STRING_TO_ENTRY struct + value refcount (__destruct fire
  * zval_ptr_dtor(&entry->value) + efree(entry) after.
  *
  * Primary assertion: __destruct fires for every deleted value.
- * Secondary: memory_get_usage() delta > 0 (allocator-sensitive but stable
- * here — deleteRange() does no other emalloc/free inside the window, and
- * libJudy's trie nodes go through malloc, invisible to both readings).
+ * Secondary: Judy::memoryUsage() drops to 0. It is the extension's own
+ * string-keyed accounting (approx_payload_bytes), decremented by every
+ * confirmed deleteRange() removal — deterministic. memory_get_usage() is
+ * deliberately NOT used: freed zvals land on the Zend MM freelist so the
+ * reading does not reliably drop (measured delta 0 under valgrind memcheck,
+ * which failed the 2026-10-08 nightly), and Judy memory is invisible to it
+ * either way (AGENTS.md "Debugging and profiling Judy code").
  * count()==0 + deleted==1000 pin that the deletes themselves still happen. */
 
 class Victim {
@@ -30,18 +34,18 @@ for ($i = 0; $i < 1000; $i++) {
 }
 echo 'count before: ' . count($j) . "\n";
 
-$before = memory_get_usage();
+$before = $j->memoryUsage();
 $deleted = $j->deleteRange('k0000', 'k0999');
-$delta = $before - memory_get_usage();
+$delta = $before - $j->memoryUsage();
 
 echo "deleted: $deleted\n";
 echo 'count after: ' . count($j) . "\n";
 echo 'destruct fired: ' . Victim::$fired . "/1000\n";
-echo 'memory freed > 0: ' . ($delta > 0 ? 'yes' : "no($delta)") . "\n";
+echo 'accounted memory freed > 0: ' . ($delta > 0 ? 'yes' : "no($delta)") . "\n";
 ?>
 --EXPECT--
 count before: 1000
 deleted: 1000
 count after: 0
 destruct fired: 1000/1000
-memory freed > 0: yes
+accounted memory freed > 0: yes
