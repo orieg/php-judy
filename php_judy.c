@@ -5826,7 +5826,30 @@ PHP_METHOD(Judy, __unserialize)
 	   written by a default-constructed array. Absent means off, which is the
 	   default anyway. */
 	zopt = zend_hash_str_find(Z_ARRVAL_P(arr), "optimizeIteration", sizeof("optimizeIteration") - 1);
+
+	/* Reject unknown keys in the serialized payload. __serialize() emits
+	   exactly these three; anything else is hand-crafted or corrupt data and
+	   is refused rather than silently dropped. ZEND_HASH_FOREACH_STR_KEY
+	   yields NULL for integer keys, which are equally unknown. */
+	{
+		HashTable *ht = Z_ARRVAL_P(arr);
+		zend_string *key;
+		ZEND_HASH_FOREACH_STR_KEY(ht, key) {
+			if (key == NULL
+				|| (!zend_string_equals_literal(key, "type")
+					&& !zend_string_equals_literal(key, "data")
+					&& !zend_string_equals_literal(key, "optimizeIteration"))) {
+				zend_throw_exception(NULL, "Invalid serialization data for Judy array", 0);
+				return;
+			}
+		} ZEND_HASH_FOREACH_END();
+	}
+
 	if (zopt != NULL) {
+		if (Z_TYPE_P(zopt) != IS_TRUE && Z_TYPE_P(zopt) != IS_FALSE) {
+			zend_throw_exception(NULL, "Invalid serialization data for Judy array", 0);
+			return;
+		}
 		optimize_iteration = zend_is_true(zopt) ? 1 : 0;
 	}
 
@@ -5836,8 +5859,24 @@ PHP_METHOD(Judy, __unserialize)
 	}
 
 	type = Z_LVAL_P(ztype);
+	/* Reject out-of-range types before JTYPE, whose E_WARNING path is meant
+	   for the constructor, not for unserialize. Enum-driven so the bound
+	   tracks the type list. */
+	if (type < TYPE_BITSET || type > TYPE_STRING_TO_ENTRY) {
+		zend_throw_exception(NULL, "Invalid Judy type in serialized data", 0);
+		return;
+	}
 	JTYPE(jtype, type);
 	if (jtype == 0) {
+		zend_throw_exception(NULL, "Invalid Judy type in serialized data", 0);
+		return;
+	}
+
+	/* optimizeIteration is only ever emitted by __serialize() when it actually
+	   took effect, i.e. on one of the mirror-capable types, so a true request
+	   on any other type is corrupt data. Validate before touching the object:
+	   a rejected payload must leave an already-populated object intact. */
+	if (optimize_iteration && !judy_type_can_mirror(jtype)) {
 		zend_throw_exception(NULL, "Invalid Judy type in serialized data", 0);
 		return;
 	}
