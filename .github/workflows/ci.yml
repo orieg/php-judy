@@ -1616,32 +1616,43 @@ jobs:
 
       - name: Merge head JUnit XMLs for test-floor
         # Combine all platform-specific junit artifacts into a single file
-        # so test-floor can ratchet the full test identity set.
+        # so test-floor can ratchet the full test identity set. This is
+        # written over the committed reports/junit.xml baseline: git mode
+        # reads the HEAD report from disk at test_report's path and the
+        # BASE report from the base ref at that same path, so the merged
+        # head must land where the committed baseline lives.
+        #
+        # Suites are concatenated RAW, not parsed and re-serialized:
+        # run-tests.php quotes test-name attributes with &#039; entities and
+        # xml.dom.minidom.toprettyxml() normalizes them to literal
+        # apostrophes (single -> double quotes), so a re-serialized head
+        # disagrees with the committed baseline on every name containing
+        # an apostrophe, and test-floor reads them as "dropped"
+        # (verified on the 2026-10-08 ratchet run).
         run: |
           python3 << 'PYEOF'
-          import xml.etree.ElementTree as ET
-          from xml.dom import minidom
-          import glob, os
+          import re, glob
 
-          root = ET.Element('testsuites')
-          count = 0
+          # Extract each <testsuite>...</testsuite> block verbatim. The
+          # non-greedy match stops at the first </testsuite>, which is the
+          # owning one: a testsuite never nests another, and testcases
+          # cannot contain a closing suite tag.
+          suites = []
           for xml_file in sorted(glob.glob("artifacts/junit-*/*.xml")):
-              try:
-                  tree = ET.parse(xml_file)
-                  ts = tree.getroot()
-                  # Handle both <testsuite> and <testsuites> roots
-                  suites = [ts] if ts.tag == 'testsuite' else list(ts)
-                  for suite in suites:
-                      root.append(suite)
-                      count += 1
-              except Exception as e:
-                  print(f"WARNING: skipped {xml_file}: {e}")
+              with open(xml_file, encoding='utf-8') as f:
+                  text = f.read()
+              blocks = re.findall(r'<testsuite[ >].*?</testsuite>', text, re.S)
+              suites.extend(blocks)
 
-          xml_str = ET.tostring(root, encoding='unicode')
-          parsed = minidom.parseString(xml_str)
-          with open('reports/junit-head.xml', 'w') as f:
-              f.write(parsed.toprettyxml(indent='  '))
-          print(f"Merged {count} suites -> reports/junit-head.xml")
+          head = (
+              '<?xml version="1.0" encoding="UTF-8"?>\n'
+              '<testsuites>\n'
+              + '\n'.join(suites)
+              + '\n</testsuites>\n'
+          )
+          with open('reports/junit.xml', 'w') as f:
+              f.write(head)
+          print(f"Merged {len(suites)} suites -> reports/junit.xml (raw, head over the committed baseline)")
           PYEOF
 
       - name: Run test-floor identity ratchet
@@ -1650,7 +1661,7 @@ jobs:
         uses: orieg/discipline@1edfbb883459be2364ef932eb5f438dae8b7cafa # v0.18.0
         with:
           enable: test-floor
-          test_report: reports/junit-head.xml
+          test_report: reports/junit.xml
           fail_on_warnings: true
 
       - name: Download benchmark artifacts
