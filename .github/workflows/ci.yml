@@ -1600,7 +1600,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          sparse-checkout: baselines
+          fetch-depth: 0
+          sparse-checkout: |
+            baselines
+            reports
 
       - name: Download all test artifacts
         uses: actions/download-artifact@v4
