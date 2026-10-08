@@ -1598,12 +1598,15 @@ jobs:
 
     steps:
       - name: Checkout code
+        # Full checkout, no sparse-checkout: sparse checkout makes
+        # actions/checkout fetch with --filter=blob:none (partial clone),
+        # and discipline's libgit2 cannot read promisor blobs, so every
+        # git-mode gate (assertion-reduction, test-floor...) fails with
+        # "object not found". The sentinel job uses this same full
+        # fetch-depth: 0 checkout.
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          sparse-checkout: |
-            baselines
-            reports
 
       - name: Download all test artifacts
         uses: actions/download-artifact@v4
