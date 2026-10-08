@@ -16,11 +16,11 @@
       <email>nicolas@brousse.info</email>
       <active>yes</active>
    </lead>
-   <date>2026-08-23</date>
+   <date>2026-10-08</date>
    <time>00:00:00</time>
    <version>
-      <release>2.7.1</release>
-      <api>2.7.1</api>
+      <release>2.8.0</release>
+      <api>2.8.0</api>
    </version>
    <stability>
       <release>stable</release>
@@ -28,10 +28,29 @@
    </stability>
    <license uri="http://www.php.net/license">PHP</license>
    <notes>
-- SECURITY FIX: Guard against destructor re-entrancy and heap Use-After-Free (UAF)
-  in Judy::STRING_TO_ENTRY during ArrayAccess overwrites, Judy::set(), and
-  Judy::pruneExpired() sweeps (#198). Commits new slot payload prior to invoking
-  zval_ptr_dtor(), and unlinks keys from the JudySL trie before freeing entry structs.
+- SECURITY FIX: appending to a string-keyed array ($j[] = ...) no longer
+  crashes; the append guard now enumerates all seven string-keyed types,
+  including Judy::STRING_TO_ENTRY (#217).
+- SECURITY FIX: forEach()/filter()/map() on Judy::STRING_TO_ENTRY read each
+  value through the entry accessor instead of reinterpreting a cache-entry
+  struct as a zval (out-of-bounds read / crash); equals() gained a matching
+  ENTRY branch (#217).
+- SECURITY FIX: set() rejects keys longer than the 64 KB key buffer before
+  taking a slot, closing a heap overflow reachable through an oversized key;
+  deleteRange() on string-keyed ENTRY arrays now frees the cache-entry struct
+  and its value reference instead of leaking both (#217).
+- FIX: expired STRING_TO_ENTRY values are hidden from reads and traversals
+  (iterator, get, keys/values/toArray) while count()/size() stay raw-counter
+  O(1) until pruneExpired(). mergeWith() copies TTL and flags verbatim, and
+  get_gc() collects stored ENTRY values so value cycles are collectable (#217).
+- FIX: wrong-category range bounds now throw TypeError instead of silently
+  coercing to a wrong-range read: int-keyed keys()/values()/toArray()/size()/
+  slice() reject non-numeric string bounds, and string-keyed deleteRange()
+  rejects integer bounds (#217).
+- FIX: __unserialize() validates the serialized type, payload shape and
+  optimizeIteration flag strictly before touching the object, so a malformed
+  payload throws without destroying or corrupting an already-populated array,
+  and an out-of-range type throws instead of emitting an E_WARNING (#225).
    </notes>
    <contents>
       <dir name="/">
@@ -465,6 +484,23 @@
       <configureoption default="bundled" name="with-judy" prompt="libJudy to build against: &quot;bundled&quot; compiles the bundled copy (default); give the install prefix DIR of a system libJudy to link against it instead" />
    </extsrcrelease>
    <changelog>
+      <release>
+         <date>2026-08-23</date>
+         <version>
+            <release>2.7.1</release>
+            <api>2.7.1</api>
+         </version>
+         <stability>
+            <release>stable</release>
+            <api>stable</api>
+         </stability>
+         <notes>
+- SECURITY FIX: Guard against destructor re-entrancy and heap Use-After-Free (UAF)
+  in Judy::STRING_TO_ENTRY during ArrayAccess overwrites, Judy::set(), and
+  Judy::pruneExpired() sweeps (#198). Commits new slot payload prior to invoking
+  zval_ptr_dtor(), and unlinks keys from the JudySL trie before freeing entry structs.
+         </notes>
+      </release>
       <release>
          <date>2026-08-22</date>
          <version>
