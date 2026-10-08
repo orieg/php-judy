@@ -1614,13 +1614,6 @@ jobs:
           pattern: junit-*
           path: artifacts
 
-      - name: Checkout full repo for test-floor baseline
-        # Need the full tree to read reports/junit.xml from git (base report).
-        # The earlier sparse checkout only has baselines/.
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Merge head JUnit XMLs for test-floor
         # Combine all platform-specific junit artifacts into a single file
         # so test-floor can ratchet the full test identity set.
