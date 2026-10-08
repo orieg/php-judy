@@ -1,0 +1,522 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="php" tests="258" failures="0" errors="0" skip="0" time="69.8719">
+<testsuite name="php.tests" tests="258" failures="0" errors="0" skip="0" time="69.8719">
+<testcase name='tests/001.phpt (Check for Judy presence)' time='0.1877'>
+</testcase>
+<testcase name='tests/adaptive_clone_isset_unset_empty_slice.phpt (Judy Adaptive Types: clone, isset, unset, empty, slice, append error)' time='0.1262'>
+</testcase>
+<testcase name='tests/append_key_space_exhausted_001.phpt (Judy append reports key-space exhaustion instead of wrapping onto key 0)' time='0.2338'>
+</testcase>
+<testcase name='tests/arrayaccess_void_return_001.phpt (Judy ArrayAccess offsetSet()/offsetUnset() return nothing, as their void declaration requires)' time='0.1098'>
+</testcase>
+<testcase name='tests/average_values_contract_001.phpt (averageValues() contract: empty-&gt;NULL, presence mean, hand-computed means, throw cells (+ missing sumValues() throw cells))' time='0.0954'>
+</testcase>
+<testcase name='tests/batch_empty_input_001.phpt (Judy batch operations with empty input arrays)' time='0.0881'>
+</testcase>
+<testcase name='tests/batch_large_001.phpt (Judy batch operations with 1000+ elements)' time='0.1078'>
+</testcase>
+<testcase name='tests/bench_compare_drift_001.phpt (bench-compare: PHP control decides contamination; uniform real shifts keep per-cell verdicts)' time='6.2052'>
+</testcase>
+<testcase name='tests/bench_gate_cpu_info.phpt (bench-gate: tam_cpu_info() returns structured hardware and instruction metadata)' time='0.1233'>
+</testcase>
+<testcase name='tests/bench_gate_family_pooling.phpt (bench-gate: --derive pools noise floors across operation families when runs &lt; 8 or hosts &lt; 4 (issue #205))' time='0.1561'>
+</testcase>
+<testcase name='tests/bench_memory_limit_001.phpt (judy-bench: memory_limit is a floor a caller can raise, not a cap that overrides them)' time='24.1389'>
+</testcase>
+<testcase name='tests/bench_memory_measurement_001.phpt (judy-bench: memory is measured as peak RSS, not the emalloc heap (issue #172))' time='8.2361'>
+</testcase>
+<testcase name='tests/bitset_001.phpt (Check for Judy BITSET set/unset/test methods)' time='0.1519'>
+</testcase>
+<testcase name='tests/bitset_002.phpt (Check for Judy BITSET free/count/byCount methods)' time='0.1553'>
+</testcase>
+<testcase name='tests/bitset_003.phpt (Check for Judy BITSET first/next/last/prev methods)' time='0.1237'>
+</testcase>
+<testcase name='tests/bitset_004.phpt (Check for Judy BITSET firstEmpty/nextEmpty/lastEmpty/prevEmpty methods)' time='0.1192'>
+</testcase>
+<testcase name='tests/bitset_005.phpt (Check for Judy BITSET __clone() method)' time='0.1368'>
+</testcase>
+<testcase name='tests/bitset_006.phpt (Check if Judy BITSET works with $a[] = $b)' time='0.1494'>
+</testcase>
+<testcase name='tests/bitset_007.phpt (Check if Judy BITSET works with $a[] = $b (2))' time='0.1548'>
+</testcase>
+<testcase name='tests/bitset_diff_001.phpt (Judy BITSET diff() - difference, no overlap, and empty)' time='0.1454'>
+</testcase>
+<testcase name='tests/bitset_immed_cascade_integrity_001.phpt (Judy::BITSET immediate-leaf cascade integrity (detects a miscompiled libJudy, issue #131))' time='0.1393'>
+</testcase>
+<testcase name='tests/bitset_intersect_001.phpt (Judy BITSET intersect() - overlap, disjoint, subset, and empty)' time='0.1505'>
+</testcase>
+<testcase name='tests/bitset_setops_independence_001.phpt (Judy BITSET set operations - original arrays remain unmodified)' time='0.1541'>
+</testcase>
+<testcase name='tests/bitset_setops_type_error_001.phpt (Judy set operations - type errors for unsupported and mismatched types)' time='0.1606'>
+</testcase>
+<testcase name='tests/bitset_union_001.phpt (Judy BITSET union() - disjoint, overlapping, and empty sets)' time='0.5923'>
+</testcase>
+<testcase name='tests/bitset_xor_001.phpt (Judy BITSET xor() - symmetric difference, identical (empty result))' time='0.2368'>
+</testcase>
+<testcase name='tests/boundary_binary_keys_001.phpt (Judy boundary: high-byte string keys round-trip and sort by unsigned byte; embedded NUL is rejected on all six string-keyed types)' time='0.1727'>
+</testcase>
+<testcase name='tests/boundary_empty_string_key_001.phpt (Judy boundary: empty string as key)' time='0.1587'>
+</testcase>
+<testcase name='tests/boundary_int_max_001.phpt (Judy boundary: PHP_INT_MAX as key and value for INT_TO_INT)' time='0.1464'>
+</testcase>
+<testcase name='tests/boundary_long_string_001.phpt (Judy boundary: long string keys for STRING_TO_INT)' time='0.1167'>
+</testcase>
+<testcase name='tests/boundary_special_chars_001.phpt (Judy boundary: keys with spaces, unicode, and special characters)' time='0.1560'>
+</testcase>
+<testcase name='tests/bounds_coercion_error_001.phpt (Wrong-category range bounds throw TypeError instead of coercing to a wrong-range read (Step 3.8))' time='0.1658'>
+</testcase>
+<testcase name='tests/bounds_type_error_001.phpt (Bounds TypeErrors: string bounds on int-keyed deleteRange(), int bounds on string-keyed slice())' time='0.1409'>
+</testcase>
+<testcase name='tests/bulk_insert_counter_001.phpt (Judy counter correctness after putAll for all integer-keyed types)' time='0.1701'>
+</testcase>
+<testcase name='tests/bycount_empty_slot_matrix_001.phpt (byCount() / empty-slot matrix: documented nulls on string-keyed types, full coverage on INT_TO_PACKED)' time='0.2274'>
+</testcase>
+<testcase name='tests/callback_arg_order_001.phpt (Callback contract: forEach/filter/map hand ($value, $key) on all 11 types)' time='0.1770'>
+</testcase>
+<testcase name='tests/callback_exception_001.phpt (Callback exceptions propagate from forEach/filter/map, stop iteration, leave the source intact)' time='0.1668'>
+</testcase>
+<testcase name='tests/clone_bitset_001.phpt (Test Judy BITSET clone correctness)' time='0.1736'>
+</testcase>
+<testcase name='tests/clone_int_to_int_001.phpt (Judy clone INT_TO_INT independence)' time='0.1463'>
+</testcase>
+<testcase name='tests/clone_int_to_mixed_001.phpt (Judy clone INT_TO_MIXED with complex values)' time='0.1431'>
+</testcase>
+<testcase name='tests/clone_int_to_packed_001.phpt (Judy INT_TO_PACKED clone independence (modify clone, original unchanged))' time='0.3180'>
+</testcase>
+<testcase name='tests/clone_populate_counter_agreement_001.phpt (Bulk-copy counter agreement: clone / fromArray / putAll keep counter == actual elements)' time='0.1561'>
+</testcase>
+<testcase name='tests/clone_string_to_int_001.phpt (Judy clone STRING_TO_INT independence)' time='0.1580'>
+</testcase>
+<testcase name='tests/clone_string_to_mixed_001.phpt (Judy clone STRING_TO_MIXED independence)' time='0.3240'>
+</testcase>
+<testcase name='tests/construct_required_type_001.phpt (Judy::__construct() requires $type, and stays arginfo/zpp-consistent on a debug build)' time='0.1449'>
+</testcase>
+<testcase name='tests/constructor_error_001.phpt (Judy constructor with invalid type throws exception)' time='0.1398'>
+</testcase>
+<testcase name='tests/count_bitset_insert_delete_001.phpt (Judy BITSET count() correctness during insert/re-insert/delete cycles)' time='0.1488'>
+</testcase>
+<testcase name='tests/count_int_to_int_overwrite_001.phpt (Judy INT_TO_INT count() correctness with overwrites and deletes)' time='0.1759'>
+</testcase>
+<testcase name='tests/count_int_to_mixed_overwrite_001.phpt (Judy INT_TO_MIXED count() correctness with overwrites and deletes)' time='0.1332'>
+</testcase>
+<testcase name='tests/count_int_to_packed_overwrite_001.phpt (Judy INT_TO_PACKED count() correctness with overwrites and deletes)' time='0.1481'>
+</testcase>
+<testcase name='tests/count_method_loop_int_to_int_001.phpt (Test count() method with INT_TO_INT in loops)' time='0.1453'>
+</testcase>
+<testcase name='tests/count_method_loop_string_to_mixed_001.phpt (Check for Judy count() method when using STRING_TO_MIXED in a loop)' time='0.1426'>
+</testcase>
+<testcase name='tests/debug_info_dynamic_property_001.phpt (get_debug_info: dynamic properties stay visible and never shadow the synthetic entries)' time='0.1394'>
+</testcase>
+<testcase name='tests/debug_info_empty_001.phpt (get_debug_info: empty and never-constructed Judy objects dump without boundary keys)' time='0.1663'>
+</testcase>
+<testcase name='tests/debug_info_preview_size_ini_001.phpt (judy.debug_preview_size: default, runtime ini_set, 0 disables the preview, negative clamps to 0)' time='0.1737'>
+</testcase>
+<testcase name='tests/debug_info_truncation_001.phpt (get_debug_info: element preview is bounded at judy.debug_preview_size and states the true total)' time='0.1384'>
+</testcase>
+<testcase name='tests/debug_info_var_dump_001.phpt (get_debug_info: var_dump() shows type/count/memoryUsage/boundary keys/preview for every Judy type)' time='0.1414'>
+</testcase>
+<testcase name='tests/delete_range_001.phpt (Judy deleteRange() for integer-keyed and string-keyed types)' time='0.1497'>
+</testcase>
+<testcase name='tests/entry_expiry_consistency_001.phpt (Expired STRING_TO_ENTRY entries: value-serving traversals hide them, count() stays pre-prune)' time='0.1875'>
+</testcase>
+<testcase name='tests/equals_001.phpt (Judy equals() for all types)' time='0.1181'>
+</testcase>
+<testcase name='tests/equals_string_to_entry_001.phpt (Judy::equals() on STRING_TO_ENTRY compares entry values, not raw slots)' time='0.3782'>
+</testcase>
+<testcase name='tests/filter_snapshot_semantics_001.phpt (Judy::filter() copies the value the predicate saw (snapshot), not a re-read)' time='0.2381'>
+</testcase>
+<testcase name='tests/foreach_iterator_int_to_int_001.phpt (Test foreach() iterator with INT_TO_INT Judy array)' time='0.3099'>
+</testcase>
+<testcase name='tests/foreach_iterator_int_to_mixed_001.phpt (Test foreach() iterator with INT_TO_MIXED Judy array)' time='0.1821'>
+</testcase>
+<testcase name='tests/foreach_iterator_int_to_packed_001.phpt (Judy INT_TO_PACKED external iterator (get_iterator path))' time='0.1035'>
+</testcase>
+<testcase name='tests/foreach_negative_indices_int_to_int_001.phpt (Test foreach() with negative indices in INT_TO_INT Judy array)' time='0.1933'>
+</testcase>
+<testcase name='tests/foreach_string_key_stress_001.phpt (Judy STRING_TO_MIXED foreach stress test with varying key lengths)' time='0.1676'>
+</testcase>
+<testcase name='tests/foreach_with_vardump_int_to_int_001.phpt (Test foreach() with var_dump() on INT_TO_INT Judy array)' time='0.1682'>
+</testcase>
+<testcase name='tests/free_lifecycle_001.phpt (Judy free() resets count/size to 0, array becomes empty)' time='0.1397'>
+</testcase>
+<testcase name='tests/free_reuse_001.phpt (Judy free() then re-populate and verify array works normally)' time='0.1357'>
+</testcase>
+<testcase name='tests/from_array_error_001.phpt (Judy fromArray with invalid type throws exception)' time='0.1355'>
+</testcase>
+<testcase name='tests/from_array_roundtrip_001.phpt (Judy fromArray roundtrip for all 5 types)' time='0.1511'>
+</testcase>
+<testcase name='tests/from_array_roundtrip_int_to_packed_001.phpt (Judy INT_TO_PACKED fromArray + toArray roundtrip)' time='0.1335'>
+</testcase>
+<testcase name='tests/from_array_roundtrip_string_to_mixed_hash.phpt (Judy STRING_TO_MIXED_HASH fromArray/toArray roundtrip)' time='0.1825'>
+</testcase>
+<testcase name='tests/get_all_001.phpt (Judy getAll bulk get for all 5 types including missing keys)' time='0.1556'>
+</testcase>
+<testcase name='tests/get_all_int_to_packed_001.phpt (Judy INT_TO_PACKED getAll bulk retrieval)' time='0.1156'>
+</testcase>
+<testcase name='tests/increment_boundary_001.phpt (Judy increment boundary: large amounts and edge cases)' time='0.1678'>
+</testcase>
+<testcase name='tests/increment_int_to_int_001.phpt (Judy increment for INT_TO_INT: basic, custom amount, new key auto-creates)' time='0.1560'>
+</testcase>
+<testcase name='tests/increment_overflow_001.phpt (Judy::increment() boundary arithmetic wraps instead of invoking signed-overflow UB)' time='0.1391'>
+</testcase>
+<testcase name='tests/increment_oversized_tostring_001.phpt (Judy::increment() oversized-key message reports the true key length)' time='0.1290'>
+</testcase>
+<testcase name='tests/increment_string_to_int_001.phpt (Judy increment for STRING_TO_INT: basic, counter tracking)' time='0.1495'>
+</testcase>
+<testcase name='tests/increment_string_to_int_hash_001.phpt (Judy increment for STRING_TO_INT_HASH: shares offsetSet&#039;s slot path (key_index, counter, preconditions))' time='0.1703'>
+</testcase>
+<testcase name='tests/increment_type_error_001.phpt (Judy increment throws exception on unsupported types)' time='0.1645'>
+</testcase>
+<testcase name='tests/increment_type_error_int_to_packed_001.phpt (Judy INT_TO_PACKED increment() throws exception)' time='0.1561'>
+</testcase>
+<testcase name='tests/ini_string_maxlength_001.phpt (judy.string.maxlength INI now enforces a tighter string-key cap on writes (Step 4.1))' time='0.1387'>
+</testcase>
+<testcase name='tests/int_to_int_001.phpt (Check for Judy INT_TO_INT set/unset/get methods)' time='0.1023'>
+</testcase>
+<testcase name='tests/int_to_int_002.phpt (Check for Judy INT_TO_INT free/count/byCount methods)' time='0.1221'>
+</testcase>
+<testcase name='tests/int_to_int_003.phpt (Check for Judy INT_TO_INT first/next/last/prev methods)' time='0.0949'>
+</testcase>
+<testcase name='tests/int_to_int_004.phpt (Check for Judy INT_TO_INT firstEmpty/nextEmpty/lastEmpty/prevEmpty methods)' time='0.1100'>
+</testcase>
+<testcase name='tests/int_to_int_005.phpt (Check for Judy INT_TO_INT __clone() method)' time='0.0961'>
+</testcase>
+<testcase name='tests/int_to_int_006.phpt (Check for Judy INT_TO_INT with unsigned and signed INT)' time='0.0964'>
+</testcase>
+<testcase name='tests/int_to_int_007.phpt (Check for Judy INT_TO_INT works with $a[] = $b)' time='0.1215'>
+</testcase>
+<testcase name='tests/int_to_int_008.phpt (Check for Judy INT_TO_INT works with $a[] = $b (2))' time='0.1210'>
+</testcase>
+<testcase name='tests/int_to_int_set_ops_001.phpt (Judy INT_TO_INT union() - disjoint, overlapping (left-wins), and empty)' time='0.0984'>
+</testcase>
+<testcase name='tests/int_to_int_set_ops_002.phpt (Judy INT_TO_INT intersect() - overlapping, disjoint, and empty)' time='0.0908'>
+</testcase>
+<testcase name='tests/int_to_int_set_ops_003.phpt (Judy INT_TO_INT diff() - overlapping, disjoint, and empty)' time='0.0944'>
+</testcase>
+<testcase name='tests/int_to_int_set_ops_004.phpt (Judy INT_TO_INT xor() - overlapping, disjoint, and empty)' time='0.0990'>
+</testcase>
+<testcase name='tests/int_to_mixed_001.phpt (Check for Judy INT_TO_MIXED set/unset/get methods)' time='0.1003'>
+</testcase>
+<testcase name='tests/int_to_mixed_002.phpt (Check for Judy INT_TO_MIXED free/count/byCount methods)' time='0.0952'>
+</testcase>
+<testcase name='tests/int_to_mixed_003.phpt (Check for Judy INT_TO_MIXED first/next/last/prev methods)' time='0.0869'>
+</testcase>
+<testcase name='tests/int_to_mixed_004.phpt (Check for Judy INT_TO_MIXED firstEmpty/nextEmpty/lastEmpty/prevEmpty methods)' time='0.1069'>
+</testcase>
+<testcase name='tests/int_to_mixed_005.phpt (Check for Judy INT_TO_MIXED __clone() method)' time='0.1101'>
+</testcase>
+<testcase name='tests/int_to_mixed_006.phpt (Check for Judy INT_TO_MIXED works with $a[] = $b)' time='0.1338'>
+</testcase>
+<testcase name='tests/int_to_mixed_007.phpt (Check for Judy INT_TO_MIXED works with $a[] = $b (2))' time='0.1052'>
+</testcase>
+<testcase name='tests/int_to_packed_001.phpt (Judy INT_TO_PACKED basic CRUD: set/get/unset/isset with various types)' time='0.1114'>
+</testcase>
+<testcase name='tests/int_to_packed_002.phpt (Judy INT_TO_PACKED value type preservation across serialize/deserialize roundtrip)' time='0.0916'>
+</testcase>
+<testcase name='tests/int_to_packed_003.phpt (Judy INT_TO_PACKED overwrite: old packed value freed, new stored)' time='0.1104'>
+</testcase>
+<testcase name='tests/int_to_packed_004.phpt (Judy INT_TO_PACKED append mode ($j[] = value), count, size)' time='0.1114'>
+</testcase>
+<testcase name='tests/int_to_packed_unserializable_001.phpt (Judy INT_TO_PACKED unserializable value (Closure) produces warning)' time='0.1169'>
+</testcase>
+<testcase name='tests/iterator_interface_001.phpt (Judy class implements Iterator interface)' time='0.0913'>
+</testcase>
+<testcase name='tests/iterator_methods_individual_001.phpt (Test individual Iterator interface methods (rewind, valid, current, key, next))' time='0.0922'>
+</testcase>
+<testcase name='tests/iterator_methods_simple_001.phpt (Test Iterator interface methods implementation (simple))' time='0.0977'>
+</testcase>
+<testcase name='tests/iterator_next_bug_fix_001.phpt (Test Iterator next() method to catch potential bugs on edge cases)' time='0.0977'>
+</testcase>
+<testcase name='tests/iterator_next_invalid_behavior_001.phpt (Test that next() doesn&#039;t act like rewind() when iterator is invalid)' time='0.0924'>
+</testcase>
+<testcase name='tests/iterator_rewind_bug_fix_001.phpt (Test Iterator rewind() method to catch potential bugs on empty arrays)' time='0.0905'>
+</testcase>
+<testcase name='tests/iterator_rewind_empty_bitset_001.phpt (Test that rewind() correctly handles empty BITSET arrays)' time='0.0918'>
+</testcase>
+<testcase name='tests/iterator_segfault_fix_001.phpt (Test Iterator next() method to catch potential segmentation fault)' time='0.0909'>
+</testcase>
+<testcase name='tests/iterator_valid_performance_001.phpt (Test that valid() method is efficient and uses cached state)' time='0.0986'>
+</testcase>
+<testcase name='tests/json_serialize_bitset_001.phpt (Judy BITSET jsonSerialize() - returns flat array of set indices)' time='0.0873'>
+</testcase>
+<testcase name='tests/json_serialize_empty_001.phpt (Judy jsonSerialize() - all empty types)' time='0.0953'>
+</testcase>
+<testcase name='tests/json_serialize_int_to_int_001.phpt (Judy INT_TO_INT jsonSerialize() - returns index =&gt; value object)' time='0.0831'>
+</testcase>
+<testcase name='tests/json_serialize_int_to_mixed_001.phpt (Judy INT_TO_MIXED jsonSerialize() - returns index =&gt; mixed value object)' time='0.0777'>
+</testcase>
+<testcase name='tests/json_serialize_int_to_packed_001.phpt (Judy INT_TO_PACKED json_encode output)' time='0.0788'>
+</testcase>
+<testcase name='tests/json_serialize_string_to_int_001.phpt (Judy STRING_TO_INT jsonSerialize() - returns key =&gt; value object)' time='0.0792'>
+</testcase>
+<testcase name='tests/json_serialize_string_to_mixed_001.phpt (Judy STRING_TO_MIXED jsonSerialize() - returns key =&gt; mixed value object)' time='0.0767'>
+</testcase>
+<testcase name='tests/json_serialize_string_to_mixed_hash.phpt (Judy STRING_TO_MIXED_HASH jsonSerialize() - returns key =&gt; value object sorted alphabetically)' time='0.0839'>
+</testcase>
+<testcase name='tests/judy_error.phpt (Check for Error with Judy::__construct() when object has been already instantiated)' time='0.0853'>
+</testcase>
+<testcase name='tests/judy_foreach_bitset.phpt (Check for Judy ITERATOR using foreach() and BITSET)' time='0.0812'>
+</testcase>
+<testcase name='tests/judy_foreach_int_to_int.phpt (Check for Judy ITERATOR using foreach() and INT_TO_INT)' time='0.0855'>
+</testcase>
+<testcase name='tests/judy_foreach_int_to_mixed.phpt (Check for Judy ITERATOR using foreach() and INT_TO_MIXED)' time='0.0853'>
+</testcase>
+<testcase name='tests/judy_foreach_int_to_packed.phpt (Judy INT_TO_PACKED foreach iteration (PHP_METHOD iterator path))' time='0.0830'>
+</testcase>
+<testcase name='tests/judy_foreach_string_to_int.phpt (Check for Judy ITERATOR using foreach() and STRING_TO_INT)' time='0.0893'>
+</testcase>
+<testcase name='tests/judy_foreach_string_to_mixed.phpt (Check for Judy ITERATOR using foreach() and STRING_TO_MIXED)' time='0.1009'>
+</testcase>
+<testcase name='tests/judy_memuse_001.phpt (Judy memoryUsage() returns int and increases with data)' time='0.1109'>
+</testcase>
+<testcase name='tests/judy_memuse_002.phpt (Judy memoryUsage() INT_TO_INT with 1000 elements)' time='0.1142'>
+</testcase>
+<testcase name='tests/judy_memuse_003.phpt (Judy memoryUsage() BITSET with 1000 elements)' time='0.0894'>
+</testcase>
+<testcase name='tests/judy_memuse_004.phpt (Judy memoryUsage() STRING_TO_INT returns approximate bytes)' time='0.0839'>
+</testcase>
+<testcase name='tests/judy_memuse_005.phpt (Judy memoryUsage() STRING_TO_MIXED returns approximate bytes)' time='0.0819'>
+</testcase>
+<testcase name='tests/judy_memuse_int_to_packed_001.phpt (Judy INT_TO_PACKED memoryUsage() returns int &gt; 0)' time='0.0818'>
+</testcase>
+<testcase name='tests/judy_memuse_string_approx_001.phpt (Judy memoryUsage() reports approximate bytes for every string-keyed type)' time='0.0822'>
+</testcase>
+<testcase name='tests/judy_memuse_string_approx_002.phpt (Judy memoryUsage() accounting survives clone, serialize, and every bulk mutation)' time='0.0853'>
+</testcase>
+<testcase name='tests/judy_memuse_string_to_mixed_hash.phpt (Judy memoryUsage() STRING_TO_MIXED_HASH returns approximate bytes (keys held twice))' time='0.0777'>
+</testcase>
+<testcase name='tests/judy_type.phpt (Check for Judy TYPES using Judy::getType and judy_type())' time='0.0838'>
+</testcase>
+<testcase name='tests/judy_type_negative_001.phpt (judy_type() negatives: TypeError on non-Judy values, int 0 for an unconstructed instance)' time='0.0790'>
+</testcase>
+<testcase name='tests/keys_range_int_001.phpt (Judy keys()/values()/toArray() range arguments for integer-keyed types)' time='0.0786'>
+</testcase>
+<testcase name='tests/keys_range_string_001.phpt (Judy keys()/values()/toArray() range arguments for string-keyed types)' time='0.0801'>
+</testcase>
+<testcase name='tests/keys_values_001.phpt (Judy keys() and values() for all types)' time='0.0834'>
+</testcase>
+<testcase name='tests/merge_with.phpt (Judy mergeWith() - in-place merge)' time='0.0929'>
+</testcase>
+<testcase name='tests/merge_with_entry_ttl_001.phpt (mergeWith() preserves STRING_TO_ENTRY expires_at/flags verbatim (Step 3.6))' time='0.0894'>
+</testcase>
+<testcase name='tests/merge_with_mixed_refcount_001.phpt (Judy mergeWith() - MIXED values are properly referenced, not aliased or leaked)' time='0.0950'>
+</testcase>
+<testcase name='tests/merge_with_reentrancy_001.phpt (Judy mergeWith() - a MIXED destructor that re-enters mid-merge cannot leave a stale slot)' time='0.0834'>
+</testcase>
+<testcase name='tests/merge_with_slot_reuse_001.phpt (Judy mergeWith() - contents are exact for every type, with and without optimizeIteration)' time='0.0814'>
+</testcase>
+<testcase name='tests/mirror_range_read_001.phpt (Judy bounded keys()/values()/toArray() agree with the unmirrored reference under optimizeIteration)' time='0.0768'>
+</testcase>
+<testcase name='tests/mirror_value_agreement_001.phpt (Judy *_HASH / *_ADAPTIVE: ordered traversal and point lookup agree after mixed writes, mirrored and not)' time='0.0806'>
+</testcase>
+<testcase name='tests/mirror_value_agreement_002.phpt (Judy *_HASH / *_ADAPTIVE: mirrored and unmirrored survive mutation during iteration, destructors and failed writes)' time='0.0834'>
+</testcase>
+<testcase name='tests/multiple_instances_count_int_to_int_001.phpt (Test count() method with multiple INT_TO_INT instances)' time='0.0797'>
+</testcase>
+<testcase name='tests/multiple_instances_count_string_to_mixed_001.phpt (Test count() method with multiple STRING_TO_MIXED instances)' time='0.0769'>
+</testcase>
+<testcase name='tests/nav_boundary_001.phpt (Navigation boundaries: searchNext() exclusivity on int-keyed, first()/searchNext() empty-string bounds)' time='0.0840'>
+</testcase>
+<testcase name='tests/negative_key_write_001.phpt (Judy negative integer offsets are stored as keys for all integer-keyed types)' time='0.1018'>
+</testcase>
+<testcase name='tests/optimize_iteration_001.phpt (Judy optimizeIteration: which types honour it, and every path that derives one array from another)' time='0.0785'>
+</testcase>
+<testcase name='tests/packed_complex_fallback_001.phpt (Judy INT_TO_PACKED complex types fall back to serialize correctly)' time='0.0847'>
+</testcase>
+<testcase name='tests/packed_scalar_fastpath_001.phpt (Judy INT_TO_PACKED scalar fast-path round-trips correctly)' time='0.0897'>
+</testcase>
+<testcase name='tests/phase3_adaptive_001.phpt (Judy Phase 3: Adaptive Types and SSO)' time='0.0869'>
+</testcase>
+<testcase name='tests/phase3_advanced_001.phpt (Judy Phase 3: Advanced Iteration (forEach, filter, map))' time='0.0905'>
+</testcase>
+<testcase name='tests/population_count_001.phpt (Judy populationCount() for integer-keyed types)' time='0.0898'>
+</testcase>
+<testcase name='tests/prune_expired_reentrancy_001.phpt (pruneExpired() is safe against value-destructor re-entrancy, throwing
+destructors, and miscounting (Steps 3.5))' time='0.0902'>
+</testcase>
+<testcase name='tests/put_all_001.phpt (Judy putAll bulk insert for all 5 types)' time='0.0884'>
+</testcase>
+<testcase name='tests/put_all_int_to_packed_001.phpt (Judy INT_TO_PACKED putAll bulk insert)' time='0.0805'>
+</testcase>
+<testcase name='tests/put_all_overwrite_001.phpt (Judy putAll overwrites existing keys)' time='0.0793'>
+</testcase>
+<testcase name='tests/range_named_args_001.phpt (Judy range methods accept uniform $start/$end named arguments)' time='0.0982'>
+</testcase>
+<testcase name='tests/regression_adaptive_counter_zero_value_001.phpt (Regression: adaptive INT counter must not drift when value 0 is re-stored)' time='0.0884'>
+</testcase>
+<testcase name='tests/regression_adaptive_iteration_001.phpt (Regression: adaptive types iterate/getAll correctly (no JHSG-on-JudyL type confusion))' time='0.0849'>
+</testcase>
+<testcase name='tests/regression_adaptive_navigation_001.phpt (Regression: first/last/searchNext/prev work on adaptive types (not silent NULL))' time='0.0798'>
+</testcase>
+<testcase name='tests/regression_adaptive_setops_001.phpt (Regression: set operations work correctly for STRING_TO_INT_ADAPTIVE (SSO + long keys))' time='0.0889'>
+</testcase>
+<testcase name='tests/regression_append_after_bulk_clone_001.phpt (Regression: append ($j[] =) after fromArray/putAll/clone must not overwrite index 0)' time='0.0773'>
+</testcase>
+<testcase name='tests/regression_bulk_exception_stop_001.phpt (Regression: putAll stops on the first throwing key instead of plowing on)' time='0.0798'>
+</testcase>
+<testcase name='tests/regression_callback_reentrancy_001.phpt (Regression: forEach/filter/map callbacks may re-enter without corrupting iteration)' time='0.0769'>
+</testcase>
+<testcase name='tests/regression_delete_range_destructor_reentrancy_001.phpt (Regression: deleteRange() survives a stored value&#039;s destructor re-entering the same array)' time='0.0820'>
+</testcase>
+<testcase name='tests/regression_gc_cycle_001.phpt (Regression: reference cycles through MIXED values are collectable (get_gc))' time='0.0786'>
+</testcase>
+<testcase name='tests/regression_gc_teardown_reentrancy_001.phpt (Regression #162: GC re-entrancy during MIXED teardown must not touch freed zvals)' time='0.1492'>
+</testcase>
+<testcase name='tests/regression_int_keyed_string_key_001.phpt (Regression: fromArray/putAll on integer-keyed types reject non-integer keys (no hash-as-index))' time='0.0893'>
+</testcase>
+<testcase name='tests/regression_iterator_key_leak_001.phpt (Judy regression: completed manual Iterator walks must not leak the string key)' time='0.1688'>
+</testcase>
+<testcase name='tests/regression_mixed_destructor_reentrancy_001.phpt (Regression: *_TO_MIXED overwrite/unset survive a destructor that mutates the same array)' time='0.0797'>
+</testcase>
+<testcase name='tests/regression_packed_equals_001.phpt (Regression: INT_TO_PACKED equals() terminates and compares correctly)' time='0.0842'>
+</testcase>
+<testcase name='tests/regression_string_to_entry_reentrancy_001.phpt (Regression: Judy STRING_TO_ENTRY destructor reentrancy and UAF safety)' time='2.0999'>
+</testcase>
+<testcase name='tests/regression_unserialize_reinit_leak_001.phpt (Regression: __unserialize on a populated object frees prior contents (no leak))' time='0.0805'>
+</testcase>
+<testcase name='tests/regression_unset_hash_adaptive_untouched_001.phpt (Judy unset(): STRING_TO_MIXED_HASH and both *_ADAPTIVE branches keep their probe-then-delete ordering)' time='0.1547'>
+</testcase>
+<testcase name='tests/regression_unset_string_to_int_hash_001.phpt (Judy STRING_TO_INT_HASH: unset() bookkeeping for present, absent and empty-array keys)' time='0.0784'>
+</testcase>
+<testcase name='tests/regression_unset_string_to_int_hash_002.phpt (Judy STRING_TO_INT_HASH: unset() over an adversarial key corpus and under collision churn)' time='0.0817'>
+</testcase>
+<testcase name='tests/serialize_error_001.phpt (Judy __unserialize() - error handling for invalid data)' time='0.0787'>
+</testcase>
+<testcase name='tests/serialize_roundtrip_bitset_001.phpt (Judy BITSET serialize/unserialize roundtrip)' time='0.0816'>
+</testcase>
+<testcase name='tests/serialize_roundtrip_int_to_int_001.phpt (Judy INT_TO_INT serialize/unserialize roundtrip)' time='0.0929'>
+</testcase>
+<testcase name='tests/serialize_roundtrip_int_to_mixed_001.phpt (Judy INT_TO_MIXED serialize/unserialize roundtrip)' time='0.0879'>
+</testcase>
+<testcase name='tests/serialize_roundtrip_int_to_packed_001.phpt (Judy INT_TO_PACKED PHP serialize/unserialize full roundtrip)' time='0.0825'>
+</testcase>
+<testcase name='tests/serialize_roundtrip_string_to_entry_001.phpt (Judy STRING_TO_ENTRY PHP serialize/unserialize roundtrip)' time='0.0846'>
+</testcase>
+<testcase name='tests/serialize_roundtrip_string_to_int_001.phpt (Judy STRING_TO_INT serialize/unserialize roundtrip)' time='0.0828'>
+</testcase>
+<testcase name='tests/serialize_roundtrip_string_to_mixed_001.phpt (Judy STRING_TO_MIXED serialize/unserialize roundtrip)' time='0.0924'>
+</testcase>
+<testcase name='tests/serialize_roundtrip_string_to_mixed_hash.phpt (Judy STRING_TO_MIXED_HASH serialize/unserialize roundtrip)' time='0.0904'>
+</testcase>
+<testcase name='tests/set_ops_mixed_type_throw_001.phpt (Set operations throw on same-type non-integer-valued operands, leaving both operands untouched)' time='0.0846'>
+</testcase>
+<testcase name='tests/set_oversized_key_001.phpt (Judy::set() rejects oversized keys like increment() and offsetSet() do)' time='0.0831'>
+</testcase>
+<testcase name='tests/size_range_string_001.phpt (Judy size() counts a key range on string-keyed types)' time='0.0817'>
+</testcase>
+<testcase name='tests/slice_bitset_001.phpt (Judy BITSET slice() - range extraction)' time='0.0794'>
+</testcase>
+<testcase name='tests/slice_empty_001.phpt (Judy slice() - empty source, empty range, and reversed range)' time='0.0782'>
+</testcase>
+<testcase name='tests/slice_int_to_int_001.phpt (Judy INT_TO_INT slice() - range extraction)' time='0.0834'>
+</testcase>
+<testcase name='tests/slice_int_to_mixed_001.phpt (Judy INT_TO_MIXED slice() - range extraction with mixed values)' time='0.0801'>
+</testcase>
+<testcase name='tests/slice_int_to_packed_001.phpt (Judy INT_TO_PACKED slice returns correct subset)' time='0.0857'>
+</testcase>
+<testcase name='tests/slice_string_to_int_001.phpt (Judy STRING_TO_INT slice() - range extraction by string key)' time='0.0803'>
+</testcase>
+<testcase name='tests/slice_string_to_mixed_001.phpt (Judy STRING_TO_MIXED slice() - range extraction by string key with mixed values)' time='0.0802'>
+</testcase>
+<testcase name='tests/string_key_length_sweep_001.phpt (Judy string types: key-length sweep 0-24 across word boundaries (LASTWORD_BY_VALUE equivalence; #142 O4))' time='0.0805'>
+</testcase>
+<testcase name='tests/string_to_entry_001.phpt (Judy::STRING_TO_ENTRY basic CRUD, TTL metadata and flags)' time='0.0797'>
+</testcase>
+<testcase name='tests/string_to_entry_002.phpt (Judy::STRING_TO_ENTRY ArrayAccess and Countable support)' time='0.0834'>
+</testcase>
+<testcase name='tests/string_to_entry_003.phpt (Judy::STRING_TO_ENTRY TTL expiration and pruneExpired())' time='0.0811'>
+</testcase>
+<testcase name='tests/string_to_entry_004.phpt (Judy::STRING_TO_ENTRY Iterator, navigation and toArray())' time='0.0811'>
+</testcase>
+<testcase name='tests/string_to_entry_005.phpt (Judy::STRING_TO_ENTRY clone, slice, and error handling)' time='0.0853'>
+</testcase>
+<testcase name='tests/string_to_entry_append_001.phpt (Judy STRING_TO_ENTRY rejects $j[] = (append without key) — segfault guard)' time='0.1017'>
+</testcase>
+<testcase name='tests/string_to_entry_callback_iterator_001.phpt (Judy STRING_TO_ENTRY: forEach/filter/map materialise entry values (no zval* confusion))' time='0.0934'>
+</testcase>
+<testcase name='tests/string_to_entry_delete_range_001.phpt (deleteRange() frees the STRING_TO_ENTRY struct + value refcount (__destruct fires))' time='0.0856'>
+</testcase>
+<testcase name='tests/string_to_entry_error_matrix_001.phpt (STRING_TO_ENTRY + newer-type error matrix: NUL keys, wrong receivers, getAll/jsonSerialize/increment)' time='0.0820'>
+</testcase>
+<testcase name='tests/string_to_entry_gc_cycle_001.phpt (GC cycle through STRING_TO_ENTRY values is collectable (get_gc ENTRY branch))' time='0.0804'>
+</testcase>
+<testcase name='tests/string_to_int_001.phpt (Check for Judy STRING_TO_INT set/unset/get methods)' time='0.0771'>
+</testcase>
+<testcase name='tests/string_to_int_002.phpt (Check for Judy STRING_TO_INT free/size methods)' time='0.0794'>
+</testcase>
+<testcase name='tests/string_to_int_003.phpt (Check for Judy STRING_TO_INT first/next/last/prev methods)' time='0.0801'>
+</testcase>
+<testcase name='tests/string_to_int_004.phpt (Check for Judy STRING_TO_INT __clone() method)' time='0.0836'>
+</testcase>
+<testcase name='tests/string_to_int_005.phpt (Check for Judy STRING_TO_INT works with $a[] = $b (expect error))' time='0.0921'>
+</testcase>
+<testcase name='tests/string_to_int_counter_overwrite_001.phpt (Test Judy STRING_TO_INT counter correctness on overwrite)' time='0.0983'>
+</testcase>
+<testcase name='tests/string_to_int_hash_001.phpt (Check for Judy STRING_TO_INT_HASH set/unset/get/isset methods)' time='0.0895'>
+</testcase>
+<testcase name='tests/string_to_int_hash_002.phpt (Check for Judy STRING_TO_INT_HASH values are stored as integers)' time='0.0914'>
+</testcase>
+<testcase name='tests/string_to_int_hash_003.phpt (Check for Judy STRING_TO_INT_HASH first/searchNext/last/prev methods)' time='0.0967'>
+</testcase>
+<testcase name='tests/string_to_int_hash_004.phpt (Check for Judy STRING_TO_INT_HASH foreach iteration returns keys in alphabetical order)' time='0.0926'>
+</testcase>
+<testcase name='tests/string_to_int_hash_005.phpt (Check for Judy STRING_TO_INT_HASH __clone() method)' time='0.0819'>
+</testcase>
+<testcase name='tests/string_to_int_hash_006.phpt (Check for Judy STRING_TO_INT_HASH size/count methods)' time='0.1022'>
+</testcase>
+<testcase name='tests/string_to_int_hash_007.phpt (Check for Judy STRING_TO_INT_HASH serialization (__serialize/__unserialize) and JSON)' time='0.0873'>
+</testcase>
+<testcase name='tests/string_to_int_hash_008.phpt (Check for Judy STRING_TO_INT_HASH batch operations (fromArray, putAll, getAll) and increment)' time='0.0815'>
+</testcase>
+<testcase name='tests/string_to_int_hash_009.phpt (Check for Judy STRING_TO_INT_HASH slice method)' time='0.0899'>
+</testcase>
+<testcase name='tests/string_to_mixed_001.phpt (Check for Judy STRING_TO_MIXED set/unset/get methods)' time='0.0861'>
+</testcase>
+<testcase name='tests/string_to_mixed_002.phpt (Check for Judy STRING_TO_MIXED free/size methods)' time='0.0877'>
+</testcase>
+<testcase name='tests/string_to_mixed_003.phpt (Check for Judy STRING_TO_MIXED first/next/last/prev methods)' time='0.0858'>
+</testcase>
+<testcase name='tests/string_to_mixed_004.phpt (Check for Judy STRING_TO_MIXED __clone() method)' time='0.0806'>
+</testcase>
+<testcase name='tests/string_to_mixed_005.phpt (Check for Judy STRING_TO_MIXED works with $a[] = $b (expect error))' time='0.0773'>
+</testcase>
+<testcase name='tests/string_to_mixed_hash_001.phpt (Check for Judy STRING_TO_MIXED_HASH set/unset/get/isset methods)' time='0.0787'>
+</testcase>
+<testcase name='tests/string_to_mixed_hash_002.phpt (Check for Judy STRING_TO_MIXED_HASH mixed value types (string/int/array/bool/null))' time='0.0816'>
+</testcase>
+<testcase name='tests/string_to_mixed_hash_003.phpt (Check for Judy STRING_TO_MIXED_HASH first/searchNext/last/prev methods)' time='0.0811'>
+</testcase>
+<testcase name='tests/string_to_mixed_hash_004.phpt (Check for Judy STRING_TO_MIXED_HASH foreach iteration returns keys in alphabetical order)' time='0.0801'>
+</testcase>
+<testcase name='tests/string_to_mixed_hash_005.phpt (Check for Judy STRING_TO_MIXED_HASH __clone() method)' time='0.0806'>
+</testcase>
+<testcase name='tests/string_to_mixed_hash_006.phpt (Check for Judy STRING_TO_MIXED_HASH size/count methods)' time='0.0911'>
+</testcase>
+<testcase name='tests/strings_as_keys.phpt (strings as keys in Judy)' time='0.0833'>
+</testcase>
+<testcase name='tests/strings_as_values.phpt (strings as values in Judy)' time='0.0850'>
+</testcase>
+<testcase name='tests/sum_values_001.phpt (Judy sumValues() for integer-valued types)' time='0.0862'>
+</testcase>
+<testcase name='tests/to_array_bitset_001.phpt (Judy BITSET toArray returns flat index array)' time='0.0861'>
+</testcase>
+<testcase name='tests/to_array_empty_001.phpt (Judy toArray on empty arrays returns empty array for all types)' time='0.1315'>
+</testcase>
+<testcase name='tests/to_array_int_to_int_001.phpt (Judy INT_TO_INT toArray returns index=&gt;value)' time='0.0967'>
+</testcase>
+<testcase name='tests/to_array_int_to_mixed_001.phpt (Judy INT_TO_MIXED toArray returns index=&gt;mixed)' time='0.0922'>
+</testcase>
+<testcase name='tests/to_array_int_to_packed_001.phpt (Judy INT_TO_PACKED toArray roundtrip)' time='0.0881'>
+</testcase>
+<testcase name='tests/to_array_numeric_key_coercion_001.phpt (Judy toArray() coerces integer-looking string keys; keys() does not)' time='0.0900'>
+</testcase>
+<testcase name='tests/to_array_string_to_int_001.phpt (Judy STRING_TO_INT toArray returns key=&gt;value)' time='0.0923'>
+</testcase>
+<testcase name='tests/to_array_string_to_mixed_001.phpt (Judy STRING_TO_MIXED toArray returns key=&gt;mixed)' time='0.0963'>
+</testcase>
+<testcase name='tests/unserialize_counter_001.phpt (Judy counter correctness after serialize/unserialize roundtrip for all types)' time='0.0971'>
+</testcase>
+<testcase name='tests/unserialize_malformed_data_001.phpt (__unserialize() rejects a valid type paired with non-array data)' time='0.0980'>
+</testcase>
+</testsuite>
+</testsuites>

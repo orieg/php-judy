@@ -1608,6 +1608,52 @@ jobs:
           pattern: junit-*
           path: artifacts
 
+      - name: Checkout full repo for test-floor baseline
+        # Need the full tree to read reports/junit.xml from git (base report).
+        # The earlier sparse checkout only has baselines/.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge head JUnit XMLs for test-floor
+        # Combine all platform-specific junit artifacts into a single file
+        # so test-floor can ratchet the full test identity set.
+        run: |
+          python3 << 'PYEOF'
+          import xml.etree.ElementTree as ET
+          from xml.dom import minidom
+          import glob, os
+
+          root = ET.Element('testsuites')
+          count = 0
+          for xml_file in sorted(glob.glob("artifacts/junit-*/*.xml")):
+              try:
+                  tree = ET.parse(xml_file)
+                  ts = tree.getroot()
+                  # Handle both <testsuite> and <testsuites> roots
+                  suites = [ts] if ts.tag == 'testsuite' else list(ts)
+                  for suite in suites:
+                      root.append(suite)
+                      count += 1
+              except Exception as e:
+                  print(f"WARNING: skipped {xml_file}: {e}")
+
+          xml_str = ET.tostring(root, encoding='unicode')
+          parsed = minidom.parseString(xml_str)
+          with open('reports/junit-head.xml', 'w') as f:
+              f.write(parsed.toprettyxml(indent='  '))
+          print(f"Merged {count} suites -> reports/junit-head.xml")
+          PYEOF
+
+      - name: Run test-floor identity ratchet
+        # Fork PRs run with a read-only GITHUB_TOKEN; skip API writes there.
+        if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+        uses: orieg/discipline@1edfbb883459be2364ef932eb5f438dae8b7cafa # v0.18.0
+        with:
+          enable: test-floor
+          test_report: reports/junit-head.xml
+          fail_on_warnings: true
+
       - name: Download benchmark artifacts
         uses: actions/download-artifact@v4
         with:
