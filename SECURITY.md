@@ -4,8 +4,8 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 2.7.x   | ✅        |
-| < 2.7   | ❌        |
+| 2.8.x   | ✅        |
+| < 2.8   | ❌        |
 
 ## Reporting a vulnerability
 
