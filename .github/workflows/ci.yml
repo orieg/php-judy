@@ -283,7 +283,7 @@ jobs:
           # that this job can write pull-request comments.
           persist-credentials: false
       - name: Run Discipline Diff Sentinel
-        uses: orieg/discipline@1edfbb883459be2364ef932eb5f438dae8b7cafa # v0.18.0
+        uses: orieg/discipline@49f0d47e774244615e084e207784a9a0e6082cd5 # v0.29.0
         with:
           fail_on_warnings: true
           # Judge the change with main's discipline.toml, so a PR cannot loosen
@@ -1157,7 +1157,7 @@ jobs:
           fetch-depth: 0
 
       - name: Verify package manifest and version lockstep
-        uses: orieg/discipline@1edfbb883459be2364ef932eb5f438dae8b7cafa # v0.18.0
+        uses: orieg/discipline@49f0d47e774244615e084e207784a9a0e6082cd5 # v0.29.0
         id: discipline-manifest
         with:
           enable: manifest-sync,version-lockstep
@@ -1177,7 +1177,7 @@ jobs:
         # libjudy/ ships. This asserts the other direction: tools/ and
         # research/ must not. Both were absent from package.xml only by
         # happenstance until this gate existed.
-        uses: orieg/discipline@1edfbb883459be2364ef932eb5f438dae8b7cafa # v0.18.0
+        uses: orieg/discipline@49f0d47e774244615e084e207784a9a0e6082cd5 # v0.29.0
         with:
           enable: archive-contents
           fail_on_warnings: true
@@ -1658,7 +1658,7 @@ jobs:
       - name: Run test-floor identity ratchet
         # Fork PRs run with a read-only GITHUB_TOKEN; skip API writes there.
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
-        uses: orieg/discipline@1edfbb883459be2364ef932eb5f438dae8b7cafa # v0.18.0
+        uses: orieg/discipline@49f0d47e774244615e084e207784a9a0e6082cd5 # v0.29.0
         with:
           enable: test-floor
           test_report: reports/junit.xml
@@ -2912,7 +2912,7 @@ jobs:
           fetch-depth: 0
       - name: Skip set matches each job's if (ci-skip-set)
         if: ${{ !cancelled() }}
-        uses: orieg/discipline@1edfbb883459be2364ef932eb5f438dae8b7cafa # v0.18.0
+        uses: orieg/discipline@49f0d47e774244615e084e207784a9a0e6082cd5 # v0.29.0
         with:
           suite: integrity
           fail_on_warnings: true

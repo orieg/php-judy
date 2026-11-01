@@ -24,6 +24,6 @@ jobs:
       contents: read
     steps:
       - name: Install discipline for Copilot's hooks
-        uses: orieg/discipline@1edfbb883459be2364ef932eb5f438dae8b7cafa # v0.18.0
+        uses: orieg/discipline@49f0d47e774244615e084e207784a9a0e6082cd5 # v0.29.0
         with:
           install_only: 'true'

@@ -1,5 +1,6 @@
 #!/bin/bash
 # Written by `discipline hook install --agent claude-code`.
+# discipline-hook-file: sums=release sha256=78c33496ba2f18958b18a8bb15a23610b7f40f84b66f23bdb1ceb3bd10d83e38
 # A Claude Code cloud session starts on a fresh VM without discipline. This installs
 # the pinned release, checksum-verified, so the hooks in .claude/settings.json can
 # check the change. Locally it does nothing: install discipline yourself.
@@ -9,7 +10,7 @@ set -u
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
 command -v discipline >/dev/null 2>&1 && exit 0
 
-version="v0.18.0"
+version="v0.29.0"
 say() { echo "discipline bootstrap: $*" >&2; }
 case "$(uname -m)" in
   x86_64|amd64) arch="x86_64" ;;
