@@ -13,6 +13,12 @@
         "matcher": "create|edit|str_replace_editor|apply_patch",
         "timeoutSec": 120,
         "type": "command"
+      },
+      {
+        "bash": "command -v discipline >/dev/null 2>&1 || { echo 'discipline is not on PATH; the discipline hook did not run (https://orieg.github.io/discipline/)' >&2; exit 0; }; discipline hook run --help 2>/dev/null | grep -q post-tool || { echo 'discipline on PATH predates v0.22.0 (no --event post-tool); the post-tool hook did not run (https://orieg.github.io/discipline/)' >&2; exit 0; }; discipline hook run --agent copilot --event post-tool",
+        "matcher": "bash",
+        "timeoutSec": 30,
+        "type": "command"
       }
     ],
     "preToolUse": [
