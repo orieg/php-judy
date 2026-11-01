@@ -47,6 +47,11 @@ diff_only = true
 [gates.agent-scratch]
 enabled = true
 
+[gates.provenance-tags]
+enabled = true
+diff_only = true
+# BENCHMARK.md and examples carry measured numbers; require (measured|target|projected) tags.
+
 # ── CI & Packaging Integrity ─────────────────────────────────────────────
 [gates.ci-integrity]
 enabled = true
@@ -125,3 +130,23 @@ paths = [
     "**/*bench*.txt",
     "baselines/latest.json",
 ]
+
+# ── Verification (intentionally off for this project) ────────────────────
+# sanitizers: discipline's gate is Rust/Cargo-oriented (nightly toolchain) and
+# has no command hook for a C/PHP extension build. Memory safety for the C side
+# is covered by a dedicated CI job instead (see issue/PR notes).
+# [gates.sanitizers]
+# enabled = false
+
+# command: would duplicate the make test run on every discipline check and slow
+# local/PR checks; test-floor already ratchets test counts. Revisit if a cheap
+# smoke command is wanted.
+# [gates.command]
+# enabled = false
+
+# citation-metadata: no CITATION.cff/.zenodo.json; enable only if a Zenodo DOI
+# or academic citation record is desired for releases.
+# [gates.citation-metadata]
+# enabled = false
+
+# agents-md: CLAUDE.md is a short quick reference, AGENTS.md is the full guide.
